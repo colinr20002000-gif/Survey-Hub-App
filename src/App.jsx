@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
@@ -735,15 +735,7 @@ const ProjectsPage = ({ onViewProject }) => {
 };
 
 const AssignedTasksPage = () => {
-    const [tasks, setTasks] = useState([]);
-
-    useEffect(() => {
-  const getTasks = async () => {
-    const { data } = await supabase.from('tasks').select();
-    setTasks(data || []);
-  };
-  getTasks();
-    }, []);
+    const [tasks, setTasks] = useState(mockAssignedTasks);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [taskToEdit, setTaskToEdit] = useState(null);
 
@@ -928,15 +920,7 @@ const TaskModal = ({ isOpen, onClose, onSave, task, users }) => {
 };
 
 const DeliveryTrackerPage = () => {
-    const [jobs, setJobs] = useState([]);
-
-    useEffect(() => {
-  const getJobs = async () => {
-    const { data } = await supabase.from('jobs').select();
-    setJobs(data || []);
-  };
-  getJobs();
-    }, []);
+    const [jobs, setJobs] = useState(initialJobs);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [jobToEdit, setJobToEdit] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -1760,15 +1744,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
 
 
 const UserAdminPage = ({}) => {
-    const [users, setUsers] = useState([]);
-
-    useEffect(() => {
-  const getUsers = async () => {
-    const { data } = await supabase.from('users').select();
-    setUsers(data || []);
-  };
-  getUsers();
-    }, []);
+    const [users, setUsers] = useState(Object.values(mockUsers));
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -2834,12 +2810,13 @@ const ProjectProvider = ({ children }) => {
     const [projects, setProjects] = useState([]);
 
     useEffect(() => {
-  const getProjects = async () => {
-    const { data } = await supabase.from('projects').select();
-    setProjects(data || []);
-  };
-  getProjects();
+     const getProjects = async () => {
+      const { data } = await supabase.from('projects').select();
+      setProjects(data || []);
+     };
+     getProjects();
     }, []);
+
 
     const addProject = (projectData) => {
         const newProject = { 
