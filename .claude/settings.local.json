@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(E:\\/**)",
+      "Read(E:\\/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

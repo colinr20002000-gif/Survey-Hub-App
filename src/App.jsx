@@ -4,7 +4,7 @@ import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, C
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
 
-// --- MOCK DATA & PRIVILEGES ---
+// --- MOCK DATA & PRIVILEGES (Auth data is still mocked) ---
 const mockUsers = {
   '1': { id: 1, username: 'Colin.Rogers', name: 'Colin Rogers', role: 'Admin', teamRole: 'Office Staff', avatar: 'CR', email: 'colin.rogers@surveyhub.co.uk', last_login: '2024-08-25 10:30', password: 'Survey Hub', privilege: 'Admin' },
   '2': { id: 2, username: 'Ben.Carter', name: 'Ben Carter', role: 'Manager', teamRole: 'Project Team', avatar: 'BC', email: 'ben.carter@surveyhub.co.uk', last_login: '2024-08-25 09:15', password: 'password123', privilege: 'Project Managers' },
@@ -173,6 +173,8 @@ const mockAuditTrail = [
 const AuthContext = createContext(null);
 const ThemeContext = createContext(null);
 const ProjectContext = createContext(null);
+const TaskContext = createContext(null);
+const useTasks = () => useContext(TaskContext);
 const useAuth = () => useContext(AuthContext);
 const useTheme = () => useContext(ThemeContext);
 const useProjects = () => useContext(ProjectContext);
@@ -475,7 +477,7 @@ const DashboardPage = ({ onViewProject }) => {
 };
 
 const ProjectsPage = ({ onViewProject }) => {
-    const { projects, addProject, updateProject, deleteProject } = useProjects();
+    const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'date_created', direction: 'descending' });
     const [itemsPerPage, setItemsPerPage] = useState(5);
@@ -506,6 +508,24 @@ const ProjectsPage = ({ onViewProject }) => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    if (loading) {
+        return <div className="p-8 text-2xl font-semibold text-center">Loading Projects...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                <h2 className="font-bold text-xl mb-2">Error Loading Projects</h2>
+                <p>There was a problem fetching data from the database.</p>
+                <p className="mt-4 font-bold">Error Message:</p>
+                <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
+                <p className="mt-4">
+                    Please check the browser's developer console (F12) for more details. This could be due to an RLS policy, an incorrect API key in Vercel, or a network issue.
+                </p>
+            </div>
+        );
+    }
+    
     const filteredProjects = useMemo(() => projects.filter(p => {
         const matchesSearch = p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             p.project_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -735,31 +755,33 @@ const ProjectsPage = ({ onViewProject }) => {
 };
 
 const AssignedTasksPage = () => {
-    const [tasks, setTasks] = useState(mockAssignedTasks);
+    const { tasks, addTask, updateTask, deleteTask, loading, error } = useTasks();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [taskToEdit, setTaskToEdit] = useState(null);
 
-    const handleSaveTask = (taskData) => {
+    const handleSaveTask = async (taskData) => {
         if (taskToEdit) {
-            setTasks(tasks.map(t => t.id === taskToEdit.id ? { ...t, ...taskData } : t));
+            await updateTask({ ...taskToEdit, ...taskData });
         } else {
-            const newTask = { id: Date.now(), ...taskData, completed: false, project: 'General' };
-            setTasks([newTask, ...tasks]);
+            const newTask = { ...taskData, completed: false, project: 'General' };
+            await addTask(newTask);
         }
         setIsModalOpen(false);
         setTaskToEdit(null);
     };
 
-    const handleToggleComplete = (taskId) => {
-        setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
+    const handleToggleComplete = async (task) => {
+        await updateTask({ ...task, completed: !task.completed });
     };
 
-    const handleDeleteTask = (taskId) => {
-        setTasks(tasks.filter(t => t.id !== taskId));
+    const handleDeleteTask = async (taskId) => {
+        await deleteTask(taskId);
     };
     
-    const handleClearCompleted = () => {
-        setTasks(tasks.filter(t => !t.completed));
+    const handleClearCompleted = async () => {
+        const completedTasks = tasks.filter(t => t.completed);
+        const deletePromises = completedTasks.map(task => deleteTask(task.id));
+        await Promise.all(deletePromises);
     };
 
     const openEditModal = (task) => {
@@ -771,6 +793,21 @@ const AssignedTasksPage = () => {
         setTaskToEdit(null);
         setIsModalOpen(true);
     };
+
+    if (loading) {
+        return <div className="p-8 text-2xl font-semibold text-center">Loading Tasks...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                <h2 className="font-bold text-xl mb-2">Error Loading Tasks</h2>
+                <p>There was a problem fetching tasks from the database.</p>
+                <p className="mt-4 font-bold">Error Message:</p>
+                <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
+            </div>
+        );
+    }
 
     const incompleteTasks = tasks.filter(t => !t.completed);
     const completedTasks = tasks.filter(t => t.completed);
@@ -787,7 +824,7 @@ const AssignedTasksPage = () => {
                     <h3 className="text-lg font-semibold mb-4">To Do ({incompleteTasks.length})</h3>
                     <ul className="space-y-2">
                         {incompleteTasks.map(task => (
-                            <TaskItem key={task.id} task={task} onToggle={handleToggleComplete} onEdit={openEditModal} onDelete={handleDeleteTask} />
+                            <TaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} />
                         ))}
                     </ul>
                 </div>
@@ -800,7 +837,7 @@ const AssignedTasksPage = () => {
                         </div>
                         <ul className="space-y-2">
                             {completedTasks.map(task => (
-                                <TaskItem key={task.id} task={task} onToggle={handleToggleComplete} onEdit={openEditModal} onDelete={handleDeleteTask} />
+                                <TaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} />
                             ))}
                         </ul>
                     </div>
@@ -919,8 +956,11 @@ const TaskModal = ({ isOpen, onClose, onSave, task, users }) => {
     );
 };
 
+// --- REPLACE DeliveryTrackerPage with this new version ---
 const DeliveryTrackerPage = () => {
-    const [jobs, setJobs] = useState(initialJobs);
+    // MODIFICATION 1: Get data and functions from the new useJobs hook
+    const { jobs, addJob, updateJob, deleteJob, loading, error } = useJobs();
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [jobToEdit, setJobToEdit] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -947,12 +987,13 @@ const DeliveryTrackerPage = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const handleSaveJob = (jobData) => {
+    // MODIFICATION 2: Update save handler to use async context functions
+    const handleSaveJob = async (jobData) => {
         if (jobToEdit) {
-            setJobs(jobs.map(j => j.id === jobToEdit.id ? { ...j, ...jobData } : j));
+            await updateJob({ ...jobToEdit, ...jobData });
         } else {
-            const newJob = { id: Date.now(), ...jobData, archived: false };
-            setJobs([newJob, ...jobs]);
+            const newJob = { ...jobData, archived: false };
+            await addJob(newJob);
         }
         setIsModalOpen(false);
         setJobToEdit(null);
@@ -963,8 +1004,9 @@ const DeliveryTrackerPage = () => {
         setIsDeleteModalOpen(true);
     };
 
-    const confirmDelete = () => {
-        setJobs(jobs.filter(j => j.id !== jobToDelete.id));
+    // MODIFICATION 3: Update delete handler
+    const confirmDelete = async () => {
+        await deleteJob(jobToDelete.id);
         setIsDeleteModalOpen(false);
         setJobToDelete(null);
     };
@@ -974,14 +1016,18 @@ const DeliveryTrackerPage = () => {
         setIsArchiveModalOpen(true);
     };
 
-    const confirmArchive = () => {
-        setJobs(jobs.map(j => j.id === jobToArchive.id ? { ...j, archived: true } : j));
+    // MODIFICATION 4: Update archive handler (it's an update operation)
+    const confirmArchive = async () => {
+        await updateJob({ ...jobToArchive, archived: true });
         setIsArchiveModalOpen(false);
         setJobToArchive(null);
     };
 
-    const handleUnarchiveJob = (jobId) => {
-        setJobs(jobs.map(j => j.id === jobId ? { ...j, archived: false } : j));
+    const handleUnarchiveJob = async (jobId) => {
+        const jobToUnarchive = jobs.find(j => j.id === jobId);
+        if (jobToUnarchive) {
+            await updateJob({ ...jobToUnarchive, archived: false });
+        }
     };
     
     const openEditModal = (job) => {
@@ -995,10 +1041,10 @@ const DeliveryTrackerPage = () => {
     };
 
     const filteredJobs = useMemo(() => jobs.filter(j => {
-        const matchesSearch = j.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            j.projectNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            j.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            j.client.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = (j.projectName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            (j.projectNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            (j.itemName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            (j.client?.toLowerCase() || '').includes(searchTerm.toLowerCase());
         const matchesArchive = showArchived ? j.archived : !j.archived;
         const matchesDiscipline = filterDiscipline.length === 0 || filterDiscipline.includes(j.discipline);
         const matchesStatus = filterStatus.length === 0 || filterStatus.includes(j.status);
@@ -1056,6 +1102,22 @@ const DeliveryTrackerPage = () => {
         { key: 'actualDeliveryDate', label: 'Actual Delivery' },
         { key: 'status', label: 'Status' },
     ];
+    
+    // MODIFICATION 5: Add loading and error states
+    if (loading) {
+        return <div className="p-8 text-2xl font-semibold text-center">Loading Delivery Tracker...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                <h2 className="font-bold text-xl mb-2">Error Loading Jobs</h2>
+                <p>There was a problem fetching job data from the database.</p>
+                <p className="mt-4 font-bold">Error Message:</p>
+                <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
+            </div>
+        );
+    }
 
     return (
         <div className="p-4 md:p-6">
@@ -1263,10 +1325,12 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose }) => {
 const ResourcePage = ({ onViewProject }) => {
     const { user: currentUser } = useAuth();
     const isAdminOrManager = currentUser.role === 'Admin' || currentUser.role === 'Manager';
-    const allUsers = useMemo(() => Object.values(mockUsers), []);
+    const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
     
-    const [allocations, setAllocations] = useState(mockResourceAllocations);
-    const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStartDate(new Date('2025-08-26')));
+    const [allocations, setAllocations] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStartDate(new Date()));
     const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
     const [isManageUsersModalOpen, setIsManageUsersModalOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -1294,6 +1358,84 @@ const ResourcePage = ({ onViewProject }) => {
     };
 
     useEffect(() => {
+        const getResourceAllocations = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('resource_allocations')
+                    .select('*');
+
+                if (fetchError) {
+                    console.error('Error fetching resource allocations:', fetchError);
+                    setError(fetchError.message);
+                    setAllocations({}); 
+                    return;
+                }
+
+                const formattedAllocations = {};
+                
+                data.forEach(allocation => {
+                    if (!allocation.allocation_date) {
+                        return;
+                    }
+                    const dateParts = allocation.allocation_date.split('-').map(Number);
+                    const allocationDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+                    const weekStart = getWeekStartDate(allocationDate);
+                    const weekKey = formatDateForKey(weekStart);
+                    
+                    if (!formattedAllocations[weekKey]) {
+                        formattedAllocations[weekKey] = {};
+                    }
+                    if (!formattedAllocations[weekKey][allocation.user_id]) {
+                        formattedAllocations[weekKey][allocation.user_id] = {
+                            assignments: Array(7).fill(null)
+                        };
+                    }
+                    
+                    const dayIndex = (allocationDate.getDay() + 6) % 7;
+                    
+                    let assignmentData = null;
+                    if (allocation.leave_type) {
+                        assignmentData = {
+                            type: 'leave',
+                            leaveType: allocation.leave_type,
+                            comment: allocation.comment || ''
+                        };
+                    } else if (allocation.assignment_type === 'project') {
+                        assignmentData = {
+                            type: 'project',
+                            projectNumber: allocation.project_number || '',
+                            projectName: allocation.project_name || '',
+                            client: allocation.client || '',
+                            task: allocation.task || '',
+                            shift: allocation.shift || '',
+                            time: allocation.time || '',
+                            comment: allocation.comment || '',
+                            projectId: allocation.project_id || null
+                        };
+                    }
+                    
+                    if (dayIndex >= 0 && dayIndex < 7) {
+                       formattedAllocations[weekKey][allocation.user_id].assignments[dayIndex] = assignmentData;
+                    }
+                });
+                
+                setAllocations(formattedAllocations);
+
+            } catch (err) {
+                console.error('Unexpected error:', err);
+                setError('Failed to load resource allocations');
+                setAllocations({}); 
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getResourceAllocations();
+    }, []);
+
+    useEffect(() => {
         const handleClickOutside = (event) => {
             if (filterRef.current && !filterRef.current.contains(event.target)) {
                 setIsFilterOpen(false);
@@ -1305,6 +1447,14 @@ const ResourcePage = ({ onViewProject }) => {
         document.addEventListener("click", handleClickOutside);
         return () => document.removeEventListener("click", handleClickOutside);
     }, [contextMenu.visible]);
+
+        useEffect(() => {
+        if (allUsers.length > 0) {
+            // This line runs whenever the allUsers list changes.
+            // It gets all the current user IDs and sets them as visible.
+            setVisibleUserIds(allUsers.map(u => u.id));
+        }
+    }, [allUsers]);
 
     const displayedUsers = useMemo(() => {
         let usersToDisplay = allUsers;
@@ -1345,13 +1495,14 @@ const ResourcePage = ({ onViewProject }) => {
             visible: true,
             x: e.pageX,
             y: e.pageY,
-            cellData: { userId, dayIndex, assignment }
+            cellData: { userId, dayIndex, assignment, date: weekDates[dayIndex] }
         });
     };
 
-    const handleSaveAllocation = (allocationData, cellToUpdate = selectedCell) => {
-        const { userId, dayIndex } = cellToUpdate;
-        const weekKey = formatDateForKey(currentWeekStart);
+    const handleSaveAllocation = async (allocationData, cellToUpdate = selectedCell) => {
+        const { userId } = cellToUpdate;
+        const weekKey = formatDateForKey(getWeekStartDate(cellToUpdate.date));
+        const dayIndex = (cellToUpdate.date.getDay() + 6) % 7;
 
         setAllocations(prev => {
             const newAllocations = JSON.parse(JSON.stringify(prev));
@@ -1362,7 +1513,7 @@ const ResourcePage = ({ onViewProject }) => {
                 newAllocations[weekKey][userId].assignments[dayIndex] = null;
             } else if (allocationData.type === 'leave') {
                 newAllocations[weekKey][userId].assignments[dayIndex] = allocationData;
-            } else if (Object.values(allocationData).every(val => val === '' || val === 'Days' || val === null)) {
+            } else if (!Object.values(allocationData).some(val => val !== '' && val !== 'Days' && val !== null)) {
                  newAllocations[weekKey][userId].assignments[dayIndex] = null;
             } else {
                  newAllocations[weekKey][userId].assignments[dayIndex] = {...allocationData, type: 'project'};
@@ -1370,12 +1521,81 @@ const ResourcePage = ({ onViewProject }) => {
             
             return newAllocations;
         });
+
         setIsAllocationModalOpen(false);
+
+        try {
+            const allocationDate = cellToUpdate.date;
+            const allocationDateString = formatDateForKey(allocationDate);
+            
+            const { data: existingRecord } = await supabase
+                .from('resource_allocations')
+                .select('id')
+                .eq('user_id', parseInt(userId))
+                .eq('allocation_date', allocationDateString)
+                .single();
+
+            const shouldDelete = allocationData === null || 
+                                (allocationData.type !== 'leave' && 
+                                 !Object.values(allocationData).some(val => val !== '' && val !== 'Days' && val !== null));
+
+            if (shouldDelete) {
+                if (existingRecord) {
+                    const { error } = await supabase
+                        .from('resource_allocations')
+                        .delete()
+                        .eq('id', existingRecord.id);
+                    if (error) throw error;
+                }
+            } else {
+                let recordToUpsert = {
+                    user_id: parseInt(userId),
+                    allocation_date: allocationDateString,
+                };
+
+                if (allocationData.type === 'leave') {
+                    recordToUpsert = {
+                        ...recordToUpsert,
+                        assignment_type: 'leave',
+                        leave_type: allocationData.leaveType,
+                        comment: allocationData.comment || null,
+                        project_id: null, project_number: null, project_name: null, client: null, task: null, shift: null, time: null
+                    };
+                } else {
+                    recordToUpsert = {
+                        ...recordToUpsert,
+                        assignment_type: 'project',
+                        project_id: allocationData.projectId || null,
+                        project_number: allocationData.projectNumber || null,
+                        project_name: allocationData.projectName || null,
+                        client: allocationData.client || null,
+                        task: allocationData.task || null,
+                        shift: allocationData.shift || null,
+                        time: allocationData.time || null,
+                        comment: allocationData.comment || null,
+                        leave_type: null,
+                    };
+                }
+
+                if (existingRecord) {
+                    recordToUpsert.id = existingRecord.id;
+                }
+                
+                const { error } = await supabase
+                    .from('resource_allocations')
+                    .upsert(recordToUpsert);
+                if (error) throw error;
+            }
+        } catch (err) {
+            console.error('Error saving allocation to Supabase:', err);
+            alert(`Failed to save allocation: ${err.message}`);
+        }
     };
     
     const handleContextMenuAction = (action) => {
         const { cellData } = contextMenu;
         if (!cellData) return;
+        const cellToUpdate = { userId: cellData.userId, dayIndex: cellData.dayIndex, date: cellData.date };
 
         if (action === 'goToProject') {
             const projectToView = initialProjects.find(p => p.project_number === cellData.assignment.projectNumber);
@@ -1387,11 +1607,11 @@ const ResourcePage = ({ onViewProject }) => {
         }
         
         if (action === 'copy' || action === 'cut') {
-            setClipboard({ type: action, data: cellData.assignment, sourceCell: cellData });
+            setClipboard({ type: action, data: cellData.assignment, sourceCell: cellToUpdate });
         } else if (action === 'delete') {
-            handleSaveAllocation(null, cellData);
+            handleSaveAllocation(null, cellToUpdate);
         } else if (action === 'paste') {
-            handleSaveAllocation(clipboard.data, cellData);
+            handleSaveAllocation(clipboard.data, cellToUpdate);
             if (clipboard.type === 'cut') {
                 handleSaveAllocation(null, clipboard.sourceCell);
                 setClipboard({ type: null, data: null, sourceCell: null });
@@ -1418,6 +1638,17 @@ const ResourcePage = ({ onViewProject }) => {
     const currentWeekAllocations = allocations[weekKey] || {};
     const selectedUser = selectedCell ? mockUsers[selectedCell.userId] : null;
 
+    if (loading) {
+        return (
+            <div className="p-4 md:p-6 flex items-center justify-center min-h-96">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600 dark:text-gray-300">Loading Resource Allocations...</p>
+                </div>
+            </div>
+        );
+    }
+    
     return (
         <div className="p-4 md:p-6">
             <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
@@ -1458,6 +1689,11 @@ const ResourcePage = ({ onViewProject }) => {
                 </div>
                 <h2 className="text-lg font-semibold text-center">Week {fiscalWeek}: {formatDateForDisplay(weekDates[0])} - {formatDateForDisplay(weekDates[6])}, {currentWeekStart.getFullYear()}</h2>
             </div>
+            {error && (
+                 <div className="p-4 mb-4 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 rounded">
+                    Error loading resource allocations from the database: {error}.
+                </div>
+            )}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
                 <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
@@ -1671,7 +1907,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     };
 
     const handleClear = () => {
-        onSave({ type: 'project', projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Days', projectId: null });
+        onSave(null);
     }
     
     const handleLeaveChange = (type) => {
@@ -1742,9 +1978,95 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     );
 };
 
+// --- ADD THIS NEW USER PROVIDER ---
+const UserContext = createContext(null);
+const useUsers = () => useContext(UserContext);
 
-const UserAdminPage = ({}) => {
-    const [users, setUsers] = useState(Object.values(mockUsers));
+const UserProvider = ({ children }) => {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const getUsers = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                // Fetch all users from the 'users' table
+                const { data, error: fetchError } = await supabase
+                    .from('users')
+                    .select('*')
+                    .order('name', { ascending: true });
+
+                if (fetchError) {
+                    throw fetchError;
+                }
+                setUsers(data || []);
+            } catch (err) {
+                console.error("Error fetching users:", err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getUsers();
+    }, []);
+
+    const addUser = async (userData) => {
+        const { data, error } = await supabase
+            .from('users')
+            .insert([userData])
+            .select();
+        
+        if (error) {
+             console.error('Error adding user:', error);
+             alert(`Error adding user: ${error.message}`);
+             return;
+        }
+        if (data) setUsers(prev => [...prev, data[0]].sort((a, b) => a.name.localeCompare(b.name)));
+    };
+
+    const updateUser = async (updatedUser) => {
+        const { data, error } = await supabase
+            .from('users')
+            .update(updatedUser)
+            .eq('id', updatedUser.id)
+            .select();
+            
+        if (error) {
+            console.error('Error updating user:', error);
+            alert(`Error updating user: ${error.message}`);
+        } else if (data) {
+            setUsers(prev => prev.map(u => u.id === updatedUser.id ? data[0] : u));
+        }
+    };
+
+    const deleteUser = async (userId) => {
+        const { error } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', userId);
+            
+        if (error) {
+            console.error('Error deleting user:', error);
+            alert(`Error deleting user: ${error.message}`);
+        } else {
+            setUsers(prev => prev.filter(u => u.id !== userId));
+        }
+    };
+    
+    const value = { users, addUser, updateUser, deleteUser, loading, error };
+
+    return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
+};
+
+
+// --- REPLACE UserAdminPage with this new version ---
+const UserAdminPage = () => {
+    // MODIFICATION 1: Get data and functions from the new useUsers hook
+    const { users, addUser, updateUser, deleteUser, loading, error } = useUsers();
+    
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -1754,19 +2076,26 @@ const UserAdminPage = ({}) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
 
-    const handleSaveUser = (userData) => {
+    // MODIFICATION 2: Update save handler to use async context functions
+    const handleSaveUser = async (userData) => {
+        // Prepare data for the database (snake_case)
+        const userRecord = {
+            ...userData,
+            team_role: userData.teamRole, // Map from camelCase to snake_case
+        };
+        delete userRecord.teamRole; // Remove the old key
+
         if (userToEdit) {
-            setUsers(users.map(u => u.id === userToEdit.id ? { ...u, ...userData } : u));
+            await updateUser({ ...userToEdit, ...userRecord });
         } else {
             const newUser = { 
-                id: Date.now(), 
-                ...userData, 
-                avatar: userData.name.split(' ').map(n => n[0]).join(''),
-                last_login: 'Never'
+                ...userRecord, 
+                avatar: userRecord.name.split(' ').map(n => n[0]).join(''),
             };
-            setUsers([...users, newUser]);
+            await addUser(newUser);
         }
         setIsModalOpen(false);
+        setUserToEdit(null);
     };
     
     const openEditModal = (user) => {
@@ -1784,8 +2113,9 @@ const UserAdminPage = ({}) => {
         setIsDeleteModalOpen(true);
     };
 
-    const confirmDelete = () => {
-        setUsers(users.filter(u => u.id !== userToDelete.id));
+    // MODIFICATION 3: Update delete handler
+    const confirmDelete = async () => {
+        await deleteUser(userToDelete.id);
         setIsDeleteModalOpen(false);
         setUserToDelete(null);
     };
@@ -1804,11 +2134,11 @@ const UserAdminPage = ({}) => {
     };
 
     const filteredUsers = useMemo(() => users.filter(user => 
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.teamRole.toLowerCase().includes(searchTerm.toLowerCase())
+        (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (user.role && user.role.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (user.team_role && user.team_role.toLowerCase().includes(searchTerm.toLowerCase()))
     ), [users, searchTerm]);
 
     const sortedUsers = useMemo(() => {
@@ -1820,6 +2150,22 @@ const UserAdminPage = ({}) => {
         });
         return sortableItems;
     }, [filteredUsers, sortConfig]);
+    
+    // MODIFICATION 4: Add loading and error states
+    if (loading) {
+        return <div className="p-8 text-2xl font-semibold text-center">Loading Users...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                <h2 className="font-bold text-xl mb-2">Error Loading Users</h2>
+                <p>There was a problem fetching user data from the database.</p>
+                <p className="mt-4 font-bold">Error Message:</p>
+                <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
+            </div>
+        );
+    }
 
     return (
         <div className="p-4 md:p-6">
@@ -1839,7 +2185,7 @@ const UserAdminPage = ({}) => {
                 <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                         <tr>
-                            {['name', 'username', 'privilege', 'teamRole', 'last_login'].map(key => (
+                            {['name', 'username', 'privilege', 'team_role', 'last_login'].map(key => (
                                 <th key={key} scope="col" className="px-6 py-3 cursor-pointer" onClick={() => requestSort(key)}>
                                     <div className="flex items-center">{key.replace('_', ' ')}<span className="ml-2">{getSortIndicator(key)}</span></div>
                                 </th>
@@ -1856,8 +2202,8 @@ const UserAdminPage = ({}) => {
                                 </td>
                                 <td className="px-6 py-4">{user.username}</td>
                                 <td className="px-6 py-4">{user.privilege}</td>
-                                <td className="px-6 py-4">{user.teamRole}</td>
-                                <td className="px-6 py-4">{user.last_login}</td>
+                                <td className="px-6 py-4">{user.team_role}</td>
+                                <td className="px-6 py-4">{user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
                                 {privileges.canEditUserAdmin && (
                                     <td className="px-6 py-4">
                                         <button onClick={() => openEditModal(user)} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={16} /></button>
@@ -1887,12 +2233,15 @@ const UserAdminPage = ({}) => {
     );
 };
 
+// --- REPLACE UserModal with this new version ---
 const UserModal = ({ isOpen, onClose, onSave, user }) => {
+    // Note: The form still uses 'teamRole' (camelCase) for its state
     const [formData, setFormData] = useState({ name: '', username: '', email: '', privilege: 'Subcontractor', teamRole: 'Site Team', password: '' });
 
     useEffect(() => {
         if (user) {
-            setFormData({ name: user.name, username: user.username, email: user.email, privilege: user.privilege, teamRole: user.teamRole, password: user.password });
+            // When editing, map snake_case from DB to camelCase for the form state
+            setFormData({ name: user.name, username: user.username, email: user.email, privilege: user.privilege, teamRole: user.team_role, password: user.password || '' });
         } else {
             setFormData({ name: '', username: '', email: '', privilege: 'Subcontractor', teamRole: 'Site Team', password: '' });
         }
@@ -1914,11 +2263,19 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
                     <Input label="Full Name" name="name" value={formData.name} onChange={handleChange} required />
                     <Input label="Username" name="username" value={formData.username} onChange={handleChange} required />
                     <Input label="Email" name="email" type="email" value={formData.email} onChange={handleChange} required />
-                    <Input label="Password" name="password" type="text" value={formData.password} onChange={handleChange} required />
+                    <Input 
+                        label="Password" 
+                        name="password" 
+                        type="password" 
+                        value={formData.password} 
+                        onChange={handleChange} // This line was added
+                        placeholder={user ? "Leave blank to keep unchanged" : ""} 
+                        required={!user} 
+                    />
                     <Select label="Privilege" name="privilege" value={formData.privilege} onChange={handleChange}>
                         {Object.keys(userPrivileges).map(p => <option key={p}>{p}</option>)}
                     </Select>
-                    <Select label="Role" name="teamRole" value={formData.teamRole} onChange={handleChange}>
+                    <Select label="Team Role" name="teamRole" value={formData.teamRole} onChange={handleChange}>
                         {teamRoles.map(role => <option key={role}>{role}</option>)}
                     </Select>
                     <div className="flex justify-end space-x-2 pt-4">
@@ -2242,7 +2599,6 @@ const ProjectFiles = ({ files }) => {
     );
 };
 
-// --- NEW AUDIT TRAIL PAGE ---
 const AuditTrailPage = () => {
     const [logs, setLogs] = useState(mockAuditTrail);
     const [searchTerm, setSearchTerm] = useState('');
@@ -2305,7 +2661,6 @@ const AuditTrailPage = () => {
     };
 
     const handleExport = (format) => {
-        // In a real app, this would trigger a file download.
         console.log(`Exporting audit trail as ${format}...`);
         alert(`Exporting audit trail as ${format}... (See console for details)`);
     };
@@ -2388,7 +2743,6 @@ const AuditTrailPage = () => {
     );
 };
 
-// --- ANALYTICS PAGE & COMPONENTS ---
 const AnalyticsPage = () => {
     const [activeTab, setActiveTab] = useState('Projects');
 
@@ -2496,7 +2850,6 @@ const ProjectsAnalytics = () => {
 };
 
 const ResourceAnalytics = () => {
-    // This is a placeholder. In a real app, you'd process mockResourceAllocations
     const handleExport = (format) => {
         alert(`Exporting Resource Analytics as ${format} is not implemented yet.`);
     };
@@ -2511,7 +2864,6 @@ const ResourceAnalytics = () => {
 };
 
 const DeliveryTrackerAnalytics = () => {
-    // This is a placeholder. In a real app, you'd process initialJobs
     const handleExport = (format) => {
         alert(`Exporting Delivery Tracker Analytics as ${format} is not implemented yet.`);
     };
@@ -2780,7 +3132,10 @@ const formatDateForDisplay = (date) => {
 };
 
 const formatDateForKey = (date) => {
-    return date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // getMonth() is 0-indexed
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
 
@@ -2806,91 +3161,271 @@ const ThemeProvider = ({ children }) => {
     return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>;
 };
 
-// ==================================================================
-// == THIS IS THE CORRECTED ProjectProvider WITH THE FIX APPLIED  ===
-// ==================================================================
 const ProjectProvider = ({ children }) => {
     const [projects, setProjects] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         const getProjects = async () => {
-            const { data, error } = await supabase
-                .from('projects')
-                .select('*')
-                .order('id', { ascending: false }); // Order by ID to see new ones first
+            setLoading(true);
+            setError(null);
 
-            if (error) {
-                console.error('Error fetching projects:', error);
-            } else {
-                setProjects(data || []);
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('projects')
+                    .select('*')
+                    .order('id', { ascending: false });
+
+                if (fetchError) {
+                    setError(fetchError.message);
+                    setProjects([]);
+                } else {
+                    setProjects(data || []);
+                }
+            } catch (e) {
+                setError(e.message);
+                setProjects([]);
+            } finally {
+                setLoading(false);
             }
         };
+
         getProjects();
     }, []);
 
     const addProject = async (projectData) => {
-        // The database now handles 'date_created' automatically via its default value.
-        // We only need to pass the data from the form.
-        // We also add default values for columns not in the form.
-        const newProjectData = {
-            ...projectData, // contains project_name, project_number, client, status
-            description: '', // Default value
-            team: [], // Default value for the array
-            tasksText: '' // Default value
-        };
-
-        const { data, error } = await supabase
-            .from('projects')
-            .insert([newProjectData])
-            .select();
-
+        const newProjectData = { ...projectData, description: '', team: [], tasksText: '' };
+        const { data, error } = await supabase.from('projects').insert([newProjectData]).select();
         if (error) {
             console.error('Supabase insert error:', error);
-            alert(`Error creating project: ${error.message}`); // Show an alert for easier debugging
+            alert(`Error creating project: ${error.message}`);
             return;
         }
-        
-        if (data) {
-            setProjects(prev => [data[0], ...prev]);
-        }
+        if (data) setProjects(prev => [data[0], ...prev]);
     };
 
     const updateProject = async (updatedProject) => {
-        const { data, error } = await supabase
-            .from('projects')
-            .update(updatedProject)
-            .eq('id', updatedProject.id)
-            .select();
-
-        if (error) {
-            console.error('Error updating project:', error);
-            return;
-        }
-
-        if (data) {
-            setProjects(prev => prev.map(p => p.id === updatedProject.id ? data[0] : p));
-        }
+        const { data, error } = await supabase.from('projects').update(updatedProject).eq('id', updatedProject.id).select();
+        if (error) console.error('Error updating project:', error);
+        else if (data) setProjects(prev => prev.map(p => p.id === updatedProject.id ? data[0] : p));
     };
 
     const deleteProject = async (projectId) => {
-        const { error } = await supabase
-            .from('projects')
-            .delete()
-            .eq('id', projectId);
-
-        if (error) {
-            console.error('Error deleting project:', error);
-            return;
-        }
-
-        setProjects(prev => prev.filter(p => p.id !== projectId));
+        const { error } = await supabase.from('projects').delete().eq('id', projectId);
+        if (error) console.error('Error deleting project:', error);
+        else setProjects(prev => prev.filter(p => p.id !== projectId));
     };
-
-    const value = { projects, addProject, updateProject, deleteProject };
+    
+    const value = { projects, addProject, updateProject, deleteProject, loading, error };
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 };
 
+
+const TaskProvider = ({ children }) => {
+    const [tasks, setTasks] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const getTasks = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('tasks')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (fetchError) {
+                    console.error("Supabase tasks fetch error:", fetchError);
+                    setError(fetchError.message);
+                } else {
+                    setTasks(data || []);
+                }
+            } catch (e) {
+                console.error("Unexpected JS error fetching tasks:", e);
+                setError(e.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getTasks();
+    }, []);
+
+    const addTask = async (taskData) => {
+        const { data, error } = await supabase
+            .from('tasks')
+            .insert([taskData])
+            .select();
+        
+        if (error) {
+            console.error('Supabase insert error:', error);
+            alert(`Error creating task: ${error.message}`);
+            return;
+        }
+        if (data) setTasks(prev => [data[0], ...prev]);
+    };
+
+    const updateTask = async (updatedTask) => {
+        const { data, error } = await supabase
+            .from('tasks')
+            .update(updatedTask)
+            .eq('id', updatedTask.id)
+            .select();
+            
+        if (error) {
+            console.error('Error updating task:', error);
+             alert(`Error updating task: ${error.message}`);
+        } else if (data) {
+            setTasks(prev => prev.map(t => t.id === updatedTask.id ? data[0] : t));
+        }
+    };
+
+    const deleteTask = async (taskId) => {
+        const { error } = await supabase
+            .from('tasks')
+            .delete()
+            .eq('id', taskId);
+            
+        if (error) {
+            console.error('Error deleting task:', error);
+            alert(`Error deleting task: ${error.message}`);
+        } else {
+            setTasks(prev => prev.filter(t => t.id !== taskId));
+        }
+    };
+    
+    const value = { tasks, addTask, updateTask, deleteTask, loading, error };
+
+    return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
+};
+
+// --- ADD THIS NEW JOB PROVIDER ---
+const JobContext = createContext(null);
+export const useJobs = () => useContext(JobContext);
+
+export const JobProvider = ({ children }) => {
+    const [jobs, setJobs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // Map database snake_case to component camelCase
+    const mapToCamelCase = (job) => ({
+        id: job.id,
+        createdAt: job.created_at,
+        projectName: job.project_name,
+        projectNumber: job.project_number,
+        itemName: job.item_name,
+        projectManager: job.project_manager,
+        client: job.client,
+        processingHours: job.processing_hours,
+        checkingHours: job.checking_hours,
+        siteStartDate: job.site_start_date,
+        siteCompletionDate: job.site_completion_date,
+        plannedDeliveryDate: job.planned_delivery_date,
+        actualDeliveryDate: job.actual_delivery_date,
+        discipline: job.discipline,
+        comments: job.comments,
+        status: job.status,
+        archived: job.archived,
+    });
+
+    // Map component camelCase to database snake_case
+    const mapToSnakeCase = (job) => ({
+        project_name: job.projectName,
+        project_number: job.projectNumber,
+        item_name: job.itemName,
+        project_manager: job.projectManager,
+        client: job.client,
+        processing_hours: job.processingHours,
+        checking_hours: job.checkingHours,
+        site_start_date: job.siteStartDate,
+        site_completion_date: job.siteCompletionDate,
+        planned_delivery_date: job.plannedDeliveryDate,
+        actual_delivery_date: job.actualDeliveryDate,
+        discipline: job.discipline,
+        comments: job.comments,
+        status: job.status,
+        archived: job.archived,
+    });
+
+
+    useEffect(() => {
+        const getJobs = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('jobs')
+                    .select('*')
+                    .order('planned_delivery_date', { ascending: true });
+
+                if (fetchError) throw fetchError;
+                
+                setJobs(data.map(mapToCamelCase) || []);
+            } catch (err) {
+                console.error("Error fetching jobs:", err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getJobs();
+    }, []);
+
+    const addJob = async (jobData) => {
+        const jobRecord = mapToSnakeCase(jobData);
+        const { data, error } = await supabase
+            .from('jobs')
+            .insert([jobRecord])
+            .select();
+        
+        if (error) {
+             console.error('Error adding job:', error);
+             alert(`Error adding job: ${error.message}`);
+             return;
+        }
+        if (data) setJobs(prev => [...prev, mapToCamelCase(data[0])]);
+    };
+
+    const updateJob = async (updatedJob) => {
+        const jobRecord = mapToSnakeCase(updatedJob);
+        const { data, error } = await supabase
+            .from('jobs')
+            .update(jobRecord)
+            .eq('id', updatedJob.id)
+            .select();
+            
+        if (error) {
+            console.error('Error updating job:', error);
+            alert(`Error updating job: ${error.message}`);
+        } else if (data) {
+            setJobs(prev => prev.map(j => (j.id === updatedJob.id ? mapToCamelCase(data[0]) : j)));
+        }
+    };
+
+    const deleteJob = async (jobId) => {
+        const { error } = await supabase
+            .from('jobs')
+            .delete()
+            .eq('id', jobId);
+            
+        if (error) {
+            console.error('Error deleting job:', error);
+            alert(`Error deleting job: ${error.message}`);
+        } else {
+            setJobs(prev => prev.filter(j => j.id !== jobId));
+        }
+    };
+    
+    const value = { jobs, addJob, updateJob, deleteJob, loading, error };
+
+    return <JobContext.Provider value={value}>{children}</JobContext.Provider>;
+};
 
 const MainLayout = () => {
     const { user } = useAuth();
@@ -2962,9 +3497,20 @@ export default function App() {
         <AuthProvider>
             <ThemeProvider>
                 <ProjectProvider>
-                    <MainLayout />
+                    <TaskProvider>
+                        <UserProvider>
+                            {/* --- ADD THIS --- */}
+                            <JobProvider>
+                                <MainLayout />
+                            </JobProvider>
+                            {/* --- AND THIS --- */}
+                        </UserProvider>
+                    </TaskProvider>
                 </ProjectProvider>
             </ThemeProvider>
         </AuthProvider>
     );
 }
+
+
+
