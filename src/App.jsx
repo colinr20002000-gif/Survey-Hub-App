@@ -2807,18 +2807,17 @@ const ThemeProvider = ({ children }) => {
 };
 
 // ==================================================================
-// == THIS IS THE CORRECTED AND UPDATED ProjectProvider COMPONENT ===
+// == THIS IS THE CORRECTED ProjectProvider WITH THE FIX APPLIED  ===
 // ==================================================================
 const ProjectProvider = ({ children }) => {
     const [projects, setProjects] = useState([]);
 
-    // Fetch initial projects from Supabase when the component mounts
     useEffect(() => {
         const getProjects = async () => {
             const { data, error } = await supabase
                 .from('projects')
                 .select('*')
-                .order('date_created', { ascending: false });
+                .order('id', { ascending: false }); // Order by ID to see new ones first
 
             if (error) {
                 console.error('Error fetching projects:', error);
@@ -2829,75 +2828,65 @@ const ProjectProvider = ({ children }) => {
         getProjects();
     }, []);
 
-    // Add a new project to the database and then to the local state
     const addProject = async (projectData) => {
-        // Prepare the new project, Supabase will generate the 'id'
+        // The database now handles 'date_created' automatically via its default value.
+        // We only need to pass the data from the form.
+        // We also add default values for columns not in the form.
         const newProjectData = {
-            ...projectData,
-            date_created: new Date().toISOString().split('T')[0],
-            tasksText: '' // Default value for new projects
+            ...projectData, // contains project_name, project_number, client, status
+            description: '', // Default value
+            team: [], // Default value for the array
+            tasksText: '' // Default value
         };
 
-        // Insert the new project into the 'projects' table
         const { data, error } = await supabase
             .from('projects')
             .insert([newProjectData])
-            .select(); // Use .select() to get the newly created record back
+            .select();
 
         if (error) {
-            console.error('Error adding project:', error);
-            return; // Stop execution if there's an error
+            console.error('Supabase insert error:', error);
+            alert(`Error creating project: ${error.message}`); // Show an alert for easier debugging
+            return;
         }
-
-        // If successful, add the new project from the database (with the correct id)
-        // to the beginning of the local state array to update the UI
+        
         if (data) {
             setProjects(prev => [data[0], ...prev]);
         }
     };
 
-    // Update an existing project in the database and then in the local state
     const updateProject = async (updatedProject) => {
         const { data, error } = await supabase
             .from('projects')
             .update(updatedProject)
-            .eq('id', updatedProject.id) // Match the project by its id
-            .select(); // Get the updated record back
+            .eq('id', updatedProject.id)
+            .select();
 
         if (error) {
             console.error('Error updating project:', error);
             return;
         }
 
-        // If successful, find the project in the local state and replace it with the updated version
         if (data) {
             setProjects(prev => prev.map(p => p.id === updatedProject.id ? data[0] : p));
         }
     };
 
-    // Delete a project from the database and then remove it from the local state
     const deleteProject = async (projectId) => {
         const { error } = await supabase
             .from('projects')
             .delete()
-            .eq('id', projectId); // Match the project to delete by its id
+            .eq('id', projectId);
 
         if (error) {
             console.error('Error deleting project:', error);
             return;
         }
 
-        // If successful, remove the deleted project from the local state to update the UI
         setProjects(prev => prev.filter(p => p.id !== projectId));
     };
 
-    // Provide the projects and the functions to the rest of the app
-    const value = {
-        projects,
-        addProject,
-        updateProject,
-        deleteProject
-    };
+    const value = { projects, addProject, updateProject, deleteProject };
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 };
