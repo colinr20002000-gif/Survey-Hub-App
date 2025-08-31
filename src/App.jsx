@@ -2806,42 +2806,102 @@ const ThemeProvider = ({ children }) => {
     return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>;
 };
 
+// ==================================================================
+// == THIS IS THE CORRECTED AND UPDATED ProjectProvider COMPONENT ===
+// ==================================================================
 const ProjectProvider = ({ children }) => {
     const [projects, setProjects] = useState([]);
 
+    // Fetch initial projects from Supabase when the component mounts
     useEffect(() => {
-     const getProjects = async () => {
-      const { data } = await supabase.from('projects').select();
-      setProjects(data || []);
-     };
-     getProjects();
+        const getProjects = async () => {
+            const { data, error } = await supabase
+                .from('projects')
+                .select('*')
+                .order('date_created', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching projects:', error);
+            } else {
+                setProjects(data || []);
+            }
+        };
+        getProjects();
     }, []);
 
-
-    const addProject = (projectData) => {
-        const newProject = { 
-            id: Date.now(), 
-            ...projectData, 
+    // Add a new project to the database and then to the local state
+    const addProject = async (projectData) => {
+        // Prepare the new project, Supabase will generate the 'id'
+        const newProjectData = {
+            ...projectData,
             date_created: new Date().toISOString().split('T')[0],
-            tasksText: ''
+            tasksText: '' // Default value for new projects
         };
-        setProjects(prev => [newProject, ...prev]);
+
+        // Insert the new project into the 'projects' table
+        const { data, error } = await supabase
+            .from('projects')
+            .insert([newProjectData])
+            .select(); // Use .select() to get the newly created record back
+
+        if (error) {
+            console.error('Error adding project:', error);
+            return; // Stop execution if there's an error
+        }
+
+        // If successful, add the new project from the database (with the correct id)
+        // to the beginning of the local state array to update the UI
+        if (data) {
+            setProjects(prev => [data[0], ...prev]);
+        }
     };
 
-    const updateProject = (updatedProject) => {
-        setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+    // Update an existing project in the database and then in the local state
+    const updateProject = async (updatedProject) => {
+        const { data, error } = await supabase
+            .from('projects')
+            .update(updatedProject)
+            .eq('id', updatedProject.id) // Match the project by its id
+            .select(); // Get the updated record back
+
+        if (error) {
+            console.error('Error updating project:', error);
+            return;
+        }
+
+        // If successful, find the project in the local state and replace it with the updated version
+        if (data) {
+            setProjects(prev => prev.map(p => p.id === updatedProject.id ? data[0] : p));
+        }
     };
 
-    const deleteProject = (projectId) => {
+    // Delete a project from the database and then remove it from the local state
+    const deleteProject = async (projectId) => {
+        const { error } = await supabase
+            .from('projects')
+            .delete()
+            .eq('id', projectId); // Match the project to delete by its id
+
+        if (error) {
+            console.error('Error deleting project:', error);
+            return;
+        }
+
+        // If successful, remove the deleted project from the local state to update the UI
         setProjects(prev => prev.filter(p => p.id !== projectId));
     };
 
+    // Provide the projects and the functions to the rest of the app
     const value = {
-        projects, addProject, updateProject, deleteProject
+        projects,
+        addProject,
+        updateProject,
+        deleteProject
     };
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 };
+
 
 const MainLayout = () => {
     const { user } = useAuth();
