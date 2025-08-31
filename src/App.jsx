@@ -1,8 +1,172 @@
-import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
+import React, { useState, createContext, useContext, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
+
+// --- MOCK DATA & PRIVILEGES ---
+const mockUsers = {
+  '1': { id: 1, username: 'Colin.Rogers', name: 'Colin Rogers', role: 'Admin', teamRole: 'Office Staff', avatar: 'CR', email: 'colin.rogers@surveyhub.co.uk', last_login: '2024-08-25 10:30', password: 'Survey Hub', privilege: 'Admin' },
+  '2': { id: 2, username: 'Ben.Carter', name: 'Ben Carter', role: 'Manager', teamRole: 'Project Team', avatar: 'BC', email: 'ben.carter@surveyhub.co.uk', last_login: '2024-08-25 09:15', password: 'password123', privilege: 'Project Managers' },
+  '3': { id: 3, username: 'Chloe.Davis', name: 'Chloe Davis', role: 'Editor', teamRole: 'Site Team', avatar: 'CD', email: 'chloe.davis@surveyhub.co.uk', last_login: '2024-08-24 15:45', password: 'password456', privilege: 'Site Staff' },
+  '4': { id: 4, username: 'David.Evans', name: 'David Evans', role: 'Viewer', teamRole: 'Design Team', avatar: 'DE', email: 'david.evans@surveyhub.co.uk', last_login: '2024-08-23 11:20', password: 'password789', privilege: 'Delivery Surveyors' },
+  '5': { id: 5, username: 'Frank.Green', name: 'Frank Green', role: 'Viewer', teamRole: 'Subcontractor', avatar: 'FG', email: 'frank.green@contractors.com', last_login: '2024-08-22 18:00', password: 'password101', privilege: 'Subcontractor' },
+};
+
+const userPrivileges = {
+    'Subcontractor': {
+        level: 1,
+        canEditProjects: false,
+        canViewAssignedTasks: false,
+        canViewUserAdmin: false,
+        canEditUserAdmin: false,
+        canViewAuditTrail: false,
+        canViewAnalytics: false,
+    },
+    'Site Staff': {
+        level: 2,
+        canEditProjects: true,
+        canViewAssignedTasks: false,
+        canViewUserAdmin: false,
+        canEditUserAdmin: false,
+        canViewAuditTrail: false,
+        canViewAnalytics: false,
+    },
+    'Office Staff': {
+        level: 3,
+        canEditProjects: true,
+        canViewAssignedTasks: true,
+        canViewUserAdmin: true,
+        canEditUserAdmin: false,
+        canViewAuditTrail: true,
+        canViewAnalytics: true,
+    },
+    'Delivery Surveyors': {
+        level: 3,
+        canEditProjects: true,
+        canViewAssignedTasks: true,
+        canViewUserAdmin: true,
+        canEditUserAdmin: false,
+        canViewAuditTrail: true,
+        canViewAnalytics: true,
+    },
+    'Project Managers': {
+        level: 3,
+        canEditProjects: true,
+        canViewAssignedTasks: true,
+        canViewUserAdmin: true,
+        canEditUserAdmin: false,
+        canViewAuditTrail: true,
+        canViewAnalytics: true,
+    },
+    'Admin': {
+        level: 4,
+        canEditProjects: true,
+        canViewAssignedTasks: true,
+        canViewUserAdmin: true,
+        canEditUserAdmin: true,
+        canViewAuditTrail: true,
+        canViewAnalytics: true,
+    }
+};
+
+const initialProjects = [
+  { id: 1, project_number: '23001', project_name: 'West Coast Main Line - Track Renewal', client: 'Network Rail', date_created: '2023-10-26', status: 'In Progress', team: ['BC', 'CD'], description: 'Comprehensive topographical survey and track renewal assessment for a 20-mile section.', startDate: '2023-11-01', targetDate: '2024-12-31', tasksText: '- Finalize Survey Report\n- Produce Track Alignment Drawings' },
+  { id: 2, project_number: '23045', project_name: 'HS2 Phase 2a - Topographical Survey', client: 'HS2 Ltd', date_created: '2023-09-15', status: 'Completed', team: ['BC', 'DE'], description: 'Topographical survey for the HS2 Phase 2a route.', startDate: '2023-10-01', targetDate: '2024-06-30', tasksText: 'All tasks completed. Final data delivered to client.' },
+  { id: 3, project_number: '24012', project_name: 'Crossrail - Asset Verification', client: 'Transport for London', date_created: '2024-01-20', status: 'Planning', team: ['BC', 'CD', 'DE'], description: 'Verification of assets along the Crossrail line.', startDate: '2024-02-01', targetDate: '2025-01-31', tasksText: 'Awaiting final instruction from TfL before commencing site visits.' },
+  { id: 4, project_number: '24005', project_name: 'Great Western Electrification - OLE Survey', client: 'Network Rail', date_created: '2024-02-10', status: 'In Progress', team: ['BC', 'CD'], description: 'Overhead Line Equipment survey for the GWEP project.', startDate: '2024-03-01', targetDate: '2024-11-30', tasksText: '' },
+  { id: 5, project_number: '24002', project_name: 'Docklands Light Railway - Tunnel Inspection', client: 'TfL', date_created: '2024-03-05', status: 'On Hold', team: ['BC'], description: 'Detailed inspection of DLR tunnels.', startDate: '2024-04-01', targetDate: '2024-09-30', tasksText: 'Project on hold due to access restrictions.' },
+  { id: 6, project_number: '24018', project_name: 'Midland Main Line - Embankment Stability', client: 'Network Rail', date_created: '2024-04-12', status: 'In Progress', team: ['BC', 'CD', 'DE'], description: 'Assessment of embankment stability on the MML.', startDate: '2024-05-01', targetDate: '2025-03-31', tasksText: '' },
+  { id: 7, project_number: '24091', project_name: 'Old Oak Common - Site Survey', client: 'HS2 Ltd', date_created: '2024-05-21', status: 'Planning', team: ['BC', 'CD'], description: 'Initial site survey for the new Old Oak Common station.', startDate: '2024-06-01', targetDate: '2024-10-31', tasksText: '' },
+];
+
+const mockAssignedTasks = [
+    { id: 1, text: 'Finalize NR-23-001 survey report', completed: false, project: 'NR-23-001', assignedTo: [3] },
+    { id: 2, text: 'Schedule site visit for TFL-24-012', completed: false, project: 'TFL-24-012', assignedTo: [2, 4] },
+    { id: 3, text: 'Process point cloud data for HS2-24-091', completed: true, project: 'HS2-24-091', assignedTo: [3] },
+    { id: 4, text: 'Review safety briefing for DLR-24-002', completed: false, project: 'DLR-24-002', assignedTo: [2, 3, 4] },
+];
+
+const mockResourceAllocations = {
+  '2025-08-25': {
+    '1': {
+        assignments: [
+            { type: 'leave', leaveType: 'Office (Haydock)' },
+            { type: 'leave', leaveType: 'Office (Haydock)' },
+            { type: 'leave', leaveType: 'Office (Home)' },
+            { type: 'leave', leaveType: 'Office (Haydock)' },
+            { type: 'leave', leaveType: 'Office (Haydock)' },
+            null, null
+        ]
+    },
+    '2': {
+      assignments: [
+        { type: 'leave', leaveType: 'Bank Holiday' },
+        { type: 'project', projectNumber: '24005', projectName: 'Great Western Electrification - OLE Survey', client: 'Network Rail', time: '08:00-16:00', task: 'Survey', comment: '', shift: 'Days', projectId: 4 },
+        null,
+        { type: 'project', projectNumber: '24012', projectName: 'Crossrail - Asset Verification', client: 'Transport for London', time: '09:00-17:00', task: 'Monitoring', comment: 'Check access permits', shift: 'Evening', projectId: 3 },
+        null, null, null
+      ]
+    },
+    '3': {
+      assignments: [
+        { type: 'leave', leaveType: 'Bank Holiday' },
+        { type: 'project', projectNumber: '24018', projectName: 'Midland Main Line - Embankment Stability', client: 'Network Rail', time: '22:00-06:00', task: 'Ground Investigation', comment: '', shift: 'Nights', projectId: 6 },
+        { type: 'project', projectNumber: '24018', projectName: 'Midland Main Line - Embankment Stability', client: 'Network Rail', time: '22:00-06:00', task: 'Ground Investigation', comment: 'Full PPE required', shift: 'Nights', projectId: 6 },
+        null, null, null, null
+      ]
+    },
+    '4': {
+      assignments: [
+        { type: 'leave', leaveType: 'Bank Holiday' },
+        null, null, null,
+        { type: 'leave', leaveType: 'Annual Leave' },
+        { type: 'leave', leaveType: 'Annual Leave' },
+        null
+      ]
+    }
+  }
+};
+
+
+const mockAnnouncements = [
+    { id: 1, title: 'New Drone Surveying Equipment', content: 'We have acquired new LiDAR-equipped drones. Training sessions will be held next week.', date: '2024-07-22' },
+    { id: 2, title: 'Updated Safety Protocols for Trackside Work', content: 'Please review the updated safety documentation on the portal before any new site visits.', date: '2024-07-18' },
+];
+
+const mockProjectFiles = [
+    { id: 1, name: 'Topographical_Survey_Data.xlsx', type: 'spreadsheet', size: '2.3 MB', uploaded: '2024-07-28' },
+    { id: 2, name: 'Site_Visit_Report_v2.pdf', type: 'pdf', size: '1.1 MB', uploaded: '2024-07-29' },
+    { id: 3, name: 'Track_Alignment_Final.dwg', type: 'cad', size: '5.8 MB', uploaded: '2024-08-01' },
+    { id: 4, name: 'Site_Photos_July.zip', type: 'zip', size: '15.2 MB', uploaded: '2024-08-02' },
+];
+
+const mockNotifications = [
+    { id: 1, text: 'Chloe Davis commented on "West Coast Main Line"', time: '2m ago', read: false },
+    { id: 2, text: 'New file uploaded to "HS2 Phase 2a"', time: '1h ago', read: false },
+    { id: 3, text: 'Your task "Finalize NR-23-001 survey report" is due tomorrow.', time: '3h ago', read: true },
+];
+
+const jobStatuses = ["Site Not Started", "Site Work Completed", "Delivered", "Postponed", "Cancelled", "On Hold", "Revisit Required"];
+
+const initialJobs = [
+    { id: 1, projectName: "HS2 Phase 1 Enabling Works", projectNumber: "HS2-EW-21-001", itemName: "Euston Station Survey", projectManager: "Ben Carter", client: "HS2 Ltd", processingHours: 80, checkingHours: 16, siteStartDate: "2024-08-01", siteCompletionDate: "2024-09-30", plannedDeliveryDate: "2024-10-15", actualDeliveryDate: "", discipline: "Survey", comments: "Awaiting final sign-off from client.", archived: false, status: "Site Work Completed" },
+    { id: 2, projectName: "Crossrail - Paddington Integration", projectNumber: "CR-PADD-22-005", itemName: "Paddington Station As-built", projectManager: "Ben Carter", client: "Transport for London", processingHours: 120, checkingHours: 24, siteStartDate: "2024-07-15", siteCompletionDate: "2024-09-20", plannedDeliveryDate: "2024-09-27", actualDeliveryDate: "2024-09-26", discipline: "Design", comments: "", archived: true, status: "Delivered" },
+    { id: 3, projectName: "OLE Foundation Survey", projectNumber: "OOC-OLE-23-002", itemName: "Old Oak Common Site", projectManager: "Colin Rogers", client: "HS2 Ltd", processingHours: 60, checkingHours: 12, siteStartDate: "2024-09-01", siteCompletionDate: "2024-10-10", plannedDeliveryDate: "2024-10-20", actualDeliveryDate: "", discipline: "Utility", comments: "Access constraints on weekends.", archived: false, status: "Site Not Started" },
+];
+
+const teamRoles = ['Site Team', 'Project Team', 'Delivery Team', 'Design Team', 'Office Staff', 'Subcontractor'];
+
+// --- NEW MOCK DATA FOR AUDIT TRAIL ---
+const mockAuditTrail = [
+    { id: 1, userId: 1, action: 'LOGIN', entity: 'USER', entityId: 1, timestamp: '2024-08-25 10:30:15', details: { ip_address: '192.168.1.10' } },
+    { id: 2, userId: 2, action: 'CREATE', entity: 'PROJECT', entityId: 7, timestamp: '2024-08-25 09:15:45', details: { after: { project_name: 'Old Oak Common - Site Survey' } } },
+    { id: 3, userId: 1, action: 'UPDATE', entity: 'USER', entityId: 3, timestamp: '2024-08-25 08:45:22', details: { before: { role: 'Viewer' }, after: { role: 'Editor' } } },
+    { id: 4, userId: 3, action: 'DELETE', entity: 'TASK', entityId: 5, timestamp: '2024-08-24 15:50:00', details: { before: { text: 'Initial site walkover' } } },
+    { id: 5, userId: 2, action: 'LOGOUT', entity: 'USER', entityId: 2, timestamp: '2024-08-24 12:30:00', details: {} },
+    { id: 6, action: 'SYSTEM_EVENT', entity: 'SYSTEM', timestamp: '2024-08-24 11:00:00', details: { type: 'ERROR', message: 'Database connection failed' } },
+    { id: 7, userId: 4, action: 'VIEW', entity: 'DELIVERY_TRACKER', timestamp: '2024-08-23 11:22:10', details: {} },
+];
 
 
 // --- CONTEXT ---
@@ -571,15 +735,15 @@ const ProjectsPage = ({ onViewProject }) => {
 };
 
 const AssignedTasksPage = () => {
-const [tasks, setTasks] = useState([]);
+    const [tasks, setTasks] = useState([]);
 
-useEffect(() => {
+    useEffect(() => {
   const getTasks = async () => {
     const { data } = await supabase.from('tasks').select();
     setTasks(data || []);
   };
   getTasks();
-}, []);
+    }, []);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [taskToEdit, setTaskToEdit] = useState(null);
 
@@ -764,15 +928,15 @@ const TaskModal = ({ isOpen, onClose, onSave, task, users }) => {
 };
 
 const DeliveryTrackerPage = () => {
-const [jobs, setJobs] = useState([]);
+    const [jobs, setJobs] = useState([]);
 
-useEffect(() => {
+    useEffect(() => {
   const getJobs = async () => {
     const { data } = await supabase.from('jobs').select();
     setJobs(data || []);
   };
   getJobs();
-}, []);
+    }, []);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [jobToEdit, setJobToEdit] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -1596,15 +1760,15 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
 
 
 const UserAdminPage = ({}) => {
-const [users, setUsers] = useState([]);
+    const [users, setUsers] = useState([]);
 
-useEffect(() => {
+    useEffect(() => {
   const getUsers = async () => {
     const { data } = await supabase.from('users').select();
     setUsers(data || []);
   };
   getUsers();
-}, []);
+    }, []);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -2646,7 +2810,7 @@ const formatDateForKey = (date) => {
 
 // --- PROVIDERS & MAIN APP ---
 const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState({ name: 'Admin User', avatar: 'A', privilege: 'Admin' });
+    const [user, setUser] = useState(null);
     const login = (userData) => setUser(userData);
     const logout = () => setUser(null);
     return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>;
@@ -2667,15 +2831,15 @@ const ThemeProvider = ({ children }) => {
 };
 
 const ProjectProvider = ({ children }) => {
-const [projects, setProjects] = useState([]);
+    const [projects, setProjects] = useState([]);
 
-useEffect(() => {
+    useEffect(() => {
   const getProjects = async () => {
     const { data } = await supabase.from('projects').select();
     setProjects(data || []);
   };
   getProjects();
-}, []);
+    }, []);
 
     const addProject = (projectData) => {
         const newProject = { 
