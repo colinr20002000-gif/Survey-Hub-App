@@ -174,7 +174,9 @@ const AuthContext = createContext(null);
 const ThemeContext = createContext(null);
 const ProjectContext = createContext(null);
 const TaskContext = createContext(null);
+const DeliveryTaskContext = createContext(null);
 const useTasks = () => useContext(TaskContext);
+const useDeliveryTasks = () => useContext(DeliveryTaskContext);
 const useAuth = () => useContext(AuthContext);
 const useTheme = () => useContext(ThemeContext);
 const useProjects = () => useContext(ProjectContext);
@@ -339,13 +341,25 @@ const Header = ({ onMenuClick, setActiveTab }) => {
 const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const { user } = useAuth();
     const privileges = userPrivileges[user.privilege];
+    const [deliveryTeamExpanded, setDeliveryTeamExpanded] = useState(false);
+    const [deliveryTeamManuallyCollapsed, setDeliveryTeamManuallyCollapsed] = useState(false);
+    const sidebarRef = useRef(null);
 
     const allNavItems = [
         { name: 'Dashboard', icon: BarChartIcon, show: true },
         { name: 'Projects', icon: FolderKanban, show: true },
         { name: 'Assigned Tasks', icon: ClipboardCheck, show: privileges.canViewAssignedTasks },
         { name: 'Resource', icon: ClipboardList, show: true },
-        { name: 'Delivery Tracker', icon: ClipboardPaste, show: true },
+        { 
+            name: 'Delivery Team', 
+            icon: ClipboardPaste, 
+            show: true, 
+            isCollapsible: true,
+            subItems: [
+                { name: 'Delivery Tracker', parent: 'Delivery Team' },
+                { name: 'Delivery Tasks', parent: 'Delivery Team' }
+            ]
+        },
         { name: 'Analytics', icon: TrendingUp, show: privileges.canViewAnalytics },
         { name: 'User Admin', icon: Users, show: privileges.canViewUserAdmin },
         { name: 'Audit Trail', icon: History, show: privileges.canViewAuditTrail },
@@ -354,8 +368,56 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
 
     const navItems = allNavItems.filter(item => item.show);
 
+    const handleItemClick = (item, e) => {
+        e.preventDefault();
+        if (item.isCollapsible) {
+            const newExpandedState = !deliveryTeamExpanded;
+            setDeliveryTeamExpanded(newExpandedState);
+            
+            // Track if user manually collapsed when on an active page
+            if (isDeliveryTeamActive && !newExpandedState) {
+                setDeliveryTeamManuallyCollapsed(true);
+            } else if (newExpandedState) {
+                setDeliveryTeamManuallyCollapsed(false);
+            }
+            // Don't close sidebar in mobile when just toggling collapsible menu
+        } else {
+            setActiveTab(item.name);
+            // Only close sidebar in mobile when navigating to a page
+            if(window.innerWidth < 768) setIsOpen(false);
+        }
+    };
+
+    const handleSubItemClick = (subItem, e) => {
+        e.preventDefault();
+        setActiveTab(subItem.name);
+        if(window.innerWidth < 768) setIsOpen(false);
+    };
+
+    const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Tasks';
+    
+    // Reset manually collapsed state when navigating away from delivery pages
+    useEffect(() => {
+        if (!isDeliveryTeamActive) {
+            setDeliveryTeamManuallyCollapsed(false);
+        }
+    }, [isDeliveryTeamActive]);
+
+    // Close sidebar when clicking outside in mobile mode
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            // Only handle click outside in mobile mode and when sidebar is open
+            if (window.innerWidth < 768 && isOpen && sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen, setIsOpen]);
+
     return (
-        <aside className={`fixed md:relative z-40 md:z-auto inset-y-0 left-0 w-64 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out`}>
+        <aside ref={sidebarRef} className={`fixed md:relative z-40 md:z-auto inset-y-0 left-0 w-64 bg-gray-100 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out`}>
             <div className="flex items-center h-16 px-6 border-b border-gray-200 dark:border-gray-700">
                 <RetroTargetIcon className="w-8 h-8 text-orange-500" />
                 <span className="ml-3 text-xl font-bold text-gray-800 dark:text-white">Survey Hub</span>
@@ -366,20 +428,44 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                         <li key={item.name}>
                             <a
                                 href="#"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    setActiveTab(item.name);
-                                    if(window.innerWidth < 768) setIsOpen(false);
-                                }}
+                                onClick={(e) => handleItemClick(item, e)}
                                 className={`flex items-center px-4 py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                                    activeTab === item.name
+                                    (activeTab === item.name || (item.name === 'Delivery Team' && (isDeliveryTeamActive || deliveryTeamExpanded)))
                                         ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
                                         : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
                                 }`}
                             >
                                 <item.icon size={20} className="mr-3" />
-                                {item.name}
+                                <span className="flex-1">{item.name}</span>
+                                {item.isCollapsible && (
+                                    <ChevronDown 
+                                        size={16} 
+                                        className={`ml-2 transition-transform duration-200 ${
+                                            deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed) ? 'rotate-180' : ''
+                                        }`} 
+                                    />
+                                )}
                             </a>
+                            {item.isCollapsible && (deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed)) && (
+                                <ul className="ml-4 mt-1 space-y-1">
+                                    {item.subItems.map(subItem => (
+                                        <li key={subItem.name}>
+                                            <a
+                                                href="#"
+                                                onClick={(e) => handleSubItemClick(subItem, e)}
+                                                className={`flex items-center px-4 py-2 text-sm rounded-lg transition-colors duration-200 ${
+                                                    activeTab === subItem.name
+                                                        ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400'
+                                                        : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+                                                }`}
+                                            >
+                                                <span className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full mr-3"></span>
+                                                {subItem.name}
+                                            </a>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </li>
                     ))}
                 </ul>
@@ -956,8 +1042,16 @@ const TaskModal = ({ isOpen, onClose, onSave, task, users }) => {
     );
 };
 
-// --- REPLACE DeliveryTrackerPage with this new version ---
 const DeliveryTrackerPage = () => {
+    return (
+        <div className="p-4 md:p-6">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">Delivery Tracker</h1>
+            <DeliveryTrackerContent />
+        </div>
+    );
+};
+
+const DeliveryTrackerContent = () => {
     // MODIFICATION 1: Get data and functions from the new useJobs hook
     const { jobs, addJob, updateJob, deleteJob, loading, error } = useJobs();
 
@@ -1105,7 +1199,7 @@ const DeliveryTrackerPage = () => {
     
     // MODIFICATION 5: Add loading and error states
     if (loading) {
-        return <div className="p-8 text-2xl font-semibold text-center">Loading Delivery Tracker...</div>;
+        return <div className="p-8 text-2xl font-semibold text-center">Loading Delivery Team...</div>;
     }
 
     if (error) {
@@ -1120,9 +1214,9 @@ const DeliveryTrackerPage = () => {
     }
 
     return (
-        <div className="p-4 md:p-6">
+        <div>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Delivery Tracker</h1>
+                <div></div>
                 <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-grow">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1319,6 +1413,198 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose }) => {
                 <button onClick={() => onAction('paste')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ClipboardCheck size={14} className="mr-2"/>Paste</button>
             )}
         </div>
+    );
+};
+
+const DeliveryTasksPage = () => {
+    const { deliveryTasks, addDeliveryTask, updateDeliveryTask, deleteDeliveryTask, loading, error } = useDeliveryTasks();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [taskToEdit, setTaskToEdit] = useState(null);
+
+    const handleSaveTask = async (taskData) => {
+        if (taskToEdit) {
+            await updateDeliveryTask({ ...taskToEdit, ...taskData });
+        } else {
+            const newTask = { ...taskData, completed: false, project: 'Delivery Team' };
+            await addDeliveryTask(newTask);
+        }
+        setIsModalOpen(false);
+        setTaskToEdit(null);
+    };
+
+    const handleToggleComplete = async (task) => {
+        await updateDeliveryTask({ ...task, completed: !task.completed });
+    };
+
+    const handleDeleteTask = async (taskId) => {
+        await deleteDeliveryTask(taskId);
+    };
+
+    const openEditModal = (task) => {
+        setTaskToEdit(task);
+        setIsModalOpen(true);
+    };
+    
+    const openNewTaskModal = () => {
+        setTaskToEdit(null);
+        setIsModalOpen(true);
+    };
+
+    if (loading) {
+        return <div className="p-8 text-2xl font-semibold text-center">Loading Delivery Tasks...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                <h2 className="font-bold text-xl mb-2">Error Loading Delivery Tasks</h2>
+                <p>There was a problem fetching delivery task data from the database.</p>
+                <p className="mt-4 font-bold">Error Message:</p>
+                <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
+            </div>
+        );
+    }
+
+    const incompleteTasks = deliveryTasks.filter(t => !t.completed);
+    const completedTasks = deliveryTasks.filter(t => t.completed);
+
+    return (
+        <div className="p-4 md:p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Delivery Tasks</h1>
+                <Button onClick={openNewTaskModal}><PlusCircle size={16} className="mr-2"/>Add Delivery Task</Button>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="p-4">
+                    <h3 className="text-lg font-semibold mb-4">To Do ({incompleteTasks.length})</h3>
+                    <ul className="space-y-2">
+                        {incompleteTasks.map(task => (
+                            <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} />
+                        ))}
+                        {incompleteTasks.length === 0 && (
+                            <li className="text-gray-500 dark:text-gray-400 text-center py-4">No pending delivery tasks</li>
+                        )}
+                    </ul>
+                </div>
+                {completedTasks.length > 0 && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                        <h3 className="text-lg font-semibold mb-4 text-green-600 dark:text-green-400">Completed ({completedTasks.length})</h3>
+                        <ul className="space-y-2">
+                            {completedTasks.map(task => (
+                                <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} />
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+            <DeliveryTaskModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTask} task={taskToEdit} users={Object.values(mockUsers)} />
+        </div>
+    );
+};
+
+const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete }) => {
+    const assignedUsers = task.assignedTo?.map(id => mockUsers[id]).filter(Boolean) || [];
+    return (
+        <li className={`flex items-center justify-between p-3 rounded-lg border ${task.completed ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'}`}>
+            <div className="flex items-center space-x-3 flex-grow">
+                <input
+                    type="checkbox"
+                    checked={task.completed}
+                    onChange={onToggle}
+                    className="h-5 w-5 rounded text-orange-500 focus:ring-orange-500 border-gray-300 dark:border-gray-500 bg-gray-100 dark:bg-gray-600"
+                />
+                <div className="flex-grow">
+                    <p className={`text-sm font-medium ${task.completed ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-800 dark:text-white'}`}>
+                        {task.text}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Project: {task.project}</p>
+                    {assignedUsers.length > 0 && (
+                        <div className="flex items-center space-x-1 mt-1">
+                            <span className="text-xs text-gray-400">Assigned to:</span>
+                            {assignedUsers.map(user => (
+                                <span key={user.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                                    {user.name}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+            <div className="flex items-center space-x-2">
+                <button onClick={() => onEdit(task)} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600"><Edit size={16} /></button>
+                <button onClick={() => onDelete(task.id)} className="p-1.5 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600"><Trash2 size={16} /></button>
+            </div>
+        </li>
+    );
+};
+
+const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users }) => {
+    const [formData, setFormData] = useState({ text: '', assignedTo: [] });
+
+    useEffect(() => {
+        if (task) {
+            setFormData({ text: task.text, assignedTo: task.assignedTo || [] });
+        } else {
+            setFormData({ text: '', assignedTo: [] });
+        }
+    }, [task, isOpen]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+    
+    const handleMultiSelectChange = (userId) => {
+        setFormData(prev => {
+            const newAssignedTo = prev.assignedTo.includes(userId)
+                ? prev.assignedTo.filter(id => id !== userId)
+                : [...prev.assignedTo, userId];
+            return { ...prev, assignedTo: newAssignedTo };
+        });
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(formData);
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={task ? 'Edit Delivery Task' : 'New Delivery Task'}>
+            <div className="p-6">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label htmlFor="text" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Task Description</label>
+                        <Input id="text" name="text" value={formData.text} onChange={handleChange} placeholder="e.g., Review delivery documentation" required />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign To</label>
+                        <div className="max-h-40 overflow-y-auto space-y-2 p-2 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+                            {users.map(user => (
+                                <label key={user.id} className="flex items-center space-x-3 cursor-pointer p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.assignedTo.includes(user.id)}
+                                        onChange={() => handleMultiSelectChange(user.id)}
+                                        className="h-4 w-4 rounded text-orange-500 focus:ring-orange-500 border-gray-300 dark:border-gray-500 bg-gray-100 dark:bg-gray-600"
+                                    />
+                                    <div className="flex items-center">
+                                        <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-500 text-gray-600 dark:text-gray-200 flex items-center justify-center font-bold text-xs mr-2">{user.avatar}</div>
+                                        <span className="text-gray-800 dark:text-gray-200">{user.name}</span>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex justify-end space-x-2 pt-4">
+                        <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+                        <Button type="submit">Save Delivery Task</Button>
+                    </div>
+                </form>
+            </div>
+        </Modal>
     );
 };
 
@@ -2746,7 +3032,7 @@ const AuditTrailPage = () => {
 const AnalyticsPage = () => {
     const [activeTab, setActiveTab] = useState('Projects');
 
-    const tabs = ['Projects', 'Resource', 'Delivery Tracker'];
+    const tabs = ['Projects', 'Resource', 'Delivery Team'];
 
     return (
         <div className="p-4 md:p-6">
@@ -2767,7 +3053,7 @@ const AnalyticsPage = () => {
             <div className="mt-6">
                 {activeTab === 'Projects' && <ProjectsAnalytics />}
                 {activeTab === 'Resource' && <ResourceAnalytics />}
-                {activeTab === 'Delivery Tracker' && <DeliveryTrackerAnalytics />}
+                {activeTab === 'Delivery Team' && <DeliveryTrackerAnalytics />}
             </div>
         </div>
     );
@@ -2865,12 +3151,12 @@ const ResourceAnalytics = () => {
 
 const DeliveryTrackerAnalytics = () => {
     const handleExport = (format) => {
-        alert(`Exporting Delivery Tracker Analytics as ${format} is not implemented yet.`);
+        alert(`Exporting Delivery Team Analytics as ${format} is not implemented yet.`);
     };
     return (
         <div className="space-y-6">
             <AnalyticsToolbar onExport={handleExport} onFilter={() => {}} dateRange={{start:'', end: ''}} setDateRange={() => {}} />
-            <AnalyticsCard title="Delivery Performance (Placeholder)">
+            <AnalyticsCard title="Delivery Team Performance (Placeholder)">
                 <p>Delivery tracker analytics charts and data would go here.</p>
             </AnalyticsCard>
         </div>
@@ -3427,6 +3713,104 @@ export const JobProvider = ({ children }) => {
     return <JobContext.Provider value={value}>{children}</JobContext.Provider>;
 };
 
+// --- DELIVERY TASK PROVIDER ---
+export const DeliveryTaskProvider = ({ children }) => {
+    const [deliveryTasks, setDeliveryTasks] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // Map database snake_case to component camelCase
+    const mapToCamelCase = (task) => ({
+        id: task.id,
+        createdAt: task.created_at,
+        text: task.text,
+        completed: task.completed,
+        project: task.project,
+        assignedTo: task.assigned_to,
+    });
+
+    // Map component camelCase to database snake_case
+    const mapToSnakeCase = (task) => ({
+        text: task.text,
+        completed: task.completed,
+        project: task.project,
+        assigned_to: task.assignedTo,
+    });
+
+    useEffect(() => {
+        const getDeliveryTasks = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('delivery_tasks')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (fetchError) throw fetchError;
+                
+                setDeliveryTasks(data.map(mapToCamelCase) || []);
+            } catch (err) {
+                console.error("Error fetching delivery tasks:", err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getDeliveryTasks();
+    }, []);
+
+    const addDeliveryTask = async (taskData) => {
+        const taskRecord = mapToSnakeCase(taskData);
+        const { data, error } = await supabase
+            .from('delivery_tasks')
+            .insert([taskRecord])
+            .select();
+        
+        if (error) {
+             console.error('Error adding delivery task:', error);
+             alert(`Error adding delivery task: ${error.message}`);
+             return;
+        }
+        if (data) setDeliveryTasks(prev => [mapToCamelCase(data[0]), ...prev]);
+    };
+
+    const updateDeliveryTask = async (updatedTask) => {
+        const taskRecord = mapToSnakeCase(updatedTask);
+        const { data, error } = await supabase
+            .from('delivery_tasks')
+            .update(taskRecord)
+            .eq('id', updatedTask.id)
+            .select();
+            
+        if (error) {
+            console.error('Error updating delivery task:', error);
+            alert(`Error updating delivery task: ${error.message}`);
+        } else if (data) {
+            setDeliveryTasks(prev => prev.map(t => (t.id === updatedTask.id ? mapToCamelCase(data[0]) : t)));
+        }
+    };
+
+    const deleteDeliveryTask = async (taskId) => {
+        const { error } = await supabase
+            .from('delivery_tasks')
+            .delete()
+            .eq('id', taskId);
+            
+        if (error) {
+            console.error('Error deleting delivery task:', error);
+            alert(`Error deleting delivery task: ${error.message}`);
+        } else {
+            setDeliveryTasks(prev => prev.filter(t => t.id !== taskId));
+        }
+    };
+    
+    const value = { deliveryTasks, addDeliveryTask, updateDeliveryTask, deleteDeliveryTask, loading, error };
+
+    return <DeliveryTaskContext.Provider value={value}>{children}</DeliveryTaskContext.Provider>;
+};
+
 const MainLayout = () => {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState('Dashboard');
@@ -3467,6 +3851,7 @@ const MainLayout = () => {
             case 'Assigned Tasks': return <AssignedTasksPage />;
             case 'Resource': return <ResourcePage onViewProject={handleViewProject} />;
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
+            case 'Delivery Tasks': return <DeliveryTasksPage />;
             case 'Analytics': return <AnalyticsPage />;
             case 'User Admin': return <UserAdminPage />;
             case 'Audit Trail': return <AuditTrailPage />;
@@ -3499,11 +3884,11 @@ export default function App() {
                 <ProjectProvider>
                     <TaskProvider>
                         <UserProvider>
-                            {/* --- ADD THIS --- */}
                             <JobProvider>
-                                <MainLayout />
+                                <DeliveryTaskProvider>
+                                    <MainLayout />
+                                </DeliveryTaskProvider>
                             </JobProvider>
-                            {/* --- AND THIS --- */}
                         </UserProvider>
                     </TaskProvider>
                 </ProjectProvider>
