@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Read(E:\\/**)",
-      "Read(E:\\/**)"
+      "Read(E:\\/**)",
+      "Bash(npm install)"
     ],
     "deny": [],
     "ask": []
