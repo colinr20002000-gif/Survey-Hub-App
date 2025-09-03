@@ -1,0 +1,22 @@
+{
+  "name": "Survey Hub App",
+  "short_name": "Survey Hub",
+  "description": "A comprehensive survey management and analytics platform",
+  "theme_color": "#BD34FE",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "business"],
+  "lang": "en",
+  "dir": "ltr"
+}
