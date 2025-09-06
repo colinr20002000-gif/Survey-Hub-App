@@ -3910,18 +3910,17 @@ const MainLayout = () => {
                 email: user.email
             });
             
-            // Check for new user - more sophisticated detection
-            // New users: no last_login AND (no last_sign_in_at OR first time signing in)
-            const isFirstTimeLogin = user.created_at && user.last_sign_in_at && 
-                new Date(user.last_sign_in_at).getTime() - new Date(user.created_at).getTime() < 60000; // Within 1 minute of creation
-            
-            const isNewUser = !user.last_login && (!user.last_sign_in_at || isFirstTimeLogin);
+            // Simplified new user detection - only check last_login
+            // If last_login is null, they need to set password regardless of last_sign_in_at
+            const isNewUser = !user.last_login;
             console.log('🔐 Is new user?', isNewUser, { 
-                hasLastLogin: !!user.last_login, 
+                hasLastLogin: !!user.last_login,
+                last_login_value: user.last_login,
                 hasLastSignIn: !!user.last_sign_in_at,
-                isFirstTimeLogin,
+                last_sign_in_at_value: user.last_sign_in_at,
                 created_at: user.created_at,
-                last_sign_in_at: user.last_sign_in_at
+                userId: user.id,
+                email: user.email
             });
             
             if (isNewUser) {
@@ -3935,7 +3934,15 @@ const MainLayout = () => {
             const accessToken = urlParams.get('access_token');
             const type = urlParams.get('type');
             
+            console.log('🔐 URL check for password recovery:', { 
+                accessToken: accessToken ? 'present' : 'missing',
+                type,
+                fullURL: window.location.href,
+                searchParams: window.location.search
+            });
+            
             if (accessToken && type === 'recovery') {
+                console.log('🔐 Password recovery detected - showing prompt');
                 setPasswordPromptReason('password_recovery');
                 setShowPasswordPrompt(true);
                 // Clear URL parameters
