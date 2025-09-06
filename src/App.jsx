@@ -3910,12 +3910,18 @@ const MainLayout = () => {
                 email: user.email
             });
             
-            // Check for new user (no last_login AND no previous sign-ins)
-            // Only show prompt for truly new users who have never logged in
-            const isNewUser = !user.last_login && !user.last_sign_in_at;
+            // Check for new user - more sophisticated detection
+            // New users: no last_login AND (no last_sign_in_at OR first time signing in)
+            const isFirstTimeLogin = user.created_at && user.last_sign_in_at && 
+                new Date(user.last_sign_in_at).getTime() - new Date(user.created_at).getTime() < 60000; // Within 1 minute of creation
+            
+            const isNewUser = !user.last_login && (!user.last_sign_in_at || isFirstTimeLogin);
             console.log('🔐 Is new user?', isNewUser, { 
                 hasLastLogin: !!user.last_login, 
-                hasLastSignIn: !!user.last_sign_in_at 
+                hasLastSignIn: !!user.last_sign_in_at,
+                isFirstTimeLogin,
+                created_at: user.created_at,
+                last_sign_in_at: user.last_sign_in_at
             });
             
             if (isNewUser) {
