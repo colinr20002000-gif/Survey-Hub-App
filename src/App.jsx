@@ -3910,24 +3910,28 @@ const MainLayout = () => {
                 email: user.email
             });
             
-            // FIRST: Check for password recovery (check URL parameters)
+            // FIRST: Check for password recovery (check URL parameters and hash fragments)
             // This should take priority over new user check
             const urlParams = new URLSearchParams(window.location.search);
-            const accessToken = urlParams.get('access_token');
-            const type = urlParams.get('type');
+            const hashParams = new URLSearchParams(window.location.hash.substring(1)); // Remove # and parse
+            
+            const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
+            const type = urlParams.get('type') || hashParams.get('type');
             
             console.log('🔐 URL check for password recovery:', { 
                 accessToken: accessToken ? 'present' : 'missing',
                 type,
                 fullURL: window.location.href,
-                searchParams: window.location.search
+                searchParams: window.location.search,
+                hashParams: window.location.hash,
+                fromHash: !!hashParams.get('access_token')
             });
             
             if (accessToken && type === 'recovery') {
                 console.log('🔐 Password recovery detected - showing prompt');
                 setPasswordPromptReason('password_recovery');
                 setShowPasswordPrompt(true);
-                // Clear URL parameters
+                // Clear URL parameters (both query params and hash)
                 window.history.replaceState({}, document.title, window.location.pathname);
                 return;
             }
