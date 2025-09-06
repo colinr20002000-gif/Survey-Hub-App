@@ -77,6 +77,7 @@ export const AuthProvider = ({ children }) => {
           teamRole: 'Site Team',
           avatar: authUser.email.charAt(0).toUpperCase(),
           privilege: isAdminUser ? 'Admin' : 'Site Staff',
+          last_sign_in_at: authUser.last_sign_in_at,
           auth_user: authUser
         };
       }
