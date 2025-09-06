@@ -2576,19 +2576,99 @@ const ProfileSettings = ({ user }) => (
     </div>
 );
 
-const SecuritySettings = () => (
-    <div>
-        <h2 className="text-xl font-semibold mb-4">Security</h2>
-        <form className="space-y-4">
-            <Input label="Current Password" type="password" />
-            <Input label="New Password" type="password" />
-            <Input label="Confirm New Password" type="password" />
-            <div className="pt-2">
-                <Button>Update Password</Button>
-            </div>
-        </form>
-    </div>
-);
+const SecuritySettings = () => {
+    const [passwords, setPasswords] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setPasswords(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+
+        // Validation
+        if (!passwords.newPassword || !passwords.confirmPassword) {
+            alert('Please fill in all fields');
+            setIsLoading(false);
+            return;
+        }
+
+        if (passwords.newPassword !== passwords.confirmPassword) {
+            alert('New passwords do not match');
+            setIsLoading(false);
+            return;
+        }
+
+        if (passwords.newPassword.length < 6) {
+            alert('Password must be at least 6 characters long');
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            // Update password using Supabase
+            const { error } = await supabase.auth.updateUser({
+                password: passwords.newPassword
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            alert('Password updated successfully!');
+            setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        } catch (error) {
+            console.error('Error updating password:', error);
+            alert(`Error updating password: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div>
+            <h2 className="text-xl font-semibold mb-4">Security</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <Input 
+                    label="Current Password" 
+                    type="password" 
+                    name="currentPassword"
+                    value={passwords.currentPassword}
+                    onChange={handleChange}
+                    placeholder="Enter your current password"
+                />
+                <Input 
+                    label="New Password" 
+                    type="password" 
+                    name="newPassword"
+                    value={passwords.newPassword}
+                    onChange={handleChange}
+                    placeholder="Enter new password (min 6 characters)"
+                />
+                <Input 
+                    label="Confirm New Password" 
+                    type="password" 
+                    name="confirmPassword"
+                    value={passwords.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Confirm your new password"
+                />
+                <div className="pt-2">
+                    <Button type="submit" disabled={isLoading}>
+                        {isLoading ? 'Updating...' : 'Update Password'}
+                    </Button>
+                </div>
+            </form>
+        </div>
+    );
+};
 
 const AppearanceSettings = () => {
     const { theme, toggleTheme } = useTheme();
