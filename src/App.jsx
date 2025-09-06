@@ -6,6 +6,7 @@ import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
+import PasswordChangePrompt from './components/PasswordChangePrompt';
 
 // --- USER PRIVILEGES & MOCK DATA ---
 // Temporary mock data until all components are updated to use UserProvider
@@ -3875,6 +3876,8 @@ const MainLayout = () => {
     const [activeTab, setActiveTab] = useState('Dashboard');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState(null);
+    const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+    const [passwordPromptReason, setPasswordPromptReason] = useState(null);
     const { projects } = useProjects();
 
     useEffect(() => {
@@ -3888,6 +3891,31 @@ const MainLayout = () => {
             }
         }
     }, [projects, selectedProject]);
+
+    // Check if user needs to change password
+    useEffect(() => {
+        if (user && !isLoading && !showPasswordPrompt) {
+            // Check for new user (no last_login)
+            if (!user.last_login) {
+                setPasswordPromptReason('new_user');
+                setShowPasswordPrompt(true);
+                return;
+            }
+
+            // Check for password recovery (check URL parameters)
+            const urlParams = new URLSearchParams(window.location.search);
+            const accessToken = urlParams.get('access_token');
+            const type = urlParams.get('type');
+            
+            if (accessToken && type === 'recovery') {
+                setPasswordPromptReason('password_recovery');
+                setShowPasswordPrompt(true);
+                // Clear URL parameters
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return;
+            }
+        }
+    }, [user, isLoading, showPasswordPrompt]);
 
 
     const handleViewProject = (project) => {
@@ -3945,6 +3973,18 @@ const MainLayout = () => {
                     {renderContent()}
                 </main>
             </div>
+            
+            {/* Password Change Prompt */}
+            {showPasswordPrompt && (
+                <PasswordChangePrompt
+                    user={user}
+                    reason={passwordPromptReason}
+                    onComplete={() => {
+                        setShowPasswordPrompt(false);
+                        setPasswordPromptReason(null);
+                    }}
+                />
+            )}
         </div>
     );
 };
