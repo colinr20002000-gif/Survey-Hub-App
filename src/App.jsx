@@ -3895,9 +3895,22 @@ const MainLayout = () => {
     // Check if user needs to change password
     useEffect(() => {
         if (user && !isLoading && !showPasswordPrompt) {
+            // Debug logging to understand user object
+            console.log('🔐 Password check - User object:', {
+                last_login: user.last_login,
+                last_sign_in_at: user.last_sign_in_at,
+                created_at: user.created_at,
+                email: user.email
+            });
+            
             // Check for new user (no last_login AND no previous sign-ins)
             // Only show prompt for truly new users who have never logged in
             const isNewUser = !user.last_login && !user.last_sign_in_at;
+            console.log('🔐 Is new user?', isNewUser, { 
+                hasLastLogin: !!user.last_login, 
+                hasLastSignIn: !!user.last_sign_in_at 
+            });
+            
             if (isNewUser) {
                 setPasswordPromptReason('new_user');
                 setShowPasswordPrompt(true);
