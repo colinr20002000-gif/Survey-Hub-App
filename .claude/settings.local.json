@@ -3,7 +3,15 @@
     "allow": [
       "Read(E:\\/**)",
       "Read(E:\\/**)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx eslint:*)",
+      "Bash(del:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

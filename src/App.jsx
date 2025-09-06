@@ -3,8 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import LoginPage from './components/pages/LoginPage';
+import UserAdmin from './components/pages/UserAdmin';
 
-// --- MOCK DATA & PRIVILEGES (Auth data is still mocked) ---
+// --- USER PRIVILEGES & MOCK DATA ---
+// Temporary mock data until all components are updated to use UserProvider
 const mockUsers = {
   '1': { id: 1, username: 'Colin.Rogers', name: 'Colin Rogers', role: 'Admin', teamRole: 'Office Staff', avatar: 'CR', email: 'colin.rogers@surveyhub.co.uk', last_login: '2024-08-25 10:30', password: 'Survey Hub', privilege: 'Admin' },
   '2': { id: 2, username: 'Ben.Carter', name: 'Ben Carter', role: 'Manager', teamRole: 'Project Team', avatar: 'BC', email: 'ben.carter@surveyhub.co.uk', last_login: '2024-08-25 09:15', password: 'password123', privilege: 'Project Managers' },
@@ -170,14 +174,12 @@ const mockAuditTrail = [
 
 
 // --- CONTEXT ---
-const AuthContext = createContext(null);
 const ThemeContext = createContext(null);
 const ProjectContext = createContext(null);
 const TaskContext = createContext(null);
 const DeliveryTaskContext = createContext(null);
 const useTasks = () => useContext(TaskContext);
 const useDeliveryTasks = () => useContext(DeliveryTaskContext);
-const useAuth = () => useContext(AuthContext);
 const useTheme = () => useContext(ThemeContext);
 const useProjects = () => useContext(ProjectContext);
 
@@ -191,74 +193,6 @@ const RetroTargetIcon = ({ className }) => (
     </svg>
 );
 
-// --- LOGIN PAGE ---
-const LoginPage = () => {
-    const { login } = useAuth();
-    const [username, setUsername] = useState('Colin.Rogers');
-    const [password, setPassword] = useState('Survey Hub');
-    const [error, setError] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleLogin = (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setError('');
-        setTimeout(() => {
-            const user = Object.values(mockUsers).find(u => u.username === username);
-            if (user && user.password === password) {
-                login(user);
-            } else {
-                setError('Invalid username or password.');
-            }
-            setIsLoading(false);
-        }, 1000);
-    };
-
-    return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 font-sans">
-            <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-lg dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-            >
-                <div className="text-center">
-                    <div className="flex justify-center items-center mb-4">
-                        <RetroTargetIcon className="w-12 h-12 text-orange-500" />
-                        <h1 className="ml-3 text-4xl font-bold text-gray-800 dark:text-white tracking-tight">Survey Hub</h1>
-                    </div>
-                    <p className="text-gray-500 dark:text-gray-400">Railway Survey & Design Management</p>
-                </div>
-                <form className="space-y-6" onSubmit={handleLogin}>
-                    <div>
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
-                        <input
-                            type="text"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            className="w-full px-4 py-2 mt-2 text-base text-gray-700 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600"
-                            placeholder="e.g. Colin.Rogers"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-2 mt-2 text-base text-gray-700 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600"
-                            placeholder="••••••••"
-                        />
-                    </div>
-                    {error && <p className="text-sm text-red-500 text-center">{error}</p>}
-                    <button type="submit" disabled={isLoading} className="w-full py-3 font-semibold text-white bg-orange-500 rounded-lg hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors duration-300 disabled:bg-orange-300">
-                        {isLoading ? 'Signing In...' : 'Sign In'}
-                    </button>
-                </form>
-            </motion.div>
-        </div>
-    );
-};
 
 // --- MAIN LAYOUT COMPONENTS ---
 const Header = ({ onMenuClick, setActiveTab }) => {
@@ -1610,8 +1544,9 @@ const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users }) => {
 
 const ResourcePage = ({ onViewProject }) => {
     const { user: currentUser } = useAuth();
-    const isAdminOrManager = currentUser.role === 'Admin' || currentUser.role === 'Manager';
+    const isAdminOrManager = currentUser.privilege === 'Admin' || currentUser.privilege === 'Project Managers';
     const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
+    const { projects } = useProjects();
     
     const [allocations, setAllocations] = useState({});
     const [loading, setLoading] = useState(true);
@@ -1621,7 +1556,7 @@ const ResourcePage = ({ onViewProject }) => {
     const [isManageUsersModalOpen, setIsManageUsersModalOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [selectedCell, setSelectedCell] = useState(null);
-    const [visibleUserIds, setVisibleUserIds] = useState(allUsers.map(u => u.id));
+    const [visibleUserIds, setVisibleUserIds] = useState([]);
     const [filterRoles, setFilterRoles] = useState([]);
     const [sortOrder, setSortOrder] = useState('alphabetical');
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
@@ -1738,7 +1673,7 @@ const ResourcePage = ({ onViewProject }) => {
         if (allUsers.length > 0) {
             // This line runs whenever the allUsers list changes.
             // It gets all the current user IDs and sets them as visible.
-            setVisibleUserIds(allUsers.map(u => u.id));
+            setVisibleUserIds((allUsers || []).map(u => u.id));
         }
     }, [allUsers]);
 
@@ -1817,7 +1752,7 @@ const ResourcePage = ({ onViewProject }) => {
             const { data: existingRecord } = await supabase
                 .from('resource_allocations')
                 .select('id')
-                .eq('user_id', parseInt(userId))
+                .eq('user_id', userId)
                 .eq('allocation_date', allocationDateString)
                 .single();
 
@@ -1835,7 +1770,7 @@ const ResourcePage = ({ onViewProject }) => {
                 }
             } else {
                 let recordToUpsert = {
-                    user_id: parseInt(userId),
+                    user_id: userId,
                     allocation_date: allocationDateString,
                 };
 
@@ -1884,7 +1819,7 @@ const ResourcePage = ({ onViewProject }) => {
         const cellToUpdate = { userId: cellData.userId, dayIndex: cellData.dayIndex, date: cellData.date };
 
         if (action === 'goToProject') {
-            const projectToView = initialProjects.find(p => p.project_number === cellData.assignment.projectNumber);
+            const projectToView = projects?.find(p => p.project_number === cellData.assignment.projectNumber);
             if (projectToView) {
                 onViewProject(projectToView);
             }
@@ -1922,14 +1857,24 @@ const ResourcePage = ({ onViewProject }) => {
     const weekKey = formatDateForKey(currentWeekStart);
     const fiscalWeek = getFiscalWeek(currentWeekStart);
     const currentWeekAllocations = allocations[weekKey] || {};
-    const selectedUser = selectedCell ? mockUsers[selectedCell.userId] : null;
+    const selectedUser = selectedCell ? allUsers?.find(u => u.id === selectedCell.userId) : null;
 
-    if (loading) {
+    if (loading || usersLoading) {
         return (
             <div className="p-4 md:p-6 flex items-center justify-center min-h-96">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
                     <p className="text-gray-600 dark:text-gray-300">Loading Resource Allocations...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (usersError) {
+        return (
+            <div className="p-4 md:p-6 flex items-center justify-center min-h-96">
+                <div className="text-center text-red-600">
+                    <p>Error loading users: {usersError}</p>
                 </div>
             </div>
         );
@@ -2076,6 +2021,7 @@ const ResourcePage = ({ onViewProject }) => {
                     user={selectedUser}
                     date={selectedCell.date}
                     currentAssignment={currentWeekAllocations[selectedCell.userId]?.assignments[selectedCell.dayIndex] || null}
+                    projects={projects}
                 />
             )}
             <ShowHideUsersModal
@@ -2112,7 +2058,7 @@ const ShowHideUsersModal = ({ isOpen, onClose, onSave, allUsers, visibleUserIds 
                 <div className="space-y-4">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Select the staff members to display on the resource planner.</p>
                     <div className="max-h-60 overflow-y-auto space-y-2 p-2 border rounded-md dark:border-gray-600">
-                        {allUsers.map(user => (
+                        {(allUsers || []).map(user => (
                             <label key={user.id} className="flex items-center space-x-3 cursor-pointer p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
                                 <input
                                     type="checkbox"
@@ -2134,7 +2080,7 @@ const ShowHideUsersModal = ({ isOpen, onClose, onSave, allUsers, visibleUserIds 
     );
 };
 
-const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignment }) => {
+const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignment, projects }) => {
     const [isManual, setIsManual] = useState(false);
     const [leaveType, setLeaveType] = useState('');
     const [formData, setFormData] = useState({
@@ -2159,7 +2105,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                     shift: currentAssignment.shift || 'Days',
                     projectId: currentAssignment.projectId || null
                 });
-                const isProjectInList = initialProjects.some(p => p.project_number === currentAssignment.projectNumber);
+                const isProjectInList = projects?.some(p => p.project_number === currentAssignment.projectNumber) || false;
                 setIsManual(!isProjectInList && !!currentAssignment.projectNumber);
             }
         } else {
@@ -2171,7 +2117,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
 
     const handleProjectSelect = (e) => {
         const selectedProjectNumber = e.target.value;
-        const project = initialProjects.find(p => p.project_number === selectedProjectNumber);
+        const project = projects?.find(p => p.project_number === selectedProjectNumber);
         if (project) {
             setFormData(prev => ({ ...prev, projectNumber: project.project_number, projectName: project.project_name, client: project.client, projectId: project.id }));
         } else {
@@ -2229,7 +2175,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                         {!isManual ? (
                             <Select label="Project" value={formData.projectNumber} onChange={handleProjectSelect}>
                                 <option value="">Select Project</option>
-                                {initialProjects.map(p => (
+                                {(projects || []).map(p => (
                                     <option key={p.id} value={p.project_number}>{p.project_number} - {p.project_name}</option>
                                 ))}
                             </Select>
@@ -2977,7 +2923,7 @@ const AuditTrailPage = () => {
                                     <h4 className="font-semibold mb-2">User</h4>
                                     <Select value={userFilter} onChange={e => setUserFilter(e.target.value)}>
                                         <option value="">All Users</option>
-                                        {allUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                                        {(allUsers || []).map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
                                     </Select>
                                 </div>
                                 <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => { setActionFilter([]); setUserFilter(''); }}>Clear Filters</Button>
@@ -3426,12 +3372,6 @@ const formatDateForKey = (date) => {
 
 
 // --- PROVIDERS & MAIN APP ---
-const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const login = (userData) => setUser(userData);
-    const logout = () => setUser(null);
-    return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>;
-};
 
 const ThemeProvider = ({ children }) => {
     const [theme, setTheme] = useState('dark');
@@ -3481,26 +3421,65 @@ const ProjectProvider = ({ children }) => {
     }, []);
 
     const addProject = async (projectData) => {
-        const newProjectData = { ...projectData, description: '', team: [], tasksText: '' };
-        const { data, error } = await supabase.from('projects').insert([newProjectData]).select();
-        if (error) {
-            console.error('Supabase insert error:', error);
-            alert(`Error creating project: ${error.message}`);
-            return;
+        try {
+            const newProjectData = { ...projectData, description: '', team: [], tasksText: '' };
+            
+            // Add timeout to database insert
+            const insertQuery = Promise.race([
+                supabase.from('projects').insert([newProjectData]).select(),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Database insert timeout')), 8000)
+                )
+            ]);
+            
+            const { data, error } = await insertQuery;
+            
+            if (error) {
+                console.error('Supabase insert error:', error);
+                alert(`Error creating project: ${error.message}`);
+                return;
+            }
+            if (data) setProjects(prev => [data[0], ...prev]);
+        } catch (timeoutError) {
+            console.error('Database timeout:', timeoutError);
+            alert('Database connection timeout. Please try again.');
         }
-        if (data) setProjects(prev => [data[0], ...prev]);
     };
 
     const updateProject = async (updatedProject) => {
-        const { data, error } = await supabase.from('projects').update(updatedProject).eq('id', updatedProject.id).select();
-        if (error) console.error('Error updating project:', error);
-        else if (data) setProjects(prev => prev.map(p => p.id === updatedProject.id ? data[0] : p));
+        try {
+            const updateQuery = Promise.race([
+                supabase.from('projects').update(updatedProject).eq('id', updatedProject.id).select(),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Database update timeout')), 8000)
+                )
+            ]);
+            
+            const { data, error } = await updateQuery;
+            if (error) console.error('Error updating project:', error);
+            else if (data) setProjects(prev => prev.map(p => p.id === updatedProject.id ? data[0] : p));
+        } catch (timeoutError) {
+            console.error('Database timeout:', timeoutError);
+            alert('Database connection timeout. Please try again.');
+        }
     };
 
     const deleteProject = async (projectId) => {
-        const { error } = await supabase.from('projects').delete().eq('id', projectId);
-        if (error) console.error('Error deleting project:', error);
-        else setProjects(prev => prev.filter(p => p.id !== projectId));
+        try {
+            const deleteQuery = Promise.race([
+                supabase.from('projects').delete().eq('id', projectId),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Database delete timeout')), 8000)
+                )
+            ]);
+            
+            const { error } = await deleteQuery;
+            if (error) console.error('Error deleting project:', error);
+            else setProjects(prev => prev.filter(p => p.id !== projectId));
+        } catch (timeoutError) {
+            console.error('Database timeout:', timeoutError);
+            alert('Database connection timeout. Please try again.');
+        }
     };
     
     const value = { projects, addProject, updateProject, deleteProject, loading, error };
@@ -3812,7 +3791,7 @@ export const DeliveryTaskProvider = ({ children }) => {
 };
 
 const MainLayout = () => {
-    const { user } = useAuth();
+    const { user, isLoading } = useAuth();
     const [activeTab, setActiveTab] = useState('Dashboard');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState(null);
@@ -3853,13 +3832,26 @@ const MainLayout = () => {
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
             case 'Delivery Tasks': return <DeliveryTasksPage />;
             case 'Analytics': return <AnalyticsPage />;
-            case 'User Admin': return <UserAdminPage />;
+            case 'User Admin': return <UserAdmin />;
             case 'Audit Trail': return <AuditTrailPage />;
             case 'Settings': return <SettingsPage />;
             default: return <DashboardPage onViewProject={handleViewProject} />;
         }
     };
 
+    // Show loading spinner while authentication is being determined
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
+                    <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Show login page if user is not authenticated
     if (!user) {
         return <LoginPage />;
     }
