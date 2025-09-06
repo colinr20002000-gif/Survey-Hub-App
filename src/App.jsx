@@ -3880,6 +3880,13 @@ const MainLayout = () => {
     const [passwordPromptReason, setPasswordPromptReason] = useState(null);
     const { projects } = useProjects();
 
+    // Ensure user always starts on Dashboard when logging in
+    useEffect(() => {
+        if (user && !isLoading) {
+            setActiveTab('Dashboard');
+        }
+    }, [user, isLoading]);
+
     useEffect(() => {
         if (selectedProject) {
             const updatedProject = projects.find(p => p.id === selectedProject.id);

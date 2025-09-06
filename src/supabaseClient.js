@@ -12,7 +12,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Regular client for normal operations
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+})
 
 // Admin client for user management (requires service role key)
 export const supabaseAdmin = supabaseServiceKey 
