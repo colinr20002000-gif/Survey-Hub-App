@@ -3982,6 +3982,7 @@ const MainLayout = () => {
                     onComplete={() => {
                         setShowPasswordPrompt(false);
                         setPasswordPromptReason(null);
+                        setActiveTab('Dashboard'); // Redirect to main dashboard
                     }}
                 />
             )}
