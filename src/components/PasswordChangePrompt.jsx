@@ -48,13 +48,24 @@ const PasswordChangePrompt = ({ user, onComplete, reason }) => {
       }
 
       // Update last_login in users table to mark as no longer new
-      await supabase
+      console.log('🔐 Updating last_login for user:', user.id);
+      const { error: updateError } = await supabase
         .from('users')
         .update({ last_login: new Date().toISOString() })
         .eq('id', user.id);
 
+      if (updateError) {
+        console.error('🔐 Error updating last_login:', updateError);
+        // Don't throw error - password was successfully updated even if last_login fails
+      } else {
+        console.log('🔐 Successfully updated last_login');
+      }
+
       alert('Password updated successfully!');
-      onComplete();
+      
+      // Force a page reload to refresh user data and prevent password prompt loop
+      // This ensures the updated last_login is reflected in the user object
+      window.location.reload();
     } catch (error) {
       console.error('Error updating password:', error);
       alert(`Error updating password: ${error.message}`);
