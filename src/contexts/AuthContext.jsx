@@ -78,6 +78,7 @@ export const AuthProvider = ({ children }) => {
           avatar: authUser.email.charAt(0).toUpperCase(),
           privilege: isAdminUser ? 'Admin' : 'Site Staff',
           last_sign_in_at: authUser.last_sign_in_at,
+          last_login: authUser.last_sign_in_at, // Assume existing users have completed setup
           auth_user: authUser
         };
       }

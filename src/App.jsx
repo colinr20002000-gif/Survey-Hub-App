@@ -3909,7 +3909,13 @@ const MainLayout = () => {
             const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
             const type = urlParams.get('type') || hashParams.get('type');
             
-            if (accessToken && type === 'recovery') {
+            // Also check if this is a password recovery session by checking if user just signed in
+            // and has specific recovery indicators in the auth user metadata
+            const isRecoverySession = user.auth_user && 
+                (user.auth_user.recovery_sent_at || 
+                 (accessToken && (type === 'recovery' || type === 'magiclink')));
+            
+            if (isRecoverySession) {
                 setPasswordPromptReason('password_recovery');
                 setShowPasswordPrompt(true);
                 // Clear URL parameters (both query params and hash)
