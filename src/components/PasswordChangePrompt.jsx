@@ -48,17 +48,14 @@ const PasswordChangePrompt = ({ user, onComplete, reason }) => {
       }
 
       // Update last_login in users table to mark as no longer new
-      console.log('🔐 Updating last_login for user:', user.id);
       const { error: updateError } = await supabase
         .from('users')
         .update({ last_login: new Date().toISOString() })
         .eq('id', user.id);
 
       if (updateError) {
-        console.error('🔐 Error updating last_login:', updateError);
+        console.error('Error updating last_login:', updateError);
         // Don't throw error - password was successfully updated even if last_login fails
-      } else {
-        console.log('🔐 Successfully updated last_login');
       }
 
       alert('Password updated successfully!');

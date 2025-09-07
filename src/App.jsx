@@ -3902,33 +3902,14 @@ const MainLayout = () => {
     // Check if user needs to change password
     useEffect(() => {
         if (user && !isLoading && !showPasswordPrompt) {
-            // Debug logging to understand user object
-            console.log('🔐 Password check - User object:', {
-                last_login: user.last_login,
-                last_sign_in_at: user.last_sign_in_at,
-                created_at: user.created_at,
-                email: user.email
-            });
-            
             // FIRST: Check for password recovery (check URL parameters and hash fragments)
-            // This should take priority over new user check
             const urlParams = new URLSearchParams(window.location.search);
-            const hashParams = new URLSearchParams(window.location.hash.substring(1)); // Remove # and parse
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
             
             const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
             const type = urlParams.get('type') || hashParams.get('type');
             
-            console.log('🔐 URL check for password recovery:', { 
-                accessToken: accessToken ? 'present' : 'missing',
-                type,
-                fullURL: window.location.href,
-                searchParams: window.location.search,
-                hashParams: window.location.hash,
-                fromHash: !!hashParams.get('access_token')
-            });
-            
             if (accessToken && type === 'recovery') {
-                console.log('🔐 Password recovery detected - showing prompt');
                 setPasswordPromptReason('password_recovery');
                 setShowPasswordPrompt(true);
                 // Clear URL parameters (both query params and hash)
@@ -3936,21 +3917,8 @@ const MainLayout = () => {
                 return;
             }
 
-            // SECOND: Check for new user
-            // Simplified new user detection - only check last_login
-            // If last_login is null, they need to set password regardless of last_sign_in_at
-            const isNewUser = !user.last_login;
-            console.log('🔐 Is new user?', isNewUser, { 
-                hasLastLogin: !!user.last_login,
-                last_login_value: user.last_login,
-                hasLastSignIn: !!user.last_sign_in_at,
-                last_sign_in_at_value: user.last_sign_in_at,
-                created_at: user.created_at,
-                userId: user.id,
-                email: user.email
-            });
-            
-            if (isNewUser) {
+            // SECOND: Check for new user (no last_login)
+            if (!user.last_login) {
                 setPasswordPromptReason('new_user');
                 setShowPasswordPrompt(true);
                 return;
