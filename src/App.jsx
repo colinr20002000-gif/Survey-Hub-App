@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -134,23 +134,178 @@ const mockResourceAllocations = {
 };
 
 
-const mockAnnouncements = [
-    { id: 1, title: 'New Drone Surveying Equipment', content: 'We have acquired new LiDAR-equipped drones. Training sessions will be held next week.', date: '2024-07-22' },
-    { id: 2, title: 'Updated Safety Protocols for Trackside Work', content: 'Please review the updated safety documentation on the portal before any new site visits.', date: '2024-07-18' },
+// Announcement priorities and categories
+const ANNOUNCEMENT_PRIORITIES = {
+    low: { label: 'Low', color: 'text-gray-500', bg: 'bg-gray-100 dark:bg-gray-700' },
+    medium: { label: 'Medium', color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900' },
+    high: { label: 'High', color: 'text-orange-500', bg: 'bg-orange-100 dark:bg-orange-900' },
+    urgent: { label: 'Urgent', color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-900' }
+};
+
+const ANNOUNCEMENT_CATEGORIES = [
+    'General',
+    'Safety',
+    'Equipment',
+    'Policy',
+    'Training',
+    'Project Updates',
+    'Maintenance'
 ];
 
-const mockProjectFiles = [
-    { id: 1, name: 'Topographical_Survey_Data.xlsx', type: 'spreadsheet', size: '2.3 MB', uploaded: '2024-07-28' },
-    { id: 2, name: 'Site_Visit_Report_v2.pdf', type: 'pdf', size: '1.1 MB', uploaded: '2024-07-29' },
-    { id: 3, name: 'Track_Alignment_Final.dwg', type: 'cad', size: '5.8 MB', uploaded: '2024-08-01' },
-    { id: 4, name: 'Site_Photos_July.zip', type: 'zip', size: '15.2 MB', uploaded: '2024-08-02' },
-];
 
-const mockNotifications = [
-    { id: 1, text: 'Chloe Davis commented on "West Coast Main Line"', time: '2m ago', read: false },
-    { id: 2, text: 'New file uploaded to "HS2 Phase 2a"', time: '1h ago', read: false },
-    { id: 3, text: 'Your task "Finalize NR-23-001 survey report" is due tomorrow.', time: '3h ago', read: true },
-];
+// Push Notification Hook
+const usePushNotifications = () => {
+    const [permission, setPermission] = useState(Notification.permission);
+    const [isSupported, setIsSupported] = useState('Notification' in window);
+
+    const requestPermission = async () => {
+        if (!isSupported) return false;
+        
+        try {
+            const permission = await Notification.requestPermission();
+            setPermission(permission);
+            return permission === 'granted';
+        } catch (error) {
+            console.error('Error requesting notification permission:', error);
+            return false;
+        }
+    };
+
+    const sendNotification = (title, options = {}) => {
+        if (permission !== 'granted') return false;
+
+        try {
+            const notification = new Notification(title, {
+                icon: '/favicon.ico', // Add your app icon path
+                badge: '/badge-icon.png', // Add badge icon path
+                tag: 'survey-hub-notification',
+                renotify: true,
+                ...options
+            });
+
+            // Auto close after 5 seconds
+            setTimeout(() => notification.close(), 5000);
+
+            // Handle click
+            notification.onclick = () => {
+                window.focus();
+                notification.close();
+            };
+
+            return true;
+        } catch (error) {
+            console.error('Error sending notification:', error);
+            return false;
+        }
+    };
+
+    return {
+        permission,
+        isSupported,
+        requestPermission,
+        sendNotification,
+        canNotify: permission === 'granted'
+    };
+};
+
+// Enhanced notification system
+const useNotifications = () => {
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const { user } = useAuth();
+
+    const fetchNotifications = async () => {
+        try {
+            // Fetch user-specific notifications
+            const { data: notificationData, error: notifError } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+            if (notifError) throw notifError;
+
+            // Fetch announcement notifications (from announcement_reads)
+            let announcementNotifs = [];
+            const { data: announcementData, error: announceError } = await supabase
+                .from('announcements')
+                .select(`
+                    id,
+                    title,
+                    priority,
+                    created_at
+                `)
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (announceError) {
+                // If announcements table doesn't exist, continue without announcements
+                if (!(announceError.code === 'PGRST116' || announceError.message.includes('relation') || announceError.message.includes('does not exist'))) {
+                    throw announceError;
+                }
+            } else {
+                announcementNotifs = announcementData || [];
+            }
+
+            // Combine and format notifications
+            const combined = [
+                ...(notificationData || []).map(n => ({
+                    ...n,
+                    type: 'notification',
+                    time: formatTimeAgo(n.created_at)
+                })),
+                ...(announcementNotifs || [])
+                    .map(a => ({
+                        id: `announcement-${a.id}`,
+                        text: `New announcement: ${a.title}`,
+                        type: 'announcement',
+                        priority: a.priority,
+                        read: false, // Simplified for now
+                        time: formatTimeAgo(a.created_at),
+                        created_at: a.created_at
+                    }))
+            ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+            setNotifications(combined);
+        } catch (error) {
+            console.error('Error fetching notifications:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (user) fetchNotifications();
+    }, [user]);
+
+    const markAsRead = async (notificationId, type) => {
+        if (type === 'announcement') {
+            const announcementId = notificationId.replace('announcement-', '');
+            await supabase
+                .from('announcement_reads')
+                .upsert({ announcement_id: announcementId, user_id: user.id });
+        } else {
+            await supabase
+                .from('notifications')
+                .update({ read: true })
+                .eq('id', notificationId);
+        }
+        fetchNotifications();
+    };
+
+    return { notifications, loading, refetch: fetchNotifications, markAsRead };
+};
+
+const formatTimeAgo = (dateString) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+    
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+};
 
 const jobStatuses = ["Site Not Started", "Site Work Completed", "Delivered", "Postponed", "Cancelled", "On Hold", "Revisit Required"];
 
@@ -179,10 +334,12 @@ const ThemeContext = createContext(null);
 const ProjectContext = createContext(null);
 const TaskContext = createContext(null);
 const DeliveryTaskContext = createContext(null);
+const AuditTrailContext = createContext(null);
 const useTasks = () => useContext(TaskContext);
 const useDeliveryTasks = () => useContext(DeliveryTaskContext);
 const useTheme = () => useContext(ThemeContext);
 const useProjects = () => useContext(ProjectContext);
+const useAuditTrail = () => useContext(AuditTrailContext);
 
 // --- ICONS ---
 const RetroTargetIcon = ({ className }) => (
@@ -201,6 +358,10 @@ const Header = ({ onMenuClick, setActiveTab }) => {
     const { theme, toggleTheme } = useTheme();
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const notificationsRef = useRef(null);
+    const { notifications, loading, markAsRead } = useNotifications();
+    const { permission, requestPermission, canNotify, isSupported } = usePushNotifications();
+
+    const unreadCount = notifications.filter(n => !n.read).length;
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -211,6 +372,13 @@ const Header = ({ onMenuClick, setActiveTab }) => {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    const handleMarkAllAsRead = async () => {
+        const unreadNotifications = notifications.filter(n => !n.read);
+        for (const notification of unreadNotifications) {
+            await markAsRead(notification.id, notification.type);
+        }
+    };
 
     return (
         <header className="flex items-center justify-between h-16 px-4 md:px-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
@@ -230,26 +398,111 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                 <div className="relative" ref={notificationsRef}>
                     <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 relative">
                         <Bell size={20} />
-                        <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-orange-500 ring-2 ring-white dark:ring-gray-800"></span>
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 block h-5 w-5 rounded-full bg-orange-500 ring-2 ring-white dark:ring-gray-800 text-xs text-white flex items-center justify-center font-bold">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                        )}
                     </button>
                     {isNotificationsOpen && (
                         <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                            <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+                            <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                                 <h3 className="font-semibold text-gray-800 dark:text-white">Notifications</h3>
+                                {unreadCount > 0 && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">{unreadCount} unread</span>
+                                )}
                             </div>
                             <ul className="py-2 max-h-80 overflow-y-auto">
-                                {mockNotifications.map(notif => (
-                                    <li key={notif.id} className={`flex items-start px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 ${!notif.read ? 'bg-orange-50 dark:bg-orange-500/10' : ''}`}>
-                                        <div className={`mt-1 h-2 w-2 rounded-full ${!notif.read ? 'bg-orange-500' : 'bg-transparent'}`}></div>
-                                        <div className="ml-3">
-                                            <p className="text-sm text-gray-700 dark:text-gray-300">{notif.text}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">{notif.time}</p>
-                                        </div>
+                                {loading ? (
+                                    <li className="flex items-center justify-center py-8">
+                                        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                                        <span className="ml-2 text-sm text-gray-500">Loading...</span>
                                     </li>
-                                ))}
+                                ) : notifications.length === 0 ? (
+                                    <li className="text-center py-8 text-gray-500 dark:text-gray-400 text-sm">
+                                        No notifications
+                                    </li>
+                                ) : (
+                                    notifications.slice(0, 10).map(notif => (
+                                        <li 
+                                            key={notif.id} 
+                                            className={`flex items-start px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${!notif.read ? 'bg-orange-50 dark:bg-orange-500/10' : ''}`}
+                                            onClick={() => markAsRead(notif.id, notif.type)}
+                                        >
+                                            <div className={`mt-1 h-2 w-2 rounded-full ${!notif.read ? 'bg-orange-500' : 'bg-transparent'}`}></div>
+                                            <div className="ml-3 flex-1">
+                                                <p className="text-sm text-gray-700 dark:text-gray-300">{notif.text}</p>
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{notif.time}</p>
+                                                    {notif.priority && notif.priority !== 'medium' && (
+                                                        <span className={`text-xs px-1 py-0.5 rounded ${
+                                                            notif.priority === 'urgent' ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300' :
+                                                            notif.priority === 'high' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-300' :
+                                                            'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                                        }`}>
+                                                            {notif.priority}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ))
+                                )}
                             </ul>
                             <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-                                <button className="w-full text-center text-sm text-orange-500 hover:underline">Mark all as read</button>
+                                {/* Push Notification Settings */}
+                                {isSupported && (
+                                    <div className="mb-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-md">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                                                Browser Notifications
+                                            </span>
+                                            {permission === 'default' && (
+                                                <button
+                                                    onClick={requestPermission}
+                                                    className="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600"
+                                                >
+                                                    Enable
+                                                </button>
+                                            )}
+                                            {permission === 'granted' && (
+                                                <span className="text-xs text-green-600 dark:text-green-400">
+                                                    ✓ Enabled
+                                                </span>
+                                            )}
+                                            {permission === 'denied' && (
+                                                <span className="text-xs text-red-500 dark:text-red-400">
+                                                    Blocked
+                                                </span>
+                                            )}
+                                        </div>
+                                        {permission === 'denied' && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                Enable in browser settings
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                                
+                                <div className="flex gap-2">
+                                    {unreadCount > 0 && (
+                                        <button 
+                                            onClick={handleMarkAllAsRead}
+                                            className="flex-1 text-center text-sm text-orange-500 hover:underline"
+                                        >
+                                            Mark all as read
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => {
+                                            setActiveTab('Announcements');
+                                            setIsNotificationsOpen(false);
+                                        }}
+                                        className="flex-1 text-center text-sm text-gray-500 hover:underline dark:text-gray-400"
+                                    >
+                                        View all announcements
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -283,6 +536,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const allNavItems = [
         { name: 'Dashboard', icon: BarChartIcon, show: true },
         { name: 'Projects', icon: FolderKanban, show: true },
+        { name: 'Announcements', icon: Megaphone, show: true },
         { name: 'Assigned Tasks', icon: ClipboardCheck, show: privileges.canViewAssignedTasks },
         { name: 'Resource', icon: ClipboardList, show: true },
         { 
@@ -410,11 +664,43 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
 };
 
 // --- PAGE COMPONENTS ---
-const DashboardPage = ({ onViewProject }) => {
+const DashboardPage = ({ onViewProject, setActiveTab }) => {
     const { user } = useAuth();
+    const { projects } = useProjects();
     const [feedbackType, setFeedbackType] = useState('bug');
     const [feedbackText, setFeedbackText] = useState('');
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [dashboardAnnouncements, setDashboardAnnouncements] = useState([]);
+
+    // Fetch recent announcements for dashboard
+    useEffect(() => {
+        const fetchRecentAnnouncements = async () => {
+            if (!user) return;
+            
+            try {
+                const { data, error } = await supabase
+                    .from('announcements')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(3);
+
+                if (error) {
+                    // If table doesn't exist, just set empty announcements
+                    if (error.code === 'PGRST116' || error.message.includes('relation') || error.message.includes('does not exist')) {
+                        setDashboardAnnouncements([]);
+                        return;
+                    }
+                    throw error;
+                }
+                setDashboardAnnouncements(data || []);
+            } catch (error) {
+                console.error('Error fetching dashboard announcements:', error);
+                setDashboardAnnouncements([]);
+            }
+        };
+
+        fetchRecentAnnouncements();
+    }, [user]);
 
     const handleFeedbackSubmit = (e) => {
         e.preventDefault();
@@ -443,7 +729,7 @@ const DashboardPage = ({ onViewProject }) => {
                 <div className="lg:col-span-2 space-y-6">
                     <Card title="Recent Projects" icon={<FolderKanban className="text-orange-500" />}>
                         <ul className="space-y-3">
-                            {initialProjects.slice(0, 4).map(p => (
+                            {projects.slice(0, 4).map(p => (
                                 <li key={p.id} className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                     <button onClick={() => onViewProject(p)} className="text-left">
                                         <p className="font-semibold text-gray-700 dark:text-gray-200 hover:text-orange-500">{p.project_name}</p>
@@ -455,15 +741,45 @@ const DashboardPage = ({ onViewProject }) => {
                         </ul>
                     </Card>
                     <Card title="Announcements" icon={<Bell className="text-orange-500" />}>
-                        <ul className="space-y-4">
-                            {mockAnnouncements.map(a => (
-                                <li key={a.id}>
-                                    <p className="font-semibold text-gray-700 dark:text-gray-200">{a.title}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{a.content}</p>
-                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{a.date}</p>
-                                </li>
-                            ))}
-                        </ul>
+                        {dashboardAnnouncements.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                <Megaphone className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                <p className="text-sm">No recent announcements</p>
+                            </div>
+                        ) : (
+                            <ul className="space-y-4">
+                                {dashboardAnnouncements.map(a => (
+                                    <li key={a.id} className="border-l-4 border-l-orange-500 pl-4">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <p className="font-semibold text-gray-700 dark:text-gray-200">{a.title}</p>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{a.content}</p>
+                                                <div className="flex items-center gap-3 mt-2">
+                                                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                        {new Date(a.created_at).toLocaleDateString()}
+                                                    </p>
+                                                    <span className={`text-xs px-2 py-1 rounded-full ${
+                                                        ANNOUNCEMENT_PRIORITIES[a.priority]?.bg || 'bg-gray-100 dark:bg-gray-700'
+                                                    } ${ANNOUNCEMENT_PRIORITIES[a.priority]?.color || 'text-gray-500'}`}>
+                                                        {ANNOUNCEMENT_PRIORITIES[a.priority]?.label || a.priority}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => setActiveTab && setActiveTab('Announcements')}
+                                className="w-full"
+                            >
+                                View All Announcements
+                            </Button>
+                        </div>
                     </Card>
                     <Card title="Report a Bug or Request a Feature" icon={<Bug className="text-orange-500" />}>
                         <form onSubmit={handleFeedbackSubmit} className="space-y-4">
@@ -494,6 +810,476 @@ const DashboardPage = ({ onViewProject }) => {
                 </div>
             </div>
         </div>
+    );
+};
+
+const AnnouncementsPage = () => {
+    const [announcements, setAnnouncements] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('All');
+    const [selectedPriority, setSelectedPriority] = useState('All');
+    const { user } = useAuth();
+    const privileges = userPrivileges[user?.privilege];
+
+    const fetchAnnouncements = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('announcements')
+                .select(`
+                    *
+                `)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                // If table doesn't exist, just set empty announcements
+                if (error.code === 'PGRST116' || error.message.includes('relation') || error.message.includes('does not exist')) {
+                    console.warn('Announcements table does not exist yet. Please create it in your Supabase database.');
+                    setAnnouncements([]);
+                    setLoading(false);
+                    return;
+                }
+                throw error;
+            }
+
+            const processedData = (data || []).map(announcement => ({
+                ...announcement,
+                author_name: 'System', // Fallback since we removed the join
+                isRead: false, // Fallback - will be updated when announcement_reads works
+                readCount: 0 // Fallback
+            }));
+
+            setAnnouncements(processedData);
+        } catch (error) {
+            console.error('Error fetching announcements:', error);
+            setAnnouncements([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (user) fetchAnnouncements();
+    }, [user]);
+
+    const handleMarkAsRead = async (announcementId) => {
+        try {
+            await supabase
+                .from('announcement_reads')
+                .upsert({ 
+                    announcement_id: announcementId, 
+                    user_id: user.id 
+                }, { onConflict: 'announcement_id,user_id' });
+
+            fetchAnnouncements();
+        } catch (error) {
+            console.error('Error marking announcement as read:', error);
+        }
+    };
+
+    const handleDelete = async (announcementId) => {
+        if (!window.confirm('Are you sure you want to delete this announcement?')) return;
+        
+        try {
+            const { error } = await supabase
+                .from('announcements')
+                .delete()
+                .eq('id', announcementId);
+
+            if (error) throw error;
+            
+            fetchAnnouncements();
+            alert('Announcement deleted successfully');
+        } catch (error) {
+            console.error('Error deleting announcement:', error);
+            alert('Error deleting announcement');
+        }
+    };
+
+    const filteredAnnouncements = announcements.filter(announcement => {
+        const matchesSearch = announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            announcement.content.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = selectedCategory === 'All' || announcement.category === selectedCategory;
+        const matchesPriority = selectedPriority === 'All' || announcement.priority === selectedPriority.toLowerCase();
+        
+        return matchesSearch && matchesCategory && matchesPriority;
+    });
+
+    if (loading) {
+        return (
+            <div className="p-6">
+                <div className="flex items-center justify-center h-64">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <span className="ml-2">Loading announcements...</span>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Announcements</h1>
+                    <p className="text-gray-600 dark:text-gray-400">Company-wide announcements and updates</p>
+                </div>
+                {privileges?.canEditProjects && (
+                    <Button onClick={() => setIsCreateModalOpen(true)}>
+                        <PlusCircle size={16} className="mr-2" />
+                        New Announcement
+                    </Button>
+                )}
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-6">
+                <div className="flex flex-wrap gap-4 items-center">
+                    <div className="flex-1 min-w-64">
+                        <Input
+                            placeholder="Search announcements..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full"
+                        />
+                    </div>
+                    <Select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+                        <option value="All">All Categories</option>
+                        {ANNOUNCEMENT_CATEGORIES.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                    </Select>
+                    <Select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)}>
+                        <option value="All">All Priorities</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                    </Select>
+                </div>
+            </div>
+
+            {/* Announcements List */}
+            <div className="space-y-4">
+                {filteredAnnouncements.length === 0 ? (
+                    <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl">
+                        <Megaphone className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No announcements found</h3>
+                        <p className="text-gray-500 dark:text-gray-400">
+                            {searchTerm || selectedCategory !== 'All' || selectedPriority !== 'All' 
+                                ? 'Try adjusting your filters'
+                                : 'No announcements have been created yet'
+                            }
+                        </p>
+                    </div>
+                ) : (
+                    filteredAnnouncements.map(announcement => {
+                        const priority = ANNOUNCEMENT_PRIORITIES[announcement.priority];
+                        return (
+                            <div
+                                key={announcement.id}
+                                className={`bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 ${
+                                    !announcement.isRead ? 'border-l-4 border-l-orange-500' : ''
+                                }`}
+                            >
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                                {announcement.title}
+                                            </h3>
+                                            {!announcement.isRead && (
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-400">
+                                                    New
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-3">
+                                            <span className="flex items-center gap-1">
+                                                <Users size={14} />
+                                                {announcement.author_name}
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <Calendar size={14} />
+                                                {new Date(announcement.created_at).toLocaleDateString()}
+                                            </span>
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${priority.bg} ${priority.color}`}>
+                                                {priority.label}
+                                            </span>
+                                            {announcement.category && (
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                                    {announcement.category}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {!announcement.isRead && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleMarkAsRead(announcement.id)}
+                                            >
+                                                Mark as Read
+                                            </Button>
+                                        )}
+                                        {privileges?.canEditProjects && announcement.author_id === user.id && (
+                                            <>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setSelectedAnnouncement(announcement);
+                                                        setIsEditModalOpen(true);
+                                                    }}
+                                                >
+                                                    <Edit size={14} />
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleDelete(announcement.id)}
+                                                    className="text-red-500 hover:text-red-700"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </Button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                    {announcement.content}
+                                </div>
+                                {announcement.expires_at && (
+                                    <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg flex items-center gap-2">
+                                        <AlertTriangle size={16} className="text-yellow-500" />
+                                        <span className="text-sm text-yellow-700 dark:text-yellow-300">
+                                            Expires: {new Date(announcement.expires_at).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                )}
+                                {announcement.target_roles && (
+                                    <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                                        Target audience: {announcement.target_roles.join(', ')}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
+            {/* Create Announcement Modal */}
+            <AnnouncementModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onSave={fetchAnnouncements}
+                announcement={null}
+            />
+
+            {/* Edit Announcement Modal */}
+            <AnnouncementModal
+                isOpen={isEditModalOpen}
+                onClose={() => {
+                    setIsEditModalOpen(false);
+                    setSelectedAnnouncement(null);
+                }}
+                onSave={fetchAnnouncements}
+                announcement={selectedAnnouncement}
+            />
+        </div>
+    );
+};
+
+const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
+    const [formData, setFormData] = useState({
+        title: '',
+        content: '',
+        category: 'General',
+        priority: 'medium',
+        target_roles: [],
+        expires_at: ''
+    });
+    const [loading, setLoading] = useState(false);
+    const { user } = useAuth();
+    const { sendNotification, canNotify } = usePushNotifications();
+
+    useEffect(() => {
+        if (announcement) {
+            setFormData({
+                title: announcement.title || '',
+                content: announcement.content || '',
+                category: announcement.category || 'General',
+                priority: announcement.priority || 'medium',
+                target_roles: announcement.target_roles || [],
+                expires_at: announcement.expires_at ? announcement.expires_at.split('T')[0] : ''
+            });
+        } else {
+            setFormData({
+                title: '',
+                content: '',
+                category: 'General',
+                priority: 'medium',
+                target_roles: [],
+                expires_at: ''
+            });
+        }
+    }, [announcement, isOpen]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+
+        try {
+            const payload = {
+                ...formData,
+                author_id: user.id,
+                expires_at: formData.expires_at || null,
+                target_roles: formData.target_roles.length > 0 ? formData.target_roles : null
+            };
+
+            let result;
+            if (announcement) {
+                result = await supabase
+                    .from('announcements')
+                    .update(payload)
+                    .eq('id', announcement.id);
+            } else {
+                result = await supabase
+                    .from('announcements')
+                    .insert([payload]);
+            }
+
+            if (result.error) throw result.error;
+
+            // Send push notification for new announcements
+            if (!announcement && canNotify) {
+                const priorityEmoji = {
+                    urgent: '🚨',
+                    high: '⚠️',
+                    medium: '📢',
+                    low: 'ℹ️'
+                };
+
+                sendNotification(
+                    `${priorityEmoji[formData.priority] || '📢'} ${formData.title}`,
+                    {
+                        body: formData.content.substring(0, 100) + (formData.content.length > 100 ? '...' : ''),
+                        tag: `announcement-${Date.now()}`,
+                        data: { type: 'announcement', priority: formData.priority }
+                    }
+                );
+            }
+
+            alert(announcement ? 'Announcement updated successfully!' : 'Announcement created successfully!');
+            onSave();
+            onClose();
+        } catch (error) {
+            console.error('Error saving announcement:', error);
+            alert('Error saving announcement: ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleTargetRoleChange = (role) => {
+        setFormData(prev => ({
+            ...prev,
+            target_roles: prev.target_roles.includes(role)
+                ? prev.target_roles.filter(r => r !== role)
+                : [...prev.target_roles, role]
+        }));
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={announcement ? 'Edit Announcement' : 'Create Announcement'}>
+            <div className="p-6">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <Input
+                        label="Title"
+                        value={formData.title}
+                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                        required
+                        placeholder="Announcement title"
+                    />
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Content
+                        </label>
+                        <textarea
+                            value={formData.content}
+                            onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                            required
+                            rows={6}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                            placeholder="Announcement content..."
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Select
+                            label="Category"
+                            value={formData.category}
+                            onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                        >
+                            {ANNOUNCEMENT_CATEGORIES.map(category => (
+                                <option key={category} value={category}>{category}</option>
+                            ))}
+                        </Select>
+
+                        <Select
+                            label="Priority"
+                            value={formData.priority}
+                            onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value }))}
+                        >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </Select>
+                    </div>
+
+                    <Input
+                        label="Expiration Date (optional)"
+                        type="date"
+                        value={formData.expires_at}
+                        onChange={(e) => setFormData(prev => ({ ...prev, expires_at: e.target.value }))}
+                    />
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Target Roles (optional - leave empty for all users)
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {['surveyor', 'team_leader', 'project_manager', 'admin'].map(role => (
+                                <label key={role} className="flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.target_roles.includes(role)}
+                                        onChange={() => handleTargetRoleChange(role)}
+                                        className="mr-2"
+                                    />
+                                    <span className="text-sm capitalize">{role.replace('_', ' ')}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end space-x-2 pt-4">
+                        <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={loading}>
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                            {announcement ? 'Update' : 'Create'} Announcement
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </Modal>
     );
 };
 
@@ -2744,7 +3530,7 @@ const ProjectDetailPage = ({ project, onBack }) => {
             <div className="mt-6">
                 {activeTab === 'overview' && <ProjectOverview project={project} onUpdate={updateProject} canEdit={privileges.canEditProjects} />}
                 {activeTab === 'tasks' && <ProjectTasks project={project} canEdit={privileges.canEditProjects} />}
-                {activeTab === 'files' && <ProjectFiles files={mockProjectFiles} />}
+                {activeTab === 'files' && <ProjectFiles projectId={project.id} />}
             </div>
         </div>
     );
@@ -2866,20 +3652,168 @@ const ProjectTasks = ({ project, canEdit }) => {
     );
 };
 
-const ProjectFiles = ({ files }) => {
-    const getFileIcon = (type) => {
-        switch (type) {
-            case 'spreadsheet': return <FileSpreadsheet className="text-green-500" />;
-            case 'pdf': return <FileText className="text-red-500" />;
-            case 'cad': return <Presentation className="text-blue-500" />;
-            default: return <File className="text-gray-500" />;
+const ProjectFiles = ({ projectId }) => {
+    const [files, setFiles] = useState([]);
+    const [uploading, setUploading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const fileInputRef = useRef(null);
+
+    const getFileIcon = (fileName) => {
+        const extension = fileName.split('.').pop().toLowerCase();
+        switch (extension) {
+            case 'xlsx':
+            case 'xls':
+            case 'csv':
+                return <FileSpreadsheet className="text-green-500" />;
+            case 'pdf':
+                return <FileText className="text-red-500" />;
+            case 'dwg':
+            case 'dxf':
+            case 'ppt':
+            case 'pptx':
+                return <Presentation className="text-blue-500" />;
+            case 'zip':
+            case 'rar':
+                return <Archive className="text-yellow-500" />;
+            default:
+                return <File className="text-gray-500" />;
         }
     };
+
+    const formatFileSize = (bytes) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const fetchFiles = async () => {
+        try {
+            const { data, error } = await supabase.storage
+                .from('project-files')
+                .list(`project-${projectId}`, {
+                    limit: 100,
+                    offset: 0,
+                    sortBy: { column: 'created_at', order: 'desc' }
+                });
+
+            if (error) {
+                console.error('Error fetching files:', error);
+                return;
+            }
+
+            const filesWithDetails = data.map(file => ({
+                id: file.id,
+                name: file.name,
+                size: formatFileSize(file.metadata?.size || 0),
+                uploaded: new Date(file.created_at).toLocaleDateString(),
+                fullPath: `project-${projectId}/${file.name}`
+            }));
+
+            setFiles(filesWithDetails);
+        } catch (error) {
+            console.error('Error fetching files:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchFiles();
+    }, [projectId]);
+
+    const handleFileUpload = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}_${file.name}`;
+            const filePath = `project-${projectId}/${fileName}`;
+
+            const { data, error } = await supabase.storage
+                .from('project-files')
+                .upload(filePath, file);
+
+            if (error) {
+                alert('Error uploading file: ' + error.message);
+                return;
+            }
+
+            await fetchFiles();
+            alert('File uploaded successfully!');
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            alert('Error uploading file');
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
+
+    const handleDownload = async (file) => {
+        try {
+            const { data, error } = await supabase.storage
+                .from('project-files')
+                .download(file.fullPath);
+
+            if (error) {
+                alert('Error downloading file: ' + error.message);
+                return;
+            }
+
+            const url = URL.createObjectURL(data);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            alert('Error downloading file');
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="p-8 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+                    <p>Loading files...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
             <div className="p-4 flex justify-between items-center border-b dark:border-gray-700">
                 <h3 className="font-semibold">Project Files</h3>
-                <Button><Upload size={16} className="mr-2"/>Upload File</Button>
+                <div>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                        disabled={uploading}
+                    />
+                    <Button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                    >
+                        {uploading ? (
+                            <><Loader2 size={16} className="mr-2 animate-spin" />Uploading...</>
+                        ) : (
+                            <><Upload size={16} className="mr-2" />Upload File</>
+                        )}
+                    </Button>
+                </div>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -2892,19 +3826,33 @@ const ProjectFiles = ({ files }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {files.map(file => (
-                            <tr key={file.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
-                                <td className="px-4 py-3 flex items-center">
-                                    {getFileIcon(file.type)}
-                                    <span className="ml-3 font-medium">{file.name}</span>
-                                </td>
-                                <td className="px-4 py-3">{file.size}</td>
-                                <td className="px-4 py-3">{file.uploaded}</td>
-                                <td className="px-4 py-3 text-center">
-                                    <button className="p-1 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"><Download size={16}/></button>
+                        {files.length === 0 ? (
+                            <tr>
+                                <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    No files uploaded yet. Click "Upload File" to add your first file.
                                 </td>
                             </tr>
-                        ))}
+                        ) : (
+                            files.map(file => (
+                                <tr key={file.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
+                                    <td className="px-4 py-3 flex items-center">
+                                        {getFileIcon(file.name)}
+                                        <span className="ml-3 font-medium">{file.name}</span>
+                                    </td>
+                                    <td className="px-4 py-3">{file.size}</td>
+                                    <td className="px-4 py-3">{file.uploaded}</td>
+                                    <td className="px-4 py-3 text-center">
+                                        <button
+                                            onClick={() => handleDownload(file)}
+                                            className="p-1 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                                            title="Download file"
+                                        >
+                                            <Download size={16} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -2913,7 +3861,8 @@ const ProjectFiles = ({ files }) => {
 };
 
 const AuditTrailPage = () => {
-    const [logs, setLogs] = useState(mockAuditTrail);
+    const { auditLogs, loading, error } = useAuditTrail();
+    const [logs, setLogs] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'timestamp', direction: 'descending' });
     const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -2922,6 +3871,10 @@ const AuditTrailPage = () => {
     const [actionFilter, setActionFilter] = useState([]);
     const [userFilter, setUserFilter] = useState('');
     const filterRef = useRef(null);
+
+    useEffect(() => {
+        setLogs(auditLogs);
+    }, [auditLogs]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -2981,8 +3934,24 @@ const AuditTrailPage = () => {
     const uniqueActions = [...new Set(logs.map(log => log.action))];
     const allUsers = Object.values(mockUsers);
 
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
+                    <p className="mt-4 text-gray-600 dark:text-gray-400">Loading audit logs...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="p-4 md:p-6">
+            {error && (
+                <div className="mb-4 p-4 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 rounded">
+                    Error loading audit logs: {error}
+                </div>
+            )}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Audit Trail</h1>
                 <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
@@ -3568,6 +4537,85 @@ const ProjectProvider = ({ children }) => {
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 };
 
+const AuditTrailProvider = ({ children }) => {
+    const [auditLogs, setAuditLogs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const getAuditLogs = async () => {
+            setLoading(true);
+            setError(null);
+
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('audit_logs')
+                    .select('*')
+                    .order('timestamp', { ascending: false });
+
+                if (fetchError) {
+                    // If table doesn't exist, fall back to mock data
+                    if (fetchError.code === 'PGRST116' || fetchError.message.includes('does not exist')) {
+                        console.warn('audit_logs table not found, using mock data');
+                        setAuditLogs(mockAuditTrail);
+                    } else {
+                        setError(fetchError.message);
+                        setAuditLogs([]);
+                    }
+                } else {
+                    setAuditLogs(data || []);
+                }
+            } catch (e) {
+                console.warn('Error fetching audit logs, using mock data:', e);
+                setAuditLogs(mockAuditTrail);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getAuditLogs();
+    }, []);
+
+    const addAuditLog = async (logData) => {
+        try {
+            // Create timestamp in UK timezone
+            const ukTimestamp = new Date().toLocaleString("en-CA", {
+                timeZone: "Europe/London",
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }).replace(', ', 'T') + '+01:00';
+            
+            const { data, error } = await supabase
+                .from('audit_logs')
+                .insert([{
+                    ...logData,
+                    timestamp: ukTimestamp
+                }])
+                .select();
+
+            if (error) {
+                console.error('Error adding audit log:', error);
+                return;
+            }
+            
+            if (data) {
+                setAuditLogs(prev => [data[0], ...prev]);
+            }
+        } catch (e) {
+            console.error('Error adding audit log:', e);
+        }
+    };
+
+    const value = { auditLogs, addAuditLog, loading, error };
+
+    return <AuditTrailContext.Provider value={value}>{children}</AuditTrailContext.Provider>;
+};
+
 
 const TaskProvider = ({ children }) => {
     const [tasks, setTasks] = useState([]);
@@ -3878,14 +4926,19 @@ const MainLayout = () => {
     const [selectedProject, setSelectedProject] = useState(null);
     const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
     const [passwordPromptReason, setPasswordPromptReason] = useState(null);
+    const [hasInitialized, setHasInitialized] = useState(false);
     const { projects } = useProjects();
 
-    // Ensure user always starts on Dashboard when logging in
+    // Ensure user starts on Dashboard only on initial login, not on every user state change
     useEffect(() => {
-        if (user && !isLoading) {
+        if (user && !isLoading && !hasInitialized) {
             setActiveTab('Dashboard');
+            setHasInitialized(true);
+        } else if (!user && !isLoading) {
+            // Reset when user logs out so next login will go to Dashboard
+            setHasInitialized(false);
         }
-    }, [user, isLoading]);
+    }, [user, isLoading, hasInitialized]);
 
     useEffect(() => {
         if (selectedProject) {
@@ -3948,8 +5001,9 @@ const MainLayout = () => {
             return <ProjectDetailPage project={selectedProject} onBack={handleBackToProjects} />;
         }
         switch (activeTab) {
-            case 'Dashboard': return <DashboardPage onViewProject={handleViewProject} />;
+            case 'Dashboard': return <DashboardPage onViewProject={handleViewProject} setActiveTab={setActiveTab} />;
             case 'Projects': return <ProjectsPage onViewProject={handleViewProject} />;
+            case 'Announcements': return <AnnouncementsPage />;
             case 'Assigned Tasks': return <AssignedTasksPage />;
             case 'Resource': return <ResourcePage onViewProject={handleViewProject} />;
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
@@ -3958,7 +5012,7 @@ const MainLayout = () => {
             case 'User Admin': return <UserAdmin />;
             case 'Audit Trail': return <AuditTrailPage />;
             case 'Settings': return <SettingsPage />;
-            default: return <DashboardPage onViewProject={handleViewProject} />;
+            default: return <DashboardPage onViewProject={handleViewProject} setActiveTab={setActiveTab} />;
         }
     };
 
@@ -4010,15 +5064,17 @@ export default function App() {
         <AuthProvider>
             <ThemeProvider>
                 <ProjectProvider>
-                    <TaskProvider>
-                        <UserProvider>
-                            <JobProvider>
-                                <DeliveryTaskProvider>
-                                    <MainLayout />
-                                </DeliveryTaskProvider>
-                            </JobProvider>
-                        </UserProvider>
-                    </TaskProvider>
+                    <AuditTrailProvider>
+                        <TaskProvider>
+                            <UserProvider>
+                                <JobProvider>
+                                    <DeliveryTaskProvider>
+                                        <MainLayout />
+                                    </DeliveryTaskProvider>
+                                </JobProvider>
+                            </UserProvider>
+                        </TaskProvider>
+                    </AuditTrailProvider>
                 </ProjectProvider>
             </ThemeProvider>
         </AuthProvider>
