@@ -280,21 +280,54 @@ const useNotifications = () => {
     }, [user]);
 
     const markAsRead = async (notificationId, type) => {
-        if (type === 'announcement') {
-            const announcementId = notificationId.replace('announcement-', '');
-            await supabase
-                .from('announcement_reads')
-                .upsert({ announcement_id: announcementId, user_id: user.id });
-        } else {
-            await supabase
-                .from('notifications')
-                .update({ read: true })
-                .eq('id', notificationId);
+        try {
+            // Mark as read locally immediately for instant feedback
+            setNotifications(prev => prev.map(n => 
+                n.id === notificationId ? { ...n, read: true } : n
+            ));
+
+            // Then try to update database in background
+            if (type === 'announcement') {
+                const announcementId = notificationId.replace('announcement-', '');
+                const { error } = await supabase
+                    .from('announcement_reads')
+                    .upsert({ announcement_id: announcementId, user_id: user.id });
+                
+                if (error) {
+                    console.warn('Could not mark announcement as read in database:', error);
+                }
+            } else {
+                const { error } = await supabase
+                    .from('notifications')
+                    .update({ read: true })
+                    .eq('id', notificationId);
+                
+                if (error) {
+                    console.warn('Could not mark notification as read:', error);
+                }
+            }
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+            // Already marked locally above, so no need to do anything else
         }
-        fetchNotifications();
     };
 
-    return { notifications, loading, refetch: fetchNotifications, markAsRead };
+    const clearAllNotifications = () => {
+        setNotifications([]);
+    };
+
+    const markAllAsRead = () => {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    };
+
+    return { 
+        notifications, 
+        loading, 
+        refetch: fetchNotifications, 
+        markAsRead,
+        clearAllNotifications,
+        markAllAsRead
+    };
 };
 
 const formatTimeAgo = (dateString) => {
@@ -358,7 +391,7 @@ const Header = ({ onMenuClick, setActiveTab }) => {
     const { theme, toggleTheme } = useTheme();
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const notificationsRef = useRef(null);
-    const { notifications, loading, markAsRead } = useNotifications();
+    const { notifications, loading, markAsRead, clearAllNotifications, markAllAsRead } = useNotifications();
     const { permission, requestPermission, canNotify, isSupported } = usePushNotifications();
 
     const unreadCount = notifications.filter(n => !n.read).length;
@@ -374,9 +407,26 @@ const Header = ({ onMenuClick, setActiveTab }) => {
     }, []);
 
     const handleMarkAllAsRead = async () => {
-        const unreadNotifications = notifications.filter(n => !n.read);
-        for (const notification of unreadNotifications) {
-            await markAsRead(notification.id, notification.type);
+        try {
+            const unreadNotifications = notifications.filter(n => !n.read);
+            
+            if (unreadNotifications.length === 0) return;
+
+            // Mark all as read locally immediately for instant feedback
+            markAllAsRead();
+            
+            // Then try to update database in background
+            for (const notification of unreadNotifications) {
+                try {
+                    await markAsRead(notification.id, notification.type);
+                } catch (error) {
+                    console.warn('Failed to mark notification as read in database:', error);
+                    // Continue with next notification
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error marking all as read:', error);
         }
     };
 
@@ -405,12 +455,25 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                         )}
                     </button>
                     {isNotificationsOpen && (
-                        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                        <div className="absolute mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-[80vh] overflow-hidden 
+                                      w-80 max-w-[90vw] 
+                                      right-0 md:right-0 
+                                      sm:right-[-20px] 
+                                      transform sm:translate-x-0">
                             <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                                <h3 className="font-semibold text-gray-800 dark:text-white">Notifications</h3>
-                                {unreadCount > 0 && (
-                                    <span className="text-xs text-gray-500 dark:text-gray-400">{unreadCount} unread</span>
-                                )}
+                                <div>
+                                    <h3 className="font-semibold text-gray-800 dark:text-white">Notifications</h3>
+                                    {unreadCount > 0 && (
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">{unreadCount} unread</span>
+                                    )}
+                                </div>
+                                <button 
+                                    onClick={() => setIsNotificationsOpen(false)}
+                                    className="md:hidden p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                    aria-label="Close notifications"
+                                >
+                                    <X size={16} />
+                                </button>
                             </div>
                             <ul className="py-2 max-h-80 overflow-y-auto">
                                 {loading ? (
@@ -427,7 +490,13 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                                         <li 
                                             key={notif.id} 
                                             className={`flex items-start px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${!notif.read ? 'bg-orange-50 dark:bg-orange-500/10' : ''}`}
-                                            onClick={() => markAsRead(notif.id, notif.type)}
+                                            onClick={() => {
+                                                markAsRead(notif.id, notif.type);
+                                                if (notif.type === 'announcement') {
+                                                    setActiveTab('Announcements');
+                                                    setIsNotificationsOpen(false);
+                                                }
+                                            }}
                                         >
                                             <div className={`mt-1 h-2 w-2 rounded-full ${!notif.read ? 'bg-orange-500' : 'bg-transparent'}`}></div>
                                             <div className="ml-3 flex-1">
@@ -484,21 +553,34 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                                     </div>
                                 )}
                                 
-                                <div className="flex gap-2">
-                                    {unreadCount > 0 && (
-                                        <button 
-                                            onClick={handleMarkAllAsRead}
-                                            className="flex-1 text-center text-sm text-orange-500 hover:underline"
-                                        >
-                                            Mark all as read
-                                        </button>
-                                    )}
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex gap-2">
+                                        {unreadCount > 0 && (
+                                            <button 
+                                                onClick={handleMarkAllAsRead}
+                                                className="flex-1 text-center text-sm text-orange-500 hover:underline py-1"
+                                            >
+                                                Mark all as read
+                                            </button>
+                                        )}
+                                        {notifications.length > 0 && (
+                                            <button 
+                                                onClick={() => {
+                                                    clearAllNotifications();
+                                                    setIsNotificationsOpen(false);
+                                                }}
+                                                className="flex-1 text-center text-sm text-red-500 hover:underline py-1"
+                                            >
+                                                Clear all
+                                            </button>
+                                        )}
+                                    </div>
                                     <button 
                                         onClick={() => {
                                             setActiveTab('Announcements');
                                             setIsNotificationsOpen(false);
                                         }}
-                                        className="flex-1 text-center text-sm text-gray-500 hover:underline dark:text-gray-400"
+                                        className="w-full text-center text-sm text-gray-500 hover:underline dark:text-gray-400 py-1"
                                     >
                                         View all announcements
                                     </button>
