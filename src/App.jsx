@@ -142,6 +142,14 @@ const ANNOUNCEMENT_PRIORITIES = {
     urgent: { label: 'Urgent', color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-900' }
 };
 
+// Notification delivery methods
+const NOTIFICATION_METHODS = {
+    push: 'Browser Push',
+    email: 'Email',
+    sms: 'SMS',
+    all: 'All Methods'
+};
+
 const ANNOUNCEMENT_CATEGORIES = [
     'General',
     'Safety',
@@ -175,22 +183,42 @@ const usePushNotifications = () => {
         if (permission !== 'granted') return false;
 
         try {
-            const notification = new Notification(title, {
-                icon: '/favicon.ico', // Add your app icon path
-                badge: '/badge-icon.png', // Add badge icon path
-                tag: 'survey-hub-notification',
-                renotify: true,
-                ...options
-            });
+            // Check if service worker is available for better PWA support
+            if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+                navigator.serviceWorker.ready.then((registration) => {
+                    registration.showNotification(title, {
+                        icon: '/icon-192x192.png',
+                        badge: '/icon-144x144.png',
+                        tag: 'survey-hub-notification',
+                        renotify: true,
+                        requireInteraction: false,
+                        vibrate: [200, 100, 200],
+                        data: {
+                            url: '/',
+                            timestamp: Date.now()
+                        },
+                        ...options
+                    });
+                });
+            } else {
+                // Fallback to regular notification
+                const notification = new Notification(title, {
+                    icon: '/icon-192x192.png',
+                    badge: '/icon-144x144.png',
+                    tag: 'survey-hub-notification',
+                    renotify: true,
+                    ...options
+                });
 
-            // Auto close after 5 seconds
-            setTimeout(() => notification.close(), 5000);
+                // Auto close after 5 seconds
+                setTimeout(() => notification.close(), 5000);
 
-            // Handle click
-            notification.onclick = () => {
-                window.focus();
-                notification.close();
-            };
+                // Handle click
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+            }
 
             return true;
         } catch (error) {
@@ -3555,25 +3583,195 @@ const AppearanceSettings = () => {
     );
 };
 
-const NotificationSettings = () => (
-    <div>
-        <h2 className="text-xl font-semibold mb-4">Notifications</h2>
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <span>Email Notifications</span>
-                <Switch isChecked={true} onToggle={() => {}} />
-            </div>
-            <div className="flex items-center justify-between">
-                <span>Push Notifications</span>
-                <Switch isChecked={false} onToggle={() => {}} />
-            </div>
-            <div className="flex items-center justify-between">
-                <span>Weekly Summary</span>
-                <Switch isChecked={true} onToggle={() => {}} />
+const NotificationSettings = () => {
+    const [settings, setSettings] = useState({
+        pushNotifications: false,
+        weeklyDigest: true,
+        urgentOnly: false,
+        soundEnabled: true
+    });
+    const [installPrompt, setInstallPrompt] = useState(null);
+    const [isInstalled, setIsInstalled] = useState(false);
+    const { permission, requestPermission, canNotify } = usePushNotifications();
+
+    // Check if app is installed as PWA
+    useEffect(() => {
+        setIsInstalled(window.matchMedia('(display-mode: standalone)').matches || 
+                      window.navigator.standalone === true);
+
+        // Listen for install prompt
+        const handleBeforeInstallPrompt = (e) => {
+            e.preventDefault();
+            setInstallPrompt(e);
+        };
+
+        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    }, []);
+
+    const toggleSetting = (key) => {
+        setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const handlePushToggle = async () => {
+        if (settings.pushNotifications && canNotify) {
+            setSettings(prev => ({ ...prev, pushNotifications: false }));
+        } else {
+            const granted = await requestPermission();
+            setSettings(prev => ({ ...prev, pushNotifications: granted }));
+        }
+    };
+
+    const handleInstallApp = async () => {
+        if (installPrompt) {
+            installPrompt.prompt();
+            const { outcome } = await installPrompt.userChoice;
+            if (outcome === 'accepted') {
+                setInstallPrompt(null);
+                setTimeout(() => setIsInstalled(true), 1000);
+            }
+        }
+    };
+
+    return (
+        <div>
+            <h2 className="text-xl font-semibold mb-4">Notification Settings</h2>
+            
+            <div className="space-y-6">
+                {/* PWA Install Section */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <h3 className="font-medium mb-3">📱 Mobile App Experience</h3>
+                    {isInstalled ? (
+                        <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <span className="font-medium text-green-800 dark:text-green-200">
+                                    ✅ App Installed Successfully!
+                                </span>
+                            </div>
+                            <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                                You're getting the full mobile app experience with better notifications.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3">
+                                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-1">
+                                    Get the Mobile App Experience
+                                </h4>
+                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                    Install Survey Hub as an app for better notifications, offline access, and native mobile experience.
+                                </p>
+                            </div>
+                            {installPrompt && (
+                                <Button onClick={handleInstallApp} className="w-full">
+                                    📱 Install Survey Hub App
+                                </Button>
+                            )}
+                            {!installPrompt && (
+                                <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                    <p><strong>iPhone:</strong> Tap Share → "Add to Home Screen"</p>
+                                    <p><strong>Android:</strong> Tap Menu → "Install app" or "Add to Home screen"</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Push Notifications */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <h3 className="font-medium mb-3">🔔 Push Notifications</h3>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="block font-medium">Push Notifications</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    Get notified instantly about new announcements
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Switch isChecked={canNotify && settings.pushNotifications} onToggle={handlePushToggle} />
+                                {permission === 'denied' && (
+                                    <span className="text-xs text-red-500">Blocked</span>
+                                )}
+                                {permission === 'granted' && (
+                                    <span className="text-xs text-green-500">Enabled</span>
+                                )}
+                            </div>
+                        </div>
+
+                        {permission === 'denied' && (
+                            <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 rounded-lg p-3">
+                                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                                    <strong>Notifications Blocked:</strong> Please enable notifications in your browser settings and refresh the page.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Notification Preferences */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <h3 className="font-medium mb-3">⚙️ Notification Preferences</h3>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="block font-medium">Sound Notifications</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    Play sound with notifications
+                                </span>
+                            </div>
+                            <Switch 
+                                isChecked={settings.soundEnabled} 
+                                onToggle={() => toggleSetting('soundEnabled')} 
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="block font-medium">Urgent Only Mode</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    Only notify for high priority and urgent announcements
+                                </span>
+                            </div>
+                            <Switch 
+                                isChecked={settings.urgentOnly} 
+                                onToggle={() => toggleSetting('urgentOnly')} 
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="block font-medium">Weekly Digest</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    Get a summary of announcements every week
+                                </span>
+                            </div>
+                            <Switch 
+                                isChecked={settings.weeklyDigest} 
+                                onToggle={() => toggleSetting('weeklyDigest')} 
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* PWA Benefits */}
+                <div className="bg-gradient-to-r from-orange-50 to-blue-50 dark:from-orange-500/10 dark:to-blue-500/10 border border-orange-200 dark:border-orange-500/20 rounded-lg p-4">
+                    <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">
+                        🚀 Why Install the App?
+                    </h4>
+                    <ul className="text-sm text-orange-700 dark:text-orange-300 space-y-1">
+                        <li>• <strong>Better Notifications:</strong> More reliable than browser notifications</li>
+                        <li>• <strong>Faster Loading:</strong> App loads instantly from your home screen</li>
+                        <li>• <strong>Offline Access:</strong> View cached content without internet</li>
+                        <li>• <strong>Full Screen:</strong> No browser bars, just your app</li>
+                        <li>• <strong>Native Feel:</strong> Feels like a real mobile app</li>
+                    </ul>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const ProjectDetailPage = ({ project, onBack }) => {
     const [activeTab, setActiveTab] = useState('overview');
