@@ -1,4 +1,4 @@
-const PUBLIC_VAPID_KEY = 'BGAKVb1ZE-Byuvl_YgGxjTKWrb17qsek986xjCw0vMjhMarzGLrQNZKS1c4bULRQC8Cdr8ehF7-cyIa8Gp5ZgQU';
+const PUBLIC_VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
 export class NotificationService {
   constructor() {

@@ -1,7 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import webpush from 'https://esm.sh/web-push@3.6.7';
 
 console.log('Send notification function started');
 
+// Define interfaces for type safety
 interface NotificationPayload {
   title: string;
   body: string;
@@ -19,6 +21,12 @@ interface PushSubscription {
   };
 }
 
+interface SubscriptionRecord {
+  id: number;
+  user_id: string;
+  subscription_object: PushSubscription;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -32,107 +40,107 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Create Supabase client
+    // --- 1. AUTHENTICATION & SETUP ---
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // Use service role key for admin access
     );
 
-    const requestBody = await req.json();
-    const { notification, targetRoles, excludeAuthorId } = requestBody as {
+    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
+    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
+
+    if (!vapidPublicKey || !vapidPrivateKey) {
+      throw new Error('VAPID keys are not configured in environment variables.');
+    }
+
+    const vapidDetails = {
+      publicKey: vapidPublicKey,
+      privateKey: vapidPrivateKey,
+      subject: 'mailto:your-email@example.com', // Replace with your contact email
+    };
+
+    // --- 2. GET REQUEST DATA ---
+    const { notification, targetRoles, excludeAuthorId } = await req.json() as {
       notification: NotificationPayload;
       targetRoles?: string[];
       excludeAuthorId?: string;
     };
 
-    console.log('Sending notification:', notification);
-    console.log('Target roles:', targetRoles);
-    console.log('Exclude author ID:', excludeAuthorId);
-
-    // Get all subscriptions from database
+    // --- 3. FETCH SUBSCRIPTIONS ---
     let query = supabaseClient
       .from('subscriptions')
-      .select('subscription_object');
+      .select(`
+        id,
+        user_id,
+        subscription_object,
+        user:users(role)
+      `);
 
-    // If we have target roles or exclude author, we need to join with users
-    // For now, we'll send to all subscriptions since we don't have user linking
+    // --- 4. FILTER SUBSCRIPTIONS ---
+    if (excludeAuthorId) {
+      query = query.neq('user_id', excludeAuthorId);
+    }
+
     const { data: subscriptions, error: fetchError } = await query;
 
-    if (fetchError) {
-      console.error('Error fetching subscriptions:', fetchError);
-      throw fetchError;
-    }
+    if (fetchError) throw fetchError;
 
     if (!subscriptions || subscriptions.length === 0) {
-      console.log('No subscriptions found');
-      return new Response(JSON.stringify({
-        message: 'No subscriptions to send to',
-        sent: 0
-      }), {
+      return new Response(JSON.stringify({ message: 'No subscriptions found to send to.' }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         status: 200,
       });
     }
 
-    console.log(`Found ${subscriptions.length} subscriptions`);
-
-    // You'll need to add VAPID keys to your environment variables
-    // For now, we'll log the subscriptions and return success
-    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
-    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
-
-    if (!vapidPublicKey || !vapidPrivateKey) {
-      console.warn('VAPID keys not configured. Add VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY to environment.');
-      return new Response(JSON.stringify({
-        message: 'Push notifications not configured (missing VAPID keys)',
-        sent: 0
-      }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        status: 200,
-      });
+    let filteredSubscriptions = subscriptions;
+    if (targetRoles && targetRoles.length > 0) {
+      filteredSubscriptions = subscriptions.filter(s => 
+        s.user && targetRoles.includes(s.user.role)
+      );
     }
 
-    // Send push notifications using web-push library
-    // Note: In a real implementation, you'd use the web-push library
-    // For now, we'll simulate the process
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const sub of subscriptions) {
+    // --- 5. SEND NOTIFICATIONS ---
+    const notificationPromises = filteredSubscriptions.map(async (sub) => {
       try {
-        const subscription = sub.subscription_object as PushSubscription;
-
-        // In a real implementation, you would use web-push library here:
-        // await webpush.sendNotification(subscription, JSON.stringify(notification), {
-        //   vapidDetails: {
-        //     subject: 'mailto:your-email@example.com',
-        //     publicKey: vapidPublicKey,
-        //     privateKey: vapidPrivateKey,
-        //   },
-        // });
-
-        console.log('Would send notification to:', subscription.endpoint);
-        successCount++;
+        await webpush.sendNotification(
+          sub.subscription_object,
+          JSON.stringify(notification),
+          vapidDetails
+        );
+        return { status: 'success', endpoint: sub.subscription_object.endpoint };
       } catch (error) {
-        console.error('Error sending to subscription:', error);
-        failureCount++;
+        console.error(`Failed to send to ${sub.subscription_object.endpoint}:`, error.message);
+        // If subscription is expired or invalid, remove it from DB
+        if ([404, 410].includes(error.statusCode)) {
+          await supabaseClient.from('subscriptions').delete().eq('id', sub.id);
+          console.log(`Removed expired subscription: ${sub.id}`);
+          return { status: 'expired', endpoint: sub.subscription_object.endpoint };
+        }
+        return { status: 'failed', endpoint: sub.subscription_object.endpoint, error: error.message };
       }
-    }
+    });
 
+    const results = await Promise.all(notificationPromises);
+    
+    const successCount = results.filter(r => r.status === 'success').length;
+    const expiredCount = results.filter(r => r.status === 'expired').length;
+    const failureCount = results.filter(r => r.status === 'failed').length;
+
+    // --- 6. RETURN RESPONSE ---
     return new Response(JSON.stringify({
-      message: `Notification sending completed`,
+      message: 'Notification sending process completed.',
       sent: successCount,
+      expired_and_removed: expiredCount,
       failed: failureCount,
-      total: subscriptions.length
+      total_targeted: filteredSubscriptions.length,
     }), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       status: 200,
     });
 
   } catch (err) {
-    console.error('Function error:', err);
-    return new Response(String(err?.message ?? err), {
+    console.error('Function error:', err.message);
+    return new Response(JSON.stringify({ error: err.message }), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       status: 500,
     });
