@@ -6,6 +6,7 @@ import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
+import { sendAnnouncementNotification } from './utils/pushNotifications';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
@@ -1224,23 +1225,45 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
 
             if (result.error) throw result.error;
 
-            // Send push notification for new announcements
-            if (!announcement && canNotify) {
-                const priorityEmoji = {
-                    urgent: '🚨',
-                    high: '⚠️',
-                    medium: '📢',
-                    low: 'ℹ️'
-                };
+            // Send server-side push notification for new announcements to all users
+            if (!announcement) {
+                try {
+                    const notificationResult = await sendAnnouncementNotification(
+                        {
+                            ...formData,
+                            id: result.data?.[0]?.id || 'new-announcement'
+                        },
+                        user.id
+                    );
 
-                sendNotification(
-                    `${priorityEmoji[formData.priority] || '📢'} ${formData.title}`,
-                    {
-                        body: formData.content.substring(0, 100) + (formData.content.length > 100 ? '...' : ''),
-                        tag: `announcement-${Date.now()}`,
-                        data: { type: 'announcement', priority: formData.priority }
+                    if (notificationResult.success) {
+                        console.log(`Push notifications sent to ${notificationResult.sent} subscribers`);
+                    } else {
+                        console.warn('Push notification failed:', notificationResult.message);
                     }
-                );
+                } catch (notifError) {
+                    console.error('Error sending push notification:', notifError);
+                    // Don't fail the announcement creation if notifications fail
+                }
+
+                // Also send local notification to the author
+                if (canNotify) {
+                    const priorityEmoji = {
+                        urgent: '🚨',
+                        high: '⚠️',
+                        medium: '📢',
+                        low: 'ℹ️'
+                    };
+
+                    sendNotification(
+                        `${priorityEmoji[formData.priority] || '📢'} Your announcement was published`,
+                        {
+                            body: `"${formData.title}" has been sent to all users`,
+                            tag: `announcement-published-${Date.now()}`,
+                            data: { type: 'announcement-published', priority: formData.priority }
+                        }
+                    );
+                }
             }
 
             showSuccessModal(announcement ? 'Announcement updated successfully!' : 'Announcement created successfully!', 'Success');

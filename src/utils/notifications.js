@@ -1,4 +1,4 @@
-const PUBLIC_VAPID_KEY = 'YOUR_VAPID_PUBLIC_KEY_HERE';
+const PUBLIC_VAPID_KEY = 'BGAKVb1ZE-Byuvl_YgGxjTKWrb17qsek986xjCw0vMjhMarzGLrQNZKS1c4bULRQC8Cdr8ehF7-cyIa8Gp5ZgQU';
 
 export class NotificationService {
   constructor() {
