@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { sendAnnouncementNotification } from './utils/pushNotifications';
+import { notificationManager } from './utils/realTimeNotifications';
+import { useNotifications as usePushNotifications } from './hooks/useNotifications';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
@@ -165,14 +167,14 @@ const ANNOUNCEMENT_CATEGORIES = [
 ];
 
 
-// Push Notification Hook
-const usePushNotifications = () => {
+// Local notification service for simple notifications
+const useLocalNotifications = () => {
     const [permission, setPermission] = useState(Notification.permission);
     const [isSupported, setIsSupported] = useState('Notification' in window);
 
     const requestPermission = async () => {
         if (!isSupported) return false;
-        
+
         try {
             const permission = await Notification.requestPermission();
             setPermission(permission);
@@ -311,7 +313,7 @@ const Header = ({ onMenuClick, setActiveTab }) => {
         clearAllNotifications, 
         markAllAsRead 
     } = useNotifications();
-    const { permission, requestPermission, canNotify, isSupported } = usePushNotifications();
+    const { permission, requestPermission, canNotify, isSupported } = useLocalNotifications();
 
 
     useEffect(() => {
@@ -1175,7 +1177,7 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
     const [loading, setLoading] = useState(false);
     const { user } = useAuth();
     const { showSuccessModal, showErrorModal } = useToast();
-    const { sendNotification, canNotify } = usePushNotifications();
+    const { sendNotification, canNotify } = useLocalNotifications();
 
     useEffect(() => {
         if (announcement) {
@@ -1225,28 +1227,20 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
 
             if (result.error) throw result.error;
 
-            // Send server-side push notification for new announcements to all users
+            // For new announcements, send push notifications to all users
             if (!announcement) {
-                try {
-                    const notificationResult = await sendAnnouncementNotification(
-                        {
-                            ...formData,
-                            id: result.data?.[0]?.id || 'new-announcement'
-                        },
-                        user.id
-                    );
+                console.log('📢 New announcement created - sending push notifications to all users');
 
-                    if (notificationResult.success) {
-                        console.log(`Push notifications sent to ${notificationResult.sent} subscribers`);
-                    } else {
-                        console.warn('Push notification failed:', notificationResult.message);
-                    }
-                } catch (notifError) {
-                    console.error('Error sending push notification:', notifError);
+                // Trigger server-side push notifications to all subscribed users
+                try {
+                    const notificationResult = await sendAnnouncementNotification(payload, user.id);
+                    console.log('📡 Push notification result:', notificationResult);
+                } catch (notificationError) {
+                    console.error('❌ Error sending push notifications:', notificationError);
                     // Don't fail the announcement creation if notifications fail
                 }
 
-                // Also send local notification to the author
+                // Send local confirmation to the author
                 if (canNotify) {
                     const priorityEmoji = {
                         urgent: '🚨',
@@ -3575,7 +3569,7 @@ const NotificationSettings = () => {
     });
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isInstalled, setIsInstalled] = useState(false);
-    const { permission, requestPermission, canNotify } = usePushNotifications();
+    const { permission, requestPermission, canNotify } = useLocalNotifications();
 
     // Check if app is installed as PWA
     useEffect(() => {
@@ -5188,6 +5182,51 @@ const MainLayout = () => {
     const [selectedProject, setSelectedProject] = useState(null);
     const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
     const [passwordPromptReason, setPasswordPromptReason] = useState(null);
+
+    // Push notification subscription hook
+    const {
+        isSupported: isPushSupported,
+        permission: pushPermission,
+        isSubscribed: isPushSubscribed,
+        subscribe: subscribeToPush
+    } = usePushNotifications();
+
+    // Initialize real-time notifications when user is loaded
+    useEffect(() => {
+        if (user && !isLoading) {
+            console.log('🔔 Initializing real-time notifications for user:', user.email);
+            notificationManager.initialize();
+        }
+
+        // Cleanup on unmount
+        return () => {
+            notificationManager.cleanup();
+        };
+    }, [user, isLoading]);
+
+    // Automatically subscribe to push notifications when user is loaded
+    useEffect(() => {
+        if (user && !isLoading && isPushSupported && !isPushSubscribed) {
+            console.log('🔔 Auto-subscribing user to push notifications:', user.email);
+
+            const autoSubscribe = async () => {
+                try {
+                    await subscribeToPush();
+                    console.log('✅ User successfully subscribed to push notifications');
+                } catch (error) {
+                    console.log('⚠️ User declined push notification subscription:', error.message);
+                    // Don't throw error - it's okay if user declines
+                }
+            };
+
+            // Small delay to ensure everything is initialized
+            const timer = setTimeout(() => {
+                autoSubscribe();
+            }, 2000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [user, isLoading, isPushSupported, isPushSubscribed, subscribeToPush]);
     const [hasInitialized, setHasInitialized] = useState(false);
     const { projects } = useProjects();
 

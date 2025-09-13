@@ -34,13 +34,43 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
 
-    // Get the subscription object from the request body.
-    const subscription = (await req.json()) as PushSubscription;
+    // Get the subscription object and user info from the request body.
+    const requestData = await req.json();
+    const { user_id, user_agent, ip_address, ...subscription } = requestData;
 
-    // Insert the subscription object into the 'subscriptions' table.
+    // Check if a subscription already exists for this user
+    const { data: existingSubscriptions, error: checkError } = await supabaseClient
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', user_id);
+
+    if (checkError && checkError.code !== 'PGRST116') { // Ignore table not found error
+      console.error('Error checking existing subscriptions:', checkError);
+    }
+
+    // If user already has subscriptions, delete them first to avoid duplicates
+    if (existingSubscriptions && existingSubscriptions.length > 0) {
+      const { error: deleteError } = await supabaseClient
+        .from('subscriptions')
+        .delete()
+        .eq('user_id', user_id);
+
+      if (deleteError) {
+        console.error('Error deleting old subscriptions:', deleteError);
+      } else {
+        console.log(`Deleted ${existingSubscriptions.length} old subscription(s) for user ${user_id}`);
+      }
+    }
+
+    // Insert the new subscription object into the 'subscriptions' table.
     const { error } = await supabaseClient
       .from('subscriptions')
-      .insert({ subscription_object: subscription });
+      .insert({
+        subscription_object: subscription,
+        user_id: user_id,
+        user_agent: user_agent,
+        ip_address: ip_address
+      });
 
     if (error) {
       throw error;
