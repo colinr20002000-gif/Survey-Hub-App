@@ -1,30 +1,37 @@
+/* eslint-env serviceworker */
+/* global clients */
+
 // Service Worker for Survey Hub PWA
 const CACHE_NAME = 'survey-hub-v1';
 const OFFLINE_URL = '/offline.html';
 
-// Files to cache for offline functionality
+// Workbox will inject the manifest here during build
+// self.__WB_MANIFEST is replaced by the actual precache manifest during build
+if ('workbox' in self) {
+  self.workbox.precaching.precacheAndRoute(self.__WB_MANIFEST);
+  self.workbox.precaching.cleanupOutdatedCaches();
+} else {
+  // Fallback for when workbox is injected differently
+  self.__WB_MANIFEST;
+}
+
+// Files to cache for offline functionality (in addition to Workbox precaching)
 const STATIC_CACHE_FILES = [
-  '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
-  '/manifest.json',
-  '/icon-192x192.png',
-  '/icon-512x512.png',
   OFFLINE_URL
 ];
 
-// Install event - cache static files
+// Install event - cache additional files
 self.addEventListener('install', (event) => {
   console.log('Service Worker installing...');
-  
+
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Caching static files');
+        console.log('Caching additional static files');
         return cache.addAll(STATIC_CACHE_FILES);
       })
       .catch((error) => {
-        console.error('Failed to cache static files:', error);
+        console.error('Failed to cache additional static files:', error);
       })
   );
 
@@ -59,47 +66,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle navigation requests
+  // Handle navigation requests - show offline page if network fails
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .catch(() => {
-          return caches.open(CACHE_NAME)
-            .then((cache) => {
-              return cache.match(OFFLINE_URL);
-            });
+          return caches.match(OFFLINE_URL);
         })
     );
     return;
   }
 
-  // Handle other requests with cache-first strategy
-  event.respondWith(
-    caches.match(event.request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-
-        return fetch(event.request)
-          .then((response) => {
-            // Don't cache non-successful responses
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Clone the response
-            const responseToCache = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          });
-      })
-  );
+  // For other requests, let Workbox handle precached files
+  // and fall back to network for non-precached resources
 });
 
 // Push notification event

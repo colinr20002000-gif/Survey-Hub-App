@@ -14,7 +14,11 @@ export default defineConfig({
       filename: 'sw.js',
       strategies: 'injectManifest',
       injectManifest: {
-        swSrc: 'public/sw.js'
+        swSrc: 'public/sw.js',
+        swDest: 'dist/sw.js',
+        globPatterns: [
+          '**/*.{js,css,html,ico,png,svg,webmanifest}',
+        ],
       },
       manifest: {
         name: 'Survey-Hub',
