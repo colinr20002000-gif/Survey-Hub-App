@@ -58,14 +58,14 @@ export const NotificationProvider = ({ children }) => {
         return;
       }
 
-      // Transform announcements to notification format, filtering out dismissed ones
+      // Transform announcements to notification format, filtering out dismissed and read ones
       const formattedNotifications = announcements
         .filter(announcement => {
           const userRead = announcement.announcement_reads?.find(read => read.user_id === user.id);
-          return !userRead?.dismissed_at; // Don't include dismissed notifications
+          // Don't include dismissed notifications OR read notifications
+          return !userRead?.dismissed_at && !userRead?.read_at;
         })
         .map(announcement => {
-          const userRead = announcement.announcement_reads?.find(read => read.user_id === user.id);
           const timeAgo = getTimeAgo(announcement.created_at);
           
           return {
@@ -74,7 +74,7 @@ export const NotificationProvider = ({ children }) => {
             message: announcement.title,
             content: announcement.content,
             time: timeAgo,
-            read: !!userRead?.read_at,
+            read: false, // All notifications shown are unread by definition
             priority: announcement.priority,
             created_at: announcement.created_at
           };
