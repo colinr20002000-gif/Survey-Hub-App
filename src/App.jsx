@@ -864,12 +864,48 @@ const AnnouncementsPage = () => {
 
     const handleMarkAsRead = async (announcementId) => {
         try {
-            await supabase
+            // First check if the record already exists
+            const { data: existing, error: checkError } = await supabase
                 .from('announcement_reads')
-                .upsert({ 
-                    announcement_id: announcementId, 
-                    user_id: user.id 
-                }, { onConflict: 'announcement_id,user_id' });
+                .select('id, read_at')
+                .eq('announcement_id', announcementId)
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (checkError) {
+                console.error('Error checking existing read record:', checkError);
+                return;
+            }
+
+            if (existing) {
+                // Record exists, update it if not already marked as read
+                if (!existing.read_at) {
+                    const { error: updateError } = await supabase
+                        .from('announcement_reads')
+                        .update({ read_at: new Date().toISOString() })
+                        .eq('announcement_id', announcementId)
+                        .eq('user_id', user.id);
+
+                    if (updateError) {
+                        console.error('Error updating read status:', updateError);
+                        return;
+                    }
+                }
+            } else {
+                // Record doesn't exist, insert it
+                const { error: insertError } = await supabase
+                    .from('announcement_reads')
+                    .insert({
+                        announcement_id: announcementId,
+                        user_id: user.id,
+                        read_at: new Date().toISOString()
+                    });
+
+                if (insertError) {
+                    console.error('Error inserting read record:', insertError);
+                    return;
+                }
+            }
 
             fetchAnnouncements();
         } catch (error) {

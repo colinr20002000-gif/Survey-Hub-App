@@ -167,63 +167,47 @@ export const NotificationProvider = ({ children }) => {
   // Mark a notification as read for current user
   const markAsRead = async (notificationId) => {
     if (!user?.id) return;
-    
+
     try {
-      // Try to use upsert with proper conflict resolution
-      const { error } = await supabase
+      // First check if the record already exists
+      const { data: existing, error: checkError } = await supabase
         .from('announcement_reads')
-        .upsert({
-          announcement_id: notificationId,
-          user_id: user.id,
-          read_at: new Date().toISOString()
-        }, {
-          onConflict: 'announcement_id,user_id',
-          ignoreDuplicates: false
-        })
-        .select();
+        .select('id, read_at')
+        .eq('announcement_id', notificationId)
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (error) {
-        console.error('Could not mark announcement as read in database:', error);
-        console.error('Error details:', error.message, error.code, error.details);
-        
-        // Fallback: try manual check and update
-        try {
-          const { data: existing } = await supabase
+      if (checkError) {
+        console.error('Error checking existing read record:', checkError);
+        return;
+      }
+
+      if (existing) {
+        // Record exists, update it if not already marked as read
+        if (!existing.read_at) {
+          const { error: updateError } = await supabase
             .from('announcement_reads')
-            .select('id')
+            .update({ read_at: new Date().toISOString() })
             .eq('announcement_id', notificationId)
-            .eq('user_id', user.id)
-            .maybeSingle();
+            .eq('user_id', user.id);
 
-          if (existing) {
-            // Record exists, update it
-            const { error: updateError } = await supabase
-              .from('announcement_reads')
-              .update({ read_at: new Date().toISOString() })
-              .eq('announcement_id', notificationId)
-              .eq('user_id', user.id);
-            
-            if (updateError) {
-              console.error('Fallback update failed:', updateError);
-              return;
-            }
-          } else {
-            // Record doesn't exist, insert it
-            const { error: insertError } = await supabase
-              .from('announcement_reads')
-              .insert({
-                announcement_id: notificationId,
-                user_id: user.id,
-                read_at: new Date().toISOString()
-              });
-            
-            if (insertError) {
-              console.error('Fallback insert failed:', insertError);
-              return;
-            }
+          if (updateError) {
+            console.error('Error updating read status:', updateError);
+            return;
           }
-        } catch (fallbackError) {
-          console.error('Fallback approach failed:', fallbackError);
+        }
+      } else {
+        // Record doesn't exist, insert it
+        const { error: insertError } = await supabase
+          .from('announcement_reads')
+          .insert({
+            announcement_id: notificationId,
+            user_id: user.id,
+            read_at: new Date().toISOString()
+          });
+
+        if (insertError) {
+          console.error('Error inserting read record:', insertError);
           return;
         }
       }
@@ -247,28 +231,15 @@ export const NotificationProvider = ({ children }) => {
   // Mark all notifications as read for current user
   const markAllAsRead = async () => {
     if (!user?.id) return;
-    
+
     try {
       const unreadNotifications = notifications.filter(n => !n.read);
-      
+
       if (unreadNotifications.length === 0) return;
 
-      // Batch insert read records for all unread notifications
-      const readRecords = unreadNotifications.map(notification => ({
-        announcement_id: notification.id,
-        user_id: user.id,
-        read_at: new Date().toISOString()
-      }));
-
-      const { error } = await supabase
-        .from('announcement_reads')
-        .upsert(readRecords, {
-          onConflict: 'announcement_id,user_id'
-        });
-
-      if (error) {
-        console.error('Error marking all notifications as read:', error);
-        return;
+      // Process each notification individually to avoid conflicts
+      for (const notification of unreadNotifications) {
+        await markAsRead(notification.id);
       }
 
       // Update local state immediately
@@ -286,30 +257,60 @@ export const NotificationProvider = ({ children }) => {
   // Clear a notification for current user (mark as dismissed)
   const clearNotification = async (notificationId) => {
     if (!user?.id) return;
-    
-    try {
-      // Mark as dismissed in database using upsert
-      const { error } = await supabase
-        .from('announcement_reads')
-        .upsert({
-          announcement_id: notificationId,
-          user_id: user.id,
-          read_at: new Date().toISOString(),
-          dismissed_at: new Date().toISOString()
-        }, {
-          onConflict: 'announcement_id,user_id'
-        });
 
-      if (error) {
-        console.error('Error dismissing notification:', error);
+    try {
+      // First check if the record already exists
+      const { data: existing, error: checkError } = await supabase
+        .from('announcement_reads')
+        .select('id, dismissed_at')
+        .eq('announcement_id', notificationId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking existing read record:', checkError);
         return;
       }
 
+      const now = new Date().toISOString();
+
+      if (existing) {
+        // Record exists, update it
+        const { error: updateError } = await supabase
+          .from('announcement_reads')
+          .update({
+            read_at: now,
+            dismissed_at: now
+          })
+          .eq('announcement_id', notificationId)
+          .eq('user_id', user.id);
+
+        if (updateError) {
+          console.error('Error updating dismissal status:', updateError);
+          return;
+        }
+      } else {
+        // Record doesn't exist, insert it
+        const { error: insertError } = await supabase
+          .from('announcement_reads')
+          .insert({
+            announcement_id: notificationId,
+            user_id: user.id,
+            read_at: now,
+            dismissed_at: now
+          });
+
+        if (insertError) {
+          console.error('Error inserting dismissal record:', insertError);
+          return;
+        }
+      }
+
       // Remove from local state immediately
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.filter(notification => notification.id !== notificationId)
       );
-      
+
       console.log('Successfully dismissed notification:', notificationId);
     } catch (error) {
       console.error('Error in clearNotification:', error);
@@ -319,37 +320,23 @@ export const NotificationProvider = ({ children }) => {
   // Clear all notifications for current user
   const clearAllNotifications = async () => {
     if (!user?.id) return;
-    
+
     try {
       console.log('Clearing all notifications for user:', user.id);
       console.log('Notifications to clear:', notifications.map(n => ({ id: n.id, message: n.message })));
-      
-      // Mark all current notifications as dismissed
-      const dismissalRecords = notifications.map(notification => ({
-        announcement_id: notification.id,
-        user_id: user.id,
-        read_at: new Date().toISOString(),
-        dismissed_at: new Date().toISOString()
-      }));
 
-      if (dismissalRecords.length === 0) {
+      if (notifications.length === 0) {
         console.log('No notifications to clear');
         return;
       }
 
-      const { error } = await supabase
-        .from('announcement_reads')
-        .upsert(dismissalRecords, {
-          onConflict: 'announcement_id,user_id'
-        });
-
-      if (error) {
-        console.error('Error dismissing all notifications:', error);
-        return;
+      // Process each notification individually to avoid conflicts
+      for (const notification of notifications) {
+        await clearNotification(notification.id);
       }
 
       console.log('Successfully marked all notifications as dismissed');
-      
+
       // Clear all from local state
       setNotifications([]);
       console.log('Cleared all notifications from local state');
