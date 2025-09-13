@@ -19,7 +19,8 @@
       "Bash(supabase:*)",
       "Bash(findstr:*)",
       "Bash(dir:*)",
-      "Bash(npx web-push:*)"
+      "Bash(npx web-push:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []
