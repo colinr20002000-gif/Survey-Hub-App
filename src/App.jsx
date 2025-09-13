@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { sendAnnouncementNotification } from './utils/pushNotifications';
+import { notificationManager } from './utils/realTimeNotifications';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
@@ -1225,28 +1226,12 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
 
             if (result.error) throw result.error;
 
-            // Send server-side push notification for new announcements to all users
+            // Notifications will be automatically handled by the real-time subscription system
+            // All connected users will receive notifications via Supabase real-time
             if (!announcement) {
-                try {
-                    const notificationResult = await sendAnnouncementNotification(
-                        {
-                            ...formData,
-                            id: result.data?.[0]?.id || 'new-announcement'
-                        },
-                        user.id
-                    );
+                console.log('📢 New announcement created - real-time notifications will be sent automatically');
 
-                    if (notificationResult.success) {
-                        console.log(`Push notifications sent to ${notificationResult.sent} subscribers`);
-                    } else {
-                        console.warn('Push notification failed:', notificationResult.message);
-                    }
-                } catch (notifError) {
-                    console.error('Error sending push notification:', notifError);
-                    // Don't fail the announcement creation if notifications fail
-                }
-
-                // Also send local notification to the author
+                // Send local confirmation to the author
                 if (canNotify) {
                     const priorityEmoji = {
                         urgent: '🚨',
@@ -5188,6 +5173,19 @@ const MainLayout = () => {
     const [selectedProject, setSelectedProject] = useState(null);
     const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
     const [passwordPromptReason, setPasswordPromptReason] = useState(null);
+
+    // Initialize real-time notifications when user is loaded
+    useEffect(() => {
+        if (user && !isLoading) {
+            console.log('🔔 Initializing real-time notifications for user:', user.email);
+            notificationManager.initialize();
+        }
+
+        // Cleanup on unmount
+        return () => {
+            notificationManager.cleanup();
+        };
+    }, [user, isLoading]);
     const [hasInitialized, setHasInitialized] = useState(false);
     const { projects } = useProjects();
 

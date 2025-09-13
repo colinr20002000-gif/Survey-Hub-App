@@ -94,7 +94,8 @@ export async function sendAnnouncementNotification(announcementData, authorId) {
 
   const emoji = priorityEmoji[announcementData.priority] || '📢';
 
-  return await sendServerPushNotification(
+  // First, call the server function to get subscriber count
+  const serverResult = await sendServerPushNotification(
     {
       title: `${emoji} ${announcementData.title}`,
       body: announcementData.content.substring(0, 100) + (announcementData.content.length > 100 ? '...' : ''),
@@ -111,4 +112,38 @@ export async function sendAnnouncementNotification(announcementData, authorId) {
       excludeAuthorId: authorId
     }
   );
+
+  // Now, trigger actual push notifications through the service worker
+  if (serverResult.success && 'serviceWorker' in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+
+      // Send a message to the service worker to display notifications
+      const notificationData = {
+        title: `${emoji} ${announcementData.title}`,
+        body: announcementData.content.substring(0, 100) + (announcementData.content.length > 100 ? '...' : ''),
+        icon: '/android-chrome-192x192.png',
+        badge: '/favicon-32x32.png',
+        tag: `announcement-${Date.now()}`,
+        data: {
+          type: 'announcement',
+          priority: announcementData.priority,
+          announcementId: announcementData.id,
+          url: '/announcements'
+        },
+        requireInteraction: false,
+        silent: false,
+        vibrate: [200, 100, 200]
+      };
+
+      // Show notification through service worker
+      await registration.showNotification(notificationData.title, notificationData);
+
+      console.log('Local notification triggered via service worker');
+    } catch (error) {
+      console.error('Error triggering service worker notification:', error);
+    }
+  }
+
+  return serverResult;
 }

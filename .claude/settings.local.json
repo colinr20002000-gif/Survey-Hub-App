@@ -20,7 +20,8 @@
       "Bash(findstr:*)",
       "Bash(dir:*)",
       "Bash(npx web-push:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(copy:*)"
     ],
     "deny": [],
     "ask": []
