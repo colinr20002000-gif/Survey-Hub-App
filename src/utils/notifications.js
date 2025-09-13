@@ -107,6 +107,20 @@ export class NotificationService {
 
   async sendSubscriptionToServer(subscription) {
     try {
+      // Get current user session for authentication
+      const { supabase } = await import('../supabaseClient');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('Error getting session:', sessionError);
+        throw sessionError;
+      }
+
+      if (!session) {
+        console.warn('No active session - cannot save subscription');
+        throw new Error('No active session');
+      }
+
       // Use your Supabase Edge Function endpoint
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const endpoint = `${supabaseUrl}/functions/v1/subscribe`;
@@ -116,8 +130,14 @@ export class NotificationService {
         headers: {
           'Content-Type': 'application/json',
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify(subscription),
+        body: JSON.stringify({
+          ...subscription,
+          user_id: session.user.id,
+          user_agent: navigator.userAgent,
+          ip_address: 'client-side' // Can't get real IP from client
+        }),
       });
 
       if (!response.ok) {
