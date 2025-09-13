@@ -7,11 +7,12 @@ import {
   Moon, 
   Search, 
   Settings, 
-  Sun 
+  Sun,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { MOCK_NOTIFICATIONS } from '../../constants';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 // This is the main header that appears at the top of every page when logged in
 // It contains the search bar, theme toggle, notifications, and user menu
@@ -22,6 +23,17 @@ const Header = ({ onMenuClick, setActiveTab }) => {
   
   // Get current theme and toggle function from theme context
   const { theme, toggleTheme } = useTheme();
+  
+  // Get notifications and related functions from notification context
+  const { 
+    notifications, 
+    unreadCount, 
+    isLoading,
+    markAsRead, 
+    markAllAsRead, 
+    clearNotification, 
+    clearAllNotifications 
+  } = useNotifications();
   
   // Keep track of whether the notifications dropdown is open
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -80,51 +92,92 @@ const Header = ({ onMenuClick, setActiveTab }) => {
             aria-label="Toggle notifications"
           >
             <Bell size={20} />
-            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-orange-500 ring-2 ring-white dark:ring-gray-800"></span>
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 flex items-center justify-center h-4 w-4 text-xs font-bold text-white bg-orange-500 rounded-full ring-2 ring-white dark:ring-gray-800">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
           
           {isNotificationsOpen && (
             <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-              <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+              <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h3 className="font-semibold text-gray-800 dark:text-white">Notifications</h3>
+                {notifications.length > 0 && (
+                  <button
+                    onClick={clearAllNotifications}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+                    title="Clear all notifications"
+                  >
+                    Clear all
+                  </button>
+                )}
               </div>
               <ul className="py-2 max-h-80 overflow-y-auto">
-                {MOCK_NOTIFICATIONS.map(notification => (
-                  <li 
-                    key={notification.id} 
-                    className={[
-                      'flex',
-                      'items-start',
-                      'px-3',
-                      'py-2',
-                      'hover:bg-gray-100',
-                      'dark:hover:bg-gray-700',
-                      !notification.read ? 'bg-orange-50 dark:bg-orange-500/10' : ''
-                    ].filter(Boolean).join(' ')}
-                  >
-                    <div className={[
-                      'mt-1',
-                      'h-2',
-                      'w-2', 
-                      'rounded-full',
-                      !notification.read ? 'bg-orange-500' : 'bg-transparent'
-                    ].join(' ')}></div>
-                    <div className="ml-3">
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {notification.time}
-                      </p>
-                    </div>
+                {isLoading ? (
+                  <li className="px-3 py-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                    Loading notifications...
                   </li>
-                ))}
+                ) : notifications.length === 0 ? (
+                  <li className="px-3 py-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                    No notifications
+                  </li>
+                ) : (
+                  notifications.map(notification => (
+                    <li 
+                      key={notification.id} 
+                      className={[
+                        'flex',
+                        'items-start',
+                        'px-3',
+                        'py-2',
+                        'hover:bg-gray-100',
+                        'dark:hover:bg-gray-700',
+                        'group',
+                        !notification.read ? 'bg-orange-50 dark:bg-orange-500/10' : ''
+                      ].filter(Boolean).join(' ')}
+                      onClick={() => !notification.read && markAsRead(notification.id)}
+                    >
+                      <div className={[
+                        'mt-1',
+                        'h-2',
+                        'w-2', 
+                        'rounded-full',
+                        'flex-shrink-0',
+                        !notification.read ? 'bg-orange-500' : 'bg-transparent'
+                      ].join(' ')}></div>
+                      <div className="ml-3 flex-1">
+                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {notification.time}
+                        </p>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          clearNotification(notification.id);
+                        }}
+                        className="ml-2 p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition-opacity"
+                        title="Clear notification"
+                      >
+                        <X size={12} className="text-gray-500 dark:text-gray-400" />
+                      </button>
+                    </li>
+                  ))
+                )}
               </ul>
-              <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-                <button className="w-full text-center text-sm text-orange-500 hover:underline">
-                  Mark all as read
-                </button>
-              </div>
+              {notifications.length > 0 && (
+                <div className="p-2 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+                  <button 
+                    onClick={markAllAsRead}
+                    className="flex-1 text-center text-sm text-orange-500 hover:underline"
+                  >
+                    Mark all as read
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

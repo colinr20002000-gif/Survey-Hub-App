@@ -4,6 +4,7 @@ import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, C
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
@@ -142,6 +143,14 @@ const ANNOUNCEMENT_PRIORITIES = {
     urgent: { label: 'Urgent', color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-900' }
 };
 
+// Notification delivery methods
+const NOTIFICATION_METHODS = {
+    push: 'Browser Push',
+    email: 'Email',
+    sms: 'SMS',
+    all: 'All Methods'
+};
+
 const ANNOUNCEMENT_CATEGORIES = [
     'General',
     'Safety',
@@ -175,22 +184,42 @@ const usePushNotifications = () => {
         if (permission !== 'granted') return false;
 
         try {
-            const notification = new Notification(title, {
-                icon: '/favicon.ico', // Add your app icon path
-                badge: '/badge-icon.png', // Add badge icon path
-                tag: 'survey-hub-notification',
-                renotify: true,
-                ...options
-            });
+            // Check if service worker is available for better PWA support
+            if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+                navigator.serviceWorker.ready.then((registration) => {
+                    registration.showNotification(title, {
+                        icon: '/icon-192x192.png',
+                        badge: '/icon-144x144.png',
+                        tag: 'survey-hub-notification',
+                        renotify: true,
+                        requireInteraction: false,
+                        vibrate: [200, 100, 200],
+                        data: {
+                            url: '/',
+                            timestamp: Date.now()
+                        },
+                        ...options
+                    });
+                });
+            } else {
+                // Fallback to regular notification
+                const notification = new Notification(title, {
+                    icon: '/icon-192x192.png',
+                    badge: '/icon-144x144.png',
+                    tag: 'survey-hub-notification',
+                    renotify: true,
+                    ...options
+                });
 
-            // Auto close after 5 seconds
-            setTimeout(() => notification.close(), 5000);
+                // Auto close after 5 seconds
+                setTimeout(() => notification.close(), 5000);
 
-            // Handle click
-            notification.onclick = () => {
-                window.focus();
-                notification.close();
-            };
+                // Handle click
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+            }
 
             return true;
         } catch (error) {
@@ -208,127 +237,6 @@ const usePushNotifications = () => {
     };
 };
 
-// Enhanced notification system
-const useNotifications = () => {
-    const [notifications, setNotifications] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const { user } = useAuth();
-
-    const fetchNotifications = async () => {
-        try {
-            // Fetch user-specific notifications
-            const { data: notificationData, error: notifError } = await supabase
-                .from('notifications')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false })
-                .limit(50);
-
-            if (notifError) throw notifError;
-
-            // Fetch announcement notifications (from announcement_reads)
-            let announcementNotifs = [];
-            const { data: announcementData, error: announceError } = await supabase
-                .from('announcements')
-                .select(`
-                    id,
-                    title,
-                    priority,
-                    created_at
-                `)
-                .order('created_at', { ascending: false })
-                .limit(20);
-
-            if (announceError) {
-                // If announcements table doesn't exist, continue without announcements
-                if (!(announceError.code === 'PGRST116' || announceError.message.includes('relation') || announceError.message.includes('does not exist'))) {
-                    throw announceError;
-                }
-            } else {
-                announcementNotifs = announcementData || [];
-            }
-
-            // Combine and format notifications
-            const combined = [
-                ...(notificationData || []).map(n => ({
-                    ...n,
-                    type: 'notification',
-                    time: formatTimeAgo(n.created_at)
-                })),
-                ...(announcementNotifs || [])
-                    .map(a => ({
-                        id: `announcement-${a.id}`,
-                        text: `New announcement: ${a.title}`,
-                        type: 'announcement',
-                        priority: a.priority,
-                        read: false, // Simplified for now
-                        time: formatTimeAgo(a.created_at),
-                        created_at: a.created_at
-                    }))
-            ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-            setNotifications(combined);
-        } catch (error) {
-            console.error('Error fetching notifications:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (user) fetchNotifications();
-    }, [user]);
-
-    const markAsRead = async (notificationId, type) => {
-        try {
-            // Mark as read locally immediately for instant feedback
-            setNotifications(prev => prev.map(n => 
-                n.id === notificationId ? { ...n, read: true } : n
-            ));
-
-            // Then try to update database in background
-            if (type === 'announcement') {
-                const announcementId = notificationId.replace('announcement-', '');
-                const { error } = await supabase
-                    .from('announcement_reads')
-                    .upsert({ announcement_id: announcementId, user_id: user.id });
-                
-                if (error) {
-                    console.warn('Could not mark announcement as read in database:', error);
-                }
-            } else {
-                const { error } = await supabase
-                    .from('notifications')
-                    .update({ read: true })
-                    .eq('id', notificationId);
-                
-                if (error) {
-                    console.warn('Could not mark notification as read:', error);
-                }
-            }
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
-            // Already marked locally above, so no need to do anything else
-        }
-    };
-
-    const clearAllNotifications = () => {
-        setNotifications([]);
-    };
-
-    const markAllAsRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    };
-
-    return { 
-        notifications, 
-        loading, 
-        refetch: fetchNotifications, 
-        markAsRead,
-        clearAllNotifications,
-        markAllAsRead
-    };
-};
 
 const formatTimeAgo = (dateString) => {
     const now = new Date();
@@ -391,10 +299,16 @@ const Header = ({ onMenuClick, setActiveTab }) => {
     const { theme, toggleTheme } = useTheme();
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const notificationsRef = useRef(null);
-    const { notifications, loading, markAsRead, clearAllNotifications, markAllAsRead } = useNotifications();
+    // Import the new notification context
+    const { 
+        notifications, 
+        unreadCount,
+        isLoading, 
+        markAsRead, 
+        clearAllNotifications, 
+        markAllAsRead 
+    } = useNotifications();
     const { permission, requestPermission, canNotify, isSupported } = usePushNotifications();
-
-    const unreadCount = notifications.filter(n => !n.read).length;
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -406,29 +320,6 @@ const Header = ({ onMenuClick, setActiveTab }) => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const handleMarkAllAsRead = async () => {
-        try {
-            const unreadNotifications = notifications.filter(n => !n.read);
-            
-            if (unreadNotifications.length === 0) return;
-
-            // Mark all as read locally immediately for instant feedback
-            markAllAsRead();
-            
-            // Then try to update database in background
-            for (const notification of unreadNotifications) {
-                try {
-                    await markAsRead(notification.id, notification.type);
-                } catch (error) {
-                    console.warn('Failed to mark notification as read in database:', error);
-                    // Continue with next notification
-                }
-            }
-            
-        } catch (error) {
-            console.error('Error marking all as read:', error);
-        }
-    };
 
     return (
         <header className="flex items-center justify-between h-16 px-4 md:px-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
@@ -476,7 +367,7 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                                 </button>
                             </div>
                             <ul className="py-2 max-h-80 overflow-y-auto">
-                                {loading ? (
+                                {isLoading ? (
                                     <li className="flex items-center justify-center py-8">
                                         <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
                                         <span className="ml-2 text-sm text-gray-500">Loading...</span>
@@ -491,16 +382,17 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                                             key={notif.id} 
                                             className={`flex items-start px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${!notif.read ? 'bg-orange-50 dark:bg-orange-500/10' : ''}`}
                                             onClick={() => {
-                                                markAsRead(notif.id, notif.type);
-                                                if (notif.type === 'announcement') {
-                                                    setActiveTab('Announcements');
-                                                    setIsNotificationsOpen(false);
-                                                }
+                                                console.log('Notification clicked, navigating to Announcements');
+                                                markAsRead(notif.id);
+                                                // Navigate to announcements page for all notifications
+                                                setActiveTab('Announcements');
+                                                setIsNotificationsOpen(false);
+                                                console.log('setActiveTab called with: Announcements');
                                             }}
                                         >
                                             <div className={`mt-1 h-2 w-2 rounded-full ${!notif.read ? 'bg-orange-500' : 'bg-transparent'}`}></div>
                                             <div className="ml-3 flex-1">
-                                                <p className="text-sm text-gray-700 dark:text-gray-300">{notif.text}</p>
+                                                <p className="text-sm text-gray-700 dark:text-gray-300">{notif.message}</p>
                                                 <div className="flex items-center justify-between mt-1">
                                                     <p className="text-xs text-gray-500 dark:text-gray-400">{notif.time}</p>
                                                     {notif.priority && notif.priority !== 'medium' && (
@@ -557,7 +449,7 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                                     <div className="flex gap-2">
                                         {unreadCount > 0 && (
                                             <button 
-                                                onClick={handleMarkAllAsRead}
+                                                onClick={markAllAsRead}
                                                 className="flex-1 text-center text-sm text-orange-500 hover:underline py-1"
                                             >
                                                 Mark all as read
@@ -3555,25 +3447,195 @@ const AppearanceSettings = () => {
     );
 };
 
-const NotificationSettings = () => (
-    <div>
-        <h2 className="text-xl font-semibold mb-4">Notifications</h2>
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <span>Email Notifications</span>
-                <Switch isChecked={true} onToggle={() => {}} />
-            </div>
-            <div className="flex items-center justify-between">
-                <span>Push Notifications</span>
-                <Switch isChecked={false} onToggle={() => {}} />
-            </div>
-            <div className="flex items-center justify-between">
-                <span>Weekly Summary</span>
-                <Switch isChecked={true} onToggle={() => {}} />
+const NotificationSettings = () => {
+    const [settings, setSettings] = useState({
+        pushNotifications: false,
+        weeklyDigest: true,
+        urgentOnly: false,
+        soundEnabled: true
+    });
+    const [installPrompt, setInstallPrompt] = useState(null);
+    const [isInstalled, setIsInstalled] = useState(false);
+    const { permission, requestPermission, canNotify } = usePushNotifications();
+
+    // Check if app is installed as PWA
+    useEffect(() => {
+        setIsInstalled(window.matchMedia('(display-mode: standalone)').matches || 
+                      window.navigator.standalone === true);
+
+        // Listen for install prompt
+        const handleBeforeInstallPrompt = (e) => {
+            e.preventDefault();
+            setInstallPrompt(e);
+        };
+
+        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    }, []);
+
+    const toggleSetting = (key) => {
+        setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const handlePushToggle = async () => {
+        if (settings.pushNotifications && canNotify) {
+            setSettings(prev => ({ ...prev, pushNotifications: false }));
+        } else {
+            const granted = await requestPermission();
+            setSettings(prev => ({ ...prev, pushNotifications: granted }));
+        }
+    };
+
+    const handleInstallApp = async () => {
+        if (installPrompt) {
+            installPrompt.prompt();
+            const { outcome } = await installPrompt.userChoice;
+            if (outcome === 'accepted') {
+                setInstallPrompt(null);
+                setTimeout(() => setIsInstalled(true), 1000);
+            }
+        }
+    };
+
+    return (
+        <div>
+            <h2 className="text-xl font-semibold mb-4">Notification Settings</h2>
+            
+            <div className="space-y-6">
+                {/* PWA Install Section */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <h3 className="font-medium mb-3">📱 Mobile App Experience</h3>
+                    {isInstalled ? (
+                        <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <span className="font-medium text-green-800 dark:text-green-200">
+                                    ✅ App Installed Successfully!
+                                </span>
+                            </div>
+                            <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                                You're getting the full mobile app experience with better notifications.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3">
+                                <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-1">
+                                    Get the Mobile App Experience
+                                </h4>
+                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                    Install Survey Hub as an app for better notifications, offline access, and native mobile experience.
+                                </p>
+                            </div>
+                            {installPrompt && (
+                                <Button onClick={handleInstallApp} className="w-full">
+                                    📱 Install Survey Hub App
+                                </Button>
+                            )}
+                            {!installPrompt && (
+                                <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                    <p><strong>iPhone:</strong> Tap Share → "Add to Home Screen"</p>
+                                    <p><strong>Android:</strong> Tap Menu → "Install app" or "Add to Home screen"</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Push Notifications */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <h3 className="font-medium mb-3">🔔 Push Notifications</h3>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="block font-medium">Push Notifications</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    Get notified instantly about new announcements
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Switch isChecked={canNotify && settings.pushNotifications} onToggle={handlePushToggle} />
+                                {permission === 'denied' && (
+                                    <span className="text-xs text-red-500">Blocked</span>
+                                )}
+                                {permission === 'granted' && (
+                                    <span className="text-xs text-green-500">Enabled</span>
+                                )}
+                            </div>
+                        </div>
+
+                        {permission === 'denied' && (
+                            <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 rounded-lg p-3">
+                                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                                    <strong>Notifications Blocked:</strong> Please enable notifications in your browser settings and refresh the page.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Notification Preferences */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <h3 className="font-medium mb-3">⚙️ Notification Preferences</h3>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="block font-medium">Sound Notifications</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    Play sound with notifications
+                                </span>
+                            </div>
+                            <Switch 
+                                isChecked={settings.soundEnabled} 
+                                onToggle={() => toggleSetting('soundEnabled')} 
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="block font-medium">Urgent Only Mode</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    Only notify for high priority and urgent announcements
+                                </span>
+                            </div>
+                            <Switch 
+                                isChecked={settings.urgentOnly} 
+                                onToggle={() => toggleSetting('urgentOnly')} 
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="block font-medium">Weekly Digest</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    Get a summary of announcements every week
+                                </span>
+                            </div>
+                            <Switch 
+                                isChecked={settings.weeklyDigest} 
+                                onToggle={() => toggleSetting('weeklyDigest')} 
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* PWA Benefits */}
+                <div className="bg-gradient-to-r from-orange-50 to-blue-50 dark:from-orange-500/10 dark:to-blue-500/10 border border-orange-200 dark:border-orange-500/20 rounded-lg p-4">
+                    <h4 className="font-medium text-orange-800 dark:text-orange-200 mb-2">
+                        🚀 Why Install the App?
+                    </h4>
+                    <ul className="text-sm text-orange-700 dark:text-orange-300 space-y-1">
+                        <li>• <strong>Better Notifications:</strong> More reliable than browser notifications</li>
+                        <li>• <strong>Faster Loading:</strong> App loads instantly from your home screen</li>
+                        <li>• <strong>Offline Access:</strong> View cached content without internet</li>
+                        <li>• <strong>Full Screen:</strong> No browser bars, just your app</li>
+                        <li>• <strong>Native Feel:</strong> Feels like a real mobile app</li>
+                    </ul>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const ProjectDetailPage = ({ project, onBack }) => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -5144,21 +5206,23 @@ const MainLayout = () => {
 export default function App() {
     return (
         <AuthProvider>
-            <ThemeProvider>
-                <ProjectProvider>
-                    <AuditTrailProvider>
-                        <TaskProvider>
-                            <UserProvider>
-                                <JobProvider>
-                                    <DeliveryTaskProvider>
-                                        <MainLayout />
-                                    </DeliveryTaskProvider>
-                                </JobProvider>
-                            </UserProvider>
-                        </TaskProvider>
-                    </AuditTrailProvider>
-                </ProjectProvider>
-            </ThemeProvider>
+            <NotificationProvider>
+                <ThemeProvider>
+                    <ProjectProvider>
+                        <AuditTrailProvider>
+                            <TaskProvider>
+                                <UserProvider>
+                                    <JobProvider>
+                                        <DeliveryTaskProvider>
+                                            <MainLayout />
+                                        </DeliveryTaskProvider>
+                                    </JobProvider>
+                                </UserProvider>
+                            </TaskProvider>
+                        </AuditTrailProvider>
+                    </ProjectProvider>
+                </ThemeProvider>
+            </NotificationProvider>
         </AuthProvider>
     );
 }
