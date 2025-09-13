@@ -42,6 +42,7 @@ export const NotificationProvider = ({ children }) => {
           created_at,
           expires_at,
           target_roles,
+          author_id,
           announcement_reads!left (
             read_at,
             dismissed_at,
@@ -50,6 +51,7 @@ export const NotificationProvider = ({ children }) => {
         `)
         .or(`target_roles.is.null,target_roles.cs.{${user.privilege}}`)
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+        .neq('author_id', user.id)  // Exclude announcements created by current user
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -64,13 +66,6 @@ export const NotificationProvider = ({ children }) => {
           const userRead = announcement.announcement_reads?.find(read => read.user_id === user.id);
           const isDismissed = !!userRead?.dismissed_at;
           const isRead = !!userRead?.read_at;
-          
-          console.log(`Announcement ${announcement.id} (${announcement.title}):`, {
-            userRead,
-            isDismissed,
-            isRead,
-            shouldShow: !isDismissed && !isRead
-          });
           
           // Don't include dismissed notifications OR read notifications
           return !isDismissed && !isRead;

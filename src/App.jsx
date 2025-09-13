@@ -5,6 +5,7 @@ import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContaine
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
+import { ToastProvider, useToast } from './contexts/ToastContext';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
@@ -796,7 +797,11 @@ const AnnouncementsPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedPriority, setSelectedPriority] = useState('All');
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [announcementToDelete, setAnnouncementToDelete] = useState(null);
     const { user } = useAuth();
+    const { showSuccessModal, showErrorModal } = useToast();
+    const { markAsRead, refreshNotifications } = useNotifications();
     const privileges = userPrivileges[user?.privilege];
 
     const fetchAnnouncements = async () => {
@@ -804,7 +809,13 @@ const AnnouncementsPage = () => {
             const { data, error } = await supabase
                 .from('announcements')
                 .select(`
-                    *
+                    *,
+                    author:users!author_id(name, username, avatar),
+                    announcement_reads!left (
+                        read_at,
+                        dismissed_at,
+                        user_id
+                    )
                 `)
                 .order('created_at', { ascending: false });
 
@@ -819,12 +830,15 @@ const AnnouncementsPage = () => {
                 throw error;
             }
 
-            const processedData = (data || []).map(announcement => ({
-                ...announcement,
-                author_name: 'System', // Fallback since we removed the join
-                isRead: false, // Fallback - will be updated when announcement_reads works
-                readCount: 0 // Fallback
-            }));
+            const processedData = (data || []).map(announcement => {
+                const userRead = announcement.announcement_reads?.find(read => read.user_id === user?.id);
+                return {
+                    ...announcement,
+                    author_name: 'System', // Fallback since we removed the join
+                    isRead: !!userRead?.read_at, // Check if current user has read this announcement
+                    readCount: announcement.announcement_reads?.length || 0 // Count of total reads
+                };
+            });
 
             setAnnouncements(processedData);
         } catch (error) {
@@ -854,22 +868,44 @@ const AnnouncementsPage = () => {
         }
     };
 
-    const handleDelete = async (announcementId) => {
-        if (!window.confirm('Are you sure you want to delete this announcement?')) return;
-        
+    const handleMarkAsReadPage = async (announcementId) => {
+        try {
+            // Use the NotificationContext markAsRead function
+            await markAsRead(announcementId);
+            
+            // Refresh both the announcements page and notifications
+            await fetchAnnouncements();
+            await refreshNotifications();
+        } catch (error) {
+            console.error('Error marking announcement as read:', error);
+            showErrorModal('Error marking announcement as read', 'Error');
+        }
+    };
+
+    const handleDelete = (announcementId) => {
+        setAnnouncementToDelete(announcementId);
+        setIsDeleteModalOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!announcementToDelete) return;
+
         try {
             const { error } = await supabase
                 .from('announcements')
                 .delete()
-                .eq('id', announcementId);
+                .eq('id', announcementToDelete);
 
             if (error) throw error;
-            
+
             fetchAnnouncements();
-            alert('Announcement deleted successfully');
+            showSuccessModal('Announcement deleted successfully', 'Success');
         } catch (error) {
             console.error('Error deleting announcement:', error);
-            alert('Error deleting announcement');
+            showErrorModal('Error deleting announcement', 'Error');
+        } finally {
+            setIsDeleteModalOpen(false);
+            setAnnouncementToDelete(null);
         }
     };
 
@@ -972,8 +1008,7 @@ const AnnouncementsPage = () => {
                                         </div>
                                         <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-3">
                                             <span className="flex items-center gap-1">
-                                                <Users size={14} />
-                                                {announcement.author_name}
+                                                👤 By {announcement.author?.name || 'Unknown User'}
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <Calendar size={14} />
@@ -990,11 +1025,11 @@ const AnnouncementsPage = () => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        {!announcement.isRead && (
+                                        {!announcement.isRead && announcement.author_id !== user?.id && (
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                onClick={() => handleMarkAsRead(announcement.id)}
+                                                onClick={() => handleMarkAsReadPage(announcement.id)}
                                             >
                                                 Mark as Read
                                             </Button>
@@ -1063,6 +1098,20 @@ const AnnouncementsPage = () => {
                 onSave={fetchAnnouncements}
                 announcement={selectedAnnouncement}
             />
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => {
+                    setIsDeleteModalOpen(false);
+                    setAnnouncementToDelete(null);
+                }}
+                onConfirm={confirmDelete}
+                title="Delete Announcement"
+                message="Are you sure you want to delete this announcement? This action cannot be undone."
+                confirmText="Delete"
+                confirmVariant="danger"
+            />
         </div>
     );
 };
@@ -1078,6 +1127,7 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
     });
     const [loading, setLoading] = useState(false);
     const { user } = useAuth();
+    const { showSuccessModal, showErrorModal } = useToast();
     const { sendNotification, canNotify } = usePushNotifications();
 
     useEffect(() => {
@@ -1147,12 +1197,12 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                 );
             }
 
-            alert(announcement ? 'Announcement updated successfully!' : 'Announcement created successfully!');
+            showSuccessModal(announcement ? 'Announcement updated successfully!' : 'Announcement created successfully!', 'Success');
             onSave();
             onClose();
         } catch (error) {
             console.error('Error saving announcement:', error);
-            alert('Error saving announcement: ' + error.message);
+            showErrorModal('Error saving announcement: ' + error.message, 'Error');
         } finally {
             setLoading(false);
         }
@@ -4413,7 +4463,6 @@ const Modal = ({ isOpen, onClose, title, children }) => (
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-                onClick={onClose}
             >
                 <motion.div
                     initial={{ scale: 0.9, opacity: 0 }}
@@ -4478,7 +4527,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project }) => {
 };
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = "Confirm", confirmVariant = "primary" }) => (
-    <Modal isOpen={isOpen} onClose={onClose} title={title}>
+    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm" disableBackdropClick={true}>
         <div className="p-6">
             <p className="text-gray-600 dark:text-gray-300">{message}</p>
             <div className="flex justify-end space-x-2 mt-6">
@@ -5206,23 +5255,25 @@ const MainLayout = () => {
 export default function App() {
     return (
         <AuthProvider>
-            <NotificationProvider>
-                <ThemeProvider>
-                    <ProjectProvider>
-                        <AuditTrailProvider>
-                            <TaskProvider>
-                                <UserProvider>
-                                    <JobProvider>
-                                        <DeliveryTaskProvider>
-                                            <MainLayout />
-                                        </DeliveryTaskProvider>
-                                    </JobProvider>
-                                </UserProvider>
-                            </TaskProvider>
-                        </AuditTrailProvider>
-                    </ProjectProvider>
-                </ThemeProvider>
-            </NotificationProvider>
+            <ToastProvider>
+                <NotificationProvider>
+                    <ThemeProvider>
+                        <ProjectProvider>
+                            <AuditTrailProvider>
+                                <TaskProvider>
+                                    <UserProvider>
+                                        <JobProvider>
+                                            <DeliveryTaskProvider>
+                                                <MainLayout />
+                                            </DeliveryTaskProvider>
+                                        </JobProvider>
+                                    </UserProvider>
+                                </TaskProvider>
+                            </AuditTrailProvider>
+                        </ProjectProvider>
+                    </ThemeProvider>
+                </NotificationProvider>
+            </ToastProvider>
         </AuthProvider>
     );
 }

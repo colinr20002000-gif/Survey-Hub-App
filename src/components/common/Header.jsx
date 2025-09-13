@@ -37,21 +37,34 @@ const Header = ({ onMenuClick, setActiveTab }) => {
   
   // Keep track of whether the notifications dropdown is open
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  
+  // Keep track of whether the user dropdown is open
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+
   // Reference to the notifications dropdown for click-outside detection
   const notificationsRef = useRef(null);
+  // Reference to the user dropdown for click-outside detection
+  const userDropdownRef = useRef(null);
 
-  // Handle click outside to close notifications
+  // Handle click outside to close dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
         setIsNotificationsOpen(false);
       }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
+        setIsUserDropdownOpen(false);
+      }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Handle profile settings click
+  const handleProfileSettingsClick = () => {
+    setActiveTab('Settings');
+    setIsUserDropdownOpen(false);
+  };
 
   return (
     <header className="flex items-center justify-between h-16 px-4 md:px-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
@@ -182,8 +195,11 @@ const Header = ({ onMenuClick, setActiveTab }) => {
           )}
         </div>
         
-        <div className="relative group">
-          <button className="flex items-center space-x-2">
+        <div className="relative" ref={userDropdownRef}>
+          <button
+            onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+            className="flex items-center space-x-2"
+          >
             <div className="w-9 h-9 rounded-full bg-blue-900 text-white flex items-center justify-center font-bold">
               {user?.avatar}
             </div>
@@ -193,21 +209,23 @@ const Header = ({ onMenuClick, setActiveTab }) => {
             </div>
             <ChevronDown size={16} className="text-gray-500 dark:text-gray-400" />
           </button>
-          
-          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 z-50">
-            <button 
-              onClick={() => setActiveTab('Settings')} 
-              className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <Settings size={16} className="mr-2"/>Profile Settings
-            </button>
-            <button 
-              onClick={logout} 
-              className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <LogOut size={16} className="mr-2"/>Logout
-            </button>
-          </div>
+
+          {isUserDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+              <button
+                onClick={handleProfileSettingsClick}
+                className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <Settings size={16} className="mr-2"/>Profile Settings
+              </button>
+              <button
+                onClick={logout}
+                className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <LogOut size={16} className="mr-2"/>Logout
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

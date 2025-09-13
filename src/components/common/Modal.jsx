@@ -7,12 +7,13 @@ import { X } from 'lucide-react';
 // This is a reusable modal (popup) component with smooth animations
 // It creates an overlay that darkens the background and shows content in the center
 // Perfect for forms, confirmations, image previews, etc.
-const Modal = ({ 
+const Modal = ({
   isOpen,          // Boolean: whether to show the modal
   onClose,         // Function to call when user wants to close modal
   title,           // Text to show in the modal header
   children,        // The actual content to show inside the modal
-  size = 'md'      // How big the modal should be: 'sm', 'md', 'lg', or 'xl'
+  size = 'md',     // How big the modal should be: 'sm', 'md', 'lg', or 'xl'
+  disableBackdropClick = false  // Prevent closing when clicking outside
 }) => {
   // Different maximum widths for different modal sizes
   const sizes = {
@@ -41,7 +42,7 @@ const Modal = ({
             animate={{ opacity: 1 }}     // Fade in
             exit={{ opacity: 0 }}        // Fade out when closing
             className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
-            onClick={onClose}            // Close modal if user clicks background
+            onClick={disableBackdropClick ? undefined : onClose}  // Close modal if user clicks background (unless disabled)
           />
           
           {/* Invisible element to help with vertical centering on desktop */}
@@ -78,13 +79,15 @@ const Modal = ({
               </h3>
               
               {/* Close button (X) in top right corner */}
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-md p-1"
-                aria-label="Close modal"
-              >
-                <X className="w-5 h-5" />  {/* X icon */}
-              </button>
+              {!disableBackdropClick && (
+                <button
+                  onClick={onClose}
+                  className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-md p-1"
+                  aria-label="Close modal"
+                >
+                  <X className="w-5 h-5" />  {/* X icon */}
+                </button>
+              )}
             </div>
             
             {/* Modal content area */}
@@ -104,7 +107,8 @@ Modal.propTypes = {
   onClose: PropTypes.func.isRequired,
   title: PropTypes.string.isRequired,
   children: PropTypes.node.isRequired,
-  size: PropTypes.oneOf(['sm', 'md', 'lg', 'xl'])
+  size: PropTypes.oneOf(['sm', 'md', 'lg', 'xl']),
+  disableBackdropClick: PropTypes.bool
 };
 
 Modal.displayName = 'Modal';
