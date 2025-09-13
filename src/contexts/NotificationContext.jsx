@@ -62,8 +62,18 @@ export const NotificationProvider = ({ children }) => {
       const formattedNotifications = announcements
         .filter(announcement => {
           const userRead = announcement.announcement_reads?.find(read => read.user_id === user.id);
+          const isDismissed = !!userRead?.dismissed_at;
+          const isRead = !!userRead?.read_at;
+          
+          console.log(`Announcement ${announcement.id} (${announcement.title}):`, {
+            userRead,
+            isDismissed,
+            isRead,
+            shouldShow: !isDismissed && !isRead
+          });
+          
           // Don't include dismissed notifications OR read notifications
-          return !userRead?.dismissed_at && !userRead?.read_at;
+          return !isDismissed && !isRead;
         })
         .map(announcement => {
           const timeAgo = getTimeAgo(announcement.created_at);
