@@ -179,17 +179,14 @@ self.addEventListener('notificationclick', (event) => {
 // Background sync event (for when connection is restored)
 self.addEventListener('sync', (event) => {
   console.log('Background sync event:', event.tag);
-  
+
   if (event.tag === 'sync-notifications') {
     event.waitUntil(
-      // Sync notifications when connection is restored
-      fetch('/api/notifications/sync', { method: 'POST' })
-        .then(response => {
-          console.log('Notifications synced');
-        })
-        .catch(error => {
-          console.error('Failed to sync notifications:', error);
-        })
+      // You can implement sync functionality here if needed
+      // For now, just log that sync was requested
+      Promise.resolve().then(() => {
+        console.log('Sync requested - implement backend sync if needed');
+      })
     );
   }
 });
