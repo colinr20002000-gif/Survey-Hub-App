@@ -18,6 +18,7 @@ export const NotificationProvider = ({ children }) => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [announcementRefreshTrigger, setAnnouncementRefreshTrigger] = useState(0);
 
   // Fetch announcements with read status for current user
   const fetchNotifications = async () => {
@@ -56,6 +57,34 @@ export const NotificationProvider = ({ children }) => {
 
       if (error) {
         console.error('Error fetching announcements:', error);
+        console.error('Error details:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+
+        // Check if it's a table not found error
+        if (error.code === 'PGRST116' || error.message?.includes('relation "announcements" does not exist')) {
+          console.warn('Announcements table does not exist. Please run the setup SQL script.');
+          console.warn('Providing sample notification to demonstrate functionality...');
+
+          // Provide a sample notification to show the system works
+          const sampleNotification = [{
+            id: 'sample-1',
+            type: 'system',
+            message: 'Database Setup Required',
+            content: 'The announcements table needs to be created. Please run the setup SQL script.',
+            time: 'Just now',
+            read: false,
+            priority: 'high',
+            created_at: new Date().toISOString()
+          }];
+
+          setNotifications(sampleNotification);
+          return;
+        }
+
         setNotifications([]);
         return;
       }
@@ -141,7 +170,7 @@ export const NotificationProvider = ({ children }) => {
     
     try {
       // Try to use upsert with proper conflict resolution
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('announcement_reads')
         .upsert({
           announcement_id: notificationId,
@@ -200,13 +229,16 @@ export const NotificationProvider = ({ children }) => {
       }
 
       // Update local state immediately for better UX
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification.id === notificationId 
+      setNotifications(prev =>
+        prev.map(notification =>
+          notification.id === notificationId
             ? { ...notification, read: true }
             : notification
         )
       );
+
+      // Trigger announcement page refresh
+      setAnnouncementRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error in markAsRead:', error);
     }
@@ -240,9 +272,12 @@ export const NotificationProvider = ({ children }) => {
       }
 
       // Update local state immediately
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(notification => ({ ...notification, read: true }))
       );
+
+      // Trigger announcement page refresh
+      setAnnouncementRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error in markAllAsRead:', error);
     }
@@ -354,7 +389,8 @@ export const NotificationProvider = ({ children }) => {
     markAllAsRead,
     clearNotification,
     clearAllNotifications,
-    refreshNotifications: fetchNotifications
+    refreshNotifications: fetchNotifications,
+    announcementRefreshTrigger
   };
 
   return (

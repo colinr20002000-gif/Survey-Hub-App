@@ -9,6 +9,7 @@ import { ToastProvider, useToast } from './contexts/ToastContext';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
+import CustomConfirmationModal from './components/ConfirmationModal';
 
 // --- USER PRIVILEGES & MOCK DATA ---
 // Temporary mock data until all components are updated to use UserProvider
@@ -310,6 +311,7 @@ const Header = ({ onMenuClick, setActiveTab }) => {
         markAllAsRead 
     } = useNotifications();
     const { permission, requestPermission, canNotify, isSupported } = usePushNotifications();
+
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -797,11 +799,11 @@ const AnnouncementsPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedPriority, setSelectedPriority] = useState('All');
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [announcementToDelete, setAnnouncementToDelete] = useState(null);
+    const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
     const { user } = useAuth();
     const { showSuccessModal, showErrorModal } = useToast();
-    const { markAsRead, refreshNotifications } = useNotifications();
+    const { markAsRead, refreshNotifications, announcementRefreshTrigger } = useNotifications();
     const privileges = userPrivileges[user?.privilege];
 
     const fetchAnnouncements = async () => {
@@ -853,6 +855,13 @@ const AnnouncementsPage = () => {
         if (user) fetchAnnouncements();
     }, [user]);
 
+    // Refresh announcements when markAllAsRead is called from notification bell
+    useEffect(() => {
+        if (user && announcementRefreshTrigger > 0) {
+            fetchAnnouncements();
+        }
+    }, [announcementRefreshTrigger, user]);
+
     const handleMarkAsRead = async (announcementId) => {
         try {
             await supabase
@@ -884,7 +893,7 @@ const AnnouncementsPage = () => {
 
     const handleDelete = (announcementId) => {
         setAnnouncementToDelete(announcementId);
-        setIsDeleteModalOpen(true);
+        setIsDeleteConfirmModalOpen(true);
     };
 
     const confirmDelete = async () => {
@@ -904,7 +913,7 @@ const AnnouncementsPage = () => {
             console.error('Error deleting announcement:', error);
             showErrorModal('Error deleting announcement', 'Error');
         } finally {
-            setIsDeleteModalOpen(false);
+            setIsDeleteConfirmModalOpen(false);
             setAnnouncementToDelete(null);
         }
     };
@@ -1034,7 +1043,7 @@ const AnnouncementsPage = () => {
                                                 Mark as Read
                                             </Button>
                                         )}
-                                        {privileges?.canEditProjects && announcement.author_id === user.id && (
+                                        {privileges?.canEditProjects && (announcement.author_id === user.id || user.privilege === 'Admin') && (
                                             <>
                                                 <Button
                                                     variant="outline"
@@ -1099,18 +1108,19 @@ const AnnouncementsPage = () => {
                 announcement={selectedAnnouncement}
             />
 
-            {/* Delete Confirmation Modal */}
-            <ConfirmationModal
-                isOpen={isDeleteModalOpen}
+            {/* Custom Confirmation Modals */}
+            <CustomConfirmationModal
+                isOpen={isDeleteConfirmModalOpen}
                 onClose={() => {
-                    setIsDeleteModalOpen(false);
+                    setIsDeleteConfirmModalOpen(false);
                     setAnnouncementToDelete(null);
                 }}
                 onConfirm={confirmDelete}
                 title="Delete Announcement"
-                message="Are you sure you want to delete this announcement? This action cannot be undone."
-                confirmText="Delete"
-                confirmVariant="danger"
+                message={`Are you sure you want to permanently delete this announcement? This action cannot be undone and the announcement will be removed for all users.${announcementToDelete && user.privilege === 'Admin' ? ' (Admin override - deleting another user\'s announcement)' : ''}`}
+                confirmText="Delete Permanently"
+                cancelText="Keep Announcement"
+                type="danger"
             />
         </div>
     );
