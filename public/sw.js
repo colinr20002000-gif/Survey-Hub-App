@@ -88,8 +88,8 @@ self.addEventListener('push', (event) => {
   let notificationData = {
     title: 'Survey Hub',
     body: 'You have a new notification',
-    icon: '/icon-192x192.png',
-    badge: '/icon-144x144.png',
+    icon: '/android-chrome-192x192.png',
+    badge: '/favicon-32x32.png',
     tag: 'survey-hub-notification',
     data: {
       url: '/'

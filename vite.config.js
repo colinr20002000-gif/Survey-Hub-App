@@ -17,39 +17,12 @@ export default defineConfig({
         swSrc: 'public/sw.js',
         swDest: 'dist/sw.js',
         globPatterns: [
-          '**/*.{js,css,html,ico,png,svg,webmanifest}',
+          '**/*.{js,css,html,ico,png,svg,webmanifest,json}',
         ],
       },
-      manifest: {
-        name: 'Survey-Hub',
-        short_name: 'Survey-Hub',
-        description: 'Survey Hub Application',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
-        display: 'standalone',
-        icons: [
-          {
-            src: '/favicon-16x16.png',
-            sizes: '16x16',
-            type: 'image/png'
-          },
-          {
-            src: '/favicon-32x32.png',
-            sizes: '32x32',
-            type: 'image/png'
-          },
-          {
-            src: '/android-chrome-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/android-chrome-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
-      }
+      useCredentials: false,
+      // Use the existing manifest.json instead of generating one
+      manifest: false
     })
   ],
 })
