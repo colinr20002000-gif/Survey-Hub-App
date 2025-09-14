@@ -13,18 +13,23 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Create client with service role key for auth
+    const authHeader = req.headers.get('Authorization');
+    console.log('Authorization header received:', authHeader ? 'Present' : 'Missing');
+
+    if (!authHeader) {
+      throw new Error('Auth session missing!');
+    }
+
+    // Create client with service role key but pass the user's JWT for verification
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization') }
-        }
-      }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    // Verify the user's JWT token manually
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
 
     if (userError || !user) {
       console.error('User not found:', userError);
