@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
+import { notificationService } from '../../utils/notifications';
 
 const UserAdmin = () => {
   const { user } = useAuth();
@@ -8,20 +9,42 @@ const UserAdmin = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  useEffect(() => {
+    const checkSubscription = async () => {
+      const sub = await notificationService.getSubscription();
+      setPushSubscribed(!!sub);
+    };
+    checkSubscription();
+    fetchUsers();
+  }, []);
+
+  const handleSubscribe = async () => {
+    setPushLoading(true);
+    try {
+      const sub = await notificationService.subscribe();
+      await notificationService.sendSubscriptionToServer(sub);
+      setPushSubscribed(true);
+      alert('Successfully subscribed to push notifications!');
+    } catch (err) {
+      alert(`Error subscribing to push notifications: ${err.message}`);
+      console.error(err);
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   // Check if current user has admin privileges
   const isAdmin = user?.privilege === 'Admin';
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
   const fetchUsers = async () => {
+    if (!isAdmin) return; // Only fetch users if admin
     try {
       setLoading(true);
       setError(null);
       
-      // Add timeout to user query
       const userQuery = Promise.race([
         supabase.from('users').select('*').order('created_at', { ascending: false }),
         new Promise((_, reject) => 
@@ -90,7 +113,6 @@ const UserAdmin = () => {
     if (!confirmDelete) return;
 
     try {
-      // First delete from users table (will cascade to auth.users due to foreign key)
       const deleteQuery = Promise.race([
         supabase.from('users').delete().eq('id', userId),
         new Promise((_, reject) => 
@@ -132,10 +154,36 @@ const UserAdmin = () => {
     }
   };
 
+  const NotificationManager = () => (
+    <div className="bg-white shadow-sm rounded-lg border border-gray-200 mb-6">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h2 className="text-lg font-medium text-gray-900">Push Notifications</h2>
+      </div>
+      <div className="p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Notification Status</p>
+            <p className="text-sm text-gray-500">
+              {pushSubscribed ? "You are subscribed to notifications." : "You are not subscribed to notifications."}
+            </p>
+          </div>
+          <button
+            onClick={handleSubscribe}
+            disabled={pushLoading || pushSubscribed}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {pushLoading ? 'Subscribing...' : (pushSubscribed ? 'Subscribed' : 'Subscribe')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!isAdmin) {
     return (
       <div className="p-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <NotificationManager />
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
@@ -143,9 +191,9 @@ const UserAdmin = () => {
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">Access Restricted</h3>
+              <h3 className="text-sm font-medium text-yellow-800">Admin Panel Access Restricted</h3>
               <div className="mt-2 text-sm text-yellow-700">
-                <p>You need administrator privileges to access the User Admin panel.</p>
+                <p>You need administrator privileges to view the user list.</p>
               </div>
             </div>
           </div>
@@ -196,6 +244,7 @@ const UserAdmin = () => {
 
   return (
     <div className="p-6">
+      <NotificationManager />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">User Administration</h1>
         <p className="text-gray-600 mt-2">
