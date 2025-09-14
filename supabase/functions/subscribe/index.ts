@@ -1,16 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-console.log('Hello from Subscribe function!');
-
-interface PushSubscription {
-  endpoint: string;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
-}
+console.log('Subscribe function started');
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
       headers: {
@@ -21,40 +14,39 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Use the SERVICE_ROLE_KEY for admin-level access
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    const { subscription, user_id } = await req.json();
 
-    if (userError || !user) {
-      console.error('User not found:', userError);
-      throw new Error(userError?.message || 'User not found');
+    if (!subscription || !user_id) {
+      throw new Error('Missing subscription object or user_id in request body');
     }
 
-    const subscription = (await req.json()) as PushSubscription;
-
-    const { error: insertError } = await supabaseClient
+    // Insert the subscription with the provided user_id
+    const { error } = await supabaseClient
       .from('subscriptions')
-      .insert({
+      .insert({ 
         subscription_object: subscription,
-        user_id: user.id,
+        user_id: user_id
       });
 
-    if (insertError) {
-      console.error('Error inserting subscription:', insertError);
-      throw insertError;
+    if (error) {
+      console.error('Database insert error:', error);
+      throw error;
     }
 
     return new Response(JSON.stringify({ message: 'Subscription saved successfully.' }), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       status: 201,
     });
+
   } catch (err) {
-    console.error('An unexpected error occurred:', err);
-    return new Response(String(err?.message ?? err), {
+    console.error('Function error:', err.message);
+    return new Response(JSON.stringify({ error: err.message }), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       status: 500,
     });

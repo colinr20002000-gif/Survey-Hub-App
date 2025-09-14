@@ -128,9 +128,12 @@ export class NotificationService {
         headers: {
           'Content-Type': 'application/json',
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${session.access_token}`,
+          // No longer need Authorization header for this function
         },
-        body: JSON.stringify(subscription),
+        body: JSON.stringify({
+          subscription: subscription,
+          user_id: session.user.id
+        }),
       });
 
       if (!response.ok) {
