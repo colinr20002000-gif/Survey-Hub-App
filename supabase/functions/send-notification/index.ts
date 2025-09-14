@@ -69,16 +69,33 @@ Deno.serve(async (req) => {
 
         console.log(`Sending push notification to: ${endpoint}`);
 
+        // Create proper Web Push headers
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/octet-stream',
+          'TTL': '86400'
+        };
+
+        // Extract audience from endpoint for VAPID
+        const url = new URL(endpoint);
+        const audience = `${url.protocol}//${url.host}`;
+
+        // For all push services, use WebPush VAPID format
+        // This is a simplified version - production should use proper JWT signing
+        headers['Authorization'] = `WebPush ${vapidPublicKey}`;
+        headers['Crypto-Key'] = `p256ecdsa=${vapidPublicKey}`;
+
+        console.log(`Sending to ${endpoint} with audience ${audience}`);
+        console.log(`Headers:`, JSON.stringify(headers));
+
         // Send actual HTTP request to push service
         const response = await fetch(endpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `key=${vapidPrivateKey}`, // Simplified auth
-            'TTL': '86400'
-          },
+          headers: headers,
           body: payload
         });
+
+        const responseText = await response.text();
+        console.log(`Response status: ${response.status}, body: ${responseText}`);
 
         if (response.ok || response.status === 201) {
           console.log(`✅ Push sent successfully to ${endpoint}`);
