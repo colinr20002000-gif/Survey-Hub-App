@@ -1,6 +1,64 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { encode } from 'https://deno.land/std@0.192.0/encoding/base64url.ts';
 
 console.log('Send notification function started');
+
+// Helper function to create VAPID JWT
+async function createVapidJWT(audience: string, privateKey: string, publicKey: string) {
+  const header = {
+    typ: 'JWT',
+    alg: 'ES256'
+  };
+
+  const payload = {
+    aud: audience,
+    exp: Math.floor(Date.now() / 1000) + (12 * 60 * 60), // 12 hours
+    sub: 'mailto:example@yourdomain.com' // Change this to your email
+  };
+
+  const encodedHeader = encode(JSON.stringify(header));
+  const encodedPayload = encode(JSON.stringify(payload));
+
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+
+  // Convert base64url private key to Uint8Array for PKCS8 format
+  // VAPID private key should be in PKCS8 format encoded as base64url
+  let keyData: Uint8Array;
+  try {
+    // Decode base64url to binary for PKCS8 format
+    const base64 = privateKey.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = base64.length % 4;
+    const paddedBase64 = padding ? base64 + '='.repeat(4 - padding) : base64;
+    keyData = Uint8Array.from(atob(paddedBase64), c => c.charCodeAt(0));
+  } catch (decodeError) {
+    console.error('Error decoding private key:', decodeError);
+    throw new Error(`Private key decoding failed: ${decodeError.message}`);
+  }
+
+  try {
+    // Import the private key for signing using PKCS8 format
+    const cryptoKey = await crypto.subtle.importKey(
+      'pkcs8',
+      keyData,
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['sign']
+    );
+
+    // Sign the token
+    const signature = await crypto.subtle.sign(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      cryptoKey,
+      new TextEncoder().encode(unsignedToken)
+    );
+
+    const encodedSignature = encode(new Uint8Array(signature));
+    return `${unsignedToken}.${encodedSignature}`;
+  } catch (error) {
+    console.error('Error creating VAPID JWT:', error);
+    throw new Error(`VAPID JWT creation failed: ${error.message}`);
+  }
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -79,9 +137,11 @@ Deno.serve(async (req) => {
         const url = new URL(endpoint);
         const audience = `${url.protocol}//${url.host}`;
 
-        // For all push services, use WebPush VAPID format
-        // This is a simplified version - production should use proper JWT signing
-        headers['Authorization'] = `WebPush ${vapidPublicKey}`;
+        // Create proper VAPID JWT
+        const vapidJWT = await createVapidJWT(audience, vapidPrivateKey, vapidPublicKey);
+
+        // Set proper VAPID headers
+        headers['Authorization'] = `vapid t=${vapidJWT}, k=${vapidPublicKey}`;
         headers['Crypto-Key'] = `p256ecdsa=${vapidPublicKey}`;
 
         console.log(`Sending to ${endpoint} with audience ${audience}`);

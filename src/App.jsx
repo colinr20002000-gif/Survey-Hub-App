@@ -5204,29 +5204,9 @@ const MainLayout = () => {
         };
     }, [user, isLoading]);
 
-    // Automatically subscribe to push notifications when user is loaded
-    useEffect(() => {
-        if (user && !isLoading && isPushSupported && !isPushSubscribed) {
-            console.log('🔔 Auto-subscribing user to push notifications:', user.email);
-
-            const autoSubscribe = async () => {
-                try {
-                    await subscribeToPush();
-                    console.log('✅ User successfully subscribed to push notifications');
-                } catch (error) {
-                    console.log('⚠️ User declined push notification subscription:', error.message);
-                    // Don't throw error - it's okay if user declines
-                }
-            };
-
-            // Small delay to ensure everything is initialized
-            const timer = setTimeout(() => {
-                autoSubscribe();
-            }, 2000);
-
-            return () => clearTimeout(timer);
-        }
-    }, [user, isLoading, isPushSupported, isPushSubscribed, subscribeToPush]);
+    // Note: Automatic push notification subscription removed to comply with browser requirements
+    // Users must explicitly request notifications through UI interaction
+    // Push notifications can still be enabled through Settings page or notification prompts
     const [hasInitialized, setHasInitialized] = useState(false);
     const { projects } = useProjects();
 
