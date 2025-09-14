@@ -46,18 +46,32 @@ export class NotificationService {
   }
 
   urlBase64ToUint8Array(base64String) {
+    if (!base64String) {
+      throw new Error('VAPID key is empty or undefined');
+    }
+
+    // Clean the string - remove any whitespace or newlines
+    base64String = base64String.trim();
+
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding)
       .replace(/-/g, '+')
       .replace(/_/g, '/');
 
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
+    try {
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
 
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    } catch (error) {
+      console.error('Error decoding VAPID key:', error);
+      console.error('Original key:', base64String);
+      console.error('Processed key:', base64);
+      throw new Error('Invalid VAPID key format: ' + error.message);
     }
-    return outputArray;
   }
 
   async subscribe() {
