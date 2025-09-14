@@ -1,3 +1,5 @@
+import { supabase } from '../supabaseClient';
+
 const PUBLIC_VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
 export class NotificationService {
@@ -65,6 +67,11 @@ export class NotificationService {
 
     await this.requestPermission();
 
+    if (!PUBLIC_VAPID_KEY) {
+        console.error('VITE_VAPID_PUBLIC_KEY is not set. Cannot subscribe.');
+        throw new Error('VAPID public key is not configured.');
+    }
+
     const applicationServerKey = this.urlBase64ToUint8Array(PUBLIC_VAPID_KEY);
 
     try {
@@ -107,21 +114,12 @@ export class NotificationService {
 
   async sendSubscriptionToServer(subscription) {
     try {
-      // Get current user session for authentication
-      const { supabase } = await import('../supabaseClient');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-      if (sessionError) {
-        console.error('Error getting session:', sessionError);
-        throw sessionError;
+      if (sessionError || !session) {
+        throw new Error(sessionError?.message || 'User not authenticated to send subscription');
       }
 
-      if (!session) {
-        console.warn('No active session - cannot save subscription');
-        throw new Error('No active session');
-      }
-
-      // Use your Supabase Edge Function endpoint
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const endpoint = `${supabaseUrl}/functions/v1/subscribe`;
 
@@ -132,16 +130,12 @@ export class NotificationService {
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          ...subscription,
-          user_id: session.user.id,
-          user_agent: navigator.userAgent,
-          ip_address: 'client-side' // Can't get real IP from client
-        }),
+        body: JSON.stringify(subscription),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send subscription to server');
+        const errorText = await response.text();
+        throw new Error(`Failed to send subscription to server: ${response.status} ${errorText}`);
       }
 
       const result = await response.json();
