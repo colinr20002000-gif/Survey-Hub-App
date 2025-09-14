@@ -61,29 +61,65 @@ Deno.serve(async (req) => {
       });
     }
 
-    // --- 5. SEND NOTIFICATIONS VIA WEB PUSH API ---
-    let successCount = 0;
-    let expiredCount = 0;
-    let failureCount = 0;
-
-    for (const sub of subscriptions) {
+    // --- 5. SEND ACTUAL PUSH NOTIFICATIONS ---
+    const notificationPromises = subscriptions.map(async (sub) => {
       try {
-        // Use native Web Push API instead of library
         const endpoint = sub.subscription_object.endpoint;
-        const p256dh = sub.subscription_object.keys.p256dh;
-        const auth = sub.subscription_object.keys.auth;
+        const payload = JSON.stringify(notification);
 
-        // For now, just return success to test the flow
-        // Actual web push implementation would go here
-        successCount++;
+        console.log(`Sending push notification to: ${endpoint}`);
+
+        // Send actual HTTP request to push service
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `key=${vapidPrivateKey}`, // Simplified auth
+            'TTL': '86400'
+          },
+          body: payload
+        });
+
+        if (response.ok || response.status === 201) {
+          console.log(`✅ Push sent successfully to ${endpoint}`);
+          return {
+            status: 'success',
+            endpoint: endpoint
+          };
+        } else if (response.status === 404 || response.status === 410) {
+          // Subscription expired
+          await supabaseClient.from('subscriptions').delete().eq('id', sub.id);
+          console.log(`🗑️ Removed expired subscription: ${sub.id}`);
+          return {
+            status: 'expired',
+            endpoint: endpoint
+          };
+        } else {
+          console.error(`❌ Push failed with status ${response.status} for ${endpoint}`);
+          return {
+            status: 'failed',
+            endpoint: endpoint,
+            error: `HTTP ${response.status}`
+          };
+        }
 
       } catch (error) {
-        console.error(`Failed to send to subscription ${sub.id}:`, error.message);
-        failureCount++;
+        console.error(`❌ Error sending to ${sub.subscription_object.endpoint}:`, error.message);
+        return {
+          status: 'failed',
+          endpoint: sub.subscription_object.endpoint,
+          error: error.message
+        };
       }
-    }
+    });
 
-    // --- 6. RETURN RESPONSE ---
+    const results = await Promise.all(notificationPromises);
+
+    const successCount = results.filter(r => r.status === 'success').length;
+    const expiredCount = results.filter(r => r.status === 'expired').length;
+    const failureCount = results.filter(r => r.status === 'failed').length;
+
+    // --- 7. RETURN RESPONSE ---
     return new Response(JSON.stringify({
       message: 'Notification sending process completed.',
       sent: successCount,
