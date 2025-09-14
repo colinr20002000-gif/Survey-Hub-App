@@ -142,7 +142,12 @@ Deno.serve(async (req) => {
       sent: successCount,
       expired_and_removed: expiredCount,
       failed: failureCount,
-      total_targeted: subscriptions.length
+      total_targeted: subscriptions.length,
+      detailed_results: results.map(r => ({
+        status: r.status,
+        endpoint: r.endpoint?.substring(0, 50) + '...',
+        error: r.error
+      }))
     }), {
       headers: {
         'Content-Type': 'application/json',
