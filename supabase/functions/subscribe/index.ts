@@ -38,12 +38,16 @@ Deno.serve(async (req) => {
     }
 
     const subscription = await req.json();
+    const userAgent = req.headers.get('user-agent');
+    const ipAddress = req.headers.get('x-forwarded-for'); // Standard header for client IP in Supabase
 
     const { error: insertError } = await supabaseClient
       .from('subscriptions')
       .insert({
         subscription_object: subscription,
-        user_id: user.id
+        user_id: user.id,
+        user_agent: userAgent,
+        ip_address: ipAddress
       });
 
     if (insertError) {
