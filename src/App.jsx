@@ -3576,11 +3576,54 @@ const NotificationSettings = () => {
     });
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isInstalled, setIsInstalled] = useState(false);
+    const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
     const { permission, requestPermission, canNotify } = usePushNotifications();
+
+    // Load settings from localStorage and check actual subscription status
+    useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                // Load saved settings from localStorage
+                const savedSettings = localStorage.getItem('notificationSettings');
+                if (savedSettings) {
+                    const parsed = JSON.parse(savedSettings);
+                    setSettings(prev => ({ ...prev, ...parsed }));
+                }
+
+                // Check actual push subscription status
+                if ('serviceWorker' in navigator && 'PushManager' in window) {
+                    const registration = await navigator.serviceWorker.ready;
+                    const subscription = await registration.pushManager.getSubscription();
+                    const isActuallySubscribed = !!subscription;
+
+                    console.log('Actual push subscription status:', isActuallySubscribed);
+
+                    // Update toggle to match actual subscription status
+                    setSettings(prev => ({
+                        ...prev,
+                        pushNotifications: isActuallySubscribed
+                    }));
+                }
+            } catch (error) {
+                console.error('Error loading notification settings:', error);
+            } finally {
+                setIsCheckingSubscription(false);
+            }
+        };
+
+        loadSettings();
+    }, []);
+
+    // Save settings to localStorage whenever they change
+    useEffect(() => {
+        if (!isCheckingSubscription) {
+            localStorage.setItem('notificationSettings', JSON.stringify(settings));
+        }
+    }, [settings, isCheckingSubscription]);
 
     // Check if app is installed as PWA
     useEffect(() => {
-        setIsInstalled(window.matchMedia('(display-mode: standalone)').matches || 
+        setIsInstalled(window.matchMedia('(display-mode: standalone)').matches ||
                       window.navigator.standalone === true);
 
         // Listen for install prompt
@@ -3598,11 +3641,35 @@ const NotificationSettings = () => {
     };
 
     const handlePushToggle = async () => {
-        if (settings.pushNotifications && canNotify) {
-            setSettings(prev => ({ ...prev, pushNotifications: false }));
-        } else {
-            const granted = await requestPermission();
-            setSettings(prev => ({ ...prev, pushNotifications: granted }));
+        try {
+            if (settings.pushNotifications) {
+                // User wants to turn OFF notifications - unsubscribe
+                if ('serviceWorker' in navigator && 'PushManager' in window) {
+                    const registration = await navigator.serviceWorker.ready;
+                    const subscription = await registration.pushManager.getSubscription();
+
+                    if (subscription) {
+                        await subscription.unsubscribe();
+                        console.log('Successfully unsubscribed from push notifications');
+                    }
+                }
+                setSettings(prev => ({ ...prev, pushNotifications: false }));
+            } else {
+                // User wants to turn ON notifications - subscribe
+                const granted = await requestPermission();
+                if (granted) {
+                    // Import and use the notification service to subscribe
+                    const { notificationService } = await import('./utils/notifications');
+                    const subscription = await notificationService.subscribe();
+                    await notificationService.sendSubscriptionToServer(subscription);
+                    console.log('Successfully subscribed to push notifications');
+                }
+                setSettings(prev => ({ ...prev, pushNotifications: granted }));
+            }
+        } catch (error) {
+            console.error('Error toggling push notifications:', error);
+            // Revert the toggle on error
+            setSettings(prev => ({ ...prev, pushNotifications: !prev.pushNotifications }));
         }
     };
 
