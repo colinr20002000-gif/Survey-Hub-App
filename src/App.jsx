@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { sendAnnouncementNotification } from './utils/pushNotifications';
+import { notificationManager } from './utils/realTimeNotifications';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
@@ -5188,6 +5189,25 @@ const MainLayout = () => {
     const [selectedProject, setSelectedProject] = useState(null);
     const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
     const [passwordPromptReason, setPasswordPromptReason] = useState(null);
+
+    // Push notification support - using existing notification system
+
+    // Initialize real-time notifications when user is loaded
+    useEffect(() => {
+        if (user && !isLoading) {
+            console.log('🔔 Initializing real-time notifications for user:', user.email);
+            notificationManager.initialize();
+        }
+
+        // Cleanup on unmount
+        return () => {
+            notificationManager.cleanup();
+        };
+    }, [user, isLoading]);
+
+    // Note: Automatic push notification subscription removed to comply with browser requirements
+    // Users must explicitly request notifications through UI interaction
+    // Push notifications can still be enabled through Settings page or notification prompts
     const [hasInitialized, setHasInitialized] = useState(false);
     const { projects } = useProjects();
 

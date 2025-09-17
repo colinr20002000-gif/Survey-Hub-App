@@ -79,16 +79,10 @@ export class RealTimeNotificationManager {
       console.log('✅ Proceeding with push notification for announcement:', announcement.title);
       console.log('🔔 Notification permission status:', Notification.permission);
 
-      // Request permission if not already granted
-      if (Notification.permission === 'default') {
-        console.log('🔔 Requesting notification permission...');
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          console.log('❌ Notification permission denied, skipping notification');
-          return;
-        }
-      } else if (Notification.permission !== 'granted') {
+      // Check permission status - don't auto-request to avoid browser violations
+      if (Notification.permission !== 'granted') {
         console.log('❌ Notification permission not granted, skipping notification');
+        console.log('💡 Users can enable notifications through Settings or notification prompts');
         return;
       }
 
