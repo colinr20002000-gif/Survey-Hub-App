@@ -21,13 +21,11 @@ Deno.serve(async (req) => {
       throw new Error('Auth session missing!');
     }
 
-    // Create client with service role key but pass the user's JWT for verification
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verify the user's JWT token manually
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(
       authHeader.replace('Bearer ', '')
     );
@@ -39,8 +37,33 @@ Deno.serve(async (req) => {
 
     const subscription = await req.json();
     const userAgent = req.headers.get('user-agent');
-    const ipAddress = req.headers.get('x-forwarded-for'); // Standard header for client IP in Supabase
+    const ipAddress = req.headers.get('x-forwarded-for');
 
+    // Check if this endpoint is already subscribed for this user
+    const { data: existingSub, error: existingSubError } = await supabaseClient
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('subscription_object->>endpoint', subscription.endpoint)
+      .maybeSingle();
+
+    if (existingSubError && existingSubError.code !== 'PGRST116') { // PGRST116 = single row not found
+      console.error('Error checking for existing subscription:', existingSubError);
+      throw existingSubError;
+    }
+
+    if (existingSub) {
+      console.log('Subscription already exists for this user and endpoint. Skipping insert.');
+      return new Response(JSON.stringify({
+        message: 'Subscription already exists.'
+      }), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        status: 200 // 200 OK instead of 201 Created
+      });
+    }
+
+    // No existing subscription found, so insert it
+    console.log('New subscription, inserting into database...');
     const { error: insertError } = await supabaseClient
       .from('subscriptions')
       .insert({
@@ -51,7 +74,7 @@ Deno.serve(async (req) => {
       });
 
     if (insertError) {
-      console.error('Error inserting subscription:', insertError);
+      console.error('Error inserting new subscription:', insertError);
       throw insertError;
     }
 
