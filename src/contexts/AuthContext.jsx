@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }) => {
       const userQuery = Promise.race([
         supabase.from('users').select('*').eq('id', authUser.id),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('User query timeout')), 8000)
+          setTimeout(() => reject(new Error('User query timeout')), 20000)
         )
       ]);
       
@@ -76,7 +76,6 @@ export const AuthProvider = ({ children }) => {
         return {
           ...existingUser,
           email: authUser.email, // Always use auth email as source of truth
-          teamRole: existingUser.team_role, // Map snake_case to camelCase
           last_sign_in_at: authUser.last_sign_in_at,
           auth_user: authUser
         };
@@ -106,8 +105,6 @@ export const AuthProvider = ({ children }) => {
       // Create username from email and ensure uniqueness
       let username = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
       
-      // Default user data  
-      const isAdminUser = authUser.email === 'colin.rogers@inorail.co.uk';
       const newUserData = {
         id: authUser.id,
         email: authUser.email,
@@ -115,7 +112,7 @@ export const AuthProvider = ({ children }) => {
         username: username,
         team_role: 'Site Team',
         avatar: avatar,
-        privilege: isAdminUser ? 'Admin' : 'Site Staff'
+        privilege: 'Viewer' // Set 'Viewer' as the default privilege for all new users
       };
       
       // Insert new user into users table
@@ -150,7 +147,6 @@ export const AuthProvider = ({ children }) => {
         }
         
         // Return basic user data if database insert fails
-        const isAdminUser = authUser.email === 'colin.rogers@inorail.co.uk';
         return {
           id: authUser.id,
           email: authUser.email,
@@ -158,7 +154,7 @@ export const AuthProvider = ({ children }) => {
           username: username,
           teamRole: 'Site Team',
           avatar: avatar,
-          privilege: isAdminUser ? 'Admin' : 'Site Staff',
+          privilege: 'Viewer', // Default to Viewer on failure
           last_sign_in_at: authUser.last_sign_in_at,
           auth_user: authUser
         };
@@ -203,8 +199,15 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         console.log('🔐 Found existing session for:', session.user.email);
         try {
-          const userData = await fetchUserData(session.user);
+          let userData = await fetchUserData(session.user);
           console.log('🔐 User data loaded:', userData ? 'Success' : 'Failed');
+
+          // Super admin override
+          if (userData && userData.email === 'colin.rogers@inorail.co.uk') {
+            console.log('🔐 Super admin override: Setting privilege to Admin.');
+            userData.privilege = 'Admin';
+          }
+
           setUser(userData);
         } catch (err) {
           console.error('🔐 Error loading user data:', err);
@@ -230,8 +233,15 @@ export const AuthProvider = ({ children }) => {
       
       if (session?.user) {
         console.log('Auth change - loading user data for:', session.user.email);
-        const userData = await fetchUserData(session.user);
+        let userData = await fetchUserData(session.user);
         console.log('User data loaded:', userData ? 'Success' : 'Failed');
+
+        // Super admin override
+        if (userData && userData.email === 'colin.rogers@inorail.co.uk') {
+          console.log('🔐 Super admin override: Setting privilege to Admin.');
+          userData.privilege = 'Admin';
+        }
+        
         setUser(userData);
       } else {
         console.log('Auth change - no session');

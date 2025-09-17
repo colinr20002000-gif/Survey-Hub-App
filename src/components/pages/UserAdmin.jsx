@@ -38,6 +38,7 @@ const UserAdmin = () => {
 
   // Check if current user has admin privileges
   const isAdmin = user?.privilege === 'Admin';
+  const isSuperAdmin = user?.email === 'colin.rogers@inorail.co.uk';
 
   const fetchUsers = async () => {
     if (!isAdmin) return; // Only fetch users if admin
@@ -148,8 +149,8 @@ const UserAdmin = () => {
   const getPrivilegeColor = (privilege) => {
     switch (privilege) {
       case 'Admin': return 'bg-red-100 text-red-800';
-      case 'Site Staff': return 'bg-blue-100 text-blue-800';
-      case 'Site Team': return 'bg-green-100 text-green-800';
+      case 'Editor': return 'bg-yellow-100 text-yellow-800';
+      case 'Viewer': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -334,11 +335,12 @@ const UserAdmin = () => {
                       <select
                         value={userItem.privilege}
                         onChange={(e) => updateUserPrivilege(userItem.id, e.target.value)}
-                        className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        disabled={!isSuperAdmin && userItem.privilege === 'Admin'}
                       >
-                        <option value="Site Staff">Site Staff</option>
-                        <option value="Site Team">Site Team</option>
-                        <option value="Admin">Admin</option>
+                        <option value="Viewer">Viewer</option>
+                        <option value="Editor">Editor</option>
+                        {isSuperAdmin && <option value="Admin">Admin</option>}
                       </select>
                       {userItem.id !== user?.id && (
                         <button
