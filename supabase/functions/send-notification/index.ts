@@ -1,42 +1,31 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { encode } from 'https://deno.land/std@0.192.0/encoding/base64url.ts';
 
-console.log('Send notification function started');
-
 // Helper function to create VAPID JWT
-async function createVapidJWT(audience: string, privateKey: string, publicKey: string) {
-  const header = {
-    typ: 'JWT',
-    alg: 'ES256'
-  };
-
+async function createVapidJWT(audience, privateKey, publicKey) {
+  const header = { typ: 'JWT', alg: 'ES256' };
   const payload = {
     aud: audience,
-    exp: Math.floor(Date.now() / 1000) + (12 * 60 * 60), // 12 hours
-    sub: 'mailto:example@yourdomain.com' // Change this to your email
+    exp: Math.floor(Date.now() / 1000) + (12 * 60 * 60),
+    sub: 'mailto:your-email@example.com' // IMPORTANT: Change this to your email
   };
 
   const encodedHeader = encode(JSON.stringify(header));
   const encodedPayload = encode(JSON.stringify(payload));
-
   const unsignedToken = `${encodedHeader}.${encodedPayload}`;
 
-  // Convert base64url private key to Uint8Array for PKCS8 format
-  // VAPID private key should be in PKCS8 format encoded as base64url
-  let keyData: Uint8Array;
+  let keyData;
   try {
-    // Decode base64url to binary for PKCS8 format
     const base64 = privateKey.replace(/-/g, '+').replace(/_/g, '/');
     const padding = base64.length % 4;
     const paddedBase64 = padding ? base64 + '='.repeat(4 - padding) : base64;
     keyData = Uint8Array.from(atob(paddedBase64), c => c.charCodeAt(0));
   } catch (decodeError) {
-    console.error('Error decoding private key:', decodeError);
+    console.error('[DEBUG] VAPID private key decoding failed:', decodeError);
     throw new Error(`Private key decoding failed: ${decodeError.message}`);
   }
 
   try {
-    // Import the private key for signing using PKCS8 format
     const cryptoKey = await crypto.subtle.importKey(
       'pkcs8',
       keyData,
@@ -44,189 +33,144 @@ async function createVapidJWT(audience: string, privateKey: string, publicKey: s
       false,
       ['sign']
     );
-
-    // Sign the token
     const signature = await crypto.subtle.sign(
       { name: 'ECDSA', hash: 'SHA-256' },
       cryptoKey,
       new TextEncoder().encode(unsignedToken)
     );
-
-    const encodedSignature = encode(new Uint8Array(signature));
-    return `${unsignedToken}.${encodedSignature}`;
-  } catch (error) {
-    console.error('Error creating VAPID JWT:', error);
-    throw new Error(`VAPID JWT creation failed: ${error.message}`);
+    return `${unsignedToken}.${encode(new Uint8Array(signature))}`;
+  } catch (jwtError) {
+    console.error('[DEBUG] VAPID JWT creation failed:', jwtError);
+    throw new Error(`VAPID JWT creation failed: ${jwtError.message}`);
   }
 }
 
 Deno.serve(async (req) => {
+  console.log('[DEBUG] --- send-notification function invoked ---');
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
+    console.log('[DEBUG] Responding to OPTIONS preflight request.');
     return new Response('ok', {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      }
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      },
     });
   }
 
   try {
     // --- 1. AUTHENTICATION & SETUP ---
+    console.log('[DEBUG] Step 1: Initializing clients and getting VAPID keys.');
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
-
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
 
     if (!vapidPublicKey || !vapidPrivateKey) {
+      console.error('[DEBUG] ERROR: VAPID keys are not configured in environment variables.');
       throw new Error('VAPID keys are not configured in environment variables.');
     }
+    console.log('[DEBUG] VAPID keys found.');
 
     // --- 2. GET REQUEST DATA ---
+    console.log('[DEBUG] Step 2: Parsing request body.');
     const { notification, targetRoles, excludeAuthorId } = await req.json();
+    console.log(`[DEBUG] Notification payload received: ${JSON.stringify(notification)}`);
 
     // --- 3. FETCH SUBSCRIPTIONS ---
-    let query = supabaseClient.from('subscriptions').select(`
-        id,
-        user_id,
-        subscription_object
-      `);
-
-    // --- 4. FILTER SUBSCRIPTIONS ---
+    console.log('[DEBUG] Step 3: Fetching subscriptions from database.');
+    let query = supabaseClient.from('subscriptions').select('id, user_id, subscription_object');
     if (excludeAuthorId) {
+      console.log(`[DEBUG] Excluding author ID: ${excludeAuthorId}`);
       query = query.neq('user_id', excludeAuthorId);
     }
-
     const { data: subscriptions, error: fetchError } = await query;
 
-    if (fetchError) throw fetchError;
-
+    if (fetchError) {
+      console.error('[DEBUG] ERROR fetching subscriptions:', fetchError);
+      throw fetchError;
+    }
     if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({
-        message: 'No subscriptions found to send to.',
-        sent: 0,
-        total_targeted: 0
-      }), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        },
-        status: 200
+      console.log('[DEBUG] No subscriptions found to send to. Exiting gracefully.');
+      return new Response(JSON.stringify({ message: 'No subscriptions found.', sent: 0 }), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        status: 200,
       });
     }
+    console.log(`[DEBUG] Found ${subscriptions.length} subscriptions to process.`);
 
-    // --- 5. SEND ACTUAL PUSH NOTIFICATIONS ---
+    // --- 4. SEND PUSH NOTIFICATIONS ---
+    console.log('[DEBUG] Step 4: Processing and sending notifications.');
     const notificationPromises = subscriptions.map(async (sub) => {
       try {
         const endpoint = sub.subscription_object.endpoint;
         const payload = JSON.stringify(notification);
+        console.log(`[DEBUG] Preparing to send to endpoint: ${endpoint}`);
 
-        console.log(`Sending push notification to: ${endpoint}`);
-
-        // Create proper Web Push headers
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/octet-stream',
-          'TTL': '86400'
-        };
-
-        // Extract audience from endpoint for VAPID
         const url = new URL(endpoint);
         const audience = `${url.protocol}//${url.host}`;
-
-        // Create proper VAPID JWT
+        
+        console.log(`[DEBUG] Creating VAPID JWT for audience: ${audience}`);
         const vapidJWT = await createVapidJWT(audience, vapidPrivateKey, vapidPublicKey);
 
-        // Set proper VAPID headers
-        headers['Authorization'] = `vapid t=${vapidJWT}, k=${vapidPublicKey}`;
-        headers['Crypto-Key'] = `p256ecdsa=${vapidPublicKey}`;
+        const headers = {
+          'Content-Type': 'application/octet-stream',
+          'TTL': '86400',
+          'Authorization': `vapid t=${vapidJWT}, k=${vapidPublicKey}`,
+        };
+        console.log(`[DEBUG] Sending with headers: ${JSON.stringify(headers)}`);
 
-        console.log(`Sending to ${endpoint} with audience ${audience}`);
-        console.log(`Headers:`, JSON.stringify(headers));
-
-        // Send actual HTTP request to push service
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: headers,
-          body: payload
+          body: payload,
         });
 
         const responseText = await response.text();
-        console.log(`Response status: ${response.status}, body: ${responseText}`);
+        console.log(`[DEBUG] Push service response for ${sub.id}: Status=${response.status}, Body=${responseText}`);
 
         if (response.ok || response.status === 201) {
-          console.log(`✅ Push sent successfully to ${endpoint}`);
-          return {
-            status: 'success',
-            endpoint: endpoint
-          };
+          console.log(`[DEBUG] ✅ Push sent successfully to subscription ID: ${sub.id}`);
+          return { status: 'success', id: sub.id };
         } else if (response.status === 404 || response.status === 410) {
-          // Subscription expired
+          console.log(`[DEBUG] 🗑️ Subscription expired (ID: ${sub.id}). Deleting from DB.`);
           await supabaseClient.from('subscriptions').delete().eq('id', sub.id);
-          console.log(`🗑️ Removed expired subscription: ${sub.id}`);
-          return {
-            status: 'expired',
-            endpoint: endpoint
-          };
+          return { status: 'expired', id: sub.id };
         } else {
-          console.error(`❌ Push failed with status ${response.status} for ${endpoint}`);
-          return {
-            status: 'failed',
-            endpoint: endpoint,
-            error: `HTTP ${response.status}`
-          };
+          console.error(`[DEBUG] ❌ Push failed for subscription ID ${sub.id} with status ${response.status}.`);
+          return { status: 'failed', id: sub.id, error: `HTTP ${response.status}` };
         }
-
       } catch (error) {
-        console.error(`❌ Error sending to ${sub.subscription_object.endpoint}:`, error.message);
-        return {
-          status: 'failed',
-          endpoint: sub.subscription_object.endpoint,
-          error: error.message
-        };
+        console.error(`[DEBUG] ❌ CRITICAL ERROR sending to subscription ID ${sub.id}:`, error.message);
+        return { status: 'failed', id: sub.id, error: error.message };
       }
     });
 
     const results = await Promise.all(notificationPromises);
+    const successCount = results.filter((r) => r.status === 'success').length;
+    console.log(`[DEBUG] --- Process complete. ${successCount} notifications sent successfully. ---`);
 
-    const successCount = results.filter(r => r.status === 'success').length;
-    const expiredCount = results.filter(r => r.status === 'expired').length;
-    const failureCount = results.filter(r => r.status === 'failed').length;
-
-    // --- 7. RETURN RESPONSE ---
+    // --- 5. RETURN RESPONSE ---
     return new Response(JSON.stringify({
-      message: 'Notification sending process completed.',
-      sent: successCount,
-      expired_and_removed: expiredCount,
-      failed: failureCount,
-      total_targeted: subscriptions.length,
-      detailed_results: results.map(r => ({
-        status: r.status,
-        endpoint: r.endpoint?.substring(0, 50) + '...',
-        error: r.error
-      }))
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
-      status: 200
+        message: 'Notification process completed.',
+        sent: successCount,
+        total: subscriptions.length,
+        results,
+      }), {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      status: 200,
     });
 
   } catch (err) {
-    console.error('Function error:', err.message);
-    return new Response(JSON.stringify({
-      error: err.message,
-      stack: err.stack
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
-      status: 500
+    console.error('[DEBUG] !!! A top-level error occurred in send-notification function !!!');
+    console.error(`[DEBUG] Error: ${err.message}`);
+    console.error(`[DEBUG] Stack: ${err.stack}`);
+    return new Response(JSON.stringify({ error: err.message }), {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      status: 500,
     });
   }
 });
