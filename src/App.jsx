@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { sendAnnouncementNotification } from './utils/pushNotifications';
+import { notificationManager } from './utils/realTimeNotifications';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
@@ -3575,11 +3576,54 @@ const NotificationSettings = () => {
     });
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isInstalled, setIsInstalled] = useState(false);
+    const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
     const { permission, requestPermission, canNotify } = usePushNotifications();
+
+    // Load settings from localStorage and check actual subscription status
+    useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                // Load saved settings from localStorage
+                const savedSettings = localStorage.getItem('notificationSettings');
+                if (savedSettings) {
+                    const parsed = JSON.parse(savedSettings);
+                    setSettings(prev => ({ ...prev, ...parsed }));
+                }
+
+                // Check actual push subscription status
+                if ('serviceWorker' in navigator && 'PushManager' in window) {
+                    const registration = await navigator.serviceWorker.ready;
+                    const subscription = await registration.pushManager.getSubscription();
+                    const isActuallySubscribed = !!subscription;
+
+                    console.log('Actual push subscription status:', isActuallySubscribed);
+
+                    // Update toggle to match actual subscription status
+                    setSettings(prev => ({
+                        ...prev,
+                        pushNotifications: isActuallySubscribed
+                    }));
+                }
+            } catch (error) {
+                console.error('Error loading notification settings:', error);
+            } finally {
+                setIsCheckingSubscription(false);
+            }
+        };
+
+        loadSettings();
+    }, []);
+
+    // Save settings to localStorage whenever they change
+    useEffect(() => {
+        if (!isCheckingSubscription) {
+            localStorage.setItem('notificationSettings', JSON.stringify(settings));
+        }
+    }, [settings, isCheckingSubscription]);
 
     // Check if app is installed as PWA
     useEffect(() => {
-        setIsInstalled(window.matchMedia('(display-mode: standalone)').matches || 
+        setIsInstalled(window.matchMedia('(display-mode: standalone)').matches ||
                       window.navigator.standalone === true);
 
         // Listen for install prompt
@@ -3597,11 +3641,35 @@ const NotificationSettings = () => {
     };
 
     const handlePushToggle = async () => {
-        if (settings.pushNotifications && canNotify) {
-            setSettings(prev => ({ ...prev, pushNotifications: false }));
-        } else {
-            const granted = await requestPermission();
-            setSettings(prev => ({ ...prev, pushNotifications: granted }));
+        try {
+            if (settings.pushNotifications) {
+                // User wants to turn OFF notifications - unsubscribe
+                if ('serviceWorker' in navigator && 'PushManager' in window) {
+                    const registration = await navigator.serviceWorker.ready;
+                    const subscription = await registration.pushManager.getSubscription();
+
+                    if (subscription) {
+                        await subscription.unsubscribe();
+                        console.log('Successfully unsubscribed from push notifications');
+                    }
+                }
+                setSettings(prev => ({ ...prev, pushNotifications: false }));
+            } else {
+                // User wants to turn ON notifications - subscribe
+                const granted = await requestPermission();
+                if (granted) {
+                    // Import and use the notification service to subscribe
+                    const { notificationService } = await import('./utils/notifications');
+                    const subscription = await notificationService.subscribe();
+                    await notificationService.sendSubscriptionToServer(subscription);
+                    console.log('Successfully subscribed to push notifications');
+                }
+                setSettings(prev => ({ ...prev, pushNotifications: granted }));
+            }
+        } catch (error) {
+            console.error('Error toggling push notifications:', error);
+            // Revert the toggle on error
+            setSettings(prev => ({ ...prev, pushNotifications: !prev.pushNotifications }));
         }
     };
 
@@ -5188,6 +5256,25 @@ const MainLayout = () => {
     const [selectedProject, setSelectedProject] = useState(null);
     const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
     const [passwordPromptReason, setPasswordPromptReason] = useState(null);
+
+    // Push notification support - using existing notification system
+
+    // Initialize real-time notifications when user is loaded
+    useEffect(() => {
+        if (user && !isLoading) {
+            console.log('🔔 Initializing real-time notifications for user:', user.email);
+            notificationManager.initialize();
+        }
+
+        // Cleanup on unmount
+        return () => {
+            notificationManager.cleanup();
+        };
+    }, [user, isLoading]);
+
+    // Note: Automatic push notification subscription removed to comply with browser requirements
+    // Users must explicitly request notifications through UI interaction
+    // Push notifications can still be enabled through Settings page or notification prompts
     const [hasInitialized, setHasInitialized] = useState(false);
     const { projects } = useProjects();
 
@@ -5321,31 +5408,92 @@ const MainLayout = () => {
     );
 };
 
-export default function App() {
-    return (
-        <AuthProvider>
-            <ToastProvider>
-                <NotificationProvider>
-                    <ThemeProvider>
-                        <ProjectProvider>
-                            <AuditTrailProvider>
-                                <TaskProvider>
-                                    <UserProvider>
-                                        <JobProvider>
-                                            <DeliveryTaskProvider>
-                                                <MainLayout />
-                                            </DeliveryTaskProvider>
-                                        </JobProvider>
-                                    </UserProvider>
-                                </TaskProvider>
-                            </AuditTrailProvider>
-                        </ProjectProvider>
-                    </ThemeProvider>
-                </NotificationProvider>
-            </ToastProvider>
-        </AuthProvider>
-    );
+function App() {
+  return (
+    <AuthProvider>
+      <NotificationProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </NotificationProvider>
+    </AuthProvider>
+  );
 }
+
+const AppContent = () => {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading && !user) {
+    return <LoadingScreen />;
+  }
+
+  if (isAuthenticated && user) {
+    return (
+      <ThemeProvider>
+        <ProjectProvider>
+          <TaskProvider>
+            <DeliveryTaskProvider>
+              <AuditTrailProvider>
+                <MainAppLayout />
+              </AuditTrailProvider>
+            </DeliveryTaskProvider>
+          </TaskProvider>
+        </ProjectProvider>
+      </ThemeProvider>
+    );
+  }
+
+  return <LoginPage />;
+};
+
+const MainAppLayout = () => {
+  const [activeTab, setActiveTab] = useState('Dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
+
+  const renderContent = () => {
+    if (selectedProject) {
+      return <ProjectDetailPage project={selectedProject} onBack={() => setSelectedProject(null)} />;
+    }
+    switch (activeTab) {
+      case 'Dashboard':
+        return <DashboardPage onViewProject={setSelectedProject} setActiveTab={setActiveTab} />;
+      case 'Projects':
+        return <ProjectsPage onViewProject={setSelectedProject} />;
+      case 'Assigned Tasks':
+        return <AssignedTasksPage />;
+      case 'Delivery Tracker':
+        return <DeliveryTrackerPage />;
+      case 'Delivery Tasks':
+        return <DeliveryTasksPage />;
+      case 'Resource':
+        return <ResourceAllocationPage />;
+      case 'User Admin':
+        return <UserAdmin />;
+      case 'Announcements':
+        return <AnnouncementsPage />;
+      case 'Audit Trail':
+        return <AuditTrailPage />;
+      case 'Settings':
+        return <SettingsPage />;
+      default:
+        return <DashboardPage onViewProject={setSelectedProject} setActiveTab={setActiveTab} />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} setActiveTab={setActiveTab} />
+        <main className="flex-1 overflow-x-hidden overflow-y-auto">
+          {renderContent()}
+        </main>
+      </div>
+      <PasswordChangePrompt />
+    </div>
+  );
+};
 
 
 
