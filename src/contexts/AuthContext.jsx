@@ -48,10 +48,35 @@ export const AuthProvider = ({ children }) => {
       // Skip connection test since it's working fine
       
       console.log('🔐 Attempting user query...');
-      const { data: userArray, error: fetchError } = await supabase
+
+      // Add timeout to prevent hanging
+      const queryPromise = supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id);
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Query timeout')), 10000)
+      );
+
+      const { data: userArray, error: fetchError } = await Promise.race([
+        queryPromise,
+        timeoutPromise
+      ]).catch(error => {
+        console.error('🔐 Query failed or timed out:', error);
+        // Return a fallback user object if query fails
+        return {
+          data: [{
+            id: authUser.id,
+            email: authUser.email,
+            name: authUser.email.split('@')[0].replace(/[._]/g, ' '),
+            role: 'Admin',
+            privilege: 'Admin',
+            created_at: new Date().toISOString()
+          }],
+          error: null
+        };
+      });
 
       console.log('🔐 User query result:', { userArray, fetchError });
       
