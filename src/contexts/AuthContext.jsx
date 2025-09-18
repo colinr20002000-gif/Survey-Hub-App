@@ -72,7 +72,8 @@ export const AuthProvider = ({ children }) => {
             name: authUser.email.split('@')[0].replace(/[._]/g, ' '),
             role: 'Admin',
             privilege: 'Admin',
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            last_login: authUser.last_sign_in_at || new Date().toISOString()
           }],
           error: null
         };

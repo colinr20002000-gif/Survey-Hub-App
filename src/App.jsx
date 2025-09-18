@@ -5441,15 +5441,17 @@ const AppContent = () => {
   if (isAuthenticated && user) {
     return (
       <ThemeProvider>
-        <ProjectProvider>
-          <TaskProvider>
-            <DeliveryTaskProvider>
-              <AuditTrailProvider>
-                <MainLayout />
-              </AuditTrailProvider>
-            </DeliveryTaskProvider>
-          </TaskProvider>
-        </ProjectProvider>
+        <UserProvider>
+          <ProjectProvider>
+            <TaskProvider>
+              <DeliveryTaskProvider>
+                <AuditTrailProvider>
+                  <MainLayout />
+                </AuditTrailProvider>
+              </DeliveryTaskProvider>
+            </TaskProvider>
+          </ProjectProvider>
+        </UserProvider>
       </ThemeProvider>
     );
   }
