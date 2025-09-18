@@ -5495,5 +5495,16 @@ const MainAppLayout = () => {
   );
 };
 
+const SurveyHubApp = () => {
+  return (
+    <AuthProvider>
+      <NotificationProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </NotificationProvider>
+    </AuthProvider>
+  );
+};
 
-
+export default SurveyHubApp;
