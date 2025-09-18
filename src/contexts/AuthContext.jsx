@@ -47,27 +47,13 @@ export const AuthProvider = ({ children }) => {
       
       // Skip connection test since it's working fine
       
-      // If connection works, try the actual query with timeout
       console.log('🔐 Attempting user query...');
-      const userQuery = Promise.race([
-        supabase.from('users').select('*').eq('id', authUser.id),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('User query timeout')), 20000)
-        )
-      ]);
-      
-      let userArray, fetchError;
-      try {
-        const result = await userQuery;
-        userArray = result.data;
-        fetchError = result.error;
-        console.log('🔐 User query result:', { userArray, fetchError });
-      } catch (timeoutError) {
-        console.error('🔐 User query timed out:', timeoutError);
-        // Returning null is safer than creating a fallback user with incorrect permissions.
-        // The UI should handle a null user by showing a login screen or an error message.
-        return null;
-      }
+      const { data: userArray, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id);
+
+      console.log('🔐 User query result:', { userArray, fetchError });
       
       const existingUser = userArray && userArray.length > 0 ? userArray[0] : null;
       
