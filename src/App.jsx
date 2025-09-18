@@ -5420,6 +5420,17 @@ function App() {
   );
 }
 
+const LoadingScreen = () => {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+        <p className="text-gray-600 dark:text-gray-400">Loading Survey Hub...</p>
+      </div>
+    </div>
+  );
+};
+
 const AppContent = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
 
@@ -5434,7 +5445,7 @@ const AppContent = () => {
           <TaskProvider>
             <DeliveryTaskProvider>
               <AuditTrailProvider>
-                <MainAppLayout />
+                <MainLayout />
               </AuditTrailProvider>
             </DeliveryTaskProvider>
           </TaskProvider>
