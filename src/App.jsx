@@ -5408,31 +5408,92 @@ const MainLayout = () => {
     );
 };
 
-export default function App() {
-    return (
-        <AuthProvider>
-            <ToastProvider>
-                <NotificationProvider>
-                    <ThemeProvider>
-                        <ProjectProvider>
-                            <AuditTrailProvider>
-                                <TaskProvider>
-                                    <UserProvider>
-                                        <JobProvider>
-                                            <DeliveryTaskProvider>
-                                                <MainLayout />
-                                            </DeliveryTaskProvider>
-                                        </JobProvider>
-                                    </UserProvider>
-                                </TaskProvider>
-                            </AuditTrailProvider>
-                        </ProjectProvider>
-                    </ThemeProvider>
-                </NotificationProvider>
-            </ToastProvider>
-        </AuthProvider>
-    );
+function App() {
+  return (
+    <AuthProvider>
+      <NotificationProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </NotificationProvider>
+    </AuthProvider>
+  );
 }
+
+const AppContent = () => {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading && !user) {
+    return <LoadingScreen />;
+  }
+
+  if (isAuthenticated && user) {
+    return (
+      <ThemeProvider>
+        <ProjectProvider>
+          <TaskProvider>
+            <DeliveryTaskProvider>
+              <AuditTrailProvider>
+                <MainAppLayout />
+              </AuditTrailProvider>
+            </DeliveryTaskProvider>
+          </TaskProvider>
+        </ProjectProvider>
+      </ThemeProvider>
+    );
+  }
+
+  return <LoginPage />;
+};
+
+const MainAppLayout = () => {
+  const [activeTab, setActiveTab] = useState('Dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
+
+  const renderContent = () => {
+    if (selectedProject) {
+      return <ProjectDetailPage project={selectedProject} onBack={() => setSelectedProject(null)} />;
+    }
+    switch (activeTab) {
+      case 'Dashboard':
+        return <DashboardPage onViewProject={setSelectedProject} setActiveTab={setActiveTab} />;
+      case 'Projects':
+        return <ProjectsPage onViewProject={setSelectedProject} />;
+      case 'Assigned Tasks':
+        return <AssignedTasksPage />;
+      case 'Delivery Tracker':
+        return <DeliveryTrackerPage />;
+      case 'Delivery Tasks':
+        return <DeliveryTasksPage />;
+      case 'Resource':
+        return <ResourceAllocationPage />;
+      case 'User Admin':
+        return <UserAdmin />;
+      case 'Announcements':
+        return <AnnouncementsPage />;
+      case 'Audit Trail':
+        return <AuditTrailPage />;
+      case 'Settings':
+        return <SettingsPage />;
+      default:
+        return <DashboardPage onViewProject={setSelectedProject} setActiveTab={setActiveTab} />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} setActiveTab={setActiveTab} />
+        <main className="flex-1 overflow-x-hidden overflow-y-auto">
+          {renderContent()}
+        </main>
+      </div>
+      <PasswordChangePrompt />
+    </div>
+  );
+};
 
 
 
