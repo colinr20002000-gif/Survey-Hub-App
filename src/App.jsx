@@ -5442,15 +5442,17 @@ const AppContent = () => {
     return (
       <ThemeProvider>
         <UserProvider>
-          <ProjectProvider>
-            <TaskProvider>
-              <DeliveryTaskProvider>
-                <AuditTrailProvider>
-                  <MainLayout />
-                </AuditTrailProvider>
-              </DeliveryTaskProvider>
-            </TaskProvider>
-          </ProjectProvider>
+          <JobProvider>
+            <ProjectProvider>
+              <TaskProvider>
+                <DeliveryTaskProvider>
+                  <AuditTrailProvider>
+                    <MainLayout />
+                  </AuditTrailProvider>
+                </DeliveryTaskProvider>
+              </TaskProvider>
+            </ProjectProvider>
+          </JobProvider>
         </UserProvider>
       </ThemeProvider>
     );
