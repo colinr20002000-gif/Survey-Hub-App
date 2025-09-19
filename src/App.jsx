@@ -6,8 +6,9 @@ import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
-import { sendAnnouncementNotification } from './utils/pushNotifications';
+import { sendAnnouncementFCMNotification } from './utils/fcmNotifications';
 import { notificationManager } from './utils/realTimeNotifications';
+import { useFcm } from './hooks/useFcm';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
@@ -166,80 +167,6 @@ const ANNOUNCEMENT_CATEGORIES = [
 ];
 
 
-// Push Notification Hook
-const usePushNotifications = () => {
-    const [permission, setPermission] = useState(Notification.permission);
-    const [isSupported, setIsSupported] = useState('Notification' in window);
-
-    const requestPermission = async () => {
-        if (!isSupported) return false;
-        
-        try {
-            const permission = await Notification.requestPermission();
-            setPermission(permission);
-            return permission === 'granted';
-        } catch (error) {
-            console.error('Error requesting notification permission:', error);
-            return false;
-        }
-    };
-
-    const sendNotification = (title, options = {}) => {
-        if (permission !== 'granted') return false;
-
-        try {
-            // Check if service worker is available for better PWA support
-            if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-                navigator.serviceWorker.ready.then((registration) => {
-                    registration.showNotification(title, {
-                        icon: '/icon-192x192.png',
-                        badge: '/icon-144x144.png',
-                        tag: 'survey-hub-notification',
-                        renotify: true,
-                        requireInteraction: false,
-                        vibrate: [200, 100, 200],
-                        data: {
-                            url: '/',
-                            timestamp: Date.now()
-                        },
-                        ...options
-                    });
-                });
-            } else {
-                // Fallback to regular notification
-                const notification = new Notification(title, {
-                    icon: '/icon-192x192.png',
-                    badge: '/icon-144x144.png',
-                    tag: 'survey-hub-notification',
-                    renotify: true,
-                    ...options
-                });
-
-                // Auto close after 5 seconds
-                setTimeout(() => notification.close(), 5000);
-
-                // Handle click
-                notification.onclick = () => {
-                    window.focus();
-                    notification.close();
-                };
-            }
-
-            return true;
-        } catch (error) {
-            console.error('Error sending notification:', error);
-            return false;
-        }
-    };
-
-    return {
-        permission,
-        isSupported,
-        requestPermission,
-        sendNotification,
-        canNotify: permission === 'granted'
-    };
-};
 
 
 const formatTimeAgo = (dateString) => {
@@ -312,7 +239,6 @@ const Header = ({ onMenuClick, setActiveTab }) => {
         clearAllNotifications, 
         markAllAsRead 
     } = useNotifications();
-    const { permission, requestPermission, canNotify, isSupported } = usePushNotifications();
 
 
     useEffect(() => {
@@ -1176,7 +1102,6 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
     const [loading, setLoading] = useState(false);
     const { user } = useAuth();
     const { showSuccessModal, showErrorModal } = useToast();
-    const { sendNotification, canNotify } = usePushNotifications();
 
     useEffect(() => {
         if (announcement) {
@@ -1226,10 +1151,10 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
 
             if (result.error) throw result.error;
 
-            // Send server-side push notification for new announcements to all users
+            // Send FCM push notification for new announcements
             if (!announcement) {
                 try {
-                    const notificationResult = await sendAnnouncementNotification(
+                    const fcmResult = await sendAnnouncementFCMNotification(
                         {
                             ...formData,
                             id: result.data?.[0]?.id || 'new-announcement'
@@ -1237,37 +1162,26 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                         user.id
                     );
 
-                    if (notificationResult.success) {
-                        console.log(`Push notifications sent to ${notificationResult.sent} subscribers`);
+                    if (fcmResult.success) {
+                        console.log(`FCM notifications sent to ${fcmResult.sent} subscribers`);
+
+                        // Show success message with notification count
+                        const successMessage = `Announcement created successfully! Notifications sent to ${fcmResult.sent} users.`;
+                        showSuccessModal(successMessage, 'Success');
                     } else {
-                        console.warn('Push notification failed:', notificationResult.message);
+                        console.warn('FCM notification failed:', fcmResult.message);
+                        // Still show success for announcement creation, but note notification failure
+                        showSuccessModal('Announcement created successfully! (Note: Some notifications may have failed to send)', 'Success');
                     }
                 } catch (notifError) {
-                    console.error('Error sending push notification:', notifError);
+                    console.error('Error sending FCM notification:', notifError);
                     // Don't fail the announcement creation if notifications fail
+                    showSuccessModal('Announcement created successfully! (Note: Push notifications failed to send)', 'Success');
                 }
-
-                // Also send local notification to the author
-                if (canNotify) {
-                    const priorityEmoji = {
-                        urgent: '🚨',
-                        high: '⚠️',
-                        medium: '📢',
-                        low: 'ℹ️'
-                    };
-
-                    sendNotification(
-                        `${priorityEmoji[formData.priority] || '📢'} Your announcement was published`,
-                        {
-                            body: `"${formData.title}" has been sent to all users`,
-                            tag: `announcement-published-${Date.now()}`,
-                            data: { type: 'announcement-published', priority: formData.priority }
-                        }
-                    );
-                }
+            } else {
+                showSuccessModal('Announcement updated successfully!', 'Success');
             }
 
-            showSuccessModal(announcement ? 'Announcement updated successfully!' : 'Announcement created successfully!', 'Success');
             onSave();
             onClose();
         } catch (error) {
@@ -3577,9 +3491,18 @@ const NotificationSettings = () => {
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isInstalled, setIsInstalled] = useState(false);
     const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
-    const { permission, requestPermission, canNotify } = usePushNotifications();
+    const {
+        permission,
+        requestPermission,
+        disableNotifications,
+        canNotify,
+        isEnabled,
+        isLoading,
+        error,
+        hasToken
+    } = useFcm();
 
-    // Load settings from localStorage and check actual subscription status
+    // Load settings from localStorage and check FCM subscription status
     useEffect(() => {
         const loadSettings = async () => {
             try {
@@ -3590,20 +3513,11 @@ const NotificationSettings = () => {
                     setSettings(prev => ({ ...prev, ...parsed }));
                 }
 
-                // Check actual push subscription status
-                if ('serviceWorker' in navigator && 'PushManager' in window) {
-                    const registration = await navigator.serviceWorker.ready;
-                    const subscription = await registration.pushManager.getSubscription();
-                    const isActuallySubscribed = !!subscription;
-
-                    console.log('Actual push subscription status:', isActuallySubscribed);
-
-                    // Update toggle to match actual subscription status
-                    setSettings(prev => ({
-                        ...prev,
-                        pushNotifications: isActuallySubscribed
-                    }));
-                }
+                // Update toggle to match FCM subscription status
+                setSettings(prev => ({
+                    ...prev,
+                    pushNotifications: isEnabled
+                }));
             } catch (error) {
                 console.error('Error loading notification settings:', error);
             } finally {
@@ -3612,7 +3526,7 @@ const NotificationSettings = () => {
         };
 
         loadSettings();
-    }, []);
+    }, [isEnabled]);
 
     // Save settings to localStorage whenever they change
     useEffect(() => {
@@ -3643,31 +3557,26 @@ const NotificationSettings = () => {
     const handlePushToggle = async () => {
         try {
             if (settings.pushNotifications) {
-                // User wants to turn OFF notifications - unsubscribe
-                if ('serviceWorker' in navigator && 'PushManager' in window) {
-                    const registration = await navigator.serviceWorker.ready;
-                    const subscription = await registration.pushManager.getSubscription();
-
-                    if (subscription) {
-                        await subscription.unsubscribe();
-                        console.log('Successfully unsubscribed from push notifications');
-                    }
+                // User wants to turn OFF notifications - disable FCM
+                const success = await disableNotifications();
+                if (success) {
+                    console.log('Successfully disabled FCM notifications');
+                    setSettings(prev => ({ ...prev, pushNotifications: false }));
+                } else {
+                    console.error('Failed to disable FCM notifications');
                 }
-                setSettings(prev => ({ ...prev, pushNotifications: false }));
             } else {
-                // User wants to turn ON notifications - subscribe
-                const granted = await requestPermission();
-                if (granted) {
-                    // Import and use the notification service to subscribe
-                    const { notificationService } = await import('./utils/notifications');
-                    const subscription = await notificationService.subscribe();
-                    await notificationService.sendSubscriptionToServer(subscription);
-                    console.log('Successfully subscribed to push notifications');
+                // User wants to turn ON notifications - enable FCM
+                const success = await requestPermission();
+                if (success) {
+                    console.log('Successfully enabled FCM notifications');
+                    setSettings(prev => ({ ...prev, pushNotifications: true }));
+                } else {
+                    console.error('Failed to enable FCM notifications');
                 }
-                setSettings(prev => ({ ...prev, pushNotifications: granted }));
             }
         } catch (error) {
-            console.error('Error toggling push notifications:', error);
+            console.error('Error toggling FCM notifications:', error);
             // Revert the toggle on error
             setSettings(prev => ({ ...prev, pushNotifications: !prev.pushNotifications }));
         }
@@ -3741,12 +3650,22 @@ const NotificationSettings = () => {
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Switch isChecked={canNotify && settings.pushNotifications} onToggle={handlePushToggle} />
+                                <Switch
+                                    isChecked={isEnabled}
+                                    onToggle={handlePushToggle}
+                                    disabled={isLoading || isCheckingSubscription}
+                                />
+                                {isLoading && (
+                                    <span className="text-xs text-blue-500">Loading...</span>
+                                )}
                                 {permission === 'denied' && (
                                     <span className="text-xs text-red-500">Blocked</span>
                                 )}
-                                {permission === 'granted' && (
+                                {permission === 'granted' && hasToken && (
                                     <span className="text-xs text-green-500">Enabled</span>
+                                )}
+                                {permission === 'granted' && !hasToken && (
+                                    <span className="text-xs text-yellow-500">Setup Required</span>
                                 )}
                             </div>
                         </div>
@@ -3755,6 +3674,14 @@ const NotificationSettings = () => {
                             <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 rounded-lg p-3">
                                 <p className="text-sm text-yellow-800 dark:text-yellow-200">
                                     <strong>Notifications Blocked:</strong> Please enable notifications in your browser settings and refresh the page.
+                                </p>
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg p-3">
+                                <p className="text-sm text-red-800 dark:text-red-200">
+                                    <strong>Error:</strong> {error}
                                 </p>
                             </div>
                         )}
