@@ -1,9 +1,30 @@
 /* eslint-env serviceworker */
-/* global clients */
+/* global clients, importScripts, firebase */
 
 // Service Worker for Survey Hub PWA
 const CACHE_NAME = 'survey-hub-v1';
 const OFFLINE_URL = '/offline.html';
+
+// Import Firebase scripts for messaging
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAL6kYLAXcTglnkDC3iR5skcRgeetsVQ84",
+  authDomain: "survey-hub-xyz.firebaseapp.com",
+  projectId: "survey-hub-xyz",
+  storageBucket: "survey-hub-xyz.firebasestorage.app",
+  messagingSenderId: "825099555628",
+  appId: "1:825099555628:web:c061c4a41c68375e231289",
+  measurementId: "G-JK8KXZTETN"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+
+// Retrieve an instance of Firebase Messaging
+const messaging = firebase.messaging();
 
 // Workbox will inject the manifest here during build
 // self.__WB_MANIFEST is replaced by the actual precache manifest during build
@@ -168,4 +189,41 @@ self.addEventListener('sync', (event) => {
       })
     );
   }
+});
+
+// Firebase Cloud Messaging background message handler
+messaging.onBackgroundMessage((payload) => {
+  console.log('🔥 Received background FCM message:', payload);
+
+  const notificationTitle = payload.notification?.title || payload.data?.title || 'Survey Hub Notification';
+  const notificationOptions = {
+    body: payload.notification?.body || payload.data?.body || 'You have a new notification',
+    icon: payload.notification?.icon || payload.data?.icon || '/android-chrome-192x192.png',
+    badge: payload.notification?.badge || payload.data?.badge || '/favicon-32x32.png',
+    tag: payload.data?.tag || 'survey-hub-notification',
+    data: {
+      url: payload.data?.url || '/',
+      type: payload.data?.type || 'general',
+      priority: payload.data?.priority || 'medium',
+      timestamp: Date.now(),
+      ...payload.data
+    },
+    requireInteraction: payload.data?.priority === 'urgent',
+    silent: false,
+    vibrate: [200, 100, 200],
+    actions: [
+      {
+        action: 'view',
+        title: 'View',
+        icon: '/android-chrome-192x192.png'
+      },
+      {
+        action: 'dismiss',
+        title: 'Dismiss'
+      }
+    ]
+  };
+
+  // Show the notification
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });

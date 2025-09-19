@@ -96,9 +96,11 @@ async function getFirebaseAccessToken(): Promise<string> {
   const tokenData = await tokenResponse.json();
 
   if (!tokenResponse.ok) {
+    console.error('❌ Access token request failed:', tokenResponse.status, tokenData);
     throw new Error(`Failed to get access token: ${JSON.stringify(tokenData)}`);
   }
 
+  console.log('✅ Access token obtained successfully');
   return tokenData.access_token;
 }
 
@@ -166,6 +168,8 @@ async function sendFCMMessage(accessToken: string, fcmTokens: string[], notifica
         results.push({ token, status: 'success', messageId: responseData.name });
       } else {
         console.error(`❌ FCM message failed for token ${token.substring(0, 20)}...:`, responseData);
+        console.error(`❌ Full error response:`, JSON.stringify(responseData, null, 2));
+        console.error(`❌ HTTP status:`, response.status);
         results.push({ token, status: 'failed', error: responseData.error?.message || 'Unknown error' });
       }
     } catch (error) {

@@ -39,27 +39,55 @@ export const getFCMToken = async () => {
       return null;
     }
 
-    // Register service worker first and wait for it to be ready
+    // Use the existing main service worker registration
     let registration;
     try {
-      registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-        scope: '/',
-      });
+      // Check if main service worker is already registered
+      registration = await navigator.serviceWorker.getRegistration('/');
+      if (!registration) {
+        // Register main service worker if not already registered
+        registration = await navigator.serviceWorker.register('/sw.js', {
+          scope: '/',
+          updateViaCache: 'none'
+        });
+      }
       console.log('Service worker registration successful:', registration);
 
-      // Wait for the service worker to be ready before proceeding
-      await navigator.serviceWorker.ready;
+      // Wait for the service worker to be ready and ensure it has pushManager
+      const readyRegistration = await navigator.serviceWorker.ready;
       console.log('Service worker is ready');
+
+      // Additional check to ensure pushManager is available
+      if (!readyRegistration.pushManager) {
+        console.error('PushManager not available in service worker');
+        return null;
+      }
+
+      console.log('PushManager is available');
     } catch (error) {
       console.error('Service worker registration failed:', error);
       return null;
     }
 
-    // Get the FCM token
-    const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: registration
-    });
+    // Get the FCM token with additional error handling
+    let token;
+    try {
+      token = await getToken(messaging, {
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration
+      });
+    } catch (tokenError) {
+      console.error('Failed to get FCM token:', tokenError);
+      // Try without explicit service worker registration
+      try {
+        token = await getToken(messaging, {
+          vapidKey: VAPID_KEY
+        });
+      } catch (fallbackError) {
+        console.error('Fallback FCM token generation also failed:', fallbackError);
+        return null;
+      }
+    }
 
     if (token) {
       console.log('FCM registration token:', token);
