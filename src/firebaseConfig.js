@@ -18,7 +18,7 @@ const app = initializeApp(firebaseConfig);
 const messaging = getMessaging(app);
 
 // VAPID key for web push notifications
-const VAPID_KEY = "BGAKVb1ZE-Byuvl_YgGxjTKWrb17qsek986xjCw0vMjhMarzGLrQNZKS1c4bULRQC8Cdr8ehF7-cyIa8Gp5ZgQU";
+const VAPID_KEY = "BBNKx2nNyydVZGU7UGCJvDiBPOucsz57KvQy5dDkmaR_acdfh-z6wrPs0k20-NSJEZ5UODEpi0-e6BPRAXqxRnM";
 
 /**
  * Get the FCM registration token for the current device
@@ -39,10 +39,22 @@ export const getFCMToken = async () => {
       return null;
     }
 
+    // Register service worker first
+    let registration;
+    try {
+      registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+        scope: '/firebase-cloud-messaging-push-scope',
+      });
+      console.log('Service worker registration successful:', registration);
+    } catch (error) {
+      console.error('Service worker registration failed:', error);
+      return null;
+    }
+
     // Get the FCM token
     const token = await getToken(messaging, {
       vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      serviceWorkerRegistration: registration
     });
 
     if (token) {
