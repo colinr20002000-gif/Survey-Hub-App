@@ -342,40 +342,6 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                                 )}
                             </ul>
                             <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-                                {/* Push Notification Settings */}
-                                {isSupported && (
-                                    <div className="mb-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-md">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-gray-600 dark:text-gray-400">
-                                                Browser Notifications
-                                            </span>
-                                            {permission === 'default' && (
-                                                <button
-                                                    onClick={requestPermission}
-                                                    className="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600"
-                                                >
-                                                    Enable
-                                                </button>
-                                            )}
-                                            {permission === 'granted' && (
-                                                <span className="text-xs text-green-600 dark:text-green-400">
-                                                    ✓ Enabled
-                                                </span>
-                                            )}
-                                            {permission === 'denied' && (
-                                                <span className="text-xs text-red-500 dark:text-red-400">
-                                                    Blocked
-                                                </span>
-                                            )}
-                                        </div>
-                                        {permission === 'denied' && (
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                Enable in browser settings
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-                                
                                 <div className="flex flex-col gap-2">
                                     <div className="flex gap-2">
                                         {unreadCount > 0 && (

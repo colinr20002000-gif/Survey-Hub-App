@@ -56,8 +56,13 @@ async function getFirebaseAccessToken(): Promise<string> {
   const encodedPayload = btoa(JSON.stringify(payload));
   const unsignedToken = `${encodedHeader}.${encodedPayload}`;
 
-  // Import the private key
-  const privateKeyBuffer = new TextEncoder().encode(FIREBASE_PRIVATE_KEY);
+  // Import the private key - convert PEM to binary format
+  const pemContent = FIREBASE_PRIVATE_KEY
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '');
+
+  const privateKeyBuffer = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0));
   const cryptoKey = await crypto.subtle.importKey(
     'pkcs8',
     privateKeyBuffer,

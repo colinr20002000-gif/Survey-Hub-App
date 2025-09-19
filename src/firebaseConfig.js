@@ -43,7 +43,7 @@ export const getFCMToken = async () => {
     let registration;
     try {
       registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-        scope: '/firebase-cloud-messaging-push-scope',
+        scope: '/',
       });
       console.log('Service worker registration successful:', registration);
     } catch (error) {
