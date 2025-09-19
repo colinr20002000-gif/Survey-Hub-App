@@ -26,7 +26,8 @@
       "Bash(npx supabase:*)",
       "Bash(set SUPABASE_ACCESS_TOKEN=sbp_a07fd8f39639674103647c5101bdb275235ef388)",
       "Bash(curl:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git stash push:*)"
     ],
     "deny": [],
     "ask": []
