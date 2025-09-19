@@ -39,13 +39,17 @@ export const getFCMToken = async () => {
       return null;
     }
 
-    // Register service worker first
+    // Register service worker first and wait for it to be ready
     let registration;
     try {
       registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
         scope: '/',
       });
       console.log('Service worker registration successful:', registration);
+
+      // Wait for the service worker to be ready before proceeding
+      await navigator.serviceWorker.ready;
+      console.log('Service worker is ready');
     } catch (error) {
       console.error('Service worker registration failed:', error);
       return null;

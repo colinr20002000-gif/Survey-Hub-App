@@ -51,9 +51,9 @@ async function getFirebaseAccessToken(): Promise<string> {
     typ: 'JWT'
   };
 
-  // Encode header and payload
-  const encodedHeader = btoa(JSON.stringify(header));
-  const encodedPayload = btoa(JSON.stringify(payload));
+  // Encode header and payload using base64url encoding
+  const encodedHeader = btoa(JSON.stringify(header)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const encodedPayload = btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   const unsignedToken = `${encodedHeader}.${encodedPayload}`;
 
   // Import the private key - convert PEM to binary format
@@ -81,7 +81,7 @@ async function getFirebaseAccessToken(): Promise<string> {
     new TextEncoder().encode(unsignedToken)
   );
 
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   const jwt = `${unsignedToken}.${encodedSignature}`;
 
   // Exchange JWT for access token
