@@ -289,38 +289,75 @@ export const AuthProvider = ({ children }) => {
 
   // This function logs the user out using Supabase
   const logout = async () => {
+    console.log('🔐 Starting logout process...');
+    setIsLoading(true);
+
     try {
+      // Store current user info for cleanup
+      const currentUser = user;
+
       // Deactivate push subscriptions for this user on logout
-      if (user?.id) {
-        console.log('🔔 Deactivating push subscriptions for user:', user.email);
+      if (currentUser?.id) {
+        console.log('🔔 Deactivating push subscriptions for user:', currentUser.email);
 
-        // Deactivate FCM subscriptions
-        const { error: fcmError } = await supabase
-          .from('push_subscriptions')
-          .update({ is_active: false })
-          .eq('user_id', user.id);
+        try {
+          // Deactivate FCM subscriptions with timeout
+          const fcmPromise = supabase
+            .from('push_subscriptions')
+            .update({ is_active: false })
+            .eq('user_id', currentUser.id);
 
-        if (fcmError) {
-          console.error('Error deactivating FCM subscriptions:', fcmError);
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('FCM cleanup timeout')), 5000)
+          );
+
+          await Promise.race([fcmPromise, timeoutPromise]);
+          console.log('🔔 FCM subscriptions deactivated successfully');
+        } catch (fcmError) {
+          console.error('Error deactivating FCM subscriptions (non-critical):', fcmError);
+          // Don't fail logout for this
         }
-
-        // Note: We don't delete web push subscriptions as they're tied to the device
-        // They will be reactivated when the next user logs in on this device
       }
 
+      // Always attempt to sign out from Supabase
+      console.log('🔐 Signing out from Supabase...');
       const { error } = await supabase.auth.signOut();
+
       if (error) {
-        console.error('Error logging out:', error.message);
-      } else {
-        console.log('🔐 User logged out successfully');
+        console.error('Supabase signOut error:', error.message);
+        // Still clear local state even if signOut fails
       }
+
+      // Force clear user state regardless of signOut result
+      setUser(null);
+      console.log('🔐 User state cleared successfully');
+
+      // Clear any local storage or session storage if needed
+      try {
+        localStorage.removeItem('supabase.auth.token');
+        sessionStorage.clear();
+      } catch (storageError) {
+        console.warn('Could not clear storage:', storageError);
+      }
+
+      console.log('🔐 Logout completed successfully');
+      return { success: true };
+
     } catch (err) {
-      console.error('Error during logout cleanup:', err);
-      // Still attempt to sign out even if cleanup fails
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Error logging out:', error.message);
+      console.error('Critical error during logout:', err);
+
+      // Emergency logout - force clear everything
+      setUser(null);
+
+      try {
+        await supabase.auth.signOut();
+      } catch (emergencyError) {
+        console.error('Emergency signOut also failed:', emergencyError);
       }
+
+      return { success: false, error: err.message };
+    } finally {
+      setIsLoading(false);
     }
   };
 

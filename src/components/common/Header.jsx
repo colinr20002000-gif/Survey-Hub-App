@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { 
-  Bell, 
-  ChevronDown, 
-  LogOut, 
-  Moon, 
-  Search, 
-  Settings, 
+import {
+  Bell,
+  ChevronDown,
+  LogOut,
+  Moon,
+  Search,
+  Settings,
   Sun,
   X
 } from 'lucide-react';
@@ -39,6 +39,10 @@ const Header = ({ onMenuClick, setActiveTab }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   // Keep track of whether the user dropdown is open
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  // Keep track of logout confirmation dialog
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  // Keep track of logout loading state
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Reference to the notifications dropdown for click-outside detection
   const notificationsRef = useRef(null);
@@ -64,6 +68,32 @@ const Header = ({ onMenuClick, setActiveTab }) => {
   const handleProfileSettingsClick = () => {
     setActiveTab('Settings');
     setIsUserDropdownOpen(false);
+  };
+
+  // Handle logout button click - show confirmation
+  const handleLogoutClick = () => {
+    setIsUserDropdownOpen(false);
+    setShowLogoutConfirm(true);
+  };
+
+  // Handle actual logout confirmation
+  const handleLogoutConfirm = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      console.log('Logout successful');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Optionally show error message to user
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirm(false);
+    }
+  };
+
+  // Handle logout cancellation
+  const handleLogoutCancel = () => {
+    setShowLogoutConfirm(false);
   };
 
   return (
@@ -219,7 +249,7 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                 <Settings size={16} className="mr-2"/>Profile Settings
               </button>
               <button
-                onClick={logout}
+                onClick={handleLogoutClick}
                 className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <LogOut size={16} className="mr-2"/>Logout
@@ -228,6 +258,50 @@ const Header = ({ onMenuClick, setActiveTab }) => {
           )}
         </div>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 dark:bg-red-900/20 rounded-full">
+              <LogOut className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+              Confirm Logout
+            </h3>
+
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
+              Are you sure you want to log out? You will need to sign in again to access your account.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleLogoutCancel}
+                disabled={isLoggingOut}
+                className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleLogoutConfirm}
+                disabled={isLoggingOut}
+                className="flex-1 px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center"
+              >
+                {isLoggingOut ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Logging out...
+                  </>
+                ) : (
+                  'Logout'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
