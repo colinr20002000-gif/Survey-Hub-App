@@ -253,6 +253,70 @@ export class NotificationService {
       };
     }
   }
+
+  /**
+   * Clean up old/duplicate subscriptions for the current user
+   * This is useful for maintaining database hygiene
+   */
+  async cleanupOldSubscriptions() {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        console.warn('Cannot cleanup subscriptions: User not authenticated');
+        return { success: false, message: 'User not authenticated' };
+      }
+
+      // Get current valid subscription endpoint
+      const currentSubscription = await this.getSubscription();
+      if (!currentSubscription) {
+        console.log('No current subscription to compare against');
+        return { success: true, message: 'No current subscription found' };
+      }
+
+      const currentEndpoint = currentSubscription.endpoint;
+
+      // Find all subscriptions for this user with different endpoints
+      const { data: oldSubscriptions, error: fetchError } = await supabase
+        .from('subscriptions')
+        .select('id, subscription_object')
+        .eq('user_id', session.user.id)
+        .neq('subscription_object->>endpoint', currentEndpoint);
+
+      if (fetchError) {
+        console.error('Error fetching old subscriptions:', fetchError);
+        return { success: false, error: fetchError.message };
+      }
+
+      if (!oldSubscriptions || oldSubscriptions.length === 0) {
+        console.log('No old subscriptions to clean up');
+        return { success: true, message: 'No old subscriptions found' };
+      }
+
+      // Delete old subscriptions
+      const oldSubIds = oldSubscriptions.map(sub => sub.id);
+      const { error: deleteError } = await supabase
+        .from('subscriptions')
+        .delete()
+        .in('id', oldSubIds);
+
+      if (deleteError) {
+        console.error('Error deleting old subscriptions:', deleteError);
+        return { success: false, error: deleteError.message };
+      }
+
+      console.log(`Successfully cleaned up ${oldSubscriptions.length} old subscription(s)`);
+      return {
+        success: true,
+        message: `Cleaned up ${oldSubscriptions.length} old subscription(s)`,
+        cleaned: oldSubscriptions.length
+      };
+
+    } catch (error) {
+      console.error('Error in cleanupOldSubscriptions:', error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 export const notificationService = new NotificationService();

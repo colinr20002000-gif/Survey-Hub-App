@@ -39,25 +39,48 @@ Deno.serve(async (req) => {
     const userAgent = req.headers.get('user-agent');
     const ipAddress = req.headers.get('x-forwarded-for');
 
-    // Check if this endpoint is already subscribed for this user
-    const { data: existingSub, error: existingSubError } = await supabaseClient
+    // Check for existing subscriptions for this user and endpoint
+    const { data: existingSubs, error: existingSubError } = await supabaseClient
       .from('subscriptions')
-      .select('id')
+      .select('id, created_at')
       .eq('user_id', user.id)
       .eq('subscription_object->>endpoint', subscription.endpoint)
-      .maybeSingle();
+      .order('created_at', { ascending: false });
 
-    if (existingSubError && existingSubError.code !== 'PGRST116') { // PGRST116 = single row not found
+    if (existingSubError) {
       console.error('Error checking for existing subscription:', existingSubError);
       throw existingSubError;
     }
 
-    if (existingSub) {
-      console.log('Subscription already exists for this user and endpoint. Skipping insert.');
+    if (existingSubs && existingSubs.length > 0) {
+      console.log(`Found ${existingSubs.length} existing subscription(s) for this user and endpoint.`);
+
+      // Keep the most recent subscription, remove the rest
+      const mostRecentSub = existingSubs[0];
+      const oldSubs = existingSubs.slice(1);
+
+      if (oldSubs.length > 0) {
+        console.log(`Cleaning up ${oldSubs.length} old duplicate subscription(s).`);
+        const oldSubIds = oldSubs.map(sub => sub.id);
+
+        const { error: deleteError } = await supabaseClient
+          .from('subscriptions')
+          .delete()
+          .in('id', oldSubIds);
+
+        if (deleteError) {
+          console.error('Error cleaning up old subscriptions:', deleteError);
+          // Continue anyway - don't fail the request for cleanup issues
+        } else {
+          console.log(`Successfully cleaned up ${oldSubs.length} old subscription(s).`);
+        }
+      }
+
       return new Response(JSON.stringify({
         message: 'You are already subscribed to notifications on this device.',
         alreadySubscribed: true,
-        subscriptionId: existingSub.id
+        subscriptionId: mostRecentSub.id,
+        cleanedUp: oldSubs.length
       }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         status: 200 // 200 OK instead of 201 Created

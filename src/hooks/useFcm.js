@@ -95,6 +95,18 @@ export const useFcm = () => {
         return false;
       }
 
+      // First, clean up old inactive tokens for this user (keep table clean)
+      const { error: cleanupError } = await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('is_active', false);
+
+      if (cleanupError) {
+        console.warn('Warning: Could not clean up old inactive FCM tokens:', cleanupError);
+        // Continue anyway - don't fail for cleanup issues
+      }
+
       // Save token to database
       const { error: saveError } = await supabase
         .from('push_subscriptions')
