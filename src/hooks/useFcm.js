@@ -77,8 +77,15 @@ export const useFcm = () => {
     setError(null);
 
     try {
-      // Request notification permission
-      const permission = await Notification.requestPermission();
+      // Check current permission status first
+      const currentPermission = Notification.permission;
+
+      let permission = currentPermission;
+      if (currentPermission === 'default') {
+        // Only request permission if not already decided
+        permission = await Notification.requestPermission();
+      }
+
       setPermission(permission);
 
       if (permission !== 'granted') {
@@ -87,12 +94,44 @@ export const useFcm = () => {
         return false;
       }
 
-      // Get FCM token
-      const token = await getFCMToken();
-      if (!token) {
-        setError('Failed to get FCM token');
-        setIsLoading(false);
-        return false;
+      // Check if user already has active FCM token
+      const { data: existingTokens, error: checkError } = await supabase
+        .from('push_subscriptions')
+        .select('fcm_token')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (checkError) {
+        console.warn('Could not check existing FCM tokens:', checkError);
+        // Continue anyway
+      }
+
+      let token;
+      if (existingTokens && existingTokens.length > 0) {
+        // User already has an active token, try to use it
+        token = existingTokens[0].fcm_token;
+        console.log('Using existing FCM token');
+
+        // Verify the existing token is still valid by getting a fresh one
+        try {
+          const freshToken = await getFCMToken();
+          if (freshToken && freshToken !== token) {
+            console.log('FCM token has changed, updating...');
+            token = freshToken;
+          }
+        } catch (tokenError) {
+          console.warn('Could not refresh FCM token, using existing:', tokenError);
+          // Keep using existing token
+        }
+      } else {
+        // Get new FCM token
+        token = await getFCMToken();
+        if (!token) {
+          setError('Failed to get FCM token');
+          setIsLoading(false);
+          return false;
+        }
       }
 
       // First, clean up old inactive tokens for this user (keep table clean)
@@ -107,11 +146,13 @@ export const useFcm = () => {
         // Continue anyway - don't fail for cleanup issues
       }
 
-      // Save token to database
-      const { error: saveError } = await supabase
+      // Save token to database with better conflict handling
+      let saveError = null;
+
+      // First try to update existing record for this user
+      const { data: updateResult, error: updateError } = await supabase
         .from('push_subscriptions')
-        .upsert({
-          user_id: user.id,
+        .update({
           fcm_token: token,
           is_active: true,
           device_info: {
@@ -119,9 +160,45 @@ export const useFcm = () => {
             timestamp: new Date().toISOString(),
             platform: navigator.platform
           }
-        }, {
-          onConflict: 'user_id,fcm_token'
-        });
+        })
+        .eq('user_id', user.id)
+        .select();
+
+      if (updateError) {
+        console.warn('Could not update existing subscription, trying insert:', updateError);
+
+        // If update failed or no rows affected, try insert
+        const { error: insertError } = await supabase
+          .from('push_subscriptions')
+          .insert({
+            user_id: user.id,
+            fcm_token: token,
+            is_active: true,
+            device_info: {
+              userAgent: navigator.userAgent,
+              timestamp: new Date().toISOString(),
+              platform: navigator.platform
+            }
+          });
+
+        saveError = insertError;
+      } else if (!updateResult || updateResult.length === 0) {
+        // No existing record was updated, insert new one
+        const { error: insertError } = await supabase
+          .from('push_subscriptions')
+          .insert({
+            user_id: user.id,
+            fcm_token: token,
+            is_active: true,
+            device_info: {
+              userAgent: navigator.userAgent,
+              timestamp: new Date().toISOString(),
+              platform: navigator.platform
+            }
+          });
+
+        saveError = insertError;
+      }
 
       if (saveError) {
         console.error('Error saving FCM token:', saveError);
@@ -230,6 +307,38 @@ export const useFcm = () => {
   }, [isSupported, fcmToken, permission]);
 
   /**
+   * Enable notifications for users who already have permissions
+   * This is more lenient than requestPermission for existing subscribers
+   */
+  const enableNotifications = useCallback(async () => {
+    if (!isSupported) {
+      setError('Push notifications are not supported in this browser');
+      return false;
+    }
+
+    if (!user?.id) {
+      setError('User must be logged in to enable notifications');
+      return false;
+    }
+
+    // Check if user already has permissions and active subscription
+    const currentPermission = Notification.permission;
+    if (currentPermission === 'granted' && fcmToken) {
+      console.log('User already has active FCM notifications');
+      return true;
+    }
+
+    // If permission is denied, provide clear guidance
+    if (currentPermission === 'denied') {
+      setError('Notifications are blocked. Please enable them in your browser settings and try again.');
+      return false;
+    }
+
+    // Otherwise, use the full permission request flow
+    return await requestPermission();
+  }, [isSupported, user?.id, fcmToken, requestPermission]);
+
+  /**
    * Refresh the FCM token (useful for handling token refresh)
    */
   const refreshToken = useCallback(async () => {
@@ -249,6 +358,7 @@ export const useFcm = () => {
 
     // Actions
     requestPermission,
+    enableNotifications,
     disableNotifications,
     refreshToken,
 

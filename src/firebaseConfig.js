@@ -32,10 +32,17 @@ export const getFCMToken = async () => {
       return null;
     }
 
-    // Request permission for notifications
-    const permission = await Notification.requestPermission();
+    // Check current permission status first
+    const currentPermission = Notification.permission;
+
+    let permission = currentPermission;
+    if (currentPermission === 'default') {
+      // Only request permission if not already decided
+      permission = await Notification.requestPermission();
+    }
+
     if (permission !== 'granted') {
-      console.log('Notification permission denied');
+      console.log('Notification permission denied or not granted');
       return null;
     }
 

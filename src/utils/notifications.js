@@ -203,16 +203,27 @@ export class NotificationService {
    */
   async reEnableNotifications() {
     try {
+      // Check current permission status first
+      const currentPermission = Notification.permission;
+
+      if (currentPermission === 'denied') {
+        throw new Error('Notifications are blocked. Please enable them in your browser settings.');
+      }
+
       // Check if we already have a valid subscription
       const existingSubscription = await this.getSubscription();
 
       if (!existingSubscription) {
         // No subscription exists, need to subscribe first
+        console.log('No existing subscription found, creating new one...');
         return await this.subscribe();
       }
 
-      // Check permission status
-      const permission = await this.requestPermission();
+      // For existing subscriptions, just check/request permission
+      let permission = currentPermission;
+      if (currentPermission === 'default') {
+        permission = await this.requestPermission();
+      }
 
       if (permission === 'granted') {
         // Permission granted and subscription exists - we're good to go
@@ -220,7 +231,8 @@ export class NotificationService {
         return {
           subscription: existingSubscription,
           status: 'permissions_restored',
-          message: 'Notifications have been re-enabled on this device.'
+          message: 'Notifications have been re-enabled on this device.',
+          isExistingSubscription: true
         };
       } else {
         throw new Error('Permission not granted');

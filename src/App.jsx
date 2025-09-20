@@ -3531,6 +3531,7 @@ const NotificationSettings = () => {
     const {
         permission,
         requestPermission,
+        enableNotifications,
         disableNotifications,
         canNotify,
         isEnabled,
@@ -3604,7 +3605,8 @@ const NotificationSettings = () => {
                 }
             } else {
                 // User wants to turn ON notifications - enable FCM
-                const success = await requestPermission();
+                // Use enableNotifications for better handling of existing subscribers
+                const success = await (hasToken ? enableNotifications() : requestPermission());
                 if (success) {
                     console.log('Successfully enabled FCM notifications');
                     setSettings(prev => ({ ...prev, pushNotifications: true }));
@@ -3614,6 +3616,20 @@ const NotificationSettings = () => {
             }
         } catch (error) {
             console.error('Error toggling FCM notifications:', error);
+
+            // Provide user-friendly error messages
+            let errorMessage = 'Failed to toggle notifications';
+            if (error.message?.includes('blocked') || error.message?.includes('denied')) {
+                errorMessage = 'Notifications are blocked in your browser. Please enable them in your browser settings.';
+            } else if (error.message?.includes('token')) {
+                errorMessage = 'Could not retrieve notification token. Please try again.';
+            } else if (error.message?.includes('save')) {
+                errorMessage = 'Could not save notification settings. Please check your connection.';
+            }
+
+            // You might want to show this error to the user via a toast or alert
+            console.error('User-friendly error:', errorMessage);
+
             // Revert the toggle on error
             setSettings(prev => ({ ...prev, pushNotifications: !prev.pushNotifications }));
         }
