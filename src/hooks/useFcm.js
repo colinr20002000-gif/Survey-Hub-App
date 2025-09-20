@@ -134,56 +134,55 @@ export const useFcm = () => {
         }
       }
 
-      // First, clean up old inactive tokens for this user (keep table clean)
+      // Clean up old inactive tokens that are older than 30 days (keep table clean)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const { error: cleanupError } = await supabase
         .from('push_subscriptions')
         .delete()
         .eq('user_id', user.id)
-        .eq('is_active', false);
+        .eq('is_active', false)
+        .lt('created_at', thirtyDaysAgo);
 
       if (cleanupError) {
         console.warn('Warning: Could not clean up old inactive FCM tokens:', cleanupError);
         // Continue anyway - don't fail for cleanup issues
       }
 
-      // Save token to database with better conflict handling
+      // Save token to database with multi-device support
       let saveError = null;
 
-      // First try to update existing record for this user
-      const { data: updateResult, error: updateError } = await supabase
+      // Check if this specific FCM token already exists for this user
+      const { data: existingTokenRecord, error: tokenCheckError } = await supabase
         .from('push_subscriptions')
-        .update({
-          fcm_token: token,
-          is_active: true,
-          device_info: {
-            userAgent: navigator.userAgent,
-            timestamp: new Date().toISOString(),
-            platform: navigator.platform
-          }
-        })
+        .select('id, is_active')
         .eq('user_id', user.id)
-        .select();
+        .eq('fcm_token', token)
+        .maybeSingle();
 
-      if (updateError) {
-        console.warn('Could not update existing subscription, trying insert:', updateError);
+      if (tokenCheckError && tokenCheckError.code !== 'PGRST116') {
+        console.warn('Error checking existing token:', tokenCheckError);
+        // Continue anyway
+      }
 
-        // If update failed or no rows affected, try insert
-        const { error: insertError } = await supabase
+      if (existingTokenRecord) {
+        // This exact token already exists for this user, just update it
+        console.log('Updating existing FCM token record for this device');
+        const { error: updateError } = await supabase
           .from('push_subscriptions')
-          .insert({
-            user_id: user.id,
-            fcm_token: token,
+          .update({
             is_active: true,
             device_info: {
               userAgent: navigator.userAgent,
               timestamp: new Date().toISOString(),
               platform: navigator.platform
             }
-          });
+          })
+          .eq('id', existingTokenRecord.id);
 
-        saveError = insertError;
-      } else if (!updateResult || updateResult.length === 0) {
-        // No existing record was updated, insert new one
+        saveError = updateError;
+      } else {
+        // This is a new token for this user (new device), insert it
+        console.log('Inserting new FCM token record for additional device');
         const { error: insertError } = await supabase
           .from('push_subscriptions')
           .insert({
