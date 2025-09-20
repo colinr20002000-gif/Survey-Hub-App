@@ -192,6 +192,7 @@ export const useFcm = () => {
           .from('push_subscriptions')
           .update({
             is_active: true,
+            user_email: user.email, // Update email in case it changed
             device_info: {
               userAgent: navigator.userAgent,
               timestamp: new Date().toISOString(),
@@ -208,6 +209,7 @@ export const useFcm = () => {
         console.log('[FCM] Inserting new FCM token record for additional device');
         console.log('[FCM] Insert data:', {
           user_id: user.id,
+          user_email: user.email,
           user_id_type: typeof user.id,
           user_id_length: user.id?.length,
           fcm_token: token?.substring(0, 20) + '...',
@@ -219,6 +221,7 @@ export const useFcm = () => {
           .from('push_subscriptions')
           .insert({
             user_id: user.id,
+            user_email: user.email, // Add email for easy identification
             fcm_token: token,
             is_active: true,
             device_info: {
@@ -247,7 +250,9 @@ export const useFcm = () => {
       }
 
       setFcmToken(token);
-      console.log('FCM token saved successfully');
+      // Store token in localStorage for logout cleanup
+      localStorage.setItem('fcm_token', token);
+      console.log('[FCM] FCM token saved successfully');
       setIsLoading(false);
       return true;
 
@@ -283,6 +288,8 @@ export const useFcm = () => {
       }
 
       setFcmToken(null);
+      // Clear token from localStorage
+      localStorage.removeItem('fcm_token');
       console.log('Notifications disabled successfully');
       setIsLoading(false);
       return true;

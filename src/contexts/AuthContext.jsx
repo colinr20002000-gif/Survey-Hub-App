@@ -301,23 +301,30 @@ export const AuthProvider = ({ children }) => {
         console.log('🔔 Deactivating push subscriptions for user:', currentUser.email);
 
         try {
-          // Only deactivate FCM subscriptions for this specific device/browser
-          // We need to get the current FCM token to target the right device
-          const { data: currentTokens } = await supabase
-            .from('push_subscriptions')
-            .select('fcm_token')
-            .eq('user_id', currentUser.id)
-            .eq('is_active', true);
+          // Deactivate FCM subscriptions for this user on this device
+          // We need to get the FCM token from the current browser session
+          const fcmTokenFromStorage = localStorage.getItem('fcm_token');
 
-          if (currentTokens && currentTokens.length > 0) {
-            // For logout, we'll mark all this user's tokens as inactive on this device
-            // but in practice, we should only deactivate the current device's token
-            // Since we can't easily identify the current device's token here,
-            // we'll skip deactivating FCM tokens on logout to preserve multi-device functionality
-            console.log('🔔 Skipping FCM deactivation on logout to preserve multi-device notifications');
+          if (fcmTokenFromStorage) {
+            console.log('🔔 Deactivating FCM token for current device on logout');
+            const { error: fcmError } = await supabase
+              .from('push_subscriptions')
+              .update({ is_active: false })
+              .eq('user_id', currentUser.id)
+              .eq('fcm_token', fcmTokenFromStorage);
+
+            if (fcmError) {
+              console.error('Error deactivating FCM subscription:', fcmError);
+            } else {
+              console.log('🔔 FCM subscription deactivated for current device');
+              // Clear the stored token
+              localStorage.removeItem('fcm_token');
+            }
+          } else {
+            console.log('🔔 No FCM token found in storage for current device');
           }
         } catch (fcmError) {
-          console.error('Error checking FCM subscriptions (non-critical):', fcmError);
+          console.error('Error during FCM cleanup (non-critical):', fcmError);
           // Don't fail logout for this
         }
       }
