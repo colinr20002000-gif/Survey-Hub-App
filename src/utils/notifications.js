@@ -154,7 +154,13 @@ export class NotificationService {
 
       const result = await response.json();
       console.log('Subscription sent to server:', result);
-      return result;
+
+      // Return enhanced result with subscription status info
+      return {
+        ...result,
+        isNewSubscription: !result.alreadySubscribed,
+        status: result.alreadySubscribed ? 'already_subscribed' : 'newly_subscribed'
+      };
     } catch (error) {
       console.error('Error sending subscription to server:', error);
       throw error;
@@ -189,6 +195,63 @@ export class NotificationService {
 
   getPermissionStatus() {
     return Notification.permission;
+  }
+
+  /**
+   * Re-enable notifications by checking permissions without re-subscribing
+   * This handles cases where permission was reset but subscription still exists
+   */
+  async reEnableNotifications() {
+    try {
+      // Check if we already have a valid subscription
+      const existingSubscription = await this.getSubscription();
+
+      if (!existingSubscription) {
+        // No subscription exists, need to subscribe first
+        return await this.subscribe();
+      }
+
+      // Check permission status
+      const permission = await this.requestPermission();
+
+      if (permission === 'granted') {
+        // Permission granted and subscription exists - we're good to go
+        console.log('Notifications re-enabled successfully with existing subscription');
+        return {
+          subscription: existingSubscription,
+          status: 'permissions_restored',
+          message: 'Notifications have been re-enabled on this device.'
+        };
+      } else {
+        throw new Error('Permission not granted');
+      }
+    } catch (error) {
+      console.error('Error re-enabling notifications:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if user can receive notifications (has permission and valid subscription)
+   */
+  async canReceiveNotifications() {
+    try {
+      const permission = this.getPermissionStatus();
+      const subscription = await this.getSubscription();
+
+      return {
+        hasPermission: permission === 'granted',
+        hasSubscription: !!subscription,
+        canReceive: permission === 'granted' && !!subscription
+      };
+    } catch (error) {
+      console.error('Error checking notification capability:', error);
+      return {
+        hasPermission: false,
+        hasSubscription: false,
+        canReceive: false
+      };
+    }
   }
 }
 

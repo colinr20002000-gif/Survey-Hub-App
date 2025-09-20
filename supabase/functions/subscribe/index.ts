@@ -55,7 +55,9 @@ Deno.serve(async (req) => {
     if (existingSub) {
       console.log('Subscription already exists for this user and endpoint. Skipping insert.');
       return new Response(JSON.stringify({
-        message: 'Subscription already exists.'
+        message: 'You are already subscribed to notifications on this device.',
+        alreadySubscribed: true,
+        subscriptionId: existingSub.id
       }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         status: 200 // 200 OK instead of 201 Created

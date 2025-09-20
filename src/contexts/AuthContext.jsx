@@ -289,9 +289,38 @@ export const AuthProvider = ({ children }) => {
 
   // This function logs the user out using Supabase
   const logout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error logging out:', error.message);
+    try {
+      // Deactivate push subscriptions for this user on logout
+      if (user?.id) {
+        console.log('🔔 Deactivating push subscriptions for user:', user.email);
+
+        // Deactivate FCM subscriptions
+        const { error: fcmError } = await supabase
+          .from('push_subscriptions')
+          .update({ is_active: false })
+          .eq('user_id', user.id);
+
+        if (fcmError) {
+          console.error('Error deactivating FCM subscriptions:', fcmError);
+        }
+
+        // Note: We don't delete web push subscriptions as they're tied to the device
+        // They will be reactivated when the next user logs in on this device
+      }
+
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error logging out:', error.message);
+      } else {
+        console.log('🔐 User logged out successfully');
+      }
+    } catch (err) {
+      console.error('Error during logout cleanup:', err);
+      // Still attempt to sign out even if cleanup fails
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error logging out:', error.message);
+      }
     }
   };
 

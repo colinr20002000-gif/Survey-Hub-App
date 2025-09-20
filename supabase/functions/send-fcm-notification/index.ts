@@ -104,6 +104,42 @@ async function getFirebaseAccessToken(): Promise<string> {
   return tokenData.access_token;
 }
 
+// Helper function to validate active user sessions
+async function getActiveUserSessions(supabaseClient: any, userIds: string[]): Promise<string[]> {
+  try {
+    // Get sessions for users that have been active in the last 24 hours
+    // This helps ensure we only send to users who are currently logged in
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: activeSessions, error } = await supabaseClient.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+
+    if (error) {
+      console.error('[DEBUG] Error fetching user sessions:', error);
+      // Fallback: return all user IDs if we can't check sessions
+      return userIds;
+    }
+
+    // Filter for users who have signed in recently
+    const activeUserIds = activeSessions.users
+      .filter(user => {
+        const lastSignIn = user.last_sign_in_at;
+        return lastSignIn && new Date(lastSignIn) > new Date(twentyFourHoursAgo);
+      })
+      .map(user => user.id)
+      .filter(id => userIds.includes(id));
+
+    console.log(`[DEBUG] Found ${activeUserIds.length} active users out of ${userIds.length} total users`);
+    return activeUserIds;
+  } catch (error) {
+    console.error('[DEBUG] Error validating user sessions:', error);
+    // Fallback: return all user IDs if session check fails
+    return userIds;
+  }
+}
+
 // Helper function to send FCM message
 async function sendFCMMessage(accessToken: string, fcmTokens: string[], notification: any, data: any = {}) {
   const fcmUrl = `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`;
@@ -220,9 +256,17 @@ Deno.serve(async (req) => {
     // --- 3. FETCH FCM TOKENS ---
     console.log('[DEBUG] Step 3: Fetching FCM tokens from push_subscriptions table.');
 
+    // Join with sessions to ensure we only send to users with active sessions
     let query = supabaseClient
       .from('push_subscriptions')
-      .select('fcm_token, user_id')
+      .select(`
+        fcm_token,
+        user_id,
+        users!inner(
+          id,
+          email
+        )
+      `)
       .eq('is_active', true);
 
     if (excludeAuthorId) {
@@ -274,6 +318,29 @@ Deno.serve(async (req) => {
 
     console.log(`[DEBUG] Found ${subscriptions.length} FCM tokens to process.`);
 
+    // --- 3.5. VALIDATE ACTIVE USER SESSIONS ---
+    console.log('[DEBUG] Step 3.5: Validating active user sessions.');
+    const userIds = subscriptions.map(sub => sub.user_id);
+    const activeUserIds = await getActiveUserSessions(supabaseClient, userIds);
+
+    // Filter subscriptions to only include active users
+    const activeSubscriptions = subscriptions.filter(sub => activeUserIds.includes(sub.user_id));
+
+    if (activeSubscriptions.length === 0) {
+      console.log('[DEBUG] No active users found. Exiting gracefully.');
+      return new Response(JSON.stringify({
+        message: 'No active users to send notifications to.',
+        sent: 0,
+        totalSubscriptions: subscriptions.length,
+        activeUsers: 0
+      }), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        status: 200,
+      });
+    }
+
+    console.log(`[DEBUG] Sending to ${activeSubscriptions.length} active users out of ${subscriptions.length} total subscriptions.`);
+
     // --- 4. GET FIREBASE ACCESS TOKEN ---
     console.log('[DEBUG] Step 4: Getting Firebase access token.');
     const accessToken = await getFirebaseAccessToken();
@@ -281,7 +348,7 @@ Deno.serve(async (req) => {
 
     // --- 5. SEND FCM NOTIFICATIONS ---
     console.log('[DEBUG] Step 5: Sending FCM notifications.');
-    const fcmTokens = subscriptions.map(sub => sub.fcm_token);
+    const fcmTokens = activeSubscriptions.map(sub => sub.fcm_token);
 
     const results = await sendFCMMessage(accessToken, fcmTokens, notification, {
       type: notification.data?.type || 'announcement',
