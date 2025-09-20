@@ -284,7 +284,7 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                     <button onClick={onMenuClick} className="md:hidden mr-4 text-gray-500 dark:text-gray-400">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
                     </button>
-                    <div className="relative w-full max-w-md">
+                    <div className="relative w-full max-w-md hidden sm:block">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         <input type="text" placeholder="Global Search..." className="w-full pl-10 pr-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
                     </div>
@@ -303,14 +303,16 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                         )}
                     </button>
                     {isNotificationsOpen && (
-                        <div className="absolute mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-[80vh] overflow-hidden 
-                                      w-80 max-w-[90vw] 
-                                      right-0 md:right-0 
-                                      sm:right-[-20px] 
-                                      transform sm:translate-x-0">
+                        <div className="fixed sm:absolute mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-[80vh] overflow-hidden
+                                      w-[calc(100vw-1rem)] sm:w-80
+                                      left-2 sm:left-auto
+                                      right-2 sm:right-0
+                                      top-16 sm:top-auto
+                                      transform"
+                        >
                             <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                                <div>
-                                    <h3 className="font-semibold text-gray-800 dark:text-white">Notifications</h3>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-semibold text-gray-800 dark:text-white truncate">Notifications</h3>
                                     {unreadCount > 0 && (
                                         <span className="text-xs text-gray-500 dark:text-gray-400">{unreadCount} unread</span>
                                     )}
@@ -335,9 +337,9 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                                     </li>
                                 ) : (
                                     notifications.slice(0, 10).map(notif => (
-                                        <li 
-                                            key={notif.id} 
-                                            className={`flex items-start px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${!notif.read ? 'bg-orange-50 dark:bg-orange-500/10' : ''}`}
+                                        <li
+                                            key={notif.id}
+                                            className={`flex items-start px-2 sm:px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${!notif.read ? 'bg-orange-50 dark:bg-orange-500/10' : ''}`}
                                             onClick={() => {
                                                 console.log('Notification clicked, navigating to Announcements');
                                                 markAsRead(notif.id);
@@ -347,13 +349,13 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                                                 console.log('setActiveTab called with: Announcements');
                                             }}
                                         >
-                                            <div className={`mt-1 h-2 w-2 rounded-full ${!notif.read ? 'bg-orange-500' : 'bg-transparent'}`}></div>
-                                            <div className="ml-3 flex-1">
-                                                <p className="text-sm text-gray-700 dark:text-gray-300">{notif.message}</p>
-                                                <div className="flex items-center justify-between mt-1">
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">{notif.time}</p>
+                                            <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${!notif.read ? 'bg-orange-500' : 'bg-transparent'}`}></div>
+                                            <div className="ml-2 sm:ml-3 flex-1 min-w-0">
+                                                <p className="text-sm text-gray-700 dark:text-gray-300 break-words">{notif.message}</p>
+                                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 break-words">{notif.time}</p>
                                                     {notif.priority && notif.priority !== 'medium' && (
-                                                        <span className={`text-xs px-1 py-0.5 rounded ${
+                                                        <span className={`text-xs px-1 py-0.5 rounded shrink-0 ${
                                                             notif.priority === 'urgent' ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300' :
                                                             notif.priority === 'high' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-300' :
                                                             'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
@@ -940,14 +942,14 @@ const AnnouncementsPage = () => {
     }
 
     return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
+        <div className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Announcements</h1>
                     <p className="text-gray-600 dark:text-gray-400">Company-wide announcements and updates</p>
                 </div>
                 {privileges?.canEditProjects && (
-                    <Button onClick={() => setIsCreateModalOpen(true)}>
+                    <Button onClick={() => setIsCreateModalOpen(true)} className="w-full sm:w-auto">
                         <PlusCircle size={16} className="mr-2" />
                         New Announcement
                     </Button>
@@ -956,8 +958,8 @@ const AnnouncementsPage = () => {
 
             {/* Filters */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-6">
-                <div className="flex flex-wrap gap-4 items-center">
-                    <div className="flex-1 min-w-64">
+                <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
+                    <div className="flex-1">
                         <Input
                             placeholder="Search announcements..."
                             value={searchTerm}
@@ -965,19 +967,21 @@ const AnnouncementsPage = () => {
                             className="w-full"
                         />
                     </div>
-                    <Select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
-                        <option value="All">All Categories</option>
-                        {ANNOUNCEMENT_CATEGORIES.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                    </Select>
-                    <Select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)}>
-                        <option value="All">All Priorities</option>
-                        <option value="Low">Low</option>
-                        <option value="Medium">Medium</option>
-                        <option value="High">High</option>
-                        <option value="Urgent">Urgent</option>
-                    </Select>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <Select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+                            <option value="All">All Categories</option>
+                            {ANNOUNCEMENT_CATEGORIES.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </Select>
+                        <Select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)}>
+                            <option value="All">All Priorities</option>
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Urgent">Urgent</option>
+                        </Select>
+                    </div>
                 </div>
             </div>
 
@@ -1004,19 +1008,19 @@ const AnnouncementsPage = () => {
                                     !announcement.isRead ? 'border-l-4 border-l-orange-500' : ''
                                 }`}
                             >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white break-words">
                                                 {announcement.title}
                                             </h3>
                                             {!announcement.isRead && (
-                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-400">
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-400 self-start">
                                                     New
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-3">
+                                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-gray-500 dark:text-gray-400 mb-3">
                                             <span className="flex items-center gap-1">
                                                 👤 By {announcement.author?.name || 'Unknown User'}
                                             </span>
@@ -1034,7 +1038,7 @@ const AnnouncementsPage = () => {
                                             )}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                                         {!announcement.isRead && announcement.author_id !== user?.id && (
                                             <Button
                                                 variant="outline"
@@ -1068,7 +1072,7 @@ const AnnouncementsPage = () => {
                                         )}
                                     </div>
                                 </div>
-                                <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words overflow-wrap-anywhere">
                                     {announcement.content}
                                 </div>
                                 {announcement.expires_at && (
