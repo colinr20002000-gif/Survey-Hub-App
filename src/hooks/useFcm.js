@@ -63,6 +63,22 @@ export const useFcm = () => {
    * Request notification permission and get FCM token
    */
   const requestPermission = useCallback(async () => {
+    console.log('[FCM] requestPermission called');
+    console.log('[FCM] User:', { id: user?.id, email: user?.email });
+    console.log('[FCM] Is supported:', isSupported);
+
+    // Test database connectivity first
+    try {
+      console.log('[FCM] Testing database connectivity...');
+      const { data: testData, error: testError } = await supabase
+        .from('push_subscriptions')
+        .select('count(*)')
+        .limit(1);
+      console.log('[FCM] Database test result:', { testData, testError });
+    } catch (dbTestError) {
+      console.error('[FCM] Database connectivity test failed:', dbTestError);
+    }
+
     if (!isSupported) {
       setError('Push notifications are not supported in this browser');
       return false;
@@ -152,12 +168,17 @@ export const useFcm = () => {
       let saveError = null;
 
       // Check if this specific FCM token already exists for this user
+      console.log('[FCM] Checking for existing token in database for user:', user.id);
+      console.log('[FCM] Token to check:', token?.substring(0, 20) + '...');
+
       const { data: existingTokenRecord, error: tokenCheckError } = await supabase
         .from('push_subscriptions')
         .select('id, is_active')
         .eq('user_id', user.id)
         .eq('fcm_token', token)
         .maybeSingle();
+
+      console.log('[FCM] Existing token check result:', { existingTokenRecord, tokenCheckError });
 
       if (tokenCheckError && tokenCheckError.code !== 'PGRST116') {
         console.warn('Error checking existing token:', tokenCheckError);
@@ -166,8 +187,8 @@ export const useFcm = () => {
 
       if (existingTokenRecord) {
         // This exact token already exists for this user, just update it
-        console.log('Updating existing FCM token record for this device');
-        const { error: updateError } = await supabase
+        console.log('[FCM] Updating existing FCM token record for this device');
+        const { data: updateResult, error: updateError } = await supabase
           .from('push_subscriptions')
           .update({
             is_active: true,
@@ -177,13 +198,24 @@ export const useFcm = () => {
               platform: navigator.platform
             }
           })
-          .eq('id', existingTokenRecord.id);
+          .eq('id', existingTokenRecord.id)
+          .select();
 
+        console.log('[FCM] Update result:', { updateResult, updateError });
         saveError = updateError;
       } else {
         // This is a new token for this user (new device), insert it
-        console.log('Inserting new FCM token record for additional device');
-        const { error: insertError } = await supabase
+        console.log('[FCM] Inserting new FCM token record for additional device');
+        console.log('[FCM] Insert data:', {
+          user_id: user.id,
+          user_id_type: typeof user.id,
+          user_id_length: user.id?.length,
+          fcm_token: token?.substring(0, 20) + '...',
+          fcm_token_length: token?.length,
+          is_active: true
+        });
+
+        const { data: insertResult, error: insertError } = await supabase
           .from('push_subscriptions')
           .insert({
             user_id: user.id,
@@ -194,13 +226,21 @@ export const useFcm = () => {
               timestamp: new Date().toISOString(),
               platform: navigator.platform
             }
-          });
+          })
+          .select();
 
+        console.log('[FCM] Insert result:', { insertResult, insertError });
         saveError = insertError;
       }
 
       if (saveError) {
-        console.error('Error saving FCM token:', saveError);
+        console.error('[FCM] Error saving FCM token:', saveError);
+        console.error('[FCM] Error details:', {
+          message: saveError.message,
+          details: saveError.details,
+          hint: saveError.hint,
+          code: saveError.code
+        });
         setError('Failed to save notification settings - please reset browser permissions');
         setIsLoading(false);
         return false;
