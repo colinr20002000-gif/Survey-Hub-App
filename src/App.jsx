@@ -278,20 +278,21 @@ const Header = ({ onMenuClick, setActiveTab }) => {
     };
 
     return (
-        <header className="flex items-center justify-between h-16 px-4 md:px-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
-            <div className="flex items-center">
-                <button onClick={onMenuClick} className="md:hidden mr-4 text-gray-500 dark:text-gray-400">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-                </button>
-                <div className="relative w-full max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="text" placeholder="Global Search..." className="w-full pl-10 pr-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+        <>
+            <header className="flex items-center justify-between h-16 px-4 md:px-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
+                <div className="flex items-center">
+                    <button onClick={onMenuClick} className="md:hidden mr-4 text-gray-500 dark:text-gray-400">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+                    </button>
+                    <div className="relative w-full max-w-md">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input type="text" placeholder="Global Search..." className="w-full pl-10 pr-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                    </div>
                 </div>
-            </div>
-            <div className="flex items-center space-x-4">
-                <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
-                    {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                </button>
+                <div className="flex items-center space-x-4">
+                    <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
+                        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                    </button>
                 <div className="relative" ref={notificationsRef}>
                     <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 relative">
                         <Bell size={20} />
@@ -417,52 +418,53 @@ const Header = ({ onMenuClick, setActiveTab }) => {
                         <button onClick={handleLogoutClick} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"><LogOut size={16} className="mr-2"/>Logout</button>
                     </div>
                 </div>
-            </div>
-        </header>
+                </div>
+            </header>
 
-        {/* Logout Confirmation Dialog */}
-        {showLogoutConfirm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
-                    <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 dark:bg-red-900/20 rounded-full">
-                        <LogOut className="w-6 h-6 text-red-600 dark:text-red-400" />
-                    </div>
+            {/* Logout Confirmation Dialog */}
+            {showLogoutConfirm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+                        <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 dark:bg-red-900/20 rounded-full">
+                            <LogOut className="w-6 h-6 text-red-600 dark:text-red-400" />
+                        </div>
 
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
-                        Confirm Logout
-                    </h3>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+                            Confirm Logout
+                        </h3>
 
-                    <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
-                        Are you sure you want to log out? You will need to sign in again to access your account.
-                    </p>
+                        <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
+                            Are you sure you want to log out? You will need to sign in again to access your account.
+                        </p>
 
-                    <div className="flex gap-3">
-                        <button
-                            onClick={handleLogoutCancel}
-                            disabled={isLoggingOut}
-                            className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors disabled:opacity-50"
-                        >
-                            Cancel
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleLogoutCancel}
+                                disabled={isLoggingOut}
+                                className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
 
-                        <button
-                            onClick={handleLogoutConfirm}
-                            disabled={isLoggingOut}
-                            className="flex-1 px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center"
-                        >
-                            {isLoggingOut ? (
-                                <>
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                    Logging out...
-                                </>
-                            ) : (
-                                'Logout'
-                            )}
-                        </button>
+                            <button
+                                onClick={handleLogoutConfirm}
+                                disabled={isLoggingOut}
+                                className="flex-1 px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center"
+                            >
+                                {isLoggingOut ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                        Logging out...
+                                    </>
+                                ) : (
+                                    'Logout'
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        )}
+            )}
+        </>
     );
 };
 
