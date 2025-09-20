@@ -3528,6 +3528,7 @@ const NotificationSettings = () => {
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isInstalled, setIsInstalled] = useState(false);
     const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
+    const [showNotificationError, setShowNotificationError] = useState(false);
     const {
         permission,
         requestPermission,
@@ -3617,18 +3618,22 @@ const NotificationSettings = () => {
         } catch (error) {
             console.error('Error toggling FCM notifications:', error);
 
-            // Provide user-friendly error messages
-            let errorMessage = 'Failed to toggle notifications';
-            if (error.message?.includes('blocked') || error.message?.includes('denied')) {
-                errorMessage = 'Notifications are blocked in your browser. Please enable them in your browser settings.';
-            } else if (error.message?.includes('token')) {
-                errorMessage = 'Could not retrieve notification token. Please try again.';
-            } else if (error.message?.includes('save')) {
-                errorMessage = 'Could not save notification settings. Please check your connection.';
+            // Show user-friendly error popup for notification-related errors
+            if (error.message?.includes('token') ||
+                error.message?.includes('save') ||
+                error.message?.includes('Failed to get FCM token') ||
+                error.message?.includes('Failed to save notification settings') ||
+                error.message?.includes('reset browser permissions') ||
+                error.message?.includes('permission')) {
+                setShowNotificationError(true);
+            } else if (error.message?.includes('blocked') || error.message?.includes('denied')) {
+                // For clearly blocked permissions, show the popup too
+                setShowNotificationError(true);
+            } else {
+                // For other errors, log them but still show the popup as a fallback
+                console.error('Unexpected notification error:', error);
+                setShowNotificationError(true);
             }
-
-            // You might want to show this error to the user via a toast or alert
-            console.error('User-friendly error:', errorMessage);
 
             // Revert the toggle on error
             setSettings(prev => ({ ...prev, pushNotifications: !prev.pushNotifications }));
@@ -3800,6 +3805,71 @@ const NotificationSettings = () => {
                     </ul>
                 </div>
             </div>
+
+            {/* Notification Error Popup */}
+            {showNotificationError && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full mx-auto shadow-xl">
+                        <div className="p-6">
+                            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-orange-100 dark:bg-orange-900/20 rounded-full">
+                                <Bell className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+                            </div>
+
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center mb-3">
+                                Notification Setup Issue
+                            </h3>
+
+                            <div className="text-gray-600 dark:text-gray-300 text-sm space-y-3 mb-6">
+                                <p className="text-center">
+                                    We're having trouble setting up notifications on your device. This usually happens when browser permissions need to be reset.
+                                </p>
+
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3">
+                                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                                        Please try these steps:
+                                    </h4>
+                                    <ol className="text-blue-700 dark:text-blue-300 space-y-1 list-decimal list-inside">
+                                        <li>Click the lock icon 🔒 in your address bar</li>
+                                        <li>Reset notification permissions to "Ask"</li>
+                                        <li>Refresh this page</li>
+                                        <li>Try enabling notifications again</li>
+                                    </ol>
+                                </div>
+
+                                <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                                    <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-2">
+                                        Alternative steps:
+                                    </h4>
+                                    <ul className="text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+                                        <li>Clear your browser cache and cookies for this site</li>
+                                        <li>Try using an incognito/private browser window</li>
+                                        <li>Check if notifications are blocked in browser settings</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <button
+                                    onClick={() => setShowNotificationError(false)}
+                                    className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors"
+                                >
+                                    I'll try these steps
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        setShowNotificationError(false);
+                                        window.location.reload();
+                                    }}
+                                    className="flex-1 px-4 py-2 text-white bg-orange-600 hover:bg-orange-700 rounded-lg font-medium transition-colors"
+                                >
+                                    Refresh page now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

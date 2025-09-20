@@ -128,7 +128,7 @@ export const useFcm = () => {
         // Get new FCM token
         token = await getFCMToken();
         if (!token) {
-          setError('Failed to get FCM token');
+          setError('Failed to get FCM token - please reset browser permissions');
           setIsLoading(false);
           return false;
         }
@@ -202,7 +202,7 @@ export const useFcm = () => {
 
       if (saveError) {
         console.error('Error saving FCM token:', saveError);
-        setError('Failed to save notification settings');
+        setError('Failed to save notification settings - please reset browser permissions');
         setIsLoading(false);
         return false;
       }
