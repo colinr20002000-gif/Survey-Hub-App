@@ -25,26 +25,44 @@ const mockUsers = {
 };
 
 const userPrivileges = {
-    'Subcontractor': {
-        level: 1,
+    'Viewer': {
+        level: 0,
         canEditProjects: false,
         canViewAssignedTasks: false,
         canViewUserAdmin: false,
         canEditUserAdmin: false,
         canViewAuditTrail: false,
-        canViewAnalytics: false,
+        canViewAnalytics: true,
     },
-    'Site Staff': {
-        level: 2,
+    'Editor': {
+        level: 1,
         canEditProjects: true,
         canViewAssignedTasks: false,
         canViewUserAdmin: false,
         canEditUserAdmin: false,
         canViewAuditTrail: false,
-        canViewAnalytics: false,
+        canViewAnalytics: true,
+    },
+    'Subcontractor': {
+        level: 2,
+        canEditProjects: false,
+        canViewAssignedTasks: false,
+        canViewUserAdmin: false,
+        canEditUserAdmin: false,
+        canViewAuditTrail: false,
+        canViewAnalytics: true,
+    },
+    'Site Staff': {
+        level: 3,
+        canEditProjects: true,
+        canViewAssignedTasks: false,
+        canViewUserAdmin: false,
+        canEditUserAdmin: false,
+        canViewAuditTrail: false,
+        canViewAnalytics: true,
     },
     'Office Staff': {
-        level: 3,
+        level: 4,
         canEditProjects: true,
         canViewAssignedTasks: true,
         canViewUserAdmin: true,
@@ -53,7 +71,7 @@ const userPrivileges = {
         canViewAnalytics: true,
     },
     'Delivery Surveyors': {
-        level: 3,
+        level: 4,
         canEditProjects: true,
         canViewAssignedTasks: true,
         canViewUserAdmin: true,
@@ -62,7 +80,7 @@ const userPrivileges = {
         canViewAnalytics: true,
     },
     'Project Managers': {
-        level: 3,
+        level: 4,
         canEditProjects: true,
         canViewAssignedTasks: true,
         canViewUserAdmin: true,
@@ -71,7 +89,7 @@ const userPrivileges = {
         canViewAnalytics: true,
     },
     'Admin': {
-        level: 4,
+        level: 5,
         canEditProjects: true,
         canViewAssignedTasks: true,
         canViewUserAdmin: true,
@@ -2668,6 +2686,37 @@ const DeliveryTasksPage = () => {
     const { deliveryTasks, addDeliveryTask, updateDeliveryTask, deleteDeliveryTask, loading, error } = useDeliveryTasks();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [taskToEdit, setTaskToEdit] = useState(null);
+    const [users, setUsers] = useState([]);
+    const [usersLoading, setUsersLoading] = useState(true);
+
+    // Fetch real users from the database
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                setUsersLoading(true);
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, username, name, privilege, avatar, email')
+                    .order('name');
+
+                if (error) {
+                    console.error('Error fetching users:', error);
+                    // Fallback to mock users if database fetch fails
+                    setUsers(Object.values(mockUsers));
+                } else {
+                    setUsers(data || []);
+                }
+            } catch (error) {
+                console.error('Error in fetchUsers:', error);
+                // Fallback to mock users if there's an exception
+                setUsers(Object.values(mockUsers));
+            } finally {
+                setUsersLoading(false);
+            }
+        };
+
+        fetchUsers();
+    }, []);
 
     const handleSaveTask = async (taskData) => {
         if (taskToEdit) {
@@ -2728,7 +2777,7 @@ const DeliveryTasksPage = () => {
                     <h3 className="text-lg font-semibold mb-4">To Do ({incompleteTasks.length})</h3>
                     <ul className="space-y-2">
                         {incompleteTasks.map(task => (
-                            <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} />
+                            <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} users={users} />
                         ))}
                         {incompleteTasks.length === 0 && (
                             <li className="text-gray-500 dark:text-gray-400 text-center py-4">No pending delivery tasks</li>
@@ -2740,19 +2789,19 @@ const DeliveryTasksPage = () => {
                         <h3 className="text-lg font-semibold mb-4 text-green-600 dark:text-green-400">Completed ({completedTasks.length})</h3>
                         <ul className="space-y-2">
                             {completedTasks.map(task => (
-                                <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} />
+                                <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} users={users} />
                             ))}
                         </ul>
                     </div>
                 )}
             </div>
-            <DeliveryTaskModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTask} task={taskToEdit} users={Object.values(mockUsers)} />
+            <DeliveryTaskModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTask} task={taskToEdit} users={users} usersLoading={usersLoading} />
         </div>
     );
 };
 
-const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete }) => {
-    const assignedUsers = task.assignedTo?.map(id => mockUsers[id]).filter(Boolean) || [];
+const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete, users }) => {
+    const assignedUsers = task.assignedTo?.map(id => users.find(user => user.id === id)).filter(Boolean) || [];
     return (
         <li className={`flex items-center justify-between p-3 rounded-lg border ${task.completed ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'}`}>
             <div className="flex items-center space-x-3 flex-grow">
@@ -2787,7 +2836,7 @@ const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete }) => {
     );
 };
 
-const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users }) => {
+const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users, usersLoading }) => {
     const [formData, setFormData] = useState({ text: '', assignedTo: [] });
 
     useEffect(() => {
@@ -2830,20 +2879,30 @@ const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users }) => {
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign To</label>
                         <div className="max-h-40 overflow-y-auto space-y-2 p-2 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
-                            {users.map(user => (
-                                <label key={user.id} className="flex items-center space-x-3 cursor-pointer p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.assignedTo.includes(user.id)}
-                                        onChange={() => handleMultiSelectChange(user.id)}
-                                        className="h-4 w-4 rounded text-orange-500 focus:ring-orange-500 border-gray-300 dark:border-gray-500 bg-gray-100 dark:bg-gray-600"
-                                    />
-                                    <div className="flex items-center">
-                                        <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-500 text-gray-600 dark:text-gray-200 flex items-center justify-center font-bold text-xs mr-2">{user.avatar}</div>
-                                        <span className="text-gray-800 dark:text-gray-200">{user.name}</span>
-                                    </div>
-                                </label>
-                            ))}
+                            {usersLoading ? (
+                                <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                    Loading users...
+                                </div>
+                            ) : users.length === 0 ? (
+                                <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                    No users available
+                                </div>
+                            ) : (
+                                users.map(user => (
+                                    <label key={user.id} className="flex items-center space-x-3 cursor-pointer p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.assignedTo.includes(user.id)}
+                                            onChange={() => handleMultiSelectChange(user.id)}
+                                            className="h-4 w-4 rounded text-orange-500 focus:ring-orange-500 border-gray-300 dark:border-gray-500 bg-gray-100 dark:bg-gray-600"
+                                        />
+                                        <div className="flex items-center">
+                                            <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-500 text-gray-600 dark:text-gray-200 flex items-center justify-center font-bold text-xs mr-2">{user.avatar}</div>
+                                            <span className="text-gray-800 dark:text-gray-200">{user.name}</span>
+                                        </div>
+                                    </label>
+                                ))
+                            )}
                         </div>
                     </div>
                     <div className="flex justify-end space-x-2 pt-4">

@@ -10,6 +10,11 @@ const UserAdmin = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [editingUsername, setEditingUsername] = useState(null);
   const [newUsername, setNewUsername] = useState('');
+  const [editingTeamRole, setEditingTeamRole] = useState(null);
+  const [newTeamRole, setNewTeamRole] = useState('');
+  const [editingAvatar, setEditingAvatar] = useState(null);
+  const [newAvatar, setNewAvatar] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -17,6 +22,58 @@ const UserAdmin = () => {
   // Check if current user has admin privileges
   const isAdmin = user?.privilege === 'Admin';
   const isSuperAdmin = user?.email === 'colin.rogers@inorail.co.uk';
+
+  // Available team roles
+  const teamRoles = ['Site Team', 'Project Team', 'Delivery Team', 'Design Team', 'Office Staff', 'Subcontractor'];
+
+  // Sorting functionality
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedUsers = () => {
+    const sortableUsers = [...users];
+    if (sortConfig.key) {
+      sortableUsers.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+
+        // Handle null/undefined values
+        if (aValue == null) aValue = '';
+        if (bValue == null) bValue = '';
+
+        // Convert to string for comparison if needed
+        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+        // Handle date fields
+        if (sortConfig.key === 'created_at' || sortConfig.key === 'last_login') {
+          aValue = new Date(aValue || 0);
+          bValue = new Date(bValue || 0);
+        }
+
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableUsers;
+  };
+
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return '⇅'; // Both arrows when not sorted
+    }
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
 
   const fetchUsers = async () => {
     if (!isAdmin) return; // Only fetch users if admin
@@ -137,6 +194,103 @@ const UserAdmin = () => {
   const cancelEditingUsername = () => {
     setEditingUsername(null);
     setNewUsername('');
+  };
+
+  const updateTeamRole = async (userId, teamRole) => {
+    if (!isSuperAdmin) {
+      alert('Only super administrators can modify team roles');
+      return;
+    }
+
+    if (!teamRole || teamRole.trim() === '') {
+      alert('Team role cannot be empty');
+      return;
+    }
+
+    try {
+      const updateQuery = Promise.race([
+        supabase.from('users').update({ team_role: teamRole.trim() }).eq('id', userId).select(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database update timeout')), 8000)
+        )
+      ]);
+
+      const { data, error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data[0]) {
+        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
+        alert('Team role updated successfully');
+        setEditingTeamRole(null);
+        setNewTeamRole('');
+      }
+    } catch (err) {
+      console.error('Error updating team role:', err);
+      alert(`Error updating team role: ${err.message}`);
+    }
+  };
+
+  const startEditingTeamRole = (userItem) => {
+    setEditingTeamRole(userItem.id);
+    setNewTeamRole(userItem.team_role || '');
+  };
+
+  const cancelEditingTeamRole = () => {
+    setEditingTeamRole(null);
+    setNewTeamRole('');
+  };
+
+  const updateAvatar = async (userId, avatar) => {
+    if (!isSuperAdmin) {
+      alert('Only super administrators can modify avatars');
+      return;
+    }
+
+    if (!avatar || avatar.trim() === '') {
+      alert('Avatar cannot be empty');
+      return;
+    }
+
+    // Limit avatar to 3 characters maximum for display purposes
+    const trimmedAvatar = avatar.trim().toUpperCase().substring(0, 3);
+
+    try {
+      const updateQuery = Promise.race([
+        supabase.from('users').update({ avatar: trimmedAvatar }).eq('id', userId).select(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database update timeout')), 8000)
+        )
+      ]);
+
+      const { data, error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data[0]) {
+        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
+        alert('Avatar updated successfully');
+        setEditingAvatar(null);
+        setNewAvatar('');
+      }
+    } catch (err) {
+      console.error('Error updating avatar:', err);
+      alert(`Error updating avatar: ${err.message}`);
+    }
+  };
+
+  const startEditingAvatar = (userItem) => {
+    setEditingAvatar(userItem.id);
+    setNewAvatar(userItem.avatar || '');
+  };
+
+  const cancelEditingAvatar = () => {
+    setEditingAvatar(null);
+    setNewAvatar('');
   };
 
   const deleteUser = async (userId, userEmail) => {
@@ -285,91 +439,181 @@ const UserAdmin = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('avatar')}
+                >
+                  <div className="flex items-center">
+                    Avatar
+                    <span className="ml-1">{getSortIcon('avatar')}</span>
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('name')}
+                >
+                  <div className="flex items-center">
+                    User
+                    <span className="ml-1">{getSortIcon('name')}</span>
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Privilege
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('email')}
+                >
+                  <div className="flex items-center">
+                    Email
+                    <span className="ml-1">{getSortIcon('email')}</span>
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Team Role
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('privilege')}
+                >
+                  <div className="flex items-center">
+                    Privilege
+                    <span className="ml-1">{getSortIcon('privilege')}</span>
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('team_role')}
+                >
+                  <div className="flex items-center">
+                    Team Role
+                    <span className="ml-1">{getSortIcon('team_role')}</span>
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Login
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('created_at')}
+                >
+                  <div className="flex items-center">
+                    Created
+                    <span className="ml-1">{getSortIcon('created_at')}</span>
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('last_login')}
+                >
+                  <div className="flex items-center">
+                    Last Login
+                    <span className="ml-1">{getSortIcon('last_login')}</span>
+                  </div>
                 </th>
+                {isSuperAdmin && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.map((userItem) => (
+              {getSortedUsers().map((userItem) => (
                 <tr key={userItem.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
-                          {userItem.avatar}
-                        </div>
+                    <div className="flex-shrink-0 h-10 w-10 relative">
+                      <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
+                        {isSuperAdmin && editingAvatar === userItem.id ? (
+                          <input
+                            type="text"
+                            value={newAvatar}
+                            onChange={(e) => setNewAvatar(e.target.value)}
+                            className="w-8 h-8 text-center text-xs text-white bg-transparent border border-white rounded-full focus:outline-none focus:ring-1 focus:ring-white"
+                            maxLength="3"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                updateAvatar(userItem.id, newAvatar);
+                              } else if (e.key === 'Escape') {
+                                cancelEditingAvatar();
+                              }
+                            }}
+                            placeholder="ABC"
+                          />
+                        ) : (
+                          userItem.avatar || 'N/A'
+                        )}
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {userItem.name}
+                      {isSuperAdmin && editingAvatar !== userItem.id && (
+                        <button
+                          onClick={() => startEditingAvatar(userItem)}
+                          className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs hover:bg-blue-700"
+                          title="Edit avatar"
+                        >
+                          ✏️
+                        </button>
+                      )}
+                      {isSuperAdmin && editingAvatar === userItem.id && (
+                        <div className="absolute -bottom-1 -right-1 flex gap-1">
+                          <button
+                            onClick={() => updateAvatar(userItem.id, newAvatar)}
+                            className="w-4 h-4 bg-green-600 rounded-full flex items-center justify-center text-white text-xs hover:bg-green-700"
+                            title="Save"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={cancelEditingAvatar}
+                            className="w-4 h-4 bg-red-600 rounded-full flex items-center justify-center text-white text-xs hover:bg-red-700"
+                            title="Cancel"
+                          >
+                            ✗
+                          </button>
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {isSuperAdmin && editingUsername === userItem.id ? (
-                            <div className="flex items-center gap-1">
-                              <span>@</span>
-                              <input
-                                type="text"
-                                value={newUsername}
-                                onChange={(e) => setNewUsername(e.target.value)}
-                                className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 w-20"
-                                onKeyPress={(e) => {
-                                  if (e.key === 'Enter') {
-                                    updateUsername(userItem.id, newUsername);
-                                  } else if (e.key === 'Escape') {
-                                    cancelEditingUsername();
-                                  }
-                                }}
-                              />
-                              <button
-                                onClick={() => updateUsername(userItem.id, newUsername)}
-                                className="text-green-600 hover:text-green-800 text-xs"
-                                title="Save"
-                              >
-                                ✓
-                              </button>
-                              <button
-                                onClick={cancelEditingUsername}
-                                className="text-red-600 hover:text-red-800 text-xs"
-                                title="Cancel"
-                              >
-                                ✗
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <span>@{userItem.username}</span>
-                              {isSuperAdmin && (
-                                <button
-                                  onClick={() => startEditingUsername(userItem)}
-                                  className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                                  title="Edit username"
-                                >
-                                  ✏️
-                                </button>
-                              )}
-                            </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">
+                      {userItem.name}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {isSuperAdmin && editingUsername === userItem.id ? (
+                        <div className="flex items-center gap-1">
+                          <span>@</span>
+                          <input
+                            type="text"
+                            value={newUsername}
+                            onChange={(e) => setNewUsername(e.target.value)}
+                            className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 w-20"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                updateUsername(userItem.id, newUsername);
+                              } else if (e.key === 'Escape') {
+                                cancelEditingUsername();
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => updateUsername(userItem.id, newUsername)}
+                            className="text-green-600 hover:text-green-800 text-xs"
+                            title="Save"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={cancelEditingUsername}
+                            className="text-red-600 hover:text-red-800 text-xs"
+                            title="Cancel"
+                          >
+                            ✗
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span>@{userItem.username}</span>
+                          {isSuperAdmin && (
+                            <button
+                              onClick={() => startEditingUsername(userItem)}
+                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
+                              title="Edit username"
+                            >
+                              ✏️
+                            </button>
                           )}
                         </div>
-                      </div>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -377,11 +621,63 @@ const UserAdmin = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPrivilegeColor(userItem.privilege)}`}>
-                      {userItem.privilege}
+                      {userItem.email === 'colin.rogers@inorail.co.uk' ? 'Super Admin' : userItem.privilege}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {userItem.team_role || 'Not assigned'}
+                    {isSuperAdmin && editingTeamRole === userItem.id ? (
+                      <div className="flex items-center gap-1">
+                        <select
+                          value={newTeamRole}
+                          onChange={(e) => setNewTeamRole(e.target.value)}
+                          className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              updateTeamRole(userItem.id, newTeamRole);
+                            } else if (e.key === 'Escape') {
+                              cancelEditingTeamRole();
+                            }
+                          }}
+                          style={{
+                            backgroundColor: 'white',
+                            color: 'black'
+                          }}
+                        >
+                          {teamRoles.map(role => (
+                            <option key={role} value={role} style={{ backgroundColor: 'white', color: 'black' }}>
+                              {role}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => updateTeamRole(userItem.id, newTeamRole)}
+                          className="text-green-600 hover:text-green-800 text-xs"
+                          title="Save"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={cancelEditingTeamRole}
+                          className="text-red-600 hover:text-red-800 text-xs"
+                          title="Cancel"
+                        >
+                          ✗
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span>{userItem.team_role || 'Not assigned'}</span>
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => startEditingTeamRole(userItem)}
+                            className="text-blue-600 hover:text-blue-800 text-xs ml-1"
+                            title="Edit team role"
+                          >
+                            ✏️
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(userItem.created_at)}
@@ -389,28 +685,34 @@ const UserAdmin = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(userItem.last_login)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <select
-                        value={userItem.privilege}
-                        onChange={(e) => updateUserPrivilege(userItem.id, e.target.value)}
-                        className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                        disabled={!isSuperAdmin && userItem.privilege === 'Admin'}
-                      >
-                        <option value="Viewer">Viewer</option>
-                        <option value="Editor">Editor</option>
-                        {isSuperAdmin && <option value="Admin">Admin</option>}
-                      </select>
-                      {userItem.id !== user?.id && (
-                        <button
-                          onClick={() => deleteUser(userItem.id, userItem.email)}
-                          className="text-red-600 hover:text-red-900 text-xs bg-red-50 px-2 py-1 rounded hover:bg-red-100"
+                  {isSuperAdmin && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <select
+                          value={userItem.privilege}
+                          onChange={(e) => updateUserPrivilege(userItem.id, e.target.value)}
+                          className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          disabled={!isSuperAdmin && userItem.privilege === 'Admin'}
+                          style={{
+                            backgroundColor: 'white',
+                            color: 'black'
+                          }}
                         >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
+                          <option value="Viewer" style={{ backgroundColor: 'white', color: 'black' }}>Viewer</option>
+                          <option value="Editor" style={{ backgroundColor: 'white', color: 'black' }}>Editor</option>
+                          {isSuperAdmin && <option value="Admin" style={{ backgroundColor: 'white', color: 'black' }}>Admin</option>}
+                        </select>
+                        {userItem.id !== user?.id && (
+                          <button
+                            onClick={() => deleteUser(userItem.id, userItem.email)}
+                            className="text-red-600 hover:text-red-900 text-xs bg-red-50 px-2 py-1 rounded hover:bg-red-100"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
