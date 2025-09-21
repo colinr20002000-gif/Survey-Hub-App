@@ -66,7 +66,7 @@ const Header = ({ onMenuClick, setActiveTab }) => {
 
   // Handle profile settings click
   const handleProfileSettingsClick = () => {
-    setActiveTab('Settings');
+    setActiveTab('Settings', 'profile');
     setIsUserDropdownOpen(false);
   };
 

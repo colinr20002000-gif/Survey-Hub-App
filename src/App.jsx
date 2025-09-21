@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
@@ -481,6 +481,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         { name: 'Dashboard', icon: BarChartIcon, show: true },
         { name: 'Projects', icon: FolderKanban, show: true },
         { name: 'Announcements', icon: Megaphone, show: true },
+        { name: 'Feedback', icon: Bug, show: user?.email === 'colin.rogers@inorail.co.uk' }, // Super admin only
         { name: 'Assigned Tasks', icon: ClipboardCheck, show: privileges.canViewAssignedTasks },
         { name: 'Resource', icon: ClipboardList, show: true },
         { 
@@ -607,6 +608,17 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     );
 };
 
+// --- SHARED COMPONENTS ---
+const Card = ({ title, icon, children, className }) => (
+    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden ${className}`}>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
+            {icon}
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white ml-2">{title}</h3>
+        </div>
+        <div className="p-4">{children}</div>
+    </div>
+);
+
 // --- PAGE COMPONENTS ---
 const DashboardPage = ({ onViewProject, setActiveTab }) => {
     const { user } = useAuth();
@@ -615,6 +627,10 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
     const [feedbackText, setFeedbackText] = useState('');
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [dashboardAnnouncements, setDashboardAnnouncements] = useState([]);
+
+    const placeholderText = useMemo(() => {
+        return feedbackType === 'bug' ? "Please describe the bug..." : "Please describe the feature you'd like to see...";
+    }, [feedbackType]);
 
     // Fetch recent announcements for dashboard
     useEffect(() => {
@@ -636,7 +652,13 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
                     }
                     throw error;
                 }
-                setDashboardAnnouncements(data || []);
+                // Filter out feedback announcements for non-super admins
+                const isSuperAdmin = user?.email === 'colin.rogers@inorail.co.uk';
+                const filteredData = (data || []).filter(announcement => {
+                    const isFeedbackAnnouncement = announcement.category === 'Feedback';
+                    return !isFeedbackAnnouncement || isSuperAdmin;
+                });
+                setDashboardAnnouncements(filteredData);
             } catch (error) {
                 console.error('Error fetching dashboard announcements:', error);
                 setDashboardAnnouncements([]);
@@ -646,24 +668,58 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
         fetchRecentAnnouncements();
     }, [user]);
 
-    const handleFeedbackSubmit = (e) => {
+    const handleFeedbackSubmit = useCallback(async (e) => {
         e.preventDefault();
         if (feedbackText.trim() === '') return;
-        console.log({ type: feedbackType, text: feedbackText });
-        setIsSubmitted(true);
-        setFeedbackText('');
-        setTimeout(() => setIsSubmitted(false), 3000);
-    };
-    
-    const Card = ({ title, icon, children, className }) => (
-        <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden ${className}`}>
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
-                {icon}
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white ml-2">{title}</h3>
-            </div>
-            <div className="p-4">{children}</div>
-        </div>
-    );
+
+        try {
+            // Save feedback to database
+            const { data, error } = await supabase
+                .from('feedback')
+                .insert([
+                    {
+                        user_id: user.id,
+                        type: feedbackType,
+                        description: feedbackText.trim(),
+                        title: feedbackType === 'bug' ? 'Bug Report' : 'Feature Request'
+                    }
+                ])
+                .select()
+                .single();
+
+            if (error) {
+                throw error;
+            }
+
+            // Create notification for super admin only
+            const { error: notificationError } = await supabase
+                .from('announcements')
+                .insert([
+                    {
+                        title: `New ${feedbackType === 'bug' ? 'Bug Report' : 'Feature Request'} from ${user.name}`,
+                        content: `${feedbackType === 'bug' ? 'Bug Report' : 'Feature Request'}: ${feedbackText.trim()}\n\nSubmitted by: ${user.name} (${user.email})\nStatus: Open`,
+                        category: 'Feedback',
+                        priority: feedbackType === 'bug' ? 'high' : 'medium',
+                        target_roles: ['SuperAdmin'],
+                        author_id: user.id
+                    }
+                ]);
+
+            if (notificationError) {
+                console.error('Error creating notification:', notificationError);
+                // Don't fail the whole operation if notification fails
+            }
+
+            setIsSubmitted(true);
+            setFeedbackText('');
+            setTimeout(() => setIsSubmitted(false), 3000);
+
+            console.log('Feedback submitted successfully:', data);
+        } catch (error) {
+            console.error('Error submitting feedback:', error);
+            alert('Failed to submit feedback. Please try again.');
+        }
+    }, [feedbackText, feedbackType, user]);
 
     return (
         <div className="p-4 md:p-6 space-y-6">
@@ -735,12 +791,13 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
                             </div>
                             <div>
                                 <textarea
+                                    key="feedback-textarea"
                                     value={feedbackText}
                                     onChange={(e) => setFeedbackText(e.target.value)}
                                     rows="4"
                                     className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                    placeholder={feedbackType === 'bug' ? "Please describe the bug..." : "Please describe the feature you'd like to see..."}
-                                ></textarea>
+                                    placeholder={placeholderText}
+                                />
                             </div>
                             <div className="flex justify-end">
                                 {isSubmitted ? (
@@ -926,8 +983,13 @@ const AnnouncementsPage = () => {
                             announcement.content.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesCategory = selectedCategory === 'All' || announcement.category === selectedCategory;
         const matchesPriority = selectedPriority === 'All' || announcement.priority === selectedPriority.toLowerCase();
-        
-        return matchesSearch && matchesCategory && matchesPriority;
+
+        // Hide feedback announcements from non-super admins
+        const isSuperAdmin = user?.email === 'colin.rogers@inorail.co.uk';
+        const isFeedbackAnnouncement = announcement.category === 'Feedback';
+        const showFeedback = !isFeedbackAnnouncement || isSuperAdmin;
+
+        return matchesSearch && matchesCategory && matchesPriority && showFeedback;
     });
 
     if (loading) {
@@ -973,6 +1035,9 @@ const AnnouncementsPage = () => {
                             {ANNOUNCEMENT_CATEGORIES.map(cat => (
                                 <option key={cat} value={cat}>{cat}</option>
                             ))}
+                            {user?.email === 'colin.rogers@inorail.co.uk' && (
+                                <option value="Feedback">Feedback</option>
+                            )}
                         </Select>
                         <Select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)}>
                             <option value="All">All Priorities</option>
@@ -1329,6 +1394,419 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                 </form>
             </div>
         </Modal>
+    );
+};
+
+const FeedbackPage = () => {
+    const { user } = useAuth();
+    const [feedback, setFeedback] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [selectedFeedback, setSelectedFeedback] = useState(null);
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState('all');
+    const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+
+    // Check if current user is super admin
+    const isSuperAdmin = user?.email === 'colin.rogers@inorail.co.uk';
+
+    useEffect(() => {
+        fetchFeedback();
+    }, []);
+
+    const fetchFeedback = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const { data, error: fetchError } = await supabase
+                .from('feedback')
+                .select(`
+                    *,
+                    user:users!user_id(name, email, username)
+                `)
+                .order('created_at', { ascending: false });
+
+            if (fetchError) {
+                throw fetchError;
+            }
+
+            setFeedback(data || []);
+        } catch (err) {
+            console.error('Error fetching feedback:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const updateFeedbackStatus = async (feedbackId, newStatus, adminNotes = '') => {
+        try {
+            const { error } = await supabase
+                .from('feedback')
+                .update({
+                    status: newStatus,
+                    admin_notes: adminNotes,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', feedbackId);
+
+            if (error) {
+                throw error;
+            }
+
+            // Update local state
+            setFeedback(prev => prev.map(item =>
+                item.id === feedbackId
+                    ? { ...item, status: newStatus, admin_notes: adminNotes }
+                    : item
+            ));
+
+            setSelectedFeedback(null);
+            alert('Feedback status updated successfully');
+        } catch (err) {
+            console.error('Error updating feedback:', err);
+            alert('Failed to update feedback status');
+        }
+    };
+
+    const deleteFeedback = async (feedbackId) => {
+        if (!isSuperAdmin) {
+            alert('Only super administrators can delete feedback');
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('feedback')
+                .delete()
+                .eq('id', feedbackId);
+
+            if (error) {
+                throw error;
+            }
+
+            // Update local state
+            setFeedback(prev => prev.filter(item => item.id !== feedbackId));
+            setSelectedFeedback(null);
+            setDeleteConfirmation(null);
+            alert('Feedback deleted successfully');
+        } catch (err) {
+            console.error('Error deleting feedback:', err);
+            alert('Failed to delete feedback');
+        }
+    };
+
+    const filteredFeedback = feedback.filter(item => {
+        const statusMatch = statusFilter === 'all' || item.status === statusFilter;
+        const typeMatch = typeFilter === 'all' || item.type === typeFilter;
+        return statusMatch && typeMatch;
+    });
+
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'open': return 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-400';
+            case 'in_progress': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-400';
+            case 'resolved': return 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-400';
+            case 'closed': return 'bg-gray-100 text-gray-800 dark:bg-gray-500/20 dark:text-gray-400';
+            default: return 'bg-gray-100 text-gray-800';
+        }
+    };
+
+    const getTypeColor = (type) => {
+        return type === 'bug'
+            ? 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-400'
+            : 'bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-400';
+    };
+
+    const formatDate = (dateString) => {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    if (loading) {
+        return (
+            <div className="p-6">
+                <div className="flex justify-center items-center h-64">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="p-6">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-red-800">Error Loading Feedback</h3>
+                    <p className="mt-2 text-sm text-red-700">{error}</p>
+                    <button
+                        onClick={fetchFeedback}
+                        className="mt-4 bg-red-100 px-3 py-1 rounded text-red-800 hover:bg-red-200"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-6">
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Feedback Management</h1>
+                <p className="text-gray-600 dark:text-gray-400">Manage bug reports and feature requests</p>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-6">
+                <div className="flex flex-wrap gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                            <option value="all">All Statuses</option>
+                            <option value="open">Open</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="closed">Closed</option>
+                        </Select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                        <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                            <option value="all">All Types</option>
+                            <option value="bug">Bug Reports</option>
+                            <option value="feature">Feature Requests</option>
+                        </Select>
+                    </div>
+                </div>
+            </div>
+
+            {/* Feedback List */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                        Feedback ({filteredFeedback.length})
+                    </h2>
+                </div>
+
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredFeedback.length === 0 ? (
+                        <div className="p-8 text-center">
+                            <Bug className="mx-auto h-12 w-12 text-gray-400" />
+                            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No feedback found</h3>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                No feedback matches the current filters.
+                            </p>
+                        </div>
+                    ) : (
+                        filteredFeedback.map((item) => (
+                            <div key={item.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(item.type)}`}>
+                                                {item.type === 'bug' ? 'Bug Report' : 'Feature Request'}
+                                            </span>
+                                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
+                                                {item.status.replace('_', ' ').toUpperCase()}
+                                            </span>
+                                        </div>
+                                        <h3 className="font-medium text-gray-900 dark:text-white mb-2">
+                                            {item.title}
+                                        </h3>
+                                        <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 line-clamp-2">
+                                            {item.description}
+                                        </p>
+                                        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 space-x-4">
+                                            <span>By: {item.user?.name || 'Unknown'}</span>
+                                            <span>•</span>
+                                            <span>{formatDate(item.created_at)}</span>
+                                            {item.updated_at !== item.created_at && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span>Updated: {formatDate(item.updated_at)}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setSelectedFeedback(item)}
+                                        >
+                                            Manage
+                                        </Button>
+                                        {isSuperAdmin && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setDeleteConfirmation(item)}
+                                                className="text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                            >
+                                                <Trash2 size={14} />
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            {/* Feedback Detail Modal */}
+            {selectedFeedback && (
+                <Modal
+                    isOpen={!!selectedFeedback}
+                    onClose={() => setSelectedFeedback(null)}
+                    title="Manage Feedback"
+                >
+                    <div className="space-y-4">
+                        <div>
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(selectedFeedback.type)}`}>
+                                    {selectedFeedback.type === 'bug' ? 'Bug Report' : 'Feature Request'}
+                                </span>
+                                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedFeedback.status)}`}>
+                                    {selectedFeedback.status.replace('_', ' ').toUpperCase()}
+                                </span>
+                            </div>
+                            <h3 className="font-semibold text-lg">{selectedFeedback.title}</h3>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Description
+                            </label>
+                            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                                <p className="text-sm whitespace-pre-wrap">{selectedFeedback.description}</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Submitted By
+                                </label>
+                                <p className="text-sm">{selectedFeedback.user?.name} ({selectedFeedback.user?.email})</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Submitted On
+                                </label>
+                                <p className="text-sm">{formatDate(selectedFeedback.created_at)}</p>
+                            </div>
+                        </div>
+
+                        {selectedFeedback.admin_notes && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Admin Notes
+                                </label>
+                                <div className="bg-blue-50 dark:bg-blue-500/10 p-3 rounded-lg">
+                                    <p className="text-sm whitespace-pre-wrap">{selectedFeedback.admin_notes}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex gap-2 pt-4">
+                            {selectedFeedback.status === 'open' && (
+                                <Button
+                                    onClick={() => updateFeedbackStatus(selectedFeedback.id, 'in_progress')}
+                                    className="bg-yellow-500 hover:bg-yellow-600"
+                                >
+                                    Mark In Progress
+                                </Button>
+                            )}
+                            {selectedFeedback.status === 'in_progress' && (
+                                <Button
+                                    onClick={() => updateFeedbackStatus(selectedFeedback.id, 'resolved')}
+                                    className="bg-green-500 hover:bg-green-600"
+                                >
+                                    Mark Resolved
+                                </Button>
+                            )}
+                            {(selectedFeedback.status === 'resolved' || selectedFeedback.status === 'open') && (
+                                <Button
+                                    onClick={() => updateFeedbackStatus(selectedFeedback.id, 'closed')}
+                                    variant="outline"
+                                >
+                                    Close
+                                </Button>
+                            )}
+                            {isSuperAdmin && (
+                                <Button
+                                    onClick={() => setDeleteConfirmation(selectedFeedback)}
+                                    className="bg-red-500 hover:bg-red-600 text-white"
+                                >
+                                    <Trash2 size={14} className="mr-1" />
+                                    Delete
+                                </Button>
+                            )}
+                            <Button
+                                onClick={() => setSelectedFeedback(null)}
+                                variant="outline"
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirmation && (
+                <Modal
+                    isOpen={!!deleteConfirmation}
+                    onClose={() => setDeleteConfirmation(null)}
+                    title="Delete Feedback"
+                >
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-500/10 rounded-lg">
+                            <Trash2 size={16} className="text-red-500" />
+                            <p className="text-sm text-red-700 dark:text-red-300">
+                                This action cannot be undone. Are you sure you want to delete this feedback?
+                            </p>
+                        </div>
+
+                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                            <h4 className="font-medium text-sm mb-1">
+                                {deleteConfirmation.type === 'bug' ? 'Bug Report' : 'Feature Request'}: {deleteConfirmation.title}
+                            </h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
+                                {deleteConfirmation.description}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                Submitted by: {deleteConfirmation.user?.name} on {formatDate(deleteConfirmation.created_at)}
+                            </p>
+                        </div>
+
+                        <div className="flex gap-2 pt-4">
+                            <Button
+                                onClick={() => deleteFeedback(deleteConfirmation.id)}
+                                className="bg-red-500 hover:bg-red-600 text-white"
+                            >
+                                <Trash2 size={14} className="mr-1" />
+                                Delete Feedback
+                            </Button>
+                            <Button
+                                onClick={() => setDeleteConfirmation(null)}
+                                variant="outline"
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+        </div>
     );
 };
 
@@ -3356,9 +3834,14 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
     );
 };
 
-const SettingsPage = () => {
+const SettingsPage = ({ initialSection = 'profile' }) => {
     const { user } = useAuth();
-    const [activeSection, setActiveSection] = useState('profile');
+    const [activeSection, setActiveSection] = useState(initialSection);
+
+    // Update activeSection when initialSection changes
+    useEffect(() => {
+        setActiveSection(initialSection);
+    }, [initialSection]);
 
     const sections = [
         { id: 'profile', label: 'Profile', icon: Users },
@@ -3398,19 +3881,95 @@ const SettingsPage = () => {
     );
 };
 
-const ProfileSettings = ({ user }) => (
-    <div>
-        <h2 className="text-xl font-semibold mb-4">Profile Information</h2>
-        <form className="space-y-4">
-            <Input label="Full Name" defaultValue={user.name} />
-            <Input label="Email Address" type="email" defaultValue={user.email} />
-            <Input label="Username" defaultValue={user.username} disabled />
-            <div className="pt-2">
-                <Button>Save Changes</Button>
-            </div>
-        </form>
-    </div>
-);
+const ProfileSettings = ({ user }) => {
+    const { updateUser } = useAuth();
+    const [formData, setFormData] = useState({
+        name: user?.name || ''
+    });
+    const [isLoading, setIsLoading] = useState(false);
+    const [message, setMessage] = useState({ type: '', text: '' });
+
+    // Update form data when user data changes
+    useEffect(() => {
+        if (user) {
+            setFormData({
+                name: user.name || ''
+            });
+        }
+    }, [user]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            // Only update name field if it has changed
+            if (formData.name === user.name) {
+                setMessage({ type: 'info', text: 'No changes to save.' });
+                return;
+            }
+
+            const updates = {
+                name: formData.name.trim()
+            };
+
+            await updateUser(updates);
+            setMessage({ type: 'success', text: 'Profile updated successfully!' });
+        } catch (err) {
+            console.error('Error updating profile:', err);
+            setMessage({ type: 'error', text: err.message || 'Failed to update profile. Please try again.' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div>
+            <h2 className="text-xl font-semibold mb-4">Profile Information</h2>
+            {message.text && (
+                <div className={`mb-4 p-3 rounded-lg ${
+                    message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
+                    message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+                    'bg-blue-50 text-blue-700 border border-blue-200'
+                }`}>
+                    {message.text}
+                </div>
+            )}
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <Input
+                    label="Full Name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                />
+                <Input
+                    label="Email Address"
+                    type="email"
+                    value={user?.email || ''}
+                    disabled
+                />
+                <Input
+                    label="Username"
+                    value={user?.username || ''}
+                    disabled
+                    placeholder={!user?.username ? 'Loading username...' : ''}
+                />
+                <div className="pt-2">
+                    <Button type="submit" disabled={isLoading}>
+                        {isLoading ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                </div>
+            </form>
+        </div>
+    );
+};
 
 const SecuritySettings = () => {
     const [passwords, setPasswords] = useState({
@@ -3524,10 +4083,7 @@ const AppearanceSettings = () => {
 
 const NotificationSettings = () => {
     const [settings, setSettings] = useState({
-        pushNotifications: false,
-        weeklyDigest: true,
-        urgentOnly: false,
-        soundEnabled: true
+        pushNotifications: false
     });
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isInstalled, setIsInstalled] = useState(false);
@@ -3593,9 +4149,6 @@ const NotificationSettings = () => {
         return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     }, []);
 
-    const toggleSetting = (key) => {
-        setSettings(prev => ({ ...prev, [key]: !prev[key] }));
-    };
 
     const handlePushToggle = async () => {
         try {
@@ -3750,50 +4303,6 @@ const NotificationSettings = () => {
                     </div>
                 </div>
 
-                {/* Notification Preferences */}
-                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <h3 className="font-medium mb-3">⚙️ Notification Preferences</h3>
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <span className="block font-medium">Sound Notifications</span>
-                                <span className="text-sm text-gray-500 dark:text-gray-400">
-                                    Play sound with notifications
-                                </span>
-                            </div>
-                            <Switch 
-                                isChecked={settings.soundEnabled} 
-                                onToggle={() => toggleSetting('soundEnabled')} 
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <span className="block font-medium">Urgent Only Mode</span>
-                                <span className="text-sm text-gray-500 dark:text-gray-400">
-                                    Only notify for high priority and urgent announcements
-                                </span>
-                            </div>
-                            <Switch 
-                                isChecked={settings.urgentOnly} 
-                                onToggle={() => toggleSetting('urgentOnly')} 
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <span className="block font-medium">Weekly Digest</span>
-                                <span className="text-sm text-gray-500 dark:text-gray-400">
-                                    Get a summary of announcements every week
-                                </span>
-                            </div>
-                            <Switch 
-                                isChecked={settings.weeklyDigest} 
-                                onToggle={() => toggleSetting('weeklyDigest')} 
-                            />
-                        </div>
-                    </div>
-                </div>
 
                 {/* PWA Benefits */}
                 <div className="bg-gradient-to-r from-orange-50 to-blue-50 dark:from-orange-500/10 dark:to-blue-500/10 border border-orange-200 dark:border-orange-500/20 rounded-lg p-4">
@@ -4729,10 +5238,18 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirm
     </Modal>
 );
 
-const Input = ({ label, ...props }) => (
+const Input = ({ label, disabled, className, ...props }) => (
     <div>
         {label && <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>}
-        <input {...props} className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+        <input
+            {...props}
+            disabled={disabled}
+            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${
+                disabled
+                    ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+            } ${className || ''}`}
+        />
     </div>
 );
 
@@ -5407,6 +5924,7 @@ const MainLayout = () => {
             case 'Dashboard': return <DashboardPage onViewProject={handleViewProject} setActiveTab={setActiveTab} />;
             case 'Projects': return <ProjectsPage onViewProject={handleViewProject} />;
             case 'Announcements': return <AnnouncementsPage />;
+            case 'Feedback': return <FeedbackPage />;
             case 'Assigned Tasks': return <AssignedTasksPage />;
             case 'Resource': return <ResourcePage onViewProject={handleViewProject} />;
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
@@ -5519,6 +6037,15 @@ const MainAppLayout = () => {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [settingsSection, setSettingsSection] = useState('profile');
+
+  // Enhanced setActiveTab to handle settings section
+  const handleSetActiveTab = (tab, section = null) => {
+    setActiveTab(tab);
+    if (tab === 'Settings' && section) {
+      setSettingsSection(section);
+    }
+  };
 
   const renderContent = () => {
     if (selectedProject) {
@@ -5526,7 +6053,7 @@ const MainAppLayout = () => {
     }
     switch (activeTab) {
       case 'Dashboard':
-        return <DashboardPage onViewProject={setSelectedProject} setActiveTab={setActiveTab} />;
+        return <DashboardPage onViewProject={setSelectedProject} setActiveTab={handleSetActiveTab} />;
       case 'Projects':
         return <ProjectsPage onViewProject={setSelectedProject} />;
       case 'Assigned Tasks':
@@ -5541,20 +6068,22 @@ const MainAppLayout = () => {
         return <UserAdmin />;
       case 'Announcements':
         return <AnnouncementsPage />;
+      case 'Feedback':
+        return <FeedbackPage />;
       case 'Audit Trail':
         return <AuditTrailPage />;
       case 'Settings':
-        return <SettingsPage />;
+        return <SettingsPage initialSection={settingsSection} />;
       default:
-        return <DashboardPage onViewProject={setSelectedProject} setActiveTab={setActiveTab} />;
+        return <DashboardPage onViewProject={setSelectedProject} setActiveTab={handleSetActiveTab} />;
     }
   };
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <Sidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} setActiveTab={setActiveTab} />
+        <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} setActiveTab={handleSetActiveTab} />
         <main className="flex-1 overflow-x-hidden overflow-y-auto">
           {renderContent()}
         </main>

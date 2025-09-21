@@ -371,11 +371,48 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Function to update user information
+  const updateUser = async (updates) => {
+    if (!user) {
+      throw new Error('No user logged in');
+    }
+
+    try {
+      console.log('🔐 Updating user data:', updates);
+
+      // If name is being updated, also update the avatar
+      if (updates.name) {
+        updates.avatar = updates.name.split(' ').map(n => n[0]).join('');
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local user state with new data
+      setUser(data);
+      console.log('🔐 User data updated successfully:', data);
+
+      return data;
+    } catch (err) {
+      console.error('🔐 Error updating user data:', err);
+      throw err;
+    }
+  };
+
   // Bundle up all the data and functions that components might need
   const value = {
     user,                    // Current user info (or null if not logged in)
     login,                   // Function to log in
     logout,                  // Function to log out
+    updateUser,              // Function to update user data
     isLoading,              // Whether a login attempt is in progress
     isAuthenticated: !!user, // Quick way to check if someone is logged in
   };

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
-import { notificationService } from '../../utils/notifications';
 
 const UserAdmin = () => {
   const { user } = useAuth();
@@ -9,32 +8,11 @@ const UserAdmin = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [pushLoading, setPushLoading] = useState(false);
-
+  const [editingUsername, setEditingUsername] = useState(null);
+  const [newUsername, setNewUsername] = useState('');
   useEffect(() => {
-    const checkSubscription = async () => {
-      const sub = await notificationService.getSubscription();
-      setPushSubscribed(!!sub);
-    };
-    checkSubscription();
     fetchUsers();
   }, []);
-
-  const handleSubscribe = async () => {
-    setPushLoading(true);
-    try {
-      const sub = await notificationService.subscribe();
-      await notificationService.sendSubscriptionToServer(sub);
-      setPushSubscribed(true);
-      alert('Successfully subscribed to push notifications!');
-    } catch (err) {
-      alert(`Error subscribing to push notifications: ${err.message}`);
-      console.error(err);
-    } finally {
-      setPushLoading(false);
-    }
-  };
 
   // Check if current user has admin privileges
   const isAdmin = user?.privilege === 'Admin';
@@ -77,17 +55,17 @@ const UserAdmin = () => {
     try {
       const updateQuery = Promise.race([
         supabase.from('users').update({ privilege: newPrivilege }).eq('id', userId).select(),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Database update timeout')), 8000)
         )
       ]);
 
       const { data, error } = await updateQuery;
-      
+
       if (error) {
         throw error;
       }
-      
+
       if (data && data[0]) {
         setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
         alert('User privilege updated successfully');
@@ -96,6 +74,69 @@ const UserAdmin = () => {
       console.error('Error updating user privilege:', err);
       alert(`Error updating user privilege: ${err.message}`);
     }
+  };
+
+  const updateUsername = async (userId, username) => {
+    if (!isSuperAdmin) {
+      alert('Only super administrators can modify usernames');
+      return;
+    }
+
+    if (!username || username.trim() === '') {
+      alert('Username cannot be empty');
+      return;
+    }
+
+    try {
+      // Check if username already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', username.trim())
+        .neq('id', userId);
+
+      if (checkError) {
+        throw checkError;
+      }
+
+      if (existingUser && existingUser.length > 0) {
+        alert('Username already exists. Please choose a different username.');
+        return;
+      }
+
+      const updateQuery = Promise.race([
+        supabase.from('users').update({ username: username.trim() }).eq('id', userId).select(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database update timeout')), 8000)
+        )
+      ]);
+
+      const { data, error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data[0]) {
+        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
+        alert('Username updated successfully');
+        setEditingUsername(null);
+        setNewUsername('');
+      }
+    } catch (err) {
+      console.error('Error updating username:', err);
+      alert(`Error updating username: ${err.message}`);
+    }
+  };
+
+  const startEditingUsername = (userItem) => {
+    setEditingUsername(userItem.id);
+    setNewUsername(userItem.username);
+  };
+
+  const cancelEditingUsername = () => {
+    setEditingUsername(null);
+    setNewUsername('');
   };
 
   const deleteUser = async (userId, userEmail) => {
@@ -155,36 +196,11 @@ const UserAdmin = () => {
     }
   };
 
-  const NotificationManager = () => (
-    <div className="bg-white shadow-sm rounded-lg border border-gray-200 mb-6">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-medium text-gray-900">Push Notifications</h2>
-      </div>
-      <div className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-900">Notification Status</p>
-            <p className="text-sm text-gray-500">
-              {pushSubscribed ? "You are subscribed to notifications." : "You are not subscribed to notifications."}
-            </p>
-          </div>
-          <button
-            onClick={handleSubscribe}
-            disabled={pushLoading || pushSubscribed}
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {pushLoading ? 'Subscribing...' : (pushSubscribed ? 'Subscribed' : 'Subscribe')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 
   if (!isAdmin) {
     return (
       <div className="p-6">
-        <NotificationManager />
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
@@ -245,7 +261,6 @@ const UserAdmin = () => {
 
   return (
     <div className="p-6">
-      <NotificationManager />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">User Administration</h1>
         <p className="text-gray-600 mt-2">
@@ -295,7 +310,7 @@ const UserAdmin = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {users.map((userItem) => (
-                <tr key={userItem.id} className="hover:bg-gray-50">
+                <tr key={userItem.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -308,7 +323,51 @@ const UserAdmin = () => {
                           {userItem.name}
                         </div>
                         <div className="text-sm text-gray-500">
-                          @{userItem.username}
+                          {isSuperAdmin && editingUsername === userItem.id ? (
+                            <div className="flex items-center gap-1">
+                              <span>@</span>
+                              <input
+                                type="text"
+                                value={newUsername}
+                                onChange={(e) => setNewUsername(e.target.value)}
+                                className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 w-20"
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter') {
+                                    updateUsername(userItem.id, newUsername);
+                                  } else if (e.key === 'Escape') {
+                                    cancelEditingUsername();
+                                  }
+                                }}
+                              />
+                              <button
+                                onClick={() => updateUsername(userItem.id, newUsername)}
+                                className="text-green-600 hover:text-green-800 text-xs"
+                                title="Save"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={cancelEditingUsername}
+                                className="text-red-600 hover:text-red-800 text-xs"
+                                title="Cancel"
+                              >
+                                ✗
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span>@{userItem.username}</span>
+                              {isSuperAdmin && (
+                                <button
+                                  onClick={() => startEditingUsername(userItem)}
+                                  className="text-blue-600 hover:text-blue-800 text-xs ml-1"
+                                  title="Edit username"
+                                >
+                                  ✏️
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
