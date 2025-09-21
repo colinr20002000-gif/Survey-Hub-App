@@ -248,9 +248,10 @@ Deno.serve(async (req) => {
 
     // --- 2. GET REQUEST DATA ---
     console.log('[DEBUG] Step 2: Parsing request body.');
-    const { notification, targetRoles, excludeAuthorId } = await req.json();
+    const { notification, targetRoles, targetUserIds, excludeAuthorId } = await req.json();
     console.log(`[DEBUG] Notification payload received:`, notification);
     console.log(`[DEBUG] Target roles:`, targetRoles);
+    console.log(`[DEBUG] Target user IDs:`, targetUserIds);
     console.log(`[DEBUG] Exclude author:`, excludeAuthorId);
 
     // --- 3. FETCH FCM TOKENS ---
@@ -274,18 +275,23 @@ Deno.serve(async (req) => {
       query = query.neq('user_id', excludeAuthorId);
     }
 
-    // If specific roles are targeted, filter by user roles
-    if (targetRoles && targetRoles.length > 0) {
+    // If specific user IDs are targeted, filter by those
+    if (targetUserIds && targetUserIds.length > 0) {
+      console.log(`[DEBUG] Filtering by target user IDs: ${targetUserIds.join(', ')}`);
+      query = query.in('user_id', targetUserIds);
+    }
+    // Otherwise, if specific roles are targeted, filter by user roles
+    else if (targetRoles && targetRoles.length > 0) {
       console.log(`[DEBUG] Filtering by target roles: ${targetRoles.join(', ')}`);
       // Note: This assumes you have a users table with roles. Adjust the query as needed.
       const { data: targetUsers } = await supabaseClient
-        .from('profiles') // or whatever your users table is called
+        .from('users') // Changed from 'profiles' to 'users' based on the actual table structure
         .select('id')
-        .in('role', targetRoles);
+        .in('privilege', targetRoles); // Changed from 'role' to 'privilege' based on the actual column name
 
       if (targetUsers && targetUsers.length > 0) {
-        const targetUserIds = targetUsers.map(user => user.id);
-        query = query.in('user_id', targetUserIds);
+        const roleBasedUserIds = targetUsers.map(user => user.id);
+        query = query.in('user_id', roleBasedUserIds);
       } else {
         console.log('[DEBUG] No users found with target roles. Sending to no one.');
         return new Response(JSON.stringify({

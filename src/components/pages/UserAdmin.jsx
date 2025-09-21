@@ -7,13 +7,14 @@ const UserAdmin = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
   const [editingUsername, setEditingUsername] = useState(null);
   const [newUsername, setNewUsername] = useState('');
   const [editingTeamRole, setEditingTeamRole] = useState(null);
   const [newTeamRole, setNewTeamRole] = useState('');
   const [editingAvatar, setEditingAvatar] = useState(null);
   const [newAvatar, setNewAvatar] = useState('');
+  const [editingName, setEditingName] = useState(null);
+  const [newName, setNewName] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   useEffect(() => {
     fetchUsers();
@@ -293,6 +294,53 @@ const UserAdmin = () => {
     setNewAvatar('');
   };
 
+  const updateName = async (userId, name) => {
+    if (!isSuperAdmin) {
+      alert('Only super administrators can modify names');
+      return;
+    }
+
+    if (!name || name.trim() === '') {
+      alert('Name cannot be empty');
+      return;
+    }
+
+    try {
+      const updateQuery = Promise.race([
+        supabase.from('users').update({ name: name.trim() }).eq('id', userId).select(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database update timeout')), 8000)
+        )
+      ]);
+
+      const { data, error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data[0]) {
+        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
+        alert('Name updated successfully');
+        setEditingName(null);
+        setNewName('');
+      }
+    } catch (err) {
+      console.error('Error updating name:', err);
+      alert(`Error updating name: ${err.message}`);
+    }
+  };
+
+  const startEditingName = (userItem) => {
+    setEditingName(userItem.id);
+    setNewName(userItem.name || '');
+  };
+
+  const cancelEditingName = () => {
+    setEditingName(null);
+    setNewName('');
+  };
+
   const deleteUser = async (userId, userEmail) => {
     if (!isAdmin) {
       alert('Only administrators can delete users');
@@ -453,8 +501,17 @@ const UserAdmin = () => {
                   onClick={() => handleSort('name')}
                 >
                   <div className="flex items-center">
-                    User
+                    Name
                     <span className="ml-1">{getSortIcon('name')}</span>
+                  </div>
+                </th>
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('username')}
+                >
+                  <div className="flex items-center">
+                    Username
+                    <span className="ml-1">{getSortIcon('username')}</span>
                   </div>
                 </th>
                 <th
@@ -566,8 +623,53 @@ const UserAdmin = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {userItem.name}
+                      {isSuperAdmin && editingName === userItem.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 w-32"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                updateName(userItem.id, newName);
+                              } else if (e.key === 'Escape') {
+                                cancelEditingName();
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => updateName(userItem.id, newName)}
+                            className="text-green-600 hover:text-green-800 text-xs"
+                            title="Save"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={cancelEditingName}
+                            className="text-red-600 hover:text-red-800 text-xs"
+                            title="Cancel"
+                          >
+                            ✗
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span>{userItem.name}</span>
+                          {isSuperAdmin && (
+                            <button
+                              onClick={() => startEditingName(userItem)}
+                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
+                              title="Edit name"
+                            >
+                              ✏️
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-500">
                       {isSuperAdmin && editingUsername === userItem.id ? (
                         <div className="flex items-center gap-1">

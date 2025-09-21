@@ -5783,6 +5783,7 @@ export const JobProvider = ({ children }) => {
 
 // --- DELIVERY TASK PROVIDER ---
 export const DeliveryTaskProvider = ({ children }) => {
+    const { user } = useAuth();
     const [deliveryTasks, setDeliveryTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -5835,13 +5836,27 @@ export const DeliveryTaskProvider = ({ children }) => {
             .from('delivery_tasks')
             .insert([taskRecord])
             .select();
-        
+
         if (error) {
              console.error('Error adding delivery task:', error);
              alert(`Error adding delivery task: ${error.message}`);
              return;
         }
-        if (data) setDeliveryTasks(prev => [mapToCamelCase(data[0]), ...prev]);
+        if (data) {
+            const newTask = mapToCamelCase(data[0]);
+            setDeliveryTasks(prev => [newTask, ...prev]);
+
+            // Send notification to assigned users
+            if (taskData.assignedTo && taskData.assignedTo.length > 0) {
+                try {
+                    const { sendDeliveryTaskAssignmentNotification } = await import('./utils/fcmNotifications.js');
+                    await sendDeliveryTaskAssignmentNotification(newTask, user?.id);
+                } catch (notificationError) {
+                    console.error('Error sending task assignment notification:', notificationError);
+                    // Don't fail the task creation if notification fails
+                }
+            }
+        }
     };
 
     const updateDeliveryTask = async (updatedTask) => {
