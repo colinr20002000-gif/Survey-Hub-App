@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -224,9 +224,11 @@ const ThemeContext = createContext(null);
 const ProjectContext = createContext(null);
 const TaskContext = createContext(null);
 const DeliveryTaskContext = createContext(null);
+const ProjectTaskContext = createContext(null);
 const AuditTrailContext = createContext(null);
 const useTasks = () => useContext(TaskContext);
 const useDeliveryTasks = () => useContext(DeliveryTaskContext);
+const useProjectTasks = () => useContext(ProjectTaskContext);
 const useTheme = () => useContext(ThemeContext);
 const useProjects = () => useContext(ProjectContext);
 const useAuditTrail = () => useContext(AuditTrailContext);
@@ -493,6 +495,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const privileges = userPrivileges[user.privilege];
     const [deliveryTeamExpanded, setDeliveryTeamExpanded] = useState(false);
     const [deliveryTeamManuallyCollapsed, setDeliveryTeamManuallyCollapsed] = useState(false);
+    const [projectTeamExpanded, setProjectTeamExpanded] = useState(false);
+    const [projectTeamManuallyCollapsed, setProjectTeamManuallyCollapsed] = useState(false);
     const sidebarRef = useRef(null);
 
     const allNavItems = [
@@ -502,10 +506,20 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         { name: 'Feedback', icon: Bug, show: user?.email === 'colin.rogers@inorail.co.uk' }, // Super admin only
         { name: 'Assigned Tasks', icon: ClipboardCheck, show: privileges.canViewAssignedTasks },
         { name: 'Resource', icon: ClipboardList, show: true },
-        { 
-            name: 'Delivery Team', 
-            icon: ClipboardPaste, 
-            show: true, 
+        {
+            name: 'Project Team',
+            icon: FolderOpen,
+            show: true,
+            isCollapsible: true,
+            subItems: [
+                { name: 'Resource Calendar', parent: 'Project Team' },
+                { name: 'Project Tasks', parent: 'Project Team' }
+            ]
+        },
+        {
+            name: 'Delivery Team',
+            icon: ClipboardPaste,
+            show: true,
             isCollapsible: true,
             subItems: [
                 { name: 'Delivery Tracker', parent: 'Delivery Team' },
@@ -523,14 +537,26 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const handleItemClick = (item, e) => {
         e.preventDefault();
         if (item.isCollapsible) {
-            const newExpandedState = !deliveryTeamExpanded;
-            setDeliveryTeamExpanded(newExpandedState);
-            
-            // Track if user manually collapsed when on an active page
-            if (isDeliveryTeamActive && !newExpandedState) {
-                setDeliveryTeamManuallyCollapsed(true);
-            } else if (newExpandedState) {
-                setDeliveryTeamManuallyCollapsed(false);
+            if (item.name === 'Delivery Team') {
+                const newExpandedState = !deliveryTeamExpanded;
+                setDeliveryTeamExpanded(newExpandedState);
+
+                // Track if user manually collapsed when on an active page
+                if (isDeliveryTeamActive && !newExpandedState) {
+                    setDeliveryTeamManuallyCollapsed(true);
+                } else if (newExpandedState) {
+                    setDeliveryTeamManuallyCollapsed(false);
+                }
+            } else if (item.name === 'Project Team') {
+                const newExpandedState = !projectTeamExpanded;
+                setProjectTeamExpanded(newExpandedState);
+
+                // Track if user manually collapsed when on an active page
+                if (isProjectTeamActive && !newExpandedState) {
+                    setProjectTeamManuallyCollapsed(true);
+                } else if (newExpandedState) {
+                    setProjectTeamManuallyCollapsed(false);
+                }
             }
             // Don't close sidebar in mobile when just toggling collapsible menu
         } else {
@@ -547,13 +573,17 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     };
 
     const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Tasks';
-    
-    // Reset manually collapsed state when navigating away from delivery pages
+    const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Project Tasks';
+
+    // Reset manually collapsed state when navigating away from team pages
     useEffect(() => {
         if (!isDeliveryTeamActive) {
             setDeliveryTeamManuallyCollapsed(false);
         }
-    }, [isDeliveryTeamActive]);
+        if (!isProjectTeamActive) {
+            setProjectTeamManuallyCollapsed(false);
+        }
+    }, [isDeliveryTeamActive, isProjectTeamActive]);
 
     // Close sidebar when clicking outside in mobile mode
     useEffect(() => {
@@ -582,7 +612,9 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                 href="#"
                                 onClick={(e) => handleItemClick(item, e)}
                                 className={`flex items-center px-4 py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                                    (activeTab === item.name || (item.name === 'Delivery Team' && (isDeliveryTeamActive || deliveryTeamExpanded)))
+                                    (activeTab === item.name ||
+                                     (item.name === 'Delivery Team' && (isDeliveryTeamActive || deliveryTeamExpanded)) ||
+                                     (item.name === 'Project Team' && (isProjectTeamActive || projectTeamExpanded)))
                                         ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
                                         : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
                                 }`}
@@ -593,12 +625,17 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                     <ChevronDown 
                                         size={16} 
                                         className={`ml-2 transition-transform duration-200 ${
-                                            deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed) ? 'rotate-180' : ''
+                                            (item.name === 'Delivery Team' && (deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed))) ||
+                                            (item.name === 'Project Team' && (projectTeamExpanded || (isProjectTeamActive && !projectTeamManuallyCollapsed)))
+                                                ? 'rotate-180' : ''
                                         }`} 
                                     />
                                 )}
                             </a>
-                            {item.isCollapsible && (deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed)) && (
+                            {item.isCollapsible && (
+                                (item.name === 'Delivery Team' && (deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed))) ||
+                                (item.name === 'Project Team' && (projectTeamExpanded || (isProjectTeamActive && !projectTeamManuallyCollapsed)))
+                            ) && (
                                 <ul className="ml-4 mt-1 space-y-1">
                                     {item.subItems.map(subItem => (
                                         <li key={subItem.name}>
@@ -2682,7 +2719,172 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose }) => {
     );
 };
 
+const ResourceCalendarPage = () => {
+    return (
+        <div className="p-4 md:p-6">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">Resource Calendar</h1>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <div className="text-center py-12">
+                    <Calendar className="mx-auto h-16 w-16 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Resource Calendar</h3>
+                    <p className="text-gray-500 dark:text-gray-400 mb-4">
+                        Resource scheduling and calendar functionality will be implemented here.
+                    </p>
+                    <div className="text-sm text-gray-400">
+                        <p>Features to include:</p>
+                        <ul className="mt-2 space-y-1">
+                            <li>• Team member availability</li>
+                            <li>• Project resource allocation</li>
+                            <li>• Equipment scheduling</li>
+                            <li>• Holiday and leave management</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ProjectTasksPage = () => {
+    const { user } = useAuth();
+    const { projectTasks, addProjectTask, updateProjectTask, deleteProjectTask, loading, error } = useProjectTasks();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [taskToEdit, setTaskToEdit] = useState(null);
+    const [users, setUsers] = useState([]);
+    const [usersLoading, setUsersLoading] = useState(true);
+
+    // Fetch real users from the database
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                setUsersLoading(true);
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, username, name, privilege, avatar, email')
+                    .order('name');
+
+                if (error) {
+                    console.error('Error fetching users:', error);
+                } else {
+                    setUsers(data || []);
+                }
+            } catch (err) {
+                console.error('Error in fetchUsers:', err);
+            } finally {
+                setUsersLoading(false);
+            }
+        };
+
+        fetchUsers();
+    }, []);
+
+    const handleEditTask = (task) => {
+        setTaskToEdit(task);
+        setIsModalOpen(true);
+    };
+
+    const handleSaveTask = async (taskData) => {
+        if (taskToEdit) {
+            await updateProjectTask({ ...taskToEdit, ...taskData });
+        } else {
+            const newTask = { ...taskData, completed: false, project: 'Project Team', createdBy: user?.id };
+            await addProjectTask(newTask);
+        }
+        setIsModalOpen(false);
+        setTaskToEdit(null);
+    };
+
+    const openNewTaskModal = () => {
+        setTaskToEdit(null);
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (task) => {
+        setTaskToEdit(task);
+        setIsModalOpen(true);
+    };
+
+    const handleToggleComplete = async (task) => {
+        const isCompleting = !task.completed;
+        const updatedTask = {
+            ...task,
+            completed: isCompleting,
+            completedAt: isCompleting ? new Date().toISOString() : null,
+            completedBy: isCompleting ? user?.id : null
+        };
+        await updateProjectTask(updatedTask);
+    };
+
+    const handleDeleteTask = async (taskId) => {
+        if (window.confirm('Are you sure you want to delete this task?')) {
+            await deleteProjectTask(taskId);
+        }
+    };
+
+    // Loading and error states
+    if (loading) {
+        return <div className="p-8 text-2xl font-semibold text-center">Loading Project Tasks...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                <h2 className="font-bold text-xl mb-2">Error Loading Project Tasks</h2>
+                <p>There was a problem fetching project task data from the database.</p>
+                <p className="mt-4 font-bold">Error Message:</p>
+                <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
+            </div>
+        );
+    }
+
+    const incompleteTasks = projectTasks.filter(t => !t.completed);
+    const completedTasks = projectTasks.filter(t => t.completed);
+
+    return (
+        <div className="p-4 md:p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Project Tasks</h1>
+                <Button onClick={openNewTaskModal}><PlusCircle size={16} className="mr-2"/>Add Project Task</Button>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="p-4">
+                    <h3 className="text-lg font-semibold mb-4">To Do ({incompleteTasks.length})</h3>
+                    <ul className="space-y-2">
+                        {incompleteTasks.map(task => (
+                            <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} users={users} />
+                        ))}
+                        {incompleteTasks.length === 0 && (
+                            <li className="text-gray-500 dark:text-gray-400 text-center py-4">No pending project tasks</li>
+                        )}
+                    </ul>
+                </div>
+                {completedTasks.length > 0 && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                        <h3 className="text-lg font-semibold mb-4 text-green-600 dark:text-green-400">Completed ({completedTasks.length})</h3>
+                        <ul className="space-y-2">
+                            {completedTasks.map(task => (
+                                <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} users={users} />
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+            <DeliveryTaskModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSave={handleSaveTask}
+                task={taskToEdit}
+                users={users}
+                usersLoading={usersLoading}
+                title={taskToEdit ? 'Edit Project Task' : 'New Project Task'}
+            />
+        </div>
+    );
+};
+
 const DeliveryTasksPage = () => {
+    const { user } = useAuth();
     const { deliveryTasks, addDeliveryTask, updateDeliveryTask, deleteDeliveryTask, loading, error } = useDeliveryTasks();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [taskToEdit, setTaskToEdit] = useState(null);
@@ -2722,7 +2924,7 @@ const DeliveryTasksPage = () => {
         if (taskToEdit) {
             await updateDeliveryTask({ ...taskToEdit, ...taskData });
         } else {
-            const newTask = { ...taskData, completed: false, project: 'Delivery Team' };
+            const newTask = { ...taskData, completed: false, project: 'Delivery Team', createdBy: user?.id };
             await addDeliveryTask(newTask);
         }
         setIsModalOpen(false);
@@ -2730,7 +2932,14 @@ const DeliveryTasksPage = () => {
     };
 
     const handleToggleComplete = async (task) => {
-        await updateDeliveryTask({ ...task, completed: !task.completed });
+        const isCompleting = !task.completed;
+        const updatedTask = {
+            ...task,
+            completed: isCompleting,
+            completedAt: isCompleting ? new Date().toISOString() : null,
+            completedBy: isCompleting ? user?.id : null
+        };
+        await updateDeliveryTask(updatedTask);
     };
 
     const handleDeleteTask = async (taskId) => {
@@ -2802,6 +3011,15 @@ const DeliveryTasksPage = () => {
 
 const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete, users }) => {
     const assignedUsers = task.assignedTo?.map(id => users.find(user => user.id === id)).filter(Boolean) || [];
+    const createdByUser = task.createdBy ? users.find(user => user.id === task.createdBy) : null;
+    const completedByUser = task.completedBy ? users.find(user => user.id === task.completedBy) : null;
+
+    const formatDateTime = (dateString) => {
+        if (!dateString) return null;
+        const date = new Date(dateString);
+        return date.toLocaleString();
+    };
+
     return (
         <li className={`flex items-center justify-between p-3 rounded-lg border ${task.completed ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'}`}>
             <div className="flex items-center space-x-3 flex-grow">
@@ -2816,6 +3034,35 @@ const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete, users }) => {
                         {task.text}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Project: {task.project}</p>
+
+                    <div className="flex items-center space-x-1 mt-1">
+                        <span className="text-xs text-gray-400">Created:</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{formatDateTime(task.createdAt)}</span>
+                        {createdByUser && (
+                            <>
+                                <span className="text-xs text-gray-400">by</span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    {createdByUser.name}
+                                </span>
+                            </>
+                        )}
+                    </div>
+
+                    {task.completed && task.completedAt && (
+                        <div className="flex items-center space-x-1 mt-1">
+                            <span className="text-xs text-gray-400">Completed:</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{formatDateTime(task.completedAt)}</span>
+                            {completedByUser && (
+                                <>
+                                    <span className="text-xs text-gray-400">by</span>
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        {completedByUser.name}
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                    )}
+
                     {assignedUsers.length > 0 && (
                         <div className="flex items-center space-x-1 mt-1">
                             <span className="text-xs text-gray-400">Assigned to:</span>
@@ -2836,7 +3083,7 @@ const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete, users }) => {
     );
 };
 
-const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users, usersLoading }) => {
+const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users, usersLoading, title }) => {
     const [formData, setFormData] = useState({ text: '', assignedTo: [] });
 
     useEffect(() => {
@@ -2869,7 +3116,7 @@ const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users, usersLoading 
     if (!isOpen) return null;
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={task ? 'Edit Delivery Task' : 'New Delivery Task'}>
+        <Modal isOpen={isOpen} onClose={onClose} title={title || (task ? 'Edit Delivery Task' : 'New Delivery Task')}>
             <div className="p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -5796,6 +6043,9 @@ export const DeliveryTaskProvider = ({ children }) => {
         completed: task.completed,
         project: task.project,
         assignedTo: task.assigned_to,
+        createdBy: task.created_by,
+        completedAt: task.completed_at,
+        completedBy: task.completed_by,
     });
 
     // Map component camelCase to database snake_case
@@ -5804,6 +6054,9 @@ export const DeliveryTaskProvider = ({ children }) => {
         completed: task.completed,
         project: task.project,
         assigned_to: task.assignedTo,
+        created_by: task.createdBy,
+        completed_at: task.completedAt,
+        completed_by: task.completedBy,
     });
 
     useEffect(() => {
@@ -5892,6 +6145,133 @@ export const DeliveryTaskProvider = ({ children }) => {
     const value = { deliveryTasks, addDeliveryTask, updateDeliveryTask, deleteDeliveryTask, loading, error };
 
     return <DeliveryTaskContext.Provider value={value}>{children}</DeliveryTaskContext.Provider>;
+};
+
+// --- PROJECT TASK PROVIDER ---
+export const ProjectTaskProvider = ({ children }) => {
+    const { user } = useAuth();
+    const [projectTasks, setProjectTasks] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // Map database snake_case to component camelCase
+    const mapToCamelCase = (task) => ({
+        id: task.id,
+        createdAt: task.created_at,
+        text: task.text,
+        completed: task.completed,
+        project: task.project,
+        assignedTo: task.assigned_to,
+        createdBy: task.created_by,
+        completedAt: task.completed_at,
+        completedBy: task.completed_by,
+    });
+
+    // Map component camelCase to database snake_case
+    const mapToSnakeCase = (task) => ({
+        text: task.text,
+        completed: task.completed,
+        project: task.project,
+        assigned_to: task.assignedTo,
+        created_by: task.createdBy,
+        completed_at: task.completedAt,
+        completed_by: task.completedBy,
+    });
+
+    useEffect(() => {
+        const getProjectTasks = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('project_tasks')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (fetchError) throw fetchError;
+
+                setProjectTasks(data.map(mapToCamelCase) || []);
+            } catch (err) {
+                console.error("Error fetching project tasks:", err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getProjectTasks();
+    }, []);
+
+    const addProjectTask = async (taskData) => {
+        const taskRecord = mapToSnakeCase(taskData);
+        const { data, error } = await supabase
+            .from('project_tasks')
+            .insert([taskRecord])
+            .select();
+
+        if (error) {
+             console.error('Error adding project task:', error);
+             alert(`Error adding project task: ${error.message}`);
+             return;
+        }
+        if (data) {
+            const newTask = mapToCamelCase(data[0]);
+            setProjectTasks(prev => [newTask, ...prev]);
+
+            // Send notification to assigned users
+            if (taskData.assignedTo && taskData.assignedTo.length > 0) {
+                try {
+                    const { sendDeliveryTaskAssignmentNotification } = await import('./utils/fcmNotifications.js');
+                    // Create a modified notification function for project tasks
+                    const notificationData = {
+                        ...newTask,
+                        text: newTask.text,
+                        project: 'Project Team'
+                    };
+                    await sendDeliveryTaskAssignmentNotification(notificationData, user?.id);
+                } catch (notificationError) {
+                    console.error('Error sending project task assignment notification:', notificationError);
+                    // Don't fail the task creation if notification fails
+                }
+            }
+        }
+    };
+
+    const updateProjectTask = async (updatedTask) => {
+        const taskRecord = mapToSnakeCase(updatedTask);
+        const { data, error } = await supabase
+            .from('project_tasks')
+            .update(taskRecord)
+            .eq('id', updatedTask.id)
+            .select();
+
+        if (error) {
+            console.error('Error updating project task:', error);
+            alert(`Error updating project task: ${error.message}`);
+            return;
+        }
+        if (data) {
+            setProjectTasks(prev => prev.map(t => t.id === updatedTask.id ? mapToCamelCase(data[0]) : t));
+        }
+    };
+
+    const deleteProjectTask = async (taskId) => {
+        const { error } = await supabase
+            .from('project_tasks')
+            .delete()
+            .eq('id', taskId);
+
+        if (error) {
+            console.error('Error deleting project task:', error);
+            alert(`Error deleting project task: ${error.message}`);
+        } else {
+            setProjectTasks(prev => prev.filter(t => t.id !== taskId));
+        }
+    };
+
+    const value = { projectTasks, addProjectTask, updateProjectTask, deleteProjectTask, loading, error };
+
+    return <ProjectTaskContext.Provider value={value}>{children}</ProjectTaskContext.Provider>;
 };
 
 const MainLayout = () => {
@@ -6001,6 +6381,8 @@ const MainLayout = () => {
             case 'Feedback': return <FeedbackPage />;
             case 'Assigned Tasks': return <AssignedTasksPage />;
             case 'Resource': return <ResourcePage onViewProject={handleViewProject} />;
+            case 'Resource Calendar': return <ResourceCalendarPage />;
+            case 'Project Tasks': return <ProjectTasksPage />;
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
             case 'Delivery Tasks': return <DeliveryTasksPage />;
             case 'Analytics': return <AnalyticsPage />;
@@ -6092,9 +6474,11 @@ const AppContent = () => {
             <ProjectProvider>
               <TaskProvider>
                 <DeliveryTaskProvider>
-                  <AuditTrailProvider>
-                    <MainLayout />
-                  </AuditTrailProvider>
+                  <ProjectTaskProvider>
+                    <AuditTrailProvider>
+                      <MainLayout />
+                    </AuditTrailProvider>
+                  </ProjectTaskProvider>
                 </DeliveryTaskProvider>
               </TaskProvider>
             </ProjectProvider>
@@ -6132,6 +6516,10 @@ const MainAppLayout = () => {
         return <ProjectsPage onViewProject={setSelectedProject} />;
       case 'Assigned Tasks':
         return <AssignedTasksPage />;
+      case 'Resource Calendar':
+        return <ResourceCalendarPage />;
+      case 'Project Tasks':
+        return <ProjectTasksPage />;
       case 'Delivery Tracker':
         return <DeliveryTrackerPage />;
       case 'Delivery Tasks':
