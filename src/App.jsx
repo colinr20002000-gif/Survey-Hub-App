@@ -504,8 +504,6 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         { name: 'Projects', icon: FolderKanban, show: true },
         { name: 'Announcements', icon: Megaphone, show: true },
         { name: 'Feedback', icon: Bug, show: user?.email === 'colin.rogers@inorail.co.uk' }, // Super admin only
-        { name: 'Assigned Tasks', icon: ClipboardCheck, show: privileges.canViewAssignedTasks },
-        { name: 'Resource', icon: ClipboardList, show: true },
         {
             name: 'Project Team',
             icon: FolderOpen,
@@ -2719,28 +2717,495 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose }) => {
     );
 };
 
-const ResourceCalendarPage = () => {
-    return (
-        <div className="p-4 md:p-6">
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">Resource Calendar</h1>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                <div className="text-center py-12">
-                    <Calendar className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Resource Calendar</h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-4">
-                        Resource scheduling and calendar functionality will be implemented here.
-                    </p>
-                    <div className="text-sm text-gray-400">
-                        <p>Features to include:</p>
-                        <ul className="mt-2 space-y-1">
-                            <li>• Team member availability</li>
-                            <li>• Project resource allocation</li>
-                            <li>• Equipment scheduling</li>
-                            <li>• Holiday and leave management</li>
-                        </ul>
-                    </div>
+const ResourceCalendarPage = ({ onViewProject }) => {
+    const { user: currentUser } = useAuth();
+    const isAdminOrManager = currentUser.privilege === 'Admin' || currentUser.privilege === 'Project Managers';
+    const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
+    const { projects } = useProjects();
+
+    const [allocations, setAllocations] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStartDate(new Date()));
+    const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
+    const [isManageUsersModalOpen, setIsManageUsersModalOpen] = useState(false);
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [selectedCell, setSelectedCell] = useState(null);
+    const [visibleUserIds, setVisibleUserIds] = useState([]);
+    const [filterRoles, setFilterRoles] = useState([]);
+    const [sortOrder, setSortOrder] = useState('alphabetical');
+    const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
+    const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null });
+    const filterRef = useRef(null);
+
+    const shiftColors = {
+      Days: 'bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200',
+      Evening: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200',
+      Nights: 'bg-indigo-200 text-indigo-800 dark:bg-indigo-900/80 dark:text-indigo-200',
+    };
+
+    const leaveColors = {
+      'Annual Leave': 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200',
+      'Bank Holiday': 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200',
+      'Office (Haydock)': 'bg-pink-100 text-pink-800 dark:bg-pink-900/60 dark:text-pink-200',
+      'Office (Home)': 'bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-200',
+      'Training': 'bg-gray-200 text-gray-800 dark:bg-gray-700/60 dark:text-gray-200',
+      'Stand Down': 'bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200',
+    };
+
+    useEffect(() => {
+        const getResourceAllocations = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('resource_allocations')
+                    .select('*');
+
+                if (fetchError) {
+                    console.error('Error fetching resource allocations:', fetchError);
+                    setError(fetchError.message);
+                    setAllocations({});
+                    return;
+                }
+
+                const formattedAllocations = {};
+
+                data.forEach(allocation => {
+                    if (!allocation.allocation_date) {
+                        return;
+                    }
+                    const dateParts = allocation.allocation_date.split('-').map(Number);
+                    const allocationDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+                    const weekStart = getWeekStartDate(allocationDate);
+                    const weekKey = formatDateForKey(weekStart);
+
+                    if (!formattedAllocations[weekKey]) {
+                        formattedAllocations[weekKey] = {};
+                    }
+                    if (!formattedAllocations[weekKey][allocation.user_id]) {
+                        formattedAllocations[weekKey][allocation.user_id] = {
+                            assignments: Array(7).fill(null)
+                        };
+                    }
+
+                    const dayIndex = (allocationDate.getDay() + 6) % 7;
+
+                    let assignmentData = null;
+                    if (allocation.leave_type) {
+                        assignmentData = {
+                            type: 'leave',
+                            leaveType: allocation.leave_type,
+                            comment: allocation.comment || ''
+                        };
+                    } else if (allocation.assignment_type === 'project') {
+                        assignmentData = {
+                            type: 'project',
+                            projectNumber: allocation.project_number || '',
+                            projectName: allocation.project_name || '',
+                            client: allocation.client || '',
+                            task: allocation.task || '',
+                            shift: allocation.shift || '',
+                            time: allocation.time || '',
+                            comment: allocation.comment || '',
+                            projectId: allocation.project_id || null
+                        };
+                    }
+
+                    if (dayIndex >= 0 && dayIndex < 7) {
+                       formattedAllocations[weekKey][allocation.user_id].assignments[dayIndex] = assignmentData;
+                    }
+                });
+
+                setAllocations(formattedAllocations);
+
+            } catch (err) {
+                console.error('Unexpected error:', err);
+                setError('Failed to load resource allocations');
+                setAllocations({});
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getResourceAllocations();
+    }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (filterRef.current && !filterRef.current.contains(event.target)) {
+                setIsFilterOpen(false);
+            }
+             if (contextMenu.visible) {
+                setContextMenu({ visible: false });
+            }
+        };
+        document.addEventListener("click", handleClickOutside);
+        return () => document.removeEventListener("click", handleClickOutside);
+    }, [contextMenu.visible]);
+
+        useEffect(() => {
+        if (allUsers.length > 0) {
+            // This line runs whenever the allUsers list changes.
+            // It gets all the current user IDs and sets them as visible.
+            setVisibleUserIds((allUsers || []).map(u => u.id));
+        }
+    }, [allUsers]);
+
+    const displayedUsers = useMemo(() => {
+        let usersToDisplay = allUsers;
+
+        if (filterRoles.length > 0) {
+            usersToDisplay = usersToDisplay.filter(user => filterRoles.includes(user.teamRole));
+        }
+
+        usersToDisplay = usersToDisplay.filter(user => visibleUserIds.includes(user.id));
+
+        if (sortOrder === 'alphabetical') {
+            usersToDisplay.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (sortOrder === 'role') {
+            usersToDisplay.sort((a, b) => {
+                const roleComparison = a.teamRole.localeCompare(b.teamRole);
+                if (roleComparison !== 0) return roleComparison;
+                return a.name.localeCompare(b.name);
+            });
+        }
+
+        return usersToDisplay;
+    }, [allUsers, visibleUserIds, filterRoles, sortOrder]);
+
+    const weekDates = useMemo(() => {
+        return Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
+    }, [currentWeekStart]);
+
+    const handleCellClick = (userId, date, dayIndex) => {
+        if (!isAdminOrManager) return;
+        setSelectedCell({ userId, date, dayIndex });
+        setIsAllocationModalOpen(true);
+    };
+
+    const handleActionClick = (e, userId, dayIndex, assignment) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setContextMenu({
+            visible: true,
+            x: e.pageX,
+            y: e.pageY,
+            cellData: { userId, dayIndex, assignment, date: weekDates[dayIndex] }
+        });
+    };
+
+    const handleSaveAllocation = async (allocationData, cellToUpdate = selectedCell) => {
+        const { userId } = cellToUpdate;
+        const weekKey = formatDateForKey(getWeekStartDate(cellToUpdate.date));
+        const dayIndex = (cellToUpdate.date.getDay() + 6) % 7;
+
+        setAllocations(prev => {
+            const newAllocations = JSON.parse(JSON.stringify(prev));
+            if (!newAllocations[weekKey]) newAllocations[weekKey] = {};
+            if (!newAllocations[weekKey][userId]) newAllocations[weekKey][userId] = { assignments: Array(7).fill(null) };
+
+            if (allocationData === null) {
+                newAllocations[weekKey][userId].assignments[dayIndex] = null;
+            } else if (allocationData.type === 'leave') {
+                newAllocations[weekKey][userId].assignments[dayIndex] = allocationData;
+            } else if (!Object.values(allocationData).some(val => val !== '' && val !== 'Days' && val !== null)) {
+                 newAllocations[weekKey][userId].assignments[dayIndex] = null;
+            } else {
+                 newAllocations[weekKey][userId].assignments[dayIndex] = {...allocationData, type: 'project'};
+            }
+
+            return newAllocations;
+        });
+
+        setIsAllocationModalOpen(false);
+
+        try {
+            const allocationDate = cellToUpdate.date;
+            const allocationDateString = formatDateForKey(allocationDate);
+
+            const { data: existingRecord } = await supabase
+                .from('resource_allocations')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('allocation_date', allocationDateString)
+                .single();
+
+            const shouldDelete = allocationData === null ||
+                                (allocationData.type !== 'leave' &&
+                                 !Object.values(allocationData).some(val => val !== '' && val !== 'Days' && val !== null));
+
+            if (shouldDelete) {
+                if (existingRecord) {
+                    const { error } = await supabase
+                        .from('resource_allocations')
+                        .delete()
+                        .eq('id', existingRecord.id);
+                    if (error) throw error;
+                }
+            } else {
+                let recordToUpsert = {
+                    user_id: userId,
+                    allocation_date: allocationDateString,
+                };
+
+                if (allocationData.type === 'leave') {
+                    recordToUpsert = {
+                        ...recordToUpsert,
+                        assignment_type: 'leave',
+                        leave_type: allocationData.leaveType,
+                        comment: allocationData.comment || null,
+                        project_id: null, project_number: null, project_name: null, client: null, task: null, shift: null, time: null
+                    };
+                } else {
+                    recordToUpsert = {
+                        ...recordToUpsert,
+                        assignment_type: 'project',
+                        project_id: allocationData.projectId || null,
+                        project_number: allocationData.projectNumber || null,
+                        project_name: allocationData.projectName || null,
+                        client: allocationData.client || null,
+                        task: allocationData.task || null,
+                        shift: allocationData.shift || null,
+                        time: allocationData.time || null,
+                        comment: allocationData.comment || null,
+                        leave_type: null,
+                    };
+                }
+
+                if (existingRecord) {
+                    recordToUpsert.id = existingRecord.id;
+                }
+
+                const { error } = await supabase
+                    .from('resource_allocations')
+                    .upsert(recordToUpsert);
+                if (error) throw error;
+            }
+        } catch (err) {
+            console.error('Error saving allocation to Supabase:', err);
+            alert(`Failed to save allocation: ${err.message}`);
+        }
+    };
+
+    const handleContextMenuAction = (action) => {
+        const { cellData } = contextMenu;
+        if (!cellData) return;
+        const cellToUpdate = { userId: cellData.userId, dayIndex: cellData.dayIndex, date: cellData.date };
+
+        if (action === 'goToProject') {
+            const projectToView = projects?.find(p => p.project_number === cellData.assignment.projectNumber);
+            if (projectToView) {
+                onViewProject(projectToView);
+            }
+            setContextMenu({ visible: false });
+            return;
+        }
+
+        if (action === 'copy' || action === 'cut') {
+            setClipboard({ type: action, data: cellData.assignment, sourceCell: cellToUpdate });
+        } else if (action === 'delete') {
+            handleSaveAllocation(null, cellToUpdate);
+        } else if (action === 'paste') {
+            handleSaveAllocation(clipboard.data, cellToUpdate);
+            if (clipboard.type === 'cut') {
+                handleSaveAllocation(null, clipboard.sourceCell);
+                setClipboard({ type: null, data: null, sourceCell: null });
+            }
+        }
+        setContextMenu({ visible: false });
+    };
+
+    const handleUpdateVisibleUsers = (newUserIds) => {
+        setVisibleUserIds(newUserIds);
+        setIsManageUsersModalOpen(false);
+    };
+
+    const changeWeek = (offset) => {
+        setCurrentWeekStart(prev => addDays(prev, offset * 7));
+    };
+
+    const handleRoleFilterChange = (role) => {
+        setFilterRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
+    };
+
+    const weekKey = formatDateForKey(currentWeekStart);
+    const fiscalWeek = getFiscalWeek(currentWeekStart);
+    const currentWeekAllocations = allocations[weekKey] || {};
+    const selectedUser = selectedCell ? allUsers?.find(u => u.id === selectedCell.userId) : null;
+
+    if (loading || usersLoading) {
+        return (
+            <div className="p-4 md:p-6 flex items-center justify-center min-h-96">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600 dark:text-gray-300">Loading Resource Allocations...</p>
                 </div>
             </div>
+        );
+    }
+
+    if (usersError) {
+        return (
+            <div className="p-4 md:p-6 flex items-center justify-center min-h-96">
+                <div className="text-center text-red-600">
+                    <p>Error loading users: {usersError}</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-4 md:p-6">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Resource Allocation</h1>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <Button variant="outline" onClick={() => setCurrentWeekStart(getWeekStartDate(new Date()))}>This Week</Button>
+                    <Button variant="outline" onClick={() => changeWeek(-1)}><ChevronLeft size={16}/></Button>
+                    <Button variant="outline" onClick={() => changeWeek(1)}><ChevronRight size={16}/></Button>
+                    <Button onClick={() => setIsManageUsersModalOpen(true)}><Users size={16} className="mr-2"/>Show/Hide User</Button>
+                </div>
+            </div>
+            <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
+                 <div className="flex items-center gap-2">
+                    <div className="relative" ref={filterRef}>
+                         <Button variant="outline" onClick={() => setIsFilterOpen(!isFilterOpen)}><Filter size={16} className="mr-2"/>Filter by Role</Button>
+                         {isFilterOpen && (
+                             <div className="absolute top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4">
+                                 <h4 className="font-semibold mb-2 text-sm">Roles</h4>
+                                 <div className="space-y-2 max-h-60 overflow-y-auto">
+                                     {teamRoles.map(role => (
+                                         <label key={role} className="flex items-center space-x-2 text-sm">
+                                             <input type="checkbox" checked={filterRoles.includes(role)} onChange={() => handleRoleFilterChange(role)} className="rounded text-orange-500 focus:ring-orange-500"/>
+                                             <span>{role}</span>
+                                         </label>
+                                     ))}
+                                 </div>
+                                 <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setFilterRoles([])}>Clear</Button>
+                             </div>
+                         )}
+                    </div>
+                    <div className="flex items-center">
+                        <label htmlFor="sort-by" className="text-sm mr-2">Sort by:</label>
+                        <Select id="sort-by" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="!py-1.5">
+                            <option value="alphabetical">Alphabetical</option>
+                            <option value="role">Role</option>
+                        </Select>
+                    </div>
+                </div>
+                <h2 className="text-lg font-semibold text-center">Week {fiscalWeek}: {formatDateForDisplay(weekDates[0])} - {formatDateForDisplay(weekDates[6])}, {currentWeekStart.getFullYear()}</h2>
+            </div>
+            {error && (
+                 <div className="p-4 mb-4 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 rounded">
+                    Error loading resource allocations from the database: {error}.
+                </div>
+            )}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
+                <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                        <tr>
+                            <th className="px-4 py-3 w-[250px]">Staff Member</th>
+                            {weekDates.map(date => (
+                                <th key={date.toISOString()} className="px-4 py-3 text-center w-52">
+                                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                                    <br/>
+                                    {formatDateForDisplay(date)}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {displayedUsers.map(user => (
+                            <tr key={user.id}>
+                                <td className="px-4 py-2 font-medium">
+                                    <div className="flex items-center min-w-0">
+                                        <div className="w-8 h-8 rounded-full bg-blue-900 text-white flex items-center justify-center font-bold text-sm mr-3 flex-shrink-0">{user.avatar}</div>
+                                        <div className="min-w-0">
+                                            <p className="truncate">{user.name}</p>
+                                            <p className="text-xs text-gray-500 truncate">{user.teamRole}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                {weekDates.map((date, dayIndex) => {
+                                    const assignment = currentWeekAllocations[user.id]?.assignments[dayIndex] || null;
+                                    let cellContent;
+                                    let cellColor = '';
+
+                                    if (assignment) {
+                                        if (assignment.type === 'leave') {
+                                            cellColor = leaveColors[assignment.leaveType] || '';
+                                            cellContent = (
+                                                <div className={`p-1.5 rounded-md text-xs h-full flex items-center justify-center font-semibold ${cellColor}`}>
+                                                    {assignment.leaveType}
+                                                </div>
+                                            );
+                                        } else if (assignment.type === 'project') {
+                                            cellColor = shiftColors[assignment.shift] || '';
+                                            cellContent = (
+                                                <div className={`p-1.5 rounded-md text-xs space-y-1 h-full flex flex-col overflow-hidden text-center ${cellColor}`}>
+                                                    <p className="font-bold whitespace-nowrap overflow-ellipsis overflow-hidden">{assignment.projectNumber}</p>
+                                                    <p className="flex-grow min-w-0 break-words" title={assignment.projectName}>{assignment.projectName}</p>
+                                                    <p className="whitespace-nowrap overflow-ellipsis overflow-hidden" title={assignment.client}>{assignment.client}</p>
+                                                    <p className="font-semibold">{assignment.task}</p>
+                                                    <p className="font-semibold">{assignment.shift}</p>
+                                                    <p className="text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-ellipsis overflow-hidden" title={assignment.comment}>{assignment.comment}</p>
+                                                </div>
+                                            );
+                                        }
+                                    }
+
+                                    return (
+                                        <td key={date.toISOString()} className="p-1 align-top h-40 relative group">
+                                            <div
+                                                onClick={() => handleCellClick(user.id, date, dayIndex)}
+                                                className={`w-full h-full text-left rounded-md ${isAdminOrManager ? 'cursor-pointer' : 'cursor-default'}`}
+                                            >
+                                                {cellContent}
+                                            </div>
+                                            {isAdminOrManager && (
+                                                <button
+                                                    onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment)}
+                                                    className="absolute top-1 right-1 p-1 rounded-full bg-gray-300/20 dark:bg-gray-900/20 hover:bg-gray-400/50 dark:hover:bg-gray-700/50"
+                                                >
+                                                    <MoreVertical size={14} />
+                                                </button>
+                                            )}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {contextMenu.visible && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    cellData={contextMenu.cellData}
+                    clipboard={clipboard}
+                    onAction={handleContextMenuAction}
+                    onClose={() => setContextMenu({ visible: false })}
+                />
+            )}
+            {selectedCell && (
+                <AllocationModal
+                    isOpen={isAllocationModalOpen}
+                    onClose={() => setIsAllocationModalOpen(false)}
+                    onSave={handleSaveAllocation}
+                    user={selectedUser}
+                    date={selectedCell.date}
+                    currentAssignment={currentWeekAllocations[selectedCell.userId]?.assignments[selectedCell.dayIndex] || null}
+                    projects={projects}
+                />
+            )}
+            <ShowHideUsersModal
+                isOpen={isManageUsersModalOpen}
+                onClose={() => setIsManageUsersModalOpen(false)}
+                onSave={handleUpdateVisibleUsers}
+                allUsers={allUsers}
+                visibleUserIds={visibleUserIds}
+            />
         </div>
     );
 };
@@ -3162,498 +3627,6 @@ const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users, usersLoading,
     );
 };
 
-const ResourcePage = ({ onViewProject }) => {
-    const { user: currentUser } = useAuth();
-    const isAdminOrManager = currentUser.privilege === 'Admin' || currentUser.privilege === 'Project Managers';
-    const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
-    const { projects } = useProjects();
-    
-    const [allocations, setAllocations] = useState({});
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStartDate(new Date()));
-    const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
-    const [isManageUsersModalOpen, setIsManageUsersModalOpen] = useState(false);
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const [selectedCell, setSelectedCell] = useState(null);
-    const [visibleUserIds, setVisibleUserIds] = useState([]);
-    const [filterRoles, setFilterRoles] = useState([]);
-    const [sortOrder, setSortOrder] = useState('alphabetical');
-    const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
-    const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null });
-    const filterRef = useRef(null);
-    
-    const shiftColors = {
-      Days: 'bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200',
-      Evening: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200',
-      Nights: 'bg-indigo-200 text-indigo-800 dark:bg-indigo-900/80 dark:text-indigo-200',
-    };
-    
-    const leaveColors = {
-      'Annual Leave': 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200',
-      'Bank Holiday': 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200',
-      'Office (Haydock)': 'bg-pink-100 text-pink-800 dark:bg-pink-900/60 dark:text-pink-200',
-      'Office (Home)': 'bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-200',
-      'Training': 'bg-gray-200 text-gray-800 dark:bg-gray-700/60 dark:text-gray-200',
-      'Stand Down': 'bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200',
-    };
-
-    useEffect(() => {
-        const getResourceAllocations = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const { data, error: fetchError } = await supabase
-                    .from('resource_allocations')
-                    .select('*');
-
-                if (fetchError) {
-                    console.error('Error fetching resource allocations:', fetchError);
-                    setError(fetchError.message);
-                    setAllocations({}); 
-                    return;
-                }
-
-                const formattedAllocations = {};
-                
-                data.forEach(allocation => {
-                    if (!allocation.allocation_date) {
-                        return;
-                    }
-                    const dateParts = allocation.allocation_date.split('-').map(Number);
-                    const allocationDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-                    const weekStart = getWeekStartDate(allocationDate);
-                    const weekKey = formatDateForKey(weekStart);
-                    
-                    if (!formattedAllocations[weekKey]) {
-                        formattedAllocations[weekKey] = {};
-                    }
-                    if (!formattedAllocations[weekKey][allocation.user_id]) {
-                        formattedAllocations[weekKey][allocation.user_id] = {
-                            assignments: Array(7).fill(null)
-                        };
-                    }
-                    
-                    const dayIndex = (allocationDate.getDay() + 6) % 7;
-                    
-                    let assignmentData = null;
-                    if (allocation.leave_type) {
-                        assignmentData = {
-                            type: 'leave',
-                            leaveType: allocation.leave_type,
-                            comment: allocation.comment || ''
-                        };
-                    } else if (allocation.assignment_type === 'project') {
-                        assignmentData = {
-                            type: 'project',
-                            projectNumber: allocation.project_number || '',
-                            projectName: allocation.project_name || '',
-                            client: allocation.client || '',
-                            task: allocation.task || '',
-                            shift: allocation.shift || '',
-                            time: allocation.time || '',
-                            comment: allocation.comment || '',
-                            projectId: allocation.project_id || null
-                        };
-                    }
-                    
-                    if (dayIndex >= 0 && dayIndex < 7) {
-                       formattedAllocations[weekKey][allocation.user_id].assignments[dayIndex] = assignmentData;
-                    }
-                });
-                
-                setAllocations(formattedAllocations);
-
-            } catch (err) {
-                console.error('Unexpected error:', err);
-                setError('Failed to load resource allocations');
-                setAllocations({}); 
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        getResourceAllocations();
-    }, []);
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (filterRef.current && !filterRef.current.contains(event.target)) {
-                setIsFilterOpen(false);
-            }
-             if (contextMenu.visible) {
-                setContextMenu({ visible: false });
-            }
-        };
-        document.addEventListener("click", handleClickOutside);
-        return () => document.removeEventListener("click", handleClickOutside);
-    }, [contextMenu.visible]);
-
-        useEffect(() => {
-        if (allUsers.length > 0) {
-            // This line runs whenever the allUsers list changes.
-            // It gets all the current user IDs and sets them as visible.
-            setVisibleUserIds((allUsers || []).map(u => u.id));
-        }
-    }, [allUsers]);
-
-    const displayedUsers = useMemo(() => {
-        let usersToDisplay = allUsers;
-
-        if (filterRoles.length > 0) {
-            usersToDisplay = usersToDisplay.filter(user => filterRoles.includes(user.teamRole));
-        }
-
-        usersToDisplay = usersToDisplay.filter(user => visibleUserIds.includes(user.id));
-
-        if (sortOrder === 'alphabetical') {
-            usersToDisplay.sort((a, b) => a.name.localeCompare(b.name));
-        } else if (sortOrder === 'role') {
-            usersToDisplay.sort((a, b) => {
-                const roleComparison = a.teamRole.localeCompare(b.teamRole);
-                if (roleComparison !== 0) return roleComparison;
-                return a.name.localeCompare(b.name);
-            });
-        }
-
-        return usersToDisplay;
-    }, [allUsers, visibleUserIds, filterRoles, sortOrder]);
-
-    const weekDates = useMemo(() => {
-        return Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
-    }, [currentWeekStart]);
-
-    const handleCellClick = (userId, date, dayIndex) => {
-        if (!isAdminOrManager) return;
-        setSelectedCell({ userId, date, dayIndex });
-        setIsAllocationModalOpen(true);
-    };
-    
-    const handleActionClick = (e, userId, dayIndex, assignment) => {
-        e.stopPropagation();
-        e.preventDefault();
-        setContextMenu({
-            visible: true,
-            x: e.pageX,
-            y: e.pageY,
-            cellData: { userId, dayIndex, assignment, date: weekDates[dayIndex] }
-        });
-    };
-
-    const handleSaveAllocation = async (allocationData, cellToUpdate = selectedCell) => {
-        const { userId } = cellToUpdate;
-        const weekKey = formatDateForKey(getWeekStartDate(cellToUpdate.date));
-        const dayIndex = (cellToUpdate.date.getDay() + 6) % 7;
-
-        setAllocations(prev => {
-            const newAllocations = JSON.parse(JSON.stringify(prev));
-            if (!newAllocations[weekKey]) newAllocations[weekKey] = {};
-            if (!newAllocations[weekKey][userId]) newAllocations[weekKey][userId] = { assignments: Array(7).fill(null) };
-            
-            if (allocationData === null) {
-                newAllocations[weekKey][userId].assignments[dayIndex] = null;
-            } else if (allocationData.type === 'leave') {
-                newAllocations[weekKey][userId].assignments[dayIndex] = allocationData;
-            } else if (!Object.values(allocationData).some(val => val !== '' && val !== 'Days' && val !== null)) {
-                 newAllocations[weekKey][userId].assignments[dayIndex] = null;
-            } else {
-                 newAllocations[weekKey][userId].assignments[dayIndex] = {...allocationData, type: 'project'};
-            }
-            
-            return newAllocations;
-        });
-
-        setIsAllocationModalOpen(false);
-
-        try {
-            const allocationDate = cellToUpdate.date;
-            const allocationDateString = formatDateForKey(allocationDate);
-            
-            const { data: existingRecord } = await supabase
-                .from('resource_allocations')
-                .select('id')
-                .eq('user_id', userId)
-                .eq('allocation_date', allocationDateString)
-                .single();
-
-            const shouldDelete = allocationData === null || 
-                                (allocationData.type !== 'leave' && 
-                                 !Object.values(allocationData).some(val => val !== '' && val !== 'Days' && val !== null));
-
-            if (shouldDelete) {
-                if (existingRecord) {
-                    const { error } = await supabase
-                        .from('resource_allocations')
-                        .delete()
-                        .eq('id', existingRecord.id);
-                    if (error) throw error;
-                }
-            } else {
-                let recordToUpsert = {
-                    user_id: userId,
-                    allocation_date: allocationDateString,
-                };
-
-                if (allocationData.type === 'leave') {
-                    recordToUpsert = {
-                        ...recordToUpsert,
-                        assignment_type: 'leave',
-                        leave_type: allocationData.leaveType,
-                        comment: allocationData.comment || null,
-                        project_id: null, project_number: null, project_name: null, client: null, task: null, shift: null, time: null
-                    };
-                } else {
-                    recordToUpsert = {
-                        ...recordToUpsert,
-                        assignment_type: 'project',
-                        project_id: allocationData.projectId || null,
-                        project_number: allocationData.projectNumber || null,
-                        project_name: allocationData.projectName || null,
-                        client: allocationData.client || null,
-                        task: allocationData.task || null,
-                        shift: allocationData.shift || null,
-                        time: allocationData.time || null,
-                        comment: allocationData.comment || null,
-                        leave_type: null,
-                    };
-                }
-
-                if (existingRecord) {
-                    recordToUpsert.id = existingRecord.id;
-                }
-                
-                const { error } = await supabase
-                    .from('resource_allocations')
-                    .upsert(recordToUpsert);
-                if (error) throw error;
-            }
-        } catch (err) {
-            console.error('Error saving allocation to Supabase:', err);
-            alert(`Failed to save allocation: ${err.message}`);
-        }
-    };
-    
-    const handleContextMenuAction = (action) => {
-        const { cellData } = contextMenu;
-        if (!cellData) return;
-        const cellToUpdate = { userId: cellData.userId, dayIndex: cellData.dayIndex, date: cellData.date };
-
-        if (action === 'goToProject') {
-            const projectToView = projects?.find(p => p.project_number === cellData.assignment.projectNumber);
-            if (projectToView) {
-                onViewProject(projectToView);
-            }
-            setContextMenu({ visible: false });
-            return;
-        }
-        
-        if (action === 'copy' || action === 'cut') {
-            setClipboard({ type: action, data: cellData.assignment, sourceCell: cellToUpdate });
-        } else if (action === 'delete') {
-            handleSaveAllocation(null, cellToUpdate);
-        } else if (action === 'paste') {
-            handleSaveAllocation(clipboard.data, cellToUpdate);
-            if (clipboard.type === 'cut') {
-                handleSaveAllocation(null, clipboard.sourceCell);
-                setClipboard({ type: null, data: null, sourceCell: null });
-            }
-        }
-        setContextMenu({ visible: false });
-    };
-
-    const handleUpdateVisibleUsers = (newUserIds) => {
-        setVisibleUserIds(newUserIds);
-        setIsManageUsersModalOpen(false);
-    };
-    
-    const changeWeek = (offset) => {
-        setCurrentWeekStart(prev => addDays(prev, offset * 7));
-    };
-
-    const handleRoleFilterChange = (role) => {
-        setFilterRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
-    };
-
-    const weekKey = formatDateForKey(currentWeekStart);
-    const fiscalWeek = getFiscalWeek(currentWeekStart);
-    const currentWeekAllocations = allocations[weekKey] || {};
-    const selectedUser = selectedCell ? allUsers?.find(u => u.id === selectedCell.userId) : null;
-
-    if (loading || usersLoading) {
-        return (
-            <div className="p-4 md:p-6 flex items-center justify-center min-h-96">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
-                    <p className="text-gray-600 dark:text-gray-300">Loading Resource Allocations...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (usersError) {
-        return (
-            <div className="p-4 md:p-6 flex items-center justify-center min-h-96">
-                <div className="text-center text-red-600">
-                    <p>Error loading users: {usersError}</p>
-                </div>
-            </div>
-        );
-    }
-    
-    return (
-        <div className="p-4 md:p-6">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Resource Allocation</h1>
-                <div className="flex items-center gap-2 flex-wrap justify-center">
-                    <Button variant="outline" onClick={() => setCurrentWeekStart(getWeekStartDate(new Date()))}>This Week</Button>
-                    <Button variant="outline" onClick={() => changeWeek(-1)}><ChevronLeft size={16}/></Button>
-                    <Button variant="outline" onClick={() => changeWeek(1)}><ChevronRight size={16}/></Button>
-                    <Button onClick={() => setIsManageUsersModalOpen(true)}><Users size={16} className="mr-2"/>Show/Hide User</Button>
-                </div>
-            </div>
-            <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-                 <div className="flex items-center gap-2">
-                    <div className="relative" ref={filterRef}>
-                         <Button variant="outline" onClick={() => setIsFilterOpen(!isFilterOpen)}><Filter size={16} className="mr-2"/>Filter by Role</Button>
-                         {isFilterOpen && (
-                             <div className="absolute top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4">
-                                 <h4 className="font-semibold mb-2 text-sm">Roles</h4>
-                                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                                     {teamRoles.map(role => (
-                                         <label key={role} className="flex items-center space-x-2 text-sm">
-                                             <input type="checkbox" checked={filterRoles.includes(role)} onChange={() => handleRoleFilterChange(role)} className="rounded text-orange-500 focus:ring-orange-500"/>
-                                             <span>{role}</span>
-                                         </label>
-                                     ))}
-                                 </div>
-                                 <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setFilterRoles([])}>Clear</Button>
-                             </div>
-                         )}
-                    </div>
-                    <div className="flex items-center">
-                        <label htmlFor="sort-by" className="text-sm mr-2">Sort by:</label>
-                        <Select id="sort-by" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="!py-1.5">
-                            <option value="alphabetical">Alphabetical</option>
-                            <option value="role">Role</option>
-                        </Select>
-                    </div>
-                </div>
-                <h2 className="text-lg font-semibold text-center">Week {fiscalWeek}: {formatDateForDisplay(weekDates[0])} - {formatDateForDisplay(weekDates[6])}, {currentWeekStart.getFullYear()}</h2>
-            </div>
-            {error && (
-                 <div className="p-4 mb-4 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 rounded">
-                    Error loading resource allocations from the database: {error}.
-                </div>
-            )}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                        <tr>
-                            <th className="px-4 py-3 w-[250px]">Staff Member</th>
-                            {weekDates.map(date => (
-                                <th key={date.toISOString()} className="px-4 py-3 text-center w-52">
-                                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                                    <br/>
-                                    {formatDateForDisplay(date)}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {displayedUsers.map(user => (
-                            <tr key={user.id}>
-                                <td className="px-4 py-2 font-medium">
-                                    <div className="flex items-center min-w-0">
-                                        <div className="w-8 h-8 rounded-full bg-blue-900 text-white flex items-center justify-center font-bold text-sm mr-3 flex-shrink-0">{user.avatar}</div>
-                                        <div className="min-w-0">
-                                            <p className="truncate">{user.name}</p>
-                                            <p className="text-xs text-gray-500 truncate">{user.teamRole}</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                {weekDates.map((date, dayIndex) => {
-                                    const assignment = currentWeekAllocations[user.id]?.assignments[dayIndex] || null;
-                                    let cellContent;
-                                    let cellColor = '';
-
-                                    if (assignment) {
-                                        if (assignment.type === 'leave') {
-                                            cellColor = leaveColors[assignment.leaveType] || '';
-                                            cellContent = (
-                                                <div className={`p-1.5 rounded-md text-xs h-full flex items-center justify-center font-semibold ${cellColor}`}>
-                                                    {assignment.leaveType}
-                                                </div>
-                                            );
-                                        } else if (assignment.type === 'project') {
-                                            cellColor = shiftColors[assignment.shift] || '';
-                                            cellContent = (
-                                                <div className={`p-1.5 rounded-md text-xs space-y-1 h-full flex flex-col overflow-hidden text-center ${cellColor}`}>
-                                                    <p className="font-bold whitespace-nowrap overflow-ellipsis overflow-hidden">{assignment.projectNumber}</p>
-                                                    <p className="flex-grow min-w-0 break-words" title={assignment.projectName}>{assignment.projectName}</p>
-                                                    <p className="whitespace-nowrap overflow-ellipsis overflow-hidden" title={assignment.client}>{assignment.client}</p>
-                                                    <p className="font-semibold">{assignment.task}</p>
-                                                    <p className="font-semibold">{assignment.shift}</p>
-                                                    <p className="text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-ellipsis overflow-hidden" title={assignment.comment}>{assignment.comment}</p>
-                                                </div>
-                                            );
-                                        }
-                                    }
-
-                                    return (
-                                        <td key={date.toISOString()} className="p-1 align-top h-40 relative group">
-                                            <div 
-                                                onClick={() => handleCellClick(user.id, date, dayIndex)}
-                                                className={`w-full h-full text-left rounded-md ${isAdminOrManager ? 'cursor-pointer' : 'cursor-default'}`}
-                                            >
-                                                {cellContent}
-                                            </div>
-                                            {isAdminOrManager && (
-                                                <button 
-                                                    onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment)}
-                                                    className="absolute top-1 right-1 p-1 rounded-full bg-gray-300/20 dark:bg-gray-900/20 hover:bg-gray-400/50 dark:hover:bg-gray-700/50"
-                                                >
-                                                    <MoreVertical size={14} />
-                                                </button>
-                                            )}
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {contextMenu.visible && (
-                <ContextMenu 
-                    x={contextMenu.x} 
-                    y={contextMenu.y} 
-                    cellData={contextMenu.cellData}
-                    clipboard={clipboard}
-                    onAction={handleContextMenuAction}
-                    onClose={() => setContextMenu({ visible: false })}
-                />
-            )}
-            {selectedCell && (
-                <AllocationModal
-                    isOpen={isAllocationModalOpen}
-                    onClose={() => setIsAllocationModalOpen(false)}
-                    onSave={handleSaveAllocation}
-                    user={selectedUser}
-                    date={selectedCell.date}
-                    currentAssignment={currentWeekAllocations[selectedCell.userId]?.assignments[selectedCell.dayIndex] || null}
-                    projects={projects}
-                />
-            )}
-            <ShowHideUsersModal
-                isOpen={isManageUsersModalOpen}
-                onClose={() => setIsManageUsersModalOpen(false)}
-                onSave={handleUpdateVisibleUsers}
-                allUsers={allUsers}
-                visibleUserIds={visibleUserIds}
-            />
-        </div>
-    );
-};
 
 const ShowHideUsersModal = ({ isOpen, onClose, onSave, allUsers, visibleUserIds }) => {
     const [selectedIds, setSelectedIds] = useState(visibleUserIds);
@@ -5332,14 +5305,250 @@ const ProjectsAnalytics = () => {
 };
 
 const ResourceAnalytics = () => {
-    const handleExport = (format) => {
-        alert(`Exporting Resource Analytics as ${format} is not implemented yet.`);
+    const { users } = useUsers();
+    const [allocations, setAllocations] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [dateRange, setDateRange] = useState({
+        start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
+        end: new Date().toISOString().split('T')[0] // today
+    });
+
+    useEffect(() => {
+        const fetchResourceData = async () => {
+            setLoading(true);
+            try {
+                const { data, error } = await supabase
+                    .from('resource_allocations')
+                    .select('*')
+                    .gte('allocation_date', dateRange.start)
+                    .lte('allocation_date', dateRange.end);
+
+                if (error) throw error;
+                setAllocations(data || []);
+            } catch (err) {
+                console.error('Error fetching resource analytics data:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchResourceData();
+    }, [dateRange]);
+
+    const handleFilter = () => {
+        // Filter is automatically applied via useEffect when dateRange changes
     };
+
+    const handleExport = (format) => {
+        if (format === 'csv') {
+            exportResourceDataAsCSV();
+        } else if (format === 'txt') {
+            exportResourceDataAsTXT();
+        }
+    };
+
+    const exportResourceDataAsCSV = () => {
+        const headers = ['Date', 'User', 'Type', 'Project/Leave', 'Shift', 'Comment'];
+        const rows = allocations.map(alloc => [
+            alloc.allocation_date,
+            users.find(u => u.id === alloc.user_id)?.name || 'Unknown',
+            alloc.assignment_type,
+            alloc.assignment_type === 'project' ? `${alloc.project_number} - ${alloc.project_name}` : alloc.leave_type,
+            alloc.shift || '',
+            alloc.comment || ''
+        ]);
+
+        const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `resource-analytics-${dateRange.start}-to-${dateRange.end}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const exportResourceDataAsTXT = () => {
+        const content = allocations.map(alloc => {
+            const user = users.find(u => u.id === alloc.user_id)?.name || 'Unknown';
+            const project = alloc.assignment_type === 'project' ? `${alloc.project_number} - ${alloc.project_name}` : alloc.leave_type;
+            return `${alloc.allocation_date} | ${user} | ${alloc.assignment_type} | ${project} | ${alloc.shift || ''} | ${alloc.comment || ''}`;
+        }).join('\n');
+
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `resource-analytics-${dateRange.start}-to-${dateRange.end}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // Calculate analytics
+    const totalAllocations = allocations.length;
+    const projectAllocations = allocations.filter(a => a.assignment_type === 'project').length;
+    const leaveAllocations = allocations.filter(a => a.assignment_type === 'leave').length;
+    const utilizationRate = totalAllocations > 0 ? ((projectAllocations / totalAllocations) * 100).toFixed(1) : 0;
+
+    // User utilization stats
+    const userStats = users.map(user => {
+        const userAllocations = allocations.filter(a => a.user_id === user.id);
+        const userProjects = userAllocations.filter(a => a.assignment_type === 'project').length;
+        const userLeave = userAllocations.filter(a => a.assignment_type === 'leave').length;
+        const userUtilization = userAllocations.length > 0 ? ((userProjects / userAllocations.length) * 100).toFixed(1) : 0;
+
+        return {
+            name: user.name,
+            totalDays: userAllocations.length,
+            projectDays: userProjects,
+            leaveDays: userLeave,
+            utilization: userUtilization
+        };
+    }).filter(stat => stat.totalDays > 0);
+
+    // Leave type breakdown
+    const leaveTypes = {};
+    allocations.filter(a => a.assignment_type === 'leave').forEach(alloc => {
+        leaveTypes[alloc.leave_type] = (leaveTypes[alloc.leave_type] || 0) + 1;
+    });
+
+    // Shift distribution
+    const shiftDistribution = {};
+    allocations.filter(a => a.assignment_type === 'project' && a.shift).forEach(alloc => {
+        shiftDistribution[alloc.shift] = (shiftDistribution[alloc.shift] || 0) + 1;
+    });
+
+    // Top projects by allocation
+    const projectStats = {};
+    allocations.filter(a => a.assignment_type === 'project').forEach(alloc => {
+        const key = `${alloc.project_number} - ${alloc.project_name}`;
+        projectStats[key] = (projectStats[key] || 0) + 1;
+    });
+    const topProjects = Object.entries(projectStats)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10);
+
+    if (loading) {
+        return (
+            <div className="space-y-6">
+                <div className="flex items-center justify-center p-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                    <span className="ml-2 text-gray-600 dark:text-gray-400">Loading resource analytics...</span>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
-             <AnalyticsToolbar onExport={handleExport} onFilter={() => {}} dateRange={{start:'', end: ''}} setDateRange={() => {}} />
-            <AnalyticsCard title="Resource Utilization (Placeholder)">
-                <p>Resource analytics charts and data would go here.</p>
+            <AnalyticsToolbar
+                onExport={handleExport}
+                onFilter={handleFilter}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+            />
+
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Allocations</h3>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalAllocations}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Project Days</h3>
+                    <p className="text-2xl font-bold text-green-600">{projectAllocations}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Leave Days</h3>
+                    <p className="text-2xl font-bold text-blue-600">{leaveAllocations}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Utilization Rate</h3>
+                    <p className="text-2xl font-bold text-orange-600">{utilizationRate}%</p>
+                </div>
+            </div>
+
+            {/* User Utilization */}
+            <AnalyticsCard title="User Utilization">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                        <thead>
+                            <tr className="border-b border-gray-200 dark:border-gray-700">
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">User</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">Total Days</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">Project Days</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">Leave Days</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">Utilization</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {userStats.map(stat => (
+                                <tr key={stat.name} className="border-b border-gray-100 dark:border-gray-700">
+                                    <td className="py-2 px-3 text-gray-900 dark:text-white">{stat.name}</td>
+                                    <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{stat.totalDays}</td>
+                                    <td className="py-2 px-3 text-green-600">{stat.projectDays}</td>
+                                    <td className="py-2 px-3 text-blue-600">{stat.leaveDays}</td>
+                                    <td className="py-2 px-3">
+                                        <span className={`font-medium ${stat.utilization >= 80 ? 'text-green-600' : stat.utilization >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                            {stat.utilization}%
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </AnalyticsCard>
+
+            {/* Leave Types & Shift Distribution */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AnalyticsCard title="Leave Types Breakdown">
+                    <div className="space-y-3">
+                        {Object.entries(leaveTypes).map(([type, count]) => (
+                            <div key={type} className="flex justify-between items-center">
+                                <span className="text-gray-900 dark:text-white">{type}</span>
+                                <span className="font-medium text-blue-600">{count} days</span>
+                            </div>
+                        ))}
+                        {Object.keys(leaveTypes).length === 0 && (
+                            <p className="text-gray-500 dark:text-gray-400">No leave data for selected period</p>
+                        )}
+                    </div>
+                </AnalyticsCard>
+
+                <AnalyticsCard title="Shift Distribution">
+                    <div className="space-y-3">
+                        {Object.entries(shiftDistribution).map(([shift, count]) => (
+                            <div key={shift} className="flex justify-between items-center">
+                                <span className="text-gray-900 dark:text-white">{shift}</span>
+                                <span className="font-medium text-green-600">{count} allocations</span>
+                            </div>
+                        ))}
+                        {Object.keys(shiftDistribution).length === 0 && (
+                            <p className="text-gray-500 dark:text-gray-400">No shift data for selected period</p>
+                        )}
+                    </div>
+                </AnalyticsCard>
+            </div>
+
+            {/* Top Projects */}
+            <AnalyticsCard title="Top Projects by Allocation">
+                <div className="space-y-3">
+                    {topProjects.map(([project, count], index) => (
+                        <div key={project} className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
+                                    #{index + 1}
+                                </span>
+                                <span className="text-gray-900 dark:text-white">{project}</span>
+                            </div>
+                            <span className="font-medium text-orange-600">{count} days</span>
+                        </div>
+                    ))}
+                    {topProjects.length === 0 && (
+                        <p className="text-gray-500 dark:text-gray-400">No project data for selected period</p>
+                    )}
+                </div>
             </AnalyticsCard>
         </div>
     );
@@ -6379,9 +6588,7 @@ const MainLayout = () => {
             case 'Projects': return <ProjectsPage onViewProject={handleViewProject} />;
             case 'Announcements': return <AnnouncementsPage />;
             case 'Feedback': return <FeedbackPage />;
-            case 'Assigned Tasks': return <AssignedTasksPage />;
-            case 'Resource': return <ResourcePage onViewProject={handleViewProject} />;
-            case 'Resource Calendar': return <ResourceCalendarPage />;
+            case 'Resource Calendar': return <ResourceCalendarPage onViewProject={handleViewProject} />;
             case 'Project Tasks': return <ProjectTasksPage />;
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
             case 'Delivery Tasks': return <DeliveryTasksPage />;
@@ -6514,18 +6721,14 @@ const MainAppLayout = () => {
         return <DashboardPage onViewProject={setSelectedProject} setActiveTab={handleSetActiveTab} />;
       case 'Projects':
         return <ProjectsPage onViewProject={setSelectedProject} />;
-      case 'Assigned Tasks':
-        return <AssignedTasksPage />;
       case 'Resource Calendar':
-        return <ResourceCalendarPage />;
+        return <ResourceCalendarPage onViewProject={setSelectedProject} />;
       case 'Project Tasks':
         return <ProjectTasksPage />;
       case 'Delivery Tracker':
         return <DeliveryTrackerPage />;
       case 'Delivery Tasks':
         return <DeliveryTasksPage />;
-      case 'Resource':
-        return <ResourceAllocationPage />;
       case 'User Admin':
         return <UserAdmin />;
       case 'Announcements':
