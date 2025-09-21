@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -495,6 +495,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const [deliveryTeamManuallyCollapsed, setDeliveryTeamManuallyCollapsed] = useState(false);
     const [projectTeamExpanded, setProjectTeamExpanded] = useState(false);
     const [projectTeamManuallyCollapsed, setProjectTeamManuallyCollapsed] = useState(false);
+    const [trainingCentreExpanded, setTrainingCentreExpanded] = useState(false);
+    const [trainingCentreManuallyCollapsed, setTrainingCentreManuallyCollapsed] = useState(false);
     const sidebarRef = useRef(null);
 
     const allNavItems = [
@@ -520,6 +522,17 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             subItems: [
                 { name: 'Delivery Tracker', parent: 'Delivery Team' },
                 { name: 'Delivery Tasks', parent: 'Delivery Team' }
+            ]
+        },
+        {
+            name: 'Training Centre',
+            icon: Presentation,
+            show: true,
+            isCollapsible: true,
+            subItems: [
+                { name: 'Standards', parent: 'Training Centre' },
+                { name: 'Procedures', parent: 'Training Centre' },
+                { name: 'Video Tutorials', parent: 'Training Centre' }
             ]
         },
         { name: 'Analytics', icon: TrendingUp, show: privileges.canViewAnalytics },
@@ -554,6 +567,16 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                 } else if (newExpandedState) {
                     setProjectTeamManuallyCollapsed(false);
                 }
+            } else if (item.name === 'Training Centre') {
+                const newExpandedState = !trainingCentreExpanded;
+                setTrainingCentreExpanded(newExpandedState);
+
+                // Track if user manually collapsed when on an active page
+                if (isTrainingCentreActive && !newExpandedState) {
+                    setTrainingCentreManuallyCollapsed(true);
+                } else if (newExpandedState) {
+                    setTrainingCentreManuallyCollapsed(false);
+                }
             }
             // Don't close sidebar in mobile when just toggling collapsible menu
         } else {
@@ -571,6 +594,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
 
     const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Tasks';
     const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Project Tasks';
+    const isTrainingCentreActive = activeTab === 'Standards' || activeTab === 'Procedures' || activeTab === 'Video Tutorials';
 
     // Reset manually collapsed state when navigating away from team pages
     useEffect(() => {
@@ -580,7 +604,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         if (!isProjectTeamActive) {
             setProjectTeamManuallyCollapsed(false);
         }
-    }, [isDeliveryTeamActive, isProjectTeamActive]);
+        if (!isTrainingCentreActive) {
+            setTrainingCentreManuallyCollapsed(false);
+        }
+    }, [isDeliveryTeamActive, isProjectTeamActive, isTrainingCentreActive]);
 
     // Close sidebar when clicking outside in mobile mode
     useEffect(() => {
@@ -611,7 +638,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                 className={`flex items-center px-4 py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
                                     (activeTab === item.name ||
                                      (item.name === 'Delivery Team' && (isDeliveryTeamActive || deliveryTeamExpanded)) ||
-                                     (item.name === 'Project Team' && (isProjectTeamActive || projectTeamExpanded)))
+                                     (item.name === 'Project Team' && (isProjectTeamActive || projectTeamExpanded)) ||
+                                     (item.name === 'Training Centre' && (isTrainingCentreActive || trainingCentreExpanded)))
                                         ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
                                         : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
                                 }`}
@@ -623,7 +651,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                         size={16} 
                                         className={`ml-2 transition-transform duration-200 ${
                                             (item.name === 'Delivery Team' && (deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed))) ||
-                                            (item.name === 'Project Team' && (projectTeamExpanded || (isProjectTeamActive && !projectTeamManuallyCollapsed)))
+                                            (item.name === 'Project Team' && (projectTeamExpanded || (isProjectTeamActive && !projectTeamManuallyCollapsed))) ||
+                                            (item.name === 'Training Centre' && (trainingCentreExpanded || (isTrainingCentreActive && !trainingCentreManuallyCollapsed)))
                                                 ? 'rotate-180' : ''
                                         }`} 
                                     />
@@ -631,7 +660,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                             </a>
                             {item.isCollapsible && (
                                 (item.name === 'Delivery Team' && (deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed))) ||
-                                (item.name === 'Project Team' && (projectTeamExpanded || (isProjectTeamActive && !projectTeamManuallyCollapsed)))
+                                (item.name === 'Project Team' && (projectTeamExpanded || (isProjectTeamActive && !projectTeamManuallyCollapsed))) ||
+                                (item.name === 'Training Centre' && (trainingCentreExpanded || (isTrainingCentreActive && !trainingCentreManuallyCollapsed)))
                             ) && (
                                 <ul className="ml-4 mt-1 space-y-1">
                                     {item.subItems.map(subItem => (
@@ -1863,6 +1893,9 @@ const FeedbackPage = () => {
 };
 
 const DropdownMenuPage = () => {
+    const { user: currentUser } = useAuth();
+    const isAdminOrSuperAdmin = currentUser && (currentUser.privilege === 'Admin' || currentUser.privilege === 'Super Admin');
+
     const [categories, setCategories] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [items, setItems] = useState([]);
@@ -1870,10 +1903,13 @@ const DropdownMenuPage = () => {
     const [categoryLoading, setCategoryLoading] = useState(false);
     const [itemsLoading, setItemsLoading] = useState(false);
     const [isCreateCategoryModalOpen, setIsCreateCategoryModalOpen] = useState(false);
+    const [isEditCategoryModalOpen, setIsEditCategoryModalOpen] = useState(false);
     const [isCreateItemModalOpen, setIsCreateItemModalOpen] = useState(false);
     const [isEditItemModalOpen, setIsEditItemModalOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
+    const [selectedCategoryForEdit, setSelectedCategoryForEdit] = useState(null);
     const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+    const [deleteCategoryConfirmation, setDeleteCategoryConfirmation] = useState(null);
     const { showSuccessModal, showErrorModal } = useToast();
 
     useEffect(() => {
@@ -1957,6 +1993,87 @@ const DropdownMenuPage = () => {
         }
     };
 
+    const updateCategory = async (categoryId, categoryData) => {
+        try {
+            setCategoryLoading(true);
+            const { data, error } = await supabase
+                .from('dropdown_categories')
+                .update(categoryData)
+                .eq('id', categoryId)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setCategories(prev => prev.map(cat => cat.id === categoryId ? data : cat).sort((a, b) => a.name.localeCompare(b.name)));
+
+            // Update selectedCategory if it was the one being edited
+            if (selectedCategory?.id === categoryId) {
+                setSelectedCategory(data);
+            }
+
+            setIsEditCategoryModalOpen(false);
+            setSelectedCategoryForEdit(null);
+            showSuccessModal('Category updated successfully');
+        } catch (error) {
+            console.error('Error updating category:', error);
+            showErrorModal('Error updating category');
+        } finally {
+            setCategoryLoading(false);
+        }
+    };
+
+    const deleteCategory = async (categoryId) => {
+        try {
+            setCategoryLoading(true);
+
+            // First check if there are items in this category
+            const { data: itemsCheck, error: itemsError } = await supabase
+                .from('dropdown_items')
+                .select('id')
+                .eq('category_id', categoryId);
+
+            if (itemsError) throw itemsError;
+
+            if (itemsCheck && itemsCheck.length > 0) {
+                showErrorModal('Cannot delete category with existing items. Please delete all items first.');
+                return;
+            }
+
+            const { error } = await supabase
+                .from('dropdown_categories')
+                .delete()
+                .eq('id', categoryId);
+
+            if (error) throw error;
+
+            setCategories(prev => prev.filter(cat => cat.id !== categoryId));
+
+            // Clear selection if deleted category was selected
+            if (selectedCategory?.id === categoryId) {
+                setSelectedCategory(null);
+                setItems([]);
+            }
+
+            setDeleteCategoryConfirmation(null);
+            showSuccessModal('Category deleted successfully');
+        } catch (error) {
+            console.error('Error deleting category:', error);
+            showErrorModal('Error deleting category');
+        } finally {
+            setCategoryLoading(false);
+        }
+    };
+
+    const handleEditCategory = (category) => {
+        setSelectedCategoryForEdit(category);
+        setIsEditCategoryModalOpen(true);
+    };
+
+    const handleDeleteCategory = (category) => {
+        setDeleteCategoryConfirmation(category);
+    };
+
     const createItem = async (itemData) => {
         try {
             const { data, error } = await supabase
@@ -2024,6 +2141,62 @@ const DropdownMenuPage = () => {
         setDeleteConfirmation(item);
     };
 
+    const reorderItems = async (itemId, newOrder) => {
+        try {
+            const currentItem = items.find(item => item.id === itemId);
+            if (!currentItem || currentItem.sort_order === newOrder) return;
+
+            const oldOrder = currentItem.sort_order;
+
+            // Create a copy of items for manipulation
+            let itemsToUpdate = [...items];
+
+            if (newOrder > oldOrder) {
+                // Moving down: shift items up
+                itemsToUpdate = itemsToUpdate.map(item => {
+                    if (item.id === itemId) {
+                        return { ...item, sort_order: newOrder };
+                    } else if (item.sort_order > oldOrder && item.sort_order <= newOrder) {
+                        return { ...item, sort_order: item.sort_order - 1 };
+                    }
+                    return item;
+                });
+            } else {
+                // Moving up: shift items down
+                itemsToUpdate = itemsToUpdate.map(item => {
+                    if (item.id === itemId) {
+                        return { ...item, sort_order: newOrder };
+                    } else if (item.sort_order >= newOrder && item.sort_order < oldOrder) {
+                        return { ...item, sort_order: item.sort_order + 1 };
+                    }
+                    return item;
+                });
+            }
+
+            // Update all affected items in database
+            const updates = itemsToUpdate
+                .filter(item => {
+                    const originalItem = items.find(orig => orig.id === item.id);
+                    return originalItem && originalItem.sort_order !== item.sort_order;
+                })
+                .map(item =>
+                    supabase
+                        .from('dropdown_items')
+                        .update({ sort_order: item.sort_order })
+                        .eq('id', item.id)
+                );
+
+            await Promise.all(updates);
+
+            // Update local state
+            setItems(itemsToUpdate.sort((a, b) => a.sort_order - b.sort_order));
+            showSuccessModal('Items reordered successfully');
+        } catch (error) {
+            console.error('Error reordering items:', error);
+            showErrorModal('Error reordering items');
+        }
+    };
+
     if (loading) {
         return (
             <div className="p-6">
@@ -2046,14 +2219,16 @@ const DropdownMenuPage = () => {
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                         <h2 className="text-lg font-medium text-gray-900 dark:text-white">Categories</h2>
-                        <Button
-                            onClick={() => setIsCreateCategoryModalOpen(true)}
-                            size="sm"
-                            className="bg-orange-500 hover:bg-orange-600"
-                        >
-                            <PlusCircle size={16} className="mr-1" />
-                            Add
-                        </Button>
+                        {isAdminOrSuperAdmin && (
+                            <Button
+                                onClick={() => setIsCreateCategoryModalOpen(true)}
+                                size="sm"
+                                className="bg-orange-500 hover:bg-orange-600"
+                            >
+                                <PlusCircle size={16} className="mr-1" />
+                                Add
+                            </Button>
+                        )}
                     </div>
                     <div className="divide-y divide-gray-200 dark:divide-gray-700">
                         {categories.length === 0 ? (
@@ -2064,19 +2239,51 @@ const DropdownMenuPage = () => {
                             categories.map((category) => (
                                 <div
                                     key={category.id}
-                                    className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                                    className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
                                         selectedCategory?.id === category.id ? 'bg-orange-50 dark:bg-orange-500/10 border-r-4 border-orange-500' : ''
                                     }`}
-                                    onClick={() => setSelectedCategory(category)}
                                 >
-                                    <h3 className="font-medium text-gray-900 dark:text-white capitalize">
-                                        {category.name.replace('_', ' ')}
-                                    </h3>
-                                    {category.description && (
-                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                            {category.description}
-                                        </p>
-                                    )}
+                                    <div className="flex justify-between items-start">
+                                        <div
+                                            className="flex-1 cursor-pointer"
+                                            onClick={() => setSelectedCategory(category)}
+                                        >
+                                            <h3 className="font-medium text-gray-900 dark:text-white capitalize">
+                                                {category.name.replace('_', ' ')}
+                                            </h3>
+                                            {category.description && (
+                                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                    {category.description}
+                                                </p>
+                                            )}
+                                        </div>
+                                        {isAdminOrSuperAdmin && (
+                                            <div className="flex gap-1 ml-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleEditCategory(category);
+                                                    }}
+                                                    className="p-1 h-auto"
+                                                >
+                                                    <Edit size={12} />
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteCategory(category);
+                                                    }}
+                                                    className="p-1 h-auto text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             ))
                         )}
@@ -2088,7 +2295,7 @@ const DropdownMenuPage = () => {
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                         <div>
                             <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                                {selectedCategory ? `${selectedCategory.name.replace('_', ' ')} Items` : 'Select a Category'}
+                                {selectedCategory ? 'Items' : 'Select a Category'}
                             </h2>
                             {selectedCategory && (
                                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -2096,7 +2303,7 @@ const DropdownMenuPage = () => {
                                 </p>
                             )}
                         </div>
-                        {selectedCategory && (
+                        {selectedCategory && isAdminOrSuperAdmin && (
                             <Button
                                 onClick={() => setIsCreateItemModalOpen(true)}
                                 size="sm"
@@ -2123,43 +2330,66 @@ const DropdownMenuPage = () => {
                                     </p>
                                 </div>
                             ) : (
-                                items.map((item) => (
+                                items.map((item, index) => (
                                     <div key={item.id} className="p-4 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-sm text-gray-500 dark:text-gray-400">
-                                                    #{item.sort_order}
-                                                </span>
-                                                <h3 className="font-medium text-gray-900 dark:text-white">
-                                                    {item.display_text}
-                                                </h3>
-                                                {!item.is_active && (
-                                                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                                                        Inactive
+                                        <div className="flex-1 flex items-center gap-3">
+                                            {isAdminOrSuperAdmin && (
+                                                <div className="flex flex-col gap-1">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => reorderItems(item.id, item.sort_order - 1)}
+                                                        disabled={index === 0}
+                                                        className="p-1 h-auto"
+                                                    >
+                                                        <ChevronUp size={12} />
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => reorderItems(item.id, item.sort_order + 1)}
+                                                        disabled={index === items.length - 1}
+                                                        className="p-1 h-auto"
+                                                    >
+                                                        <ChevronDown size={12} />
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                        #{item.sort_order}
                                                     </span>
-                                                )}
+                                                    <h3 className="font-medium text-gray-900 dark:text-white">
+                                                        {item.display_text}
+                                                    </h3>
+                                                    {!item.is_active && (
+                                                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                                            Inactive
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                                Value: {item.value}
-                                            </p>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleEditItem(item)}
-                                            >
-                                                <Edit size={14} />
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleDeleteItem(item)}
-                                                className="text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-500/10"
-                                            >
-                                                <Trash2 size={14} />
-                                            </Button>
-                                        </div>
+                                        {isAdminOrSuperAdmin && (
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleEditItem(item)}
+                                                >
+                                                    <Edit size={14} />
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteItem(item)}
+                                                    className="text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))
                             )}
@@ -2207,7 +2437,20 @@ const DropdownMenuPage = () => {
                 isEdit={true}
             />
 
-            {/* Delete Confirmation Modal */}
+            {/* Edit Category Modal */}
+            <CategoryModal
+                isOpen={isEditCategoryModalOpen}
+                onClose={() => {
+                    setIsEditCategoryModalOpen(false);
+                    setSelectedCategoryForEdit(null);
+                }}
+                onSave={(categoryData) => updateCategory(selectedCategoryForEdit.id, categoryData)}
+                loading={categoryLoading}
+                category={selectedCategoryForEdit}
+                isEdit={true}
+            />
+
+            {/* Delete Item Confirmation Modal */}
             {deleteConfirmation && (
                 <ConfirmationModal
                     isOpen={!!deleteConfirmation}
@@ -2219,11 +2462,24 @@ const DropdownMenuPage = () => {
                     confirmVariant="danger"
                 />
             )}
+
+            {/* Delete Category Confirmation Modal */}
+            {deleteCategoryConfirmation && (
+                <ConfirmationModal
+                    isOpen={!!deleteCategoryConfirmation}
+                    onClose={() => setDeleteCategoryConfirmation(null)}
+                    onConfirm={() => deleteCategory(deleteCategoryConfirmation.id)}
+                    title="Delete Category"
+                    message={`Are you sure you want to delete "${deleteCategoryConfirmation.name}"? This will also delete all items in this category. This action cannot be undone.`}
+                    confirmText="Delete"
+                    confirmVariant="danger"
+                />
+            )}
         </div>
     );
 };
 
-const CategoryModal = ({ isOpen, onClose, onSave, loading }) => {
+const CategoryModal = ({ isOpen, onClose, onSave, loading, category, isEdit = false }) => {
     const [formData, setFormData] = useState({
         name: '',
         description: ''
@@ -2232,21 +2488,28 @@ const CategoryModal = ({ isOpen, onClose, onSave, loading }) => {
     useEffect(() => {
         if (!isOpen) {
             setFormData({ name: '', description: '' });
+        } else if (isEdit && category) {
+            setFormData({
+                name: category.name,
+                description: category.description || ''
+            });
         }
-    }, [isOpen]);
+    }, [isOpen, isEdit, category]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!formData.name.trim()) return;
 
-        onSave({
-            name: formData.name.toLowerCase().replace(/\s+/g, '_'),
+        const saveData = {
+            name: isEdit ? formData.name : formData.name.toLowerCase().replace(/\s+/g, '_'),
             description: formData.description.trim()
-        });
+        };
+
+        onSave(saveData);
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Create Category">
+        <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? "Edit Category" : "Create Category"}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -2256,12 +2519,13 @@ const CategoryModal = ({ isOpen, onClose, onSave, loading }) => {
                         type="text"
                         value={formData.name}
                         onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className={`w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${isEdit ? 'bg-gray-100 dark:bg-gray-600 cursor-not-allowed' : ''}`}
                         placeholder="e.g., project_status"
+                        disabled={isEdit}
                         required
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Will be converted to lowercase with underscores
+                        {isEdit ? 'Category name cannot be changed' : 'Will be converted to lowercase with underscores'}
                     </p>
                 </div>
                 <div>
@@ -2279,7 +2543,7 @@ const CategoryModal = ({ isOpen, onClose, onSave, loading }) => {
                 <div className="flex gap-2 pt-4">
                     <Button type="submit" disabled={loading || !formData.name.trim()}>
                         {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Create Category
+                        {isEdit ? 'Update Category' : 'Create Category'}
                     </Button>
                     <Button type="button" variant="outline" onClick={onClose}>
                         Cancel
@@ -2322,10 +2586,10 @@ const ItemModal = ({ isOpen, onClose, onSave, category, existingItems, item, isE
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!formData.value.trim() || !formData.display_text.trim()) return;
+        if (!formData.display_text.trim()) return;
 
         onSave({
-            value: formData.value.toLowerCase().replace(/\s+/g, '_'),
+            value: formData.display_text.trim(),
             display_text: formData.display_text.trim(),
             sort_order: parseInt(formData.sort_order),
             is_active: formData.is_active
@@ -2335,22 +2599,6 @@ const ItemModal = ({ isOpen, onClose, onSave, category, existingItems, item, isE
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`${isEdit ? 'Edit' : 'Create'} Item`}>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Value *
-                    </label>
-                    <input
-                        type="text"
-                        value={formData.value}
-                        onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        placeholder="e.g., project_manager"
-                        required
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Internal value used in code (lowercase, underscores)
-                    </p>
-                </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Display Text *
@@ -2398,7 +2646,7 @@ const ItemModal = ({ isOpen, onClose, onSave, category, existingItems, item, isE
                     </p>
                 </div>
                 <div className="flex gap-2 pt-4">
-                    <Button type="submit" disabled={!formData.value.trim() || !formData.display_text.trim()}>
+                    <Button type="submit" disabled={!formData.display_text.trim()}>
                         {isEdit ? 'Update' : 'Create'} Item
                     </Button>
                     <Button type="button" variant="outline" onClick={onClose}>
@@ -3269,6 +3517,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const isAdminOrManager = currentUser.privilege === 'Admin' || currentUser.privilege === 'Project Managers';
     const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
     const { projects } = useProjects();
+    const { teamRoles } = useTeamRoles();
+
+    const getTeamRoleDisplayText = (roleValue) => {
+        const role = teamRoles.find(r => r.value === roleValue);
+        return role ? role.display_text : roleValue;
+    };
 
     const [allocations, setAllocations] = useState({});
     const [loading, setLoading] = useState(true);
@@ -7493,6 +7747,497 @@ const MainLayout = () => {
         setActiveTab('Projects');
     };
 
+    // Training Centre Components
+    const StandardsPage = () => {
+        return (
+            <div className="p-6">
+                <div className="text-center py-12">
+                    <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Standards</h2>
+                    <p className="text-gray-600 dark:text-gray-400">This page is under construction.</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Standards and guidelines will be available here soon.</p>
+                </div>
+            </div>
+        );
+    };
+
+    const ProceduresPage = () => {
+        return (
+            <div className="p-6">
+                <div className="text-center py-12">
+                    <ClipboardList className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Procedures</h2>
+                    <p className="text-gray-600 dark:text-gray-400">This page is under construction.</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Standard operating procedures will be available here soon.</p>
+                </div>
+            </div>
+        );
+    };
+
+    const VideoTutorialsPage = () => {
+        const { user } = useAuth();
+        const isAdminOrSuperAdmin = user && (user.privilege === 'Admin' || user.privilege === 'Super Admin');
+        const { showSuccessModal, showErrorModal } = useToast();
+
+        const [videos, setVideos] = useState([]);
+        const [categories, setCategories] = useState([]);
+        const [loading, setLoading] = useState(true);
+        const [selectedCategory, setSelectedCategory] = useState('All');
+        const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+        const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+        const [selectedVideo, setSelectedVideo] = useState(null);
+        const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+
+        useEffect(() => {
+            fetchVideos();
+            fetchCategories();
+        }, []);
+
+        const fetchVideos = async () => {
+            try {
+                setLoading(true);
+                const { data, error } = await supabase
+                    .from('video_tutorials')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('sort_order', { ascending: true });
+
+                if (error) throw error;
+                setVideos(data || []);
+            } catch (error) {
+                console.error('Error fetching videos:', error);
+                showErrorModal('Error loading videos');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const fetchCategories = async () => {
+            try {
+                // Get video_tutorials category
+                const { data: categoryData, error: categoryError } = await supabase
+                    .from('dropdown_categories')
+                    .select('id')
+                    .eq('name', 'video_tutorials')
+                    .single();
+
+                if (categoryError) throw categoryError;
+
+                // Get category items
+                const { data: itemsData, error: itemsError } = await supabase
+                    .from('dropdown_items')
+                    .select('*')
+                    .eq('category_id', categoryData.id)
+                    .eq('is_active', true)
+                    .order('sort_order', { ascending: true });
+
+                if (itemsError) throw itemsError;
+                setCategories(itemsData || []);
+            } catch (error) {
+                console.error('Error fetching categories:', error);
+            }
+        };
+
+        const createVideo = async (videoData) => {
+            try {
+                const { data, error } = await supabase
+                    .from('video_tutorials')
+                    .insert([{
+                        ...videoData,
+                        created_by: user.id,
+                        sort_order: videos.length + 1
+                    }])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                setVideos(prev => [...prev, data]);
+                setIsAddModalOpen(false);
+                showSuccessModal('Video added successfully');
+            } catch (error) {
+                console.error('Error creating video:', error);
+                showErrorModal('Error adding video');
+            }
+        };
+
+        const updateVideo = async (videoId, videoData) => {
+            try {
+                const { data, error } = await supabase
+                    .from('video_tutorials')
+                    .update(videoData)
+                    .eq('id', videoId)
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                setVideos(prev => prev.map(video => video.id === videoId ? data : video));
+                setIsEditModalOpen(false);
+                setSelectedVideo(null);
+                showSuccessModal('Video updated successfully');
+            } catch (error) {
+                console.error('Error updating video:', error);
+                showErrorModal('Error updating video');
+            }
+        };
+
+        const deleteVideo = async (videoId) => {
+            try {
+                const { error } = await supabase
+                    .from('video_tutorials')
+                    .update({ is_active: false })
+                    .eq('id', videoId);
+
+                if (error) throw error;
+
+                setVideos(prev => prev.filter(video => video.id !== videoId));
+                setDeleteConfirmation(null);
+                showSuccessModal('Video deleted successfully');
+            } catch (error) {
+                console.error('Error deleting video:', error);
+                showErrorModal('Error deleting video');
+            }
+        };
+
+        const getYouTubeThumbnail = (url) => {
+            try {
+                const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+                if (videoId) {
+                    return `https://img.youtube.com/vi/${videoId[1]}/mqdefault.jpg`;
+                }
+                return null;
+            } catch (error) {
+                return null;
+            }
+        };
+
+        const filteredVideos = selectedCategory === 'All'
+            ? videos
+            : videos.filter(video => video.category_value === selectedCategory);
+
+        const getCategoryDisplayName = (categoryValue) => {
+            const category = categories.find(cat => cat.value === categoryValue);
+            return category ? category.display_text : categoryValue;
+        };
+
+        if (loading) {
+            return (
+                <div className="p-6">
+                    <div className="flex justify-center items-center h-64">
+                        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="p-6">
+                <div className="mb-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Video Tutorials</h1>
+                            <p className="text-gray-600 dark:text-gray-400">Learn through our comprehensive video library</p>
+                        </div>
+                        {isAdminOrSuperAdmin && (
+                            <Button
+                                onClick={() => setIsAddModalOpen(true)}
+                                className="bg-orange-500 hover:bg-orange-600"
+                            >
+                                <PlusCircle size={16} className="mr-2" />
+                                Add Video
+                            </Button>
+                        )}
+                    </div>
+
+                    {/* Category Filter */}
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Filter by Category
+                        </label>
+                        <select
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            className="w-64 p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                            <option value="All">All Categories</option>
+                            {categories.map(category => (
+                                <option key={category.id} value={category.value}>
+                                    {category.display_text}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                {/* Videos Grid */}
+                {filteredVideos.length === 0 ? (
+                    <div className="text-center py-12">
+                        <Presentation className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                            {selectedCategory === 'All' ? 'No videos available' : `No videos in ${getCategoryDisplayName(selectedCategory)}`}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-400">
+                            {isAdminOrSuperAdmin ? 'Click "Add Video" to get started.' : 'Check back later for new content.'}
+                        </p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {filteredVideos.map(video => (
+                            <div key={video.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow">
+                                {/* Thumbnail */}
+                                <div className="aspect-video bg-gray-100 dark:bg-gray-700">
+                                    {getYouTubeThumbnail(video.url) ? (
+                                        <img
+                                            src={getYouTubeThumbnail(video.url)}
+                                            alt={video.title}
+                                            className="w-full h-full object-cover cursor-pointer"
+                                            onClick={() => window.open(video.url, '_blank')}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center cursor-pointer"
+                                             onClick={() => window.open(video.url, '_blank')}>
+                                            <Presentation className="h-12 w-12 text-gray-400" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Content */}
+                                <div className="p-4">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-2 flex-1">
+                                            {video.title}
+                                        </h3>
+                                        {isAdminOrSuperAdmin && (
+                                            <div className="flex gap-1 ml-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setSelectedVideo(video);
+                                                        setIsEditModalOpen(true);
+                                                    }}
+                                                    className="p-1 h-auto"
+                                                >
+                                                    <Edit size={12} />
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setDeleteConfirmation(video)}
+                                                    className="p-1 h-auto text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
+                                            {getCategoryDisplayName(video.category_value)}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => window.open(video.url, '_blank')}
+                                            className="text-orange-600 hover:text-orange-700"
+                                        >
+                                            Watch
+                                        </Button>
+                                    </div>
+
+                                    {video.description && (
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                                            {video.description}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Add Video Modal */}
+                {isAddModalOpen && (
+                    <VideoModal
+                        isOpen={isAddModalOpen}
+                        onClose={() => setIsAddModalOpen(false)}
+                        onSave={createVideo}
+                        categories={categories}
+                        title="Add Video Tutorial"
+                    />
+                )}
+
+                {/* Edit Video Modal */}
+                {isEditModalOpen && selectedVideo && (
+                    <VideoModal
+                        isOpen={isEditModalOpen}
+                        onClose={() => {
+                            setIsEditModalOpen(false);
+                            setSelectedVideo(null);
+                        }}
+                        onSave={(videoData) => updateVideo(selectedVideo.id, videoData)}
+                        categories={categories}
+                        video={selectedVideo}
+                        title="Edit Video Tutorial"
+                        isEdit={true}
+                    />
+                )}
+
+                {/* Delete Confirmation Modal */}
+                {deleteConfirmation && (
+                    <ConfirmationModal
+                        isOpen={!!deleteConfirmation}
+                        onClose={() => setDeleteConfirmation(null)}
+                        onConfirm={() => deleteVideo(deleteConfirmation.id)}
+                        title="Delete Video"
+                        message={`Are you sure you want to delete "${deleteConfirmation.title}"? This action cannot be undone.`}
+                        confirmText="Delete"
+                        confirmVariant="danger"
+                    />
+                )}
+            </div>
+        );
+    };
+
+    // Video Modal Component
+    const VideoModal = ({ isOpen, onClose, onSave, categories, video, title, isEdit = false }) => {
+        const [formData, setFormData] = useState({
+            title: '',
+            url: '',
+            category_value: '',
+            description: ''
+        });
+        const [loading, setLoading] = useState(false);
+
+        useEffect(() => {
+            if (!isOpen) {
+                setFormData({ title: '', url: '', category_value: '', description: '' });
+            } else if (isEdit && video) {
+                setFormData({
+                    title: video.title,
+                    url: video.url,
+                    category_value: video.category_value,
+                    description: video.description || ''
+                });
+            }
+        }, [isOpen, isEdit, video]);
+
+        const validateYouTubeUrl = (url) => {
+            const pattern = /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+            return pattern.test(url);
+        };
+
+        const handleSubmit = async (e) => {
+            e.preventDefault();
+            if (!formData.title.trim() || !formData.url.trim() || !formData.category_value) return;
+
+            if (!validateYouTubeUrl(formData.url)) {
+                alert('Please enter a valid YouTube URL');
+                return;
+            }
+
+            setLoading(true);
+            try {
+                await onSave({
+                    title: formData.title.trim(),
+                    url: formData.url.trim(),
+                    category_value: formData.category_value,
+                    description: formData.description.trim()
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        return (
+            <Modal isOpen={isOpen} onClose={onClose} title={title}>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Video Title *
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.title}
+                            onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="Enter video title"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            YouTube URL *
+                        </label>
+                        <input
+                            type="url"
+                            value={formData.url}
+                            onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            required
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Only YouTube URLs are supported
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Category *
+                        </label>
+                        <select
+                            value={formData.category_value}
+                            onChange={(e) => setFormData(prev => ({ ...prev, category_value: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            required
+                        >
+                            <option value="">Select a category</option>
+                            {categories.map(category => (
+                                <option key={category.id} value={category.value}>
+                                    {category.display_text}
+                                </option>
+                            ))}
+                        </select>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Categories can be managed in Dropdown Menu settings
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Description
+                        </label>
+                        <textarea
+                            value={formData.description}
+                            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="Brief description of the video content"
+                            rows="3"
+                        />
+                    </div>
+
+                    <div className="flex gap-2 pt-4">
+                        <Button
+                            type="submit"
+                            disabled={loading || !formData.title.trim() || !formData.url.trim() || !formData.category_value}
+                            className="bg-orange-500 hover:bg-orange-600"
+                        >
+                            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            {isEdit ? 'Update Video' : 'Add Video'}
+                        </Button>
+                        <Button type="button" variant="outline" onClick={onClose}>
+                            Cancel
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
+        );
+    };
+
     const renderContent = () => {
         if (activeTab === 'ProjectDetail' && selectedProject) {
             return <ProjectDetailPage project={selectedProject} onBack={handleBackToProjects} />;
@@ -7507,6 +8252,9 @@ const MainLayout = () => {
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
             case 'Delivery Tasks': return <DeliveryTasksPage />;
             case 'Analytics': return <AnalyticsPage />;
+            case 'Standards': return <StandardsPage />;
+            case 'Procedures': return <ProceduresPage />;
+            case 'Video Tutorials': return <VideoTutorialsPage />;
             case 'User Admin': return <UserAdmin />;
             case 'Dropdown Menu': return <DropdownMenuPage />;
             case 'Audit Trail': return <AuditTrailPage />;
