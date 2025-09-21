@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -204,8 +204,6 @@ const initialJobs = [
     { id: 2, projectName: "Crossrail - Paddington Integration", projectNumber: "CR-PADD-22-005", itemName: "Paddington Station As-built", projectManager: "Ben Carter", client: "Transport for London", processingHours: 120, checkingHours: 24, siteStartDate: "2024-07-15", siteCompletionDate: "2024-09-20", plannedDeliveryDate: "2024-09-27", actualDeliveryDate: "2024-09-26", discipline: "Design", comments: "", archived: true, status: "Delivered" },
     { id: 3, projectName: "OLE Foundation Survey", projectNumber: "OOC-OLE-23-002", itemName: "Old Oak Common Site", projectManager: "Colin Rogers", client: "HS2 Ltd", processingHours: 60, checkingHours: 12, siteStartDate: "2024-09-01", siteCompletionDate: "2024-10-10", plannedDeliveryDate: "2024-10-20", actualDeliveryDate: "", discipline: "Utility", comments: "Access constraints on weekends.", archived: false, status: "Site Not Started" },
 ];
-
-const teamRoles = ['Site Team', 'Project Team', 'Delivery Team', 'Design Team', 'Office Staff', 'Subcontractor'];
 
 // --- NEW MOCK DATA FOR AUDIT TRAIL ---
 const mockAuditTrail = [
@@ -526,6 +524,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         },
         { name: 'Analytics', icon: TrendingUp, show: privileges.canViewAnalytics },
         { name: 'User Admin', icon: Users, show: privileges.canViewUserAdmin },
+        { name: 'Dropdown Menu', icon: List, show: privileges.canEditUserAdmin }, // Admin and Super Admin only
         { name: 'Audit Trail', icon: History, show: privileges.canViewAuditTrail },
         { name: 'Settings', icon: Settings, show: true },
     ];
@@ -1863,6 +1862,554 @@ const FeedbackPage = () => {
     );
 };
 
+const DropdownMenuPage = () => {
+    const [categories, setCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState(null);
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [categoryLoading, setCategoryLoading] = useState(false);
+    const [itemsLoading, setItemsLoading] = useState(false);
+    const [isCreateCategoryModalOpen, setIsCreateCategoryModalOpen] = useState(false);
+    const [isCreateItemModalOpen, setIsCreateItemModalOpen] = useState(false);
+    const [isEditItemModalOpen, setIsEditItemModalOpen] = useState(false);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+    const { showSuccessModal, showErrorModal } = useToast();
+
+    useEffect(() => {
+        fetchCategories();
+    }, []);
+
+    useEffect(() => {
+        if (selectedCategory) {
+            fetchItems(selectedCategory.id);
+        } else {
+            setItems([]);
+        }
+    }, [selectedCategory]);
+
+    const fetchCategories = async () => {
+        try {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('dropdown_categories')
+                .select('*')
+                .order('name');
+
+            if (error) throw error;
+            setCategories(data || []);
+
+            // Auto-select Team Role category if it exists
+            if (data && data.length > 0) {
+                const teamRoleCategory = data.find(cat => cat.name === 'team_role');
+                if (teamRoleCategory) {
+                    setSelectedCategory(teamRoleCategory);
+                } else {
+                    setSelectedCategory(data[0]);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching categories:', error);
+            showErrorModal('Error loading dropdown categories');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchItems = async (categoryId) => {
+        try {
+            setItemsLoading(true);
+            const { data, error } = await supabase
+                .from('dropdown_items')
+                .select('*')
+                .eq('category_id', categoryId)
+                .order('sort_order', { ascending: true });
+
+            if (error) throw error;
+            setItems(data || []);
+        } catch (error) {
+            console.error('Error fetching items:', error);
+            showErrorModal('Error loading dropdown items');
+        } finally {
+            setItemsLoading(false);
+        }
+    };
+
+    const createCategory = async (categoryData) => {
+        try {
+            setCategoryLoading(true);
+            const { data, error } = await supabase
+                .from('dropdown_categories')
+                .insert([categoryData])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setCategories(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+            setIsCreateCategoryModalOpen(false);
+            showSuccessModal('Category created successfully');
+        } catch (error) {
+            console.error('Error creating category:', error);
+            showErrorModal('Error creating category');
+        } finally {
+            setCategoryLoading(false);
+        }
+    };
+
+    const createItem = async (itemData) => {
+        try {
+            const { data, error } = await supabase
+                .from('dropdown_items')
+                .insert([{ ...itemData, category_id: selectedCategory.id }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setItems(prev => [...prev, data].sort((a, b) => a.sort_order - b.sort_order));
+            setIsCreateItemModalOpen(false);
+            showSuccessModal('Item created successfully');
+        } catch (error) {
+            console.error('Error creating item:', error);
+            showErrorModal('Error creating item');
+        }
+    };
+
+    const updateItem = async (itemId, itemData) => {
+        try {
+            const { data, error } = await supabase
+                .from('dropdown_items')
+                .update(itemData)
+                .eq('id', itemId)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setItems(prev => prev.map(item => item.id === itemId ? data : item).sort((a, b) => a.sort_order - b.sort_order));
+            setIsEditItemModalOpen(false);
+            setSelectedItem(null);
+            showSuccessModal('Item updated successfully');
+        } catch (error) {
+            console.error('Error updating item:', error);
+            showErrorModal('Error updating item');
+        }
+    };
+
+    const deleteItem = async (itemId) => {
+        try {
+            const { error } = await supabase
+                .from('dropdown_items')
+                .delete()
+                .eq('id', itemId);
+
+            if (error) throw error;
+
+            setItems(prev => prev.filter(item => item.id !== itemId));
+            setDeleteConfirmation(null);
+            showSuccessModal('Item deleted successfully');
+        } catch (error) {
+            console.error('Error deleting item:', error);
+            showErrorModal('Error deleting item');
+        }
+    };
+
+    const handleEditItem = (item) => {
+        setSelectedItem(item);
+        setIsEditItemModalOpen(true);
+    };
+
+    const handleDeleteItem = (item) => {
+        setDeleteConfirmation(item);
+    };
+
+    if (loading) {
+        return (
+            <div className="p-6">
+                <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-6">
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dropdown Menu Management</h1>
+                <p className="text-gray-600 dark:text-gray-400">Manage dropdown lists used throughout the application</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Categories Panel */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <h2 className="text-lg font-medium text-gray-900 dark:text-white">Categories</h2>
+                        <Button
+                            onClick={() => setIsCreateCategoryModalOpen(true)}
+                            size="sm"
+                            className="bg-orange-500 hover:bg-orange-600"
+                        >
+                            <PlusCircle size={16} className="mr-1" />
+                            Add
+                        </Button>
+                    </div>
+                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {categories.length === 0 ? (
+                            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                                No categories found
+                            </div>
+                        ) : (
+                            categories.map((category) => (
+                                <div
+                                    key={category.id}
+                                    className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                                        selectedCategory?.id === category.id ? 'bg-orange-50 dark:bg-orange-500/10 border-r-4 border-orange-500' : ''
+                                    }`}
+                                    onClick={() => setSelectedCategory(category)}
+                                >
+                                    <h3 className="font-medium text-gray-900 dark:text-white capitalize">
+                                        {category.name.replace('_', ' ')}
+                                    </h3>
+                                    {category.description && (
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                            {category.description}
+                                        </p>
+                                    )}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                {/* Items Panel */}
+                <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <div>
+                            <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                                {selectedCategory ? `${selectedCategory.name.replace('_', ' ')} Items` : 'Select a Category'}
+                            </h2>
+                            {selectedCategory && (
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                    Manage items in this dropdown list
+                                </p>
+                            )}
+                        </div>
+                        {selectedCategory && (
+                            <Button
+                                onClick={() => setIsCreateItemModalOpen(true)}
+                                size="sm"
+                                className="bg-green-500 hover:bg-green-600"
+                            >
+                                <PlusCircle size={16} className="mr-1" />
+                                Add Item
+                            </Button>
+                        )}
+                    </div>
+
+                    {selectedCategory ? (
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {itemsLoading ? (
+                                <div className="p-8 flex justify-center">
+                                    <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
+                                </div>
+                            ) : items.length === 0 ? (
+                                <div className="p-8 text-center">
+                                    <List className="mx-auto h-12 w-12 text-gray-400" />
+                                    <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No items</h3>
+                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                        Get started by adding a new item.
+                                    </p>
+                                </div>
+                            ) : (
+                                items.map((item) => (
+                                    <div key={item.id} className="p-4 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                    #{item.sort_order}
+                                                </span>
+                                                <h3 className="font-medium text-gray-900 dark:text-white">
+                                                    {item.display_text}
+                                                </h3>
+                                                {!item.is_active && (
+                                                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                                        Inactive
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                Value: {item.value}
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleEditItem(item)}
+                                            >
+                                                <Edit size={14} />
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleDeleteItem(item)}
+                                                className="text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                            >
+                                                <Trash2 size={14} />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    ) : (
+                        <div className="p-8 text-center">
+                            <List className="mx-auto h-12 w-12 text-gray-400" />
+                            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Select a category</h3>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                Choose a category from the left panel to manage its items.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Create Category Modal */}
+            <CategoryModal
+                isOpen={isCreateCategoryModalOpen}
+                onClose={() => setIsCreateCategoryModalOpen(false)}
+                onSave={createCategory}
+                loading={categoryLoading}
+            />
+
+            {/* Create Item Modal */}
+            <ItemModal
+                isOpen={isCreateItemModalOpen}
+                onClose={() => setIsCreateItemModalOpen(false)}
+                onSave={createItem}
+                category={selectedCategory}
+                existingItems={items}
+            />
+
+            {/* Edit Item Modal */}
+            <ItemModal
+                isOpen={isEditItemModalOpen}
+                onClose={() => {
+                    setIsEditItemModalOpen(false);
+                    setSelectedItem(null);
+                }}
+                onSave={(itemData) => updateItem(selectedItem.id, itemData)}
+                category={selectedCategory}
+                existingItems={items.filter(item => item.id !== selectedItem?.id)}
+                item={selectedItem}
+                isEdit={true}
+            />
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirmation && (
+                <ConfirmationModal
+                    isOpen={!!deleteConfirmation}
+                    onClose={() => setDeleteConfirmation(null)}
+                    onConfirm={() => deleteItem(deleteConfirmation.id)}
+                    title="Delete Item"
+                    message={`Are you sure you want to delete "${deleteConfirmation.display_text}"? This action cannot be undone.`}
+                    confirmText="Delete"
+                    confirmVariant="danger"
+                />
+            )}
+        </div>
+    );
+};
+
+const CategoryModal = ({ isOpen, onClose, onSave, loading }) => {
+    const [formData, setFormData] = useState({
+        name: '',
+        description: ''
+    });
+
+    useEffect(() => {
+        if (!isOpen) {
+            setFormData({ name: '', description: '' });
+        }
+    }, [isOpen]);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!formData.name.trim()) return;
+
+        onSave({
+            name: formData.name.toLowerCase().replace(/\s+/g, '_'),
+            description: formData.description.trim()
+        });
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Create Category">
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Category Name *
+                    </label>
+                    <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        placeholder="e.g., project_status"
+                        required
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Will be converted to lowercase with underscores
+                    </p>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Description
+                    </label>
+                    <textarea
+                        value={formData.description}
+                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        placeholder="Brief description of this category"
+                        rows="3"
+                    />
+                </div>
+                <div className="flex gap-2 pt-4">
+                    <Button type="submit" disabled={loading || !formData.name.trim()}>
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Create Category
+                    </Button>
+                    <Button type="button" variant="outline" onClick={onClose}>
+                        Cancel
+                    </Button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
+
+const ItemModal = ({ isOpen, onClose, onSave, category, existingItems, item, isEdit = false }) => {
+    const [formData, setFormData] = useState({
+        value: '',
+        display_text: '',
+        sort_order: 0,
+        is_active: true
+    });
+
+    useEffect(() => {
+        if (!isOpen) {
+            setFormData({
+                value: '',
+                display_text: '',
+                sort_order: 0,
+                is_active: true
+            });
+        } else if (isEdit && item) {
+            setFormData({
+                value: item.value,
+                display_text: item.display_text,
+                sort_order: item.sort_order,
+                is_active: item.is_active
+            });
+        } else {
+            // Set default sort order to be the next number
+            const maxSortOrder = Math.max(...existingItems.map(i => i.sort_order), 0);
+            setFormData(prev => ({ ...prev, sort_order: maxSortOrder + 1 }));
+        }
+    }, [isOpen, isEdit, item, existingItems]);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!formData.value.trim() || !formData.display_text.trim()) return;
+
+        onSave({
+            value: formData.value.toLowerCase().replace(/\s+/g, '_'),
+            display_text: formData.display_text.trim(),
+            sort_order: parseInt(formData.sort_order),
+            is_active: formData.is_active
+        });
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`${isEdit ? 'Edit' : 'Create'} Item`}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Value *
+                    </label>
+                    <input
+                        type="text"
+                        value={formData.value}
+                        onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        placeholder="e.g., project_manager"
+                        required
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Internal value used in code (lowercase, underscores)
+                    </p>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Display Text *
+                    </label>
+                    <input
+                        type="text"
+                        value={formData.display_text}
+                        onChange={(e) => setFormData(prev => ({ ...prev, display_text: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        placeholder="e.g., Project Manager"
+                        required
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Text shown to users in the dropdown
+                    </p>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Sort Order
+                    </label>
+                    <input
+                        type="number"
+                        value={formData.sort_order}
+                        onChange={(e) => setFormData(prev => ({ ...prev, sort_order: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        min="0"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Order in which this item appears in the dropdown
+                    </p>
+                </div>
+                <div className="flex items-center">
+                    <input
+                        type="checkbox"
+                        id="is_active"
+                        checked={formData.is_active}
+                        onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                        className="mr-2"
+                    />
+                    <label htmlFor="is_active" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Active
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                        Inactive items won't appear in dropdowns
+                    </p>
+                </div>
+                <div className="flex gap-2 pt-4">
+                    <Button type="submit" disabled={!formData.value.trim() || !formData.display_text.trim()}>
+                        {isEdit ? 'Update' : 'Create'} Item
+                    </Button>
+                    <Button type="button" variant="outline" onClick={onClose}>
+                        Cancel
+                    </Button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
+
 const ProjectsPage = ({ onViewProject }) => {
     const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
     const [searchTerm, setSearchTerm] = useState('');
@@ -2856,7 +3403,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         let usersToDisplay = allUsers;
 
         if (filterRoles.length > 0) {
-            usersToDisplay = usersToDisplay.filter(user => filterRoles.includes(user.teamRole));
+            usersToDisplay = usersToDisplay.filter(user => filterRoles.includes(user.team_role));
         }
 
         usersToDisplay = usersToDisplay.filter(user => visibleUserIds.includes(user.id));
@@ -2865,7 +3412,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             usersToDisplay.sort((a, b) => a.name.localeCompare(b.name));
         } else if (sortOrder === 'role') {
             usersToDisplay.sort((a, b) => {
-                const roleComparison = a.teamRole.localeCompare(b.teamRole);
+                const roleComparison = (a.team_role || '').localeCompare(b.team_role || '');
                 if (roleComparison !== 0) return roleComparison;
                 return a.name.localeCompare(b.name);
             });
@@ -3075,9 +3622,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                  <h4 className="font-semibold mb-2 text-sm">Roles</h4>
                                  <div className="space-y-2 max-h-60 overflow-y-auto">
                                      {teamRoles.map(role => (
-                                         <label key={role} className="flex items-center space-x-2 text-sm">
-                                             <input type="checkbox" checked={filterRoles.includes(role)} onChange={() => handleRoleFilterChange(role)} className="rounded text-orange-500 focus:ring-orange-500"/>
-                                             <span>{role}</span>
+                                         <label key={role.value} className="flex items-center space-x-2 text-sm">
+                                             <input type="checkbox" checked={filterRoles.includes(role.value)} onChange={() => handleRoleFilterChange(role.value)} className="rounded text-orange-500 focus:ring-orange-500"/>
+                                             <span>{role.display_text}</span>
                                          </label>
                                      ))}
                                  </div>
@@ -3122,7 +3669,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                         <div className="w-8 h-8 rounded-full bg-blue-900 text-white flex items-center justify-center font-bold text-sm mr-3 flex-shrink-0">{user.avatar}</div>
                                         <div className="min-w-0">
                                             <p className="truncate">{user.name}</p>
-                                            <p className="text-xs text-gray-500 truncate">{user.teamRole}</p>
+                                            <p className="text-xs text-gray-500 truncate">{getTeamRoleDisplayText(user.team_role)}</p>
                                         </div>
                                     </div>
                                 </td>
@@ -3807,6 +4354,60 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
 const UserContext = createContext(null);
 const useUsers = () => useContext(UserContext);
 
+const useTeamRoles = () => {
+    const [teamRoles, setTeamRoles] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const fetchTeamRoles = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            // Get the team_role category first
+            const { data: categoryData, error: categoryError } = await supabase
+                .from('dropdown_categories')
+                .select('id')
+                .eq('name', 'team_role')
+                .single();
+
+            if (categoryError) throw categoryError;
+
+            // Get the team role items
+            const { data: itemsData, error: itemsError } = await supabase
+                .from('dropdown_items')
+                .select('value, display_text')
+                .eq('category_id', categoryData.id)
+                .eq('is_active', true)
+                .order('sort_order');
+
+            if (itemsError) throw itemsError;
+
+            setTeamRoles(itemsData || []);
+        } catch (err) {
+            console.error('Error fetching team roles:', err);
+            setError(err.message);
+            // Fallback to hardcoded roles if database fetch fails
+            setTeamRoles([
+                { value: 'site_team', display_text: 'Site Team' },
+                { value: 'project_team', display_text: 'Project Team' },
+                { value: 'delivery_team', display_text: 'Delivery Team' },
+                { value: 'design_team', display_text: 'Design Team' },
+                { value: 'office_staff', display_text: 'Office Staff' },
+                { value: 'subcontractor', display_text: 'Subcontractor' }
+            ]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchTeamRoles();
+    }, []);
+
+    return { teamRoles, loading, error, refetch: fetchTeamRoles };
+};
+
 const UserProvider = ({ children }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -3891,6 +4492,13 @@ const UserProvider = ({ children }) => {
 const UserAdminPage = () => {
     // MODIFICATION 1: Get data and functions from the new useUsers hook
     const { users, addUser, updateUser, deleteUser, loading, error } = useUsers();
+    const { teamRoles } = useTeamRoles();
+
+    // Helper function to get display text for team role
+    const getTeamRoleDisplayText = (roleValue) => {
+        const role = teamRoles.find(r => r.value === roleValue);
+        return role ? role.display_text : roleValue;
+    };
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState(null);
@@ -4061,16 +4669,19 @@ const UserAdminPage = () => {
 // --- REPLACE UserModal with this new version ---
 const UserModal = ({ isOpen, onClose, onSave, user }) => {
     // Note: The form still uses 'teamRole' (camelCase) for its state
-    const [formData, setFormData] = useState({ name: '', username: '', email: '', privilege: 'Subcontractor', teamRole: 'Site Team', password: '' });
+    const [formData, setFormData] = useState({ name: '', username: '', email: '', privilege: 'Subcontractor', teamRole: 'site_team', password: '' });
+    const { teamRoles, loading: teamRolesLoading } = useTeamRoles();
 
     useEffect(() => {
         if (user) {
             // When editing, map snake_case from DB to camelCase for the form state
             setFormData({ name: user.name, username: user.username, email: user.email, privilege: user.privilege, teamRole: user.team_role, password: user.password || '' });
         } else {
-            setFormData({ name: '', username: '', email: '', privilege: 'Subcontractor', teamRole: 'Site Team', password: '' });
+            // Set default to first available team role or fallback
+            const defaultTeamRole = teamRoles.length > 0 ? teamRoles[0].value : 'site_team';
+            setFormData({ name: '', username: '', email: '', privilege: 'Subcontractor', teamRole: defaultTeamRole, password: '' });
         }
-    }, [user, isOpen]);
+    }, [user, isOpen, teamRoles]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -4101,7 +4712,11 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
                         {Object.keys(userPrivileges).map(p => <option key={p}>{p}</option>)}
                     </Select>
                     <Select label="Team Role" name="teamRole" value={formData.teamRole} onChange={handleChange}>
-                        {teamRoles.map(role => <option key={role}>{role}</option>)}
+                        {teamRolesLoading ? (
+                            <option>Loading...</option>
+                        ) : (
+                            teamRoles.map(role => <option key={role.value} value={role.value}>{role.display_text}</option>)
+                        )}
                     </Select>
                     <div className="flex justify-end space-x-2 pt-4">
                         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
@@ -5555,15 +6170,314 @@ const ResourceAnalytics = () => {
 };
 
 const DeliveryTrackerAnalytics = () => {
-    const handleExport = (format) => {
-        alert(`Exporting Delivery Team Analytics as ${format} is not implemented yet.`);
+    const { jobs } = useJobs();
+    const [filteredJobs, setFilteredJobs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [dateRange, setDateRange] = useState({
+        start: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 90 days ago
+        end: new Date().toISOString().split('T')[0] // today
+    });
+
+    useEffect(() => {
+        if (jobs.length > 0) {
+            const filtered = jobs.filter(job => {
+                if (!dateRange.start || !dateRange.end) return true;
+
+                const jobDate = job.createdAt || job.actualDeliveryDate || job.plannedDeliveryDate;
+                if (!jobDate) return true;
+
+                const date = new Date(jobDate).toISOString().split('T')[0];
+                return date >= dateRange.start && date <= dateRange.end;
+            });
+            setFilteredJobs(filtered);
+            setLoading(false);
+        }
+    }, [jobs, dateRange]);
+
+    const handleFilter = () => {
+        // Filter is automatically applied via useEffect when dateRange changes
     };
+
+    const handleExport = (format) => {
+        if (format === 'csv') {
+            exportDeliveryDataAsCSV();
+        } else if (format === 'txt') {
+            exportDeliveryDataAsTXT();
+        }
+    };
+
+    const exportDeliveryDataAsCSV = () => {
+        const headers = [
+            'Project Name', 'Project Number', 'Item Name', 'Client', 'Discipline',
+            'Project Manager', 'Status', 'Processing Hours', 'Checking Hours',
+            'Site Start Date', 'Site Completion Date', 'Planned Delivery', 'Actual Delivery', 'Comments'
+        ];
+        const rows = filteredJobs.map(job => [
+            job.projectName || '',
+            job.projectNumber || '',
+            job.itemName || '',
+            job.client || '',
+            job.discipline || '',
+            job.projectManager || '',
+            job.status || '',
+            job.processingHours || '',
+            job.checkingHours || '',
+            job.siteStartDate || '',
+            job.siteCompletionDate || '',
+            job.plannedDeliveryDate || '',
+            job.actualDeliveryDate || '',
+            job.comments || ''
+        ]);
+
+        const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `delivery-analytics-${dateRange.start}-to-${dateRange.end}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const exportDeliveryDataAsTXT = () => {
+        const content = filteredJobs.map(job =>
+            `${job.projectNumber} | ${job.projectName} | ${job.client} | ${job.discipline} | ${job.status} | ${job.processingHours || 0}h processing | ${job.checkingHours || 0}h checking | Planned: ${job.plannedDeliveryDate || 'N/A'} | Actual: ${job.actualDeliveryDate || 'N/A'}`
+        ).join('\n');
+
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `delivery-analytics-${dateRange.start}-to-${dateRange.end}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // Calculate analytics
+    const totalJobs = filteredJobs.length;
+    const completedJobs = filteredJobs.filter(job => job.status === 'Completed').length;
+    const onTimeDeliveries = filteredJobs.filter(job =>
+        job.actualDeliveryDate && job.plannedDeliveryDate &&
+        new Date(job.actualDeliveryDate) <= new Date(job.plannedDeliveryDate)
+    ).length;
+    const totalProcessingHours = filteredJobs.reduce((sum, job) => sum + (parseInt(job.processingHours) || 0), 0);
+    const totalCheckingHours = filteredJobs.reduce((sum, job) => sum + (parseInt(job.checkingHours) || 0), 0);
+    const completionRate = totalJobs > 0 ? ((completedJobs / totalJobs) * 100).toFixed(1) : 0;
+    const onTimeRate = completedJobs > 0 ? ((onTimeDeliveries / completedJobs) * 100).toFixed(1) : 0;
+
+    // Status distribution
+    const statusStats = {};
+    filteredJobs.forEach(job => {
+        const status = job.status || 'No Status';
+        statusStats[status] = (statusStats[status] || 0) + 1;
+    });
+
+    // Discipline breakdown
+    const disciplineStats = {};
+    filteredJobs.forEach(job => {
+        const discipline = job.discipline || 'No Discipline';
+        disciplineStats[discipline] = (disciplineStats[discipline] || 0) + 1;
+    });
+
+    // Client analysis
+    const clientStats = {};
+    filteredJobs.forEach(job => {
+        const client = job.client || 'No Client';
+        clientStats[client] = (clientStats[client] || 0) + 1;
+    });
+    const topClients = Object.entries(clientStats)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10);
+
+    // Project Manager performance
+    const pmStats = {};
+    filteredJobs.forEach(job => {
+        const pm = job.projectManager || 'No PM';
+        if (!pmStats[pm]) {
+            pmStats[pm] = { total: 0, completed: 0, onTime: 0, hours: 0 };
+        }
+        pmStats[pm].total += 1;
+        pmStats[pm].hours += (parseInt(job.processingHours) || 0) + (parseInt(job.checkingHours) || 0);
+        if (job.status === 'Completed') {
+            pmStats[pm].completed += 1;
+            if (job.actualDeliveryDate && job.plannedDeliveryDate &&
+                new Date(job.actualDeliveryDate) <= new Date(job.plannedDeliveryDate)) {
+                pmStats[pm].onTime += 1;
+            }
+        }
+    });
+
+    // Delivery performance trends
+    const deliveryTrends = filteredJobs
+        .filter(job => job.actualDeliveryDate && job.plannedDeliveryDate)
+        .map(job => {
+            const planned = new Date(job.plannedDeliveryDate);
+            const actual = new Date(job.actualDeliveryDate);
+            const diffDays = Math.ceil((actual - planned) / (1000 * 60 * 60 * 24));
+            return { project: job.projectNumber, delayDays: diffDays };
+        })
+        .sort((a, b) => b.delayDays - a.delayDays);
+
+    const avgDelay = deliveryTrends.length > 0 ?
+        (deliveryTrends.reduce((sum, item) => sum + item.delayDays, 0) / deliveryTrends.length).toFixed(1) : 0;
+
+    if (loading) {
+        return (
+            <div className="space-y-6">
+                <div className="flex items-center justify-center p-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                    <span className="ml-2 text-gray-600 dark:text-gray-400">Loading delivery analytics...</span>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
-            <AnalyticsToolbar onExport={handleExport} onFilter={() => {}} dateRange={{start:'', end: ''}} setDateRange={() => {}} />
-            <AnalyticsCard title="Delivery Team Performance (Placeholder)">
-                <p>Delivery tracker analytics charts and data would go here.</p>
+            <AnalyticsToolbar
+                onExport={handleExport}
+                onFilter={handleFilter}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+            />
+
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Jobs</h3>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalJobs}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Completion Rate</h3>
+                    <p className="text-2xl font-bold text-green-600">{completionRate}%</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">On-Time Delivery</h3>
+                    <p className="text-2xl font-bold text-blue-600">{onTimeRate}%</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Avg Delay</h3>
+                    <p className="text-2xl font-bold text-orange-600">{avgDelay} days</p>
+                </div>
+            </div>
+
+            {/* Hours Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Processing Hours</h3>
+                    <p className="text-2xl font-bold text-purple-600">{totalProcessingHours}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Checking Hours</h3>
+                    <p className="text-2xl font-bold text-indigo-600">{totalCheckingHours}</p>
+                </div>
+            </div>
+
+            {/* Status & Discipline Distribution */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AnalyticsCard title="Status Distribution">
+                    <div className="space-y-3">
+                        {Object.entries(statusStats).map(([status, count]) => (
+                            <div key={status} className="flex justify-between items-center">
+                                <span className="text-gray-900 dark:text-white">{status}</span>
+                                <span className="font-medium text-blue-600">{count} jobs</span>
+                            </div>
+                        ))}
+                        {Object.keys(statusStats).length === 0 && (
+                            <p className="text-gray-500 dark:text-gray-400">No status data for selected period</p>
+                        )}
+                    </div>
+                </AnalyticsCard>
+
+                <AnalyticsCard title="Discipline Breakdown">
+                    <div className="space-y-3">
+                        {Object.entries(disciplineStats).map(([discipline, count]) => (
+                            <div key={discipline} className="flex justify-between items-center">
+                                <span className="text-gray-900 dark:text-white">{discipline}</span>
+                                <span className="font-medium text-green-600">{count} jobs</span>
+                            </div>
+                        ))}
+                        {Object.keys(disciplineStats).length === 0 && (
+                            <p className="text-gray-500 dark:text-gray-400">No discipline data for selected period</p>
+                        )}
+                    </div>
+                </AnalyticsCard>
+            </div>
+
+            {/* Project Manager Performance */}
+            <AnalyticsCard title="Project Manager Performance">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                        <thead>
+                            <tr className="border-b border-gray-200 dark:border-gray-700">
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">Project Manager</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">Total Jobs</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">Completed</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">On Time</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">Total Hours</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-900 dark:text-white">Completion Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(pmStats).map(([pm, stats]) => {
+                                const completionRate = stats.total > 0 ? ((stats.completed / stats.total) * 100).toFixed(1) : 0;
+                                return (
+                                    <tr key={pm} className="border-b border-gray-100 dark:border-gray-700">
+                                        <td className="py-2 px-3 text-gray-900 dark:text-white">{pm}</td>
+                                        <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{stats.total}</td>
+                                        <td className="py-2 px-3 text-green-600">{stats.completed}</td>
+                                        <td className="py-2 px-3 text-blue-600">{stats.onTime}</td>
+                                        <td className="py-2 px-3 text-purple-600">{stats.hours}</td>
+                                        <td className="py-2 px-3">
+                                            <span className={`font-medium ${completionRate >= 80 ? 'text-green-600' : completionRate >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                                {completionRate}%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             </AnalyticsCard>
+
+            {/* Top Clients & Delivery Performance */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AnalyticsCard title="Top Clients">
+                    <div className="space-y-3">
+                        {topClients.map(([client, count], index) => (
+                            <div key={client} className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
+                                        #{index + 1}
+                                    </span>
+                                    <span className="text-gray-900 dark:text-white">{client}</span>
+                                </div>
+                                <span className="font-medium text-orange-600">{count} jobs</span>
+                            </div>
+                        ))}
+                        {topClients.length === 0 && (
+                            <p className="text-gray-500 dark:text-gray-400">No client data for selected period</p>
+                        )}
+                    </div>
+                </AnalyticsCard>
+
+                <AnalyticsCard title="Delivery Performance (Top Delays)">
+                    <div className="space-y-3">
+                        {deliveryTrends.slice(0, 10).map((trend, index) => (
+                            <div key={trend.project} className="flex items-center justify-between">
+                                <span className="text-gray-900 dark:text-white">{trend.project}</span>
+                                <span className={`font-medium ${trend.delayDays > 0 ? 'text-red-600' : trend.delayDays < 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                                    {trend.delayDays > 0 ? '+' : ''}{trend.delayDays} days
+                                </span>
+                            </div>
+                        ))}
+                        {deliveryTrends.length === 0 && (
+                            <p className="text-gray-500 dark:text-gray-400">No delivery performance data for selected period</p>
+                        )}
+                    </div>
+                </AnalyticsCard>
+            </div>
         </div>
     );
 };
@@ -6594,6 +7508,7 @@ const MainLayout = () => {
             case 'Delivery Tasks': return <DeliveryTasksPage />;
             case 'Analytics': return <AnalyticsPage />;
             case 'User Admin': return <UserAdmin />;
+            case 'Dropdown Menu': return <DropdownMenuPage />;
             case 'Audit Trail': return <AuditTrailPage />;
             case 'Settings': return <SettingsPage />;
             default: return <DashboardPage onViewProject={handleViewProject} setActiveTab={setActiveTab} />;
@@ -6735,6 +7650,8 @@ const MainAppLayout = () => {
         return <AnnouncementsPage />;
       case 'Feedback':
         return <FeedbackPage />;
+      case 'Dropdown Menu':
+        return <DropdownMenuPage />;
       case 'Audit Trail':
         return <AuditTrailPage />;
       case 'Settings':
