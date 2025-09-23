@@ -8,7 +8,7 @@ GlobalWorkerOptions.workerSrc = `https://npm.jspm.io/pdfjs-dist@4.4.168/build/pd
 const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const genAI = new GoogleGenerativeAI(Deno.env.get('GEMINI_API_KEY')!);
 const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-const multimodalModel = genAI.getGenerativeModel({ model: 'gemini-1.5-pro-latest' });
+const multimodalModel = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
 async function fileToGenerativePart(data: Uint8Array, mimeType: string) {
   return { inlineData: { data: btoa(String.fromCharCode(...data)), mimeType } };
