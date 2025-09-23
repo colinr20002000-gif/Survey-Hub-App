@@ -91,10 +91,19 @@ Deno.serve({ timeout: 300000 }, async (req) => {
             }
           };
 
-          const extractPromise = generativeModel.generateContent([
-            "Extract key text content from this PDF quickly. Return only the most important text, limit to 5000 characters.",
-            pdfPart
-          ]);
+          const extractPromise = generativeModel.generateContent({
+            contents: [{
+              parts: [
+                { text: "Extract key text content from this PDF quickly. Return only the most important text, limit to 5000 characters." },
+                pdfPart
+              ]
+            }],
+            generationConfig: {
+              thinkingConfig: {
+                thinkingBudget: 1024 // Light thinking for PDF extraction
+              }
+            }
+          });
 
           const extractResult = await Promise.race([
             extractPromise,
@@ -143,7 +152,21 @@ Deno.serve({ timeout: 300000 }, async (req) => {
       ? `You are a helpful assistant. Answer this question: ${query}`
       : `You are a helpful and professional assistant. Based on the following context from company documents, answer the user's question. If the answer is not in the context, say "I'm sorry, I couldn't find information about that in the available documents."\n\nContext:\n${contextText}\n\nQuestion: ${query}`;
 
-    const resultPromise = generativeModel.generateContent(prompt);
+    // Determine thinking budget based on query complexity
+    const isComplexQuery = query.length > 100 ||
+      /\b(analyze|compare|summarize|explain|calculate|relationship|trend|pattern)\b/i.test(query);
+
+    const resultPromise = generativeModel.generateContent({
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        thinkingConfig: {
+          thinkingBudget: isComplexQuery ? 4096 : 1024, // Adaptive thinking budget
+          includeThoughts: false // Set to true to see reasoning process
+        }
+      }
+    });
     const result = await Promise.race([
       resultPromise,
       new Promise((_, reject) => setTimeout(() => reject(new Error('AI response timeout')), 10000)) // Even faster timeout
