@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -13,6 +13,8 @@ import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
 import CustomConfirmationModal from './components/ConfirmationModal';
+import AdminDocumentManager from './components/pages/AdminDocumentManager';
+import Chatbot from './components/Chatbot';
 
 // --- USER PRIVILEGES & MOCK DATA ---
 // Temporary mock data until all components are updated to use UserProvider
@@ -537,6 +539,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         },
         { name: 'Analytics', icon: TrendingUp, show: privileges.canViewAnalytics },
         { name: 'User Admin', icon: Users, show: privileges.canViewUserAdmin },
+        { name: 'Document Management', icon: FileText, show: privileges.canEditUserAdmin },
         { name: 'Dropdown Menu', icon: List, show: privileges.canEditUserAdmin }, // Admin and Super Admin only
         { name: 'Audit Trail', icon: History, show: privileges.canViewAuditTrail },
         { name: 'Settings', icon: Settings, show: true },
@@ -7658,6 +7661,7 @@ const MainLayout = () => {
     const [selectedProject, setSelectedProject] = useState(null);
     const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
     const [passwordPromptReason, setPasswordPromptReason] = useState(null);
+    const [isChatbotVisible, setIsChatbotVisible] = useState(false);
 
     // Push notification support - using existing notification system
 
@@ -8259,6 +8263,7 @@ const MainLayout = () => {
             case 'Dropdown Menu': return <DropdownMenuPage />;
             case 'Audit Trail': return <AuditTrailPage />;
             case 'Settings': return <SettingsPage />;
+            case 'Document Management': return <AdminDocumentManager />;
             default: return <DashboardPage onViewProject={handleViewProject} setActiveTab={setActiveTab} />;
         }
     };
@@ -8301,6 +8306,20 @@ const MainLayout = () => {
                         setActiveTab('Dashboard'); // Redirect to main dashboard
                     }}
                 />
+            )}
+
+            {/* Chatbot */}
+            <Chatbot
+                isVisible={isChatbotVisible}
+                onClose={() => setIsChatbotVisible(false)}
+            />
+            {!isChatbotVisible && (
+                <button
+                    onClick={() => setIsChatbotVisible(true)}
+                    className="fixed bottom-4 right-4 bg-orange-500 text-white p-4 rounded-full shadow-lg hover:bg-orange-600 z-40"
+                >
+                    <MessageSquare size={24} />
+                </button>
             )}
         </div>
     );
