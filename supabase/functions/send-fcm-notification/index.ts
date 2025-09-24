@@ -257,17 +257,10 @@ Deno.serve(async (req) => {
     // --- 3. FETCH FCM TOKENS ---
     console.log('[DEBUG] Step 3: Fetching FCM tokens from push_subscriptions table.');
 
-    // Join with sessions to ensure we only send to users with active sessions
+    // Get FCM tokens for active subscriptions
     let query = supabaseClient
       .from('push_subscriptions')
-      .select(`
-        fcm_token,
-        user_id,
-        users!inner(
-          id,
-          email
-        )
-      `)
+      .select('fcm_token, user_id')
       .eq('is_active', true);
 
     if (excludeAuthorId) {
@@ -283,15 +276,26 @@ Deno.serve(async (req) => {
     // Otherwise, if specific roles are targeted, filter by user roles
     else if (targetRoles && targetRoles.length > 0) {
       console.log(`[DEBUG] Filtering by target roles: ${targetRoles.join(', ')}`);
-      // Note: This assumes you have a users table with roles. Adjust the query as needed.
-      const { data: targetUsers } = await supabaseClient
-        .from('users') // Changed from 'profiles' to 'users' based on the actual table structure
-        .select('id')
-        .in('privilege', targetRoles); // Changed from 'role' to 'privilege' based on the actual column name
 
-      if (targetUsers && targetUsers.length > 0) {
-        const roleBasedUserIds = targetUsers.map(user => user.id);
-        query = query.in('user_id', roleBasedUserIds);
+      // First, get user IDs from auth.users that match the privilege in their metadata
+      const { data: authUsers, error: authUsersError } = await supabaseClient.auth.admin.listUsers();
+
+      if (authUsersError) {
+        console.error('[DEBUG] Error fetching auth users:', authUsersError);
+        throw authUsersError;
+      }
+
+      // Filter by users who have the target roles in their metadata
+      const targetUserIds = authUsers.users
+        .filter(user => {
+          const privilege = user.user_metadata?.privilege || user.raw_user_meta_data?.privilege;
+          return privilege && targetRoles.includes(privilege);
+        })
+        .map(user => user.id);
+
+      if (targetUserIds.length > 0) {
+        console.log(`[DEBUG] Found ${targetUserIds.length} users with target roles`);
+        query = query.in('user_id', targetUserIds);
       } else {
         console.log('[DEBUG] No users found with target roles. Sending to no one.');
         return new Response(JSON.stringify({
