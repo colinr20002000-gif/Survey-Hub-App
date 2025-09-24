@@ -15,6 +15,7 @@ import PasswordChangePrompt from './components/PasswordChangePrompt';
 import CustomConfirmationModal from './components/ConfirmationModal';
 import AdminDocumentManager from './components/pages/AdminDocumentManager';
 import Chatbot from './components/Chatbot';
+import FileManagementSystem from './components/FileManagement/FileManagementSystem';
 
 // --- USER PRIVILEGES & MOCK DATA ---
 // Temporary mock data until all components are updated to use UserProvider
@@ -532,9 +533,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             show: true,
             isCollapsible: true,
             subItems: [
-                { name: 'Standards', parent: 'Training Centre' },
+                { name: 'Standards & Specs', parent: 'Training Centre' },
                 { name: 'Procedures', parent: 'Training Centre' },
-                { name: 'Video Tutorials', parent: 'Training Centre' }
+                { name: 'Video Tutorials', parent: 'Training Centre' },
+                { name: 'Templates', parent: 'Training Centre' }
             ]
         },
         { name: 'Analytics', icon: TrendingUp, show: privileges.canViewAnalytics },
@@ -597,7 +599,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
 
     const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Tasks';
     const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Project Tasks';
-    const isTrainingCentreActive = activeTab === 'Standards' || activeTab === 'Procedures' || activeTab === 'Video Tutorials';
+    const isTrainingCentreActive = activeTab === 'Standards & Specs' || activeTab === 'Procedures' || activeTab === 'Video Tutorials' || activeTab === 'Templates';
 
     // Reset manually collapsed state when navigating away from team pages
     useEffect(() => {
@@ -7755,12 +7757,7 @@ const MainLayout = () => {
     const StandardsPage = () => {
         return (
             <div className="p-6">
-                <div className="text-center py-12">
-                    <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Standards</h2>
-                    <p className="text-gray-600 dark:text-gray-400">This page is under construction.</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Standards and guidelines will be available here soon.</p>
-                </div>
+                <FileManagementSystem category="Standards & Specs" />
             </div>
         );
     };
@@ -7768,12 +7765,7 @@ const MainLayout = () => {
     const ProceduresPage = () => {
         return (
             <div className="p-6">
-                <div className="text-center py-12">
-                    <ClipboardList className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Procedures</h2>
-                    <p className="text-gray-600 dark:text-gray-400">This page is under construction.</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Standard operating procedures will be available here soon.</p>
-                </div>
+                <FileManagementSystem category="Procedures" />
             </div>
         );
     };
@@ -8105,6 +8097,14 @@ const MainLayout = () => {
         );
     };
 
+    const TemplatesPage = () => {
+        return (
+            <div className="p-6">
+                <FileManagementSystem category="Templates" />
+            </div>
+        );
+    };
+
     // Video Modal Component
     const VideoModal = ({ isOpen, onClose, onSave, categories, video, title, isEdit = false }) => {
         const [formData, setFormData] = useState({
@@ -8256,9 +8256,10 @@ const MainLayout = () => {
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
             case 'Delivery Tasks': return <DeliveryTasksPage />;
             case 'Analytics': return <AnalyticsPage />;
-            case 'Standards': return <StandardsPage />;
+            case 'Standards & Specs': return <StandardsPage />;
             case 'Procedures': return <ProceduresPage />;
             case 'Video Tutorials': return <VideoTutorialsPage />;
+            case 'Templates': return <TemplatesPage />;
             case 'User Admin': return <UserAdmin />;
             case 'Dropdown Menu': return <DropdownMenuPage />;
             case 'Audit Trail': return <AuditTrailPage />;
