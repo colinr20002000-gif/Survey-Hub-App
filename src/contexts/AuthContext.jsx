@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
         .eq('id', authUser.id);
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Query timeout')), 10000)
+        setTimeout(() => reject(new Error('Query timeout')), 5000)
       );
 
       const { data: userArray, error: fetchError } = await Promise.race([
@@ -66,15 +66,20 @@ export const AuthProvider = ({ children }) => {
         timeoutPromise
       ]).catch(error => {
         console.error('🔐 Query failed or timed out:', error);
-        // Return a fallback user object if query fails
+        // Return a fallback user object based on auth metadata if query fails
+        const privilege = authUser.user_metadata?.privilege ||
+                         authUser.raw_user_meta_data?.privilege ||
+                         'Admin';
+
         return {
           data: [{
             id: authUser.id,
             email: authUser.email,
-            name: authUser.email.split('@')[0].replace(/[._]/g, ' '),
-            role: 'Admin',
-            privilege: 'Admin',
-            created_at: new Date().toISOString(),
+            name: authUser.user_metadata?.name ||
+                  authUser.email.split('@')[0].replace(/[._]/g, ' '),
+            role: privilege,
+            privilege: privilege,
+            created_at: authUser.created_at || new Date().toISOString(),
             last_login: authUser.last_sign_in_at || new Date().toISOString()
           }],
           error: null
@@ -293,9 +298,62 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       console.log('Logout initiated: Deleting FCM token before signing out.');
-      const messaging = getMessaging(firebaseApp);
 
-      // This is the crucial step to invalidate the old token on the client
+      // First, deactivate FCM subscriptions for current device if user exists
+      if (user?.id) {
+        console.log('Deactivating FCM subscriptions for current device...');
+        try {
+          // Generate the same device fingerprint as used in FCM hook
+          const generateDeviceFingerprint = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillText('Device fingerprint', 2, 2);
+
+            const fingerprint = [
+              navigator.userAgent,
+              navigator.language,
+              screen.width + 'x' + screen.height,
+              new Date().getTimezoneOffset(),
+              canvas.toDataURL()
+            ].join('|');
+
+            let hash = 0;
+            for (let i = 0; i < fingerprint.length; i++) {
+              const char = fingerprint.charCodeAt(i);
+              hash = ((hash << 5) - hash) + char;
+              hash = hash & hash;
+            }
+
+            return 'device_' + Math.abs(hash).toString(36);
+          };
+
+          const deviceFingerprint = generateDeviceFingerprint();
+          console.log('Device fingerprint for logout:', deviceFingerprint);
+
+          // Only deactivate subscriptions for this specific user on this device
+          const { error: deactivateError } = await supabase
+            .from('push_subscriptions')
+            .update({
+              is_active: false,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', user.id)
+            .eq('device_fingerprint', deviceFingerprint);
+
+          if (deactivateError) {
+            console.error('Error deactivating FCM subscriptions:', deactivateError);
+          } else {
+            console.log('FCM subscriptions deactivated successfully for current device.');
+          }
+        } catch (dbError) {
+          console.error('Database error during FCM cleanup:', dbError);
+        }
+      }
+
+      // Then delete the Firebase token from the client
+      const messaging = getMessaging(firebaseApp);
       await deleteToken(messaging);
 
       console.log('FCM token deleted successfully.');

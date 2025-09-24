@@ -76,23 +76,38 @@ export const getFCMToken = async () => {
       return null;
     }
 
-    // Get the FCM token with additional error handling
+    // Get the FCM token with additional error handling and retry logic
     let token;
-    try {
-      token = await getToken(messaging, {
-        vapidKey: VAPID_KEY,
-        serviceWorkerRegistration: registration
-      });
-    } catch (tokenError) {
-      console.error('Failed to get FCM token:', tokenError);
-      // Try without explicit service worker registration
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts && !token) {
       try {
+        // Wait a bit between attempts to let service worker fully initialize
+        if (attempts > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
         token = await getToken(messaging, {
-          vapidKey: VAPID_KEY
+          vapidKey: VAPID_KEY,
+          serviceWorkerRegistration: registration
         });
-      } catch (fallbackError) {
-        console.error('Fallback FCM token generation also failed:', fallbackError);
-        return null;
+      } catch (tokenError) {
+        console.error(`FCM token attempt ${attempts + 1} failed:`, tokenError);
+        attempts++;
+
+        if (attempts >= maxAttempts) {
+          // Try without explicit service worker registration as final fallback
+          try {
+            console.log('Trying FCM token generation without explicit SW registration...');
+            token = await getToken(messaging, {
+              vapidKey: VAPID_KEY
+            });
+          } catch (fallbackError) {
+            console.error('All FCM token generation attempts failed:', fallbackError);
+            return null;
+          }
+        }
       }
     }
 

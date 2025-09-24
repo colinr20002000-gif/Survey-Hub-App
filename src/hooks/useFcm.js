@@ -60,6 +60,165 @@ export const useFcm = () => {
   }, [user?.id, isSupported]);
 
   /**
+   * Generate a device fingerprint for this browser/device
+   */
+  const generateDeviceFingerprint = useCallback(() => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.textBaseline = 'top';
+    ctx.font = '14px Arial';
+    ctx.fillText('Device fingerprint', 2, 2);
+
+    const fingerprint = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width + 'x' + screen.height,
+      new Date().getTimezoneOffset(),
+      canvas.toDataURL()
+    ].join('|');
+
+    // Create a simple hash
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+
+    return 'device_' + Math.abs(hash).toString(36);
+  }, []);
+
+  /**
+   * Manage FCM subscription for the current user and device using database function
+   */
+  const manageFCMSubscription = useCallback(async (userId, userEmail, fcmToken) => {
+    console.log('[FCM] Managing subscription for user:', userId);
+
+    const deviceFingerprint = generateDeviceFingerprint();
+    console.log('[FCM] Device fingerprint:', deviceFingerprint);
+
+    const deviceInfo = {
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString(),
+      platform: navigator.platform,
+      language: navigator.language,
+      screen: `${screen.width}x${screen.height}`,
+      timezone: new Date().getTimezoneOffset()
+    };
+
+    try {
+      // Use the database function for atomic subscription management
+      console.log('[FCM] Using database function for subscription management...');
+      const { data: result, error } = await supabase
+        .rpc('manage_user_push_subscription', {
+          p_user_id: userId,
+          p_user_email: userEmail,
+          p_fcm_token: fcmToken,
+          p_device_fingerprint: deviceFingerprint,
+          p_device_info: deviceInfo
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      if (result && result.length > 0) {
+        const { id, action } = result[0];
+        console.log(`[FCM] Subscription ${action} successfully:`, id);
+        return { id, action };
+      } else {
+        throw new Error('No result returned from subscription management function');
+      }
+    } catch (error) {
+      console.error('[FCM] Database function failed, falling back to manual management:', error);
+
+      // Fallback to manual management if database function fails
+      return await manageFCMSubscriptionManual(userId, userEmail, fcmToken, deviceFingerprint, deviceInfo);
+    }
+  }, [generateDeviceFingerprint]);
+
+  /**
+   * Manual fallback for FCM subscription management
+   */
+  const manageFCMSubscriptionManual = useCallback(async (userId, userEmail, fcmToken, deviceFingerprint, deviceInfo) => {
+    console.log('[FCM] Using manual subscription management fallback...');
+
+    try {
+      // Step 1: Deactivate any existing subscriptions for this device from other users
+      await supabase
+        .from('push_subscriptions')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('device_fingerprint', deviceFingerprint)
+        .neq('user_id', userId);
+
+      // Step 2: Check if current user has an existing subscription for this device/token
+      const { data: existingSubscription, error: checkError } = await supabase
+        .from('push_subscriptions')
+        .select('id, is_active, fcm_token, device_fingerprint')
+        .eq('user_id', userId)
+        .or(`fcm_token.eq.${fcmToken},device_fingerprint.eq.${deviceFingerprint}`)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError;
+      }
+
+      if (existingSubscription) {
+        // Update existing subscription
+        const { data: updateResult, error: updateError } = await supabase
+          .from('push_subscriptions')
+          .update({
+            fcm_token: fcmToken,
+            user_email: userEmail,
+            is_active: true,
+            device_fingerprint: deviceFingerprint,
+            device_info: deviceInfo,
+            last_used_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingSubscription.id)
+          .select();
+
+        if (updateError) {
+          throw updateError;
+        }
+
+        console.log('[FCM] Successfully updated existing subscription');
+        return { id: updateResult[0].id, action: 'updated' };
+      } else {
+        // Create new subscription
+        const { data: insertResult, error: insertError } = await supabase
+          .from('push_subscriptions')
+          .insert({
+            user_id: userId,
+            user_email: userEmail,
+            fcm_token: fcmToken,
+            is_active: true,
+            device_fingerprint: deviceFingerprint,
+            device_info: deviceInfo,
+            last_used_at: new Date().toISOString()
+          })
+          .select();
+
+        if (insertError) {
+          throw insertError;
+        }
+
+        console.log('[FCM] Successfully created new subscription');
+        return { id: insertResult[0].id, action: 'created' };
+      }
+    } catch (error) {
+      console.error('[FCM] Manual subscription management failed:', error);
+      throw error;
+    }
+  }, []);
+
+  /**
    * Request notification permission and get FCM token
    */
   const requestPermission = useCallback(async () => {
@@ -67,14 +226,20 @@ export const useFcm = () => {
     console.log('[FCM] User:', { id: user?.id, email: user?.email });
     console.log('[FCM] Is supported:', isSupported);
 
-    // Test database connectivity first
+    // Test database connectivity first with simpler query
     try {
       console.log('[FCM] Testing database connectivity...');
       const { data: testData, error: testError } = await supabase
         .from('push_subscriptions')
-        .select('count(*)')
+        .select('id')
         .limit(1);
+
       console.log('[FCM] Database test result:', { testData, testError });
+
+      // If we get a permissions error, the table exists but RLS is blocking
+      if (testError && testError.code === '42501') {
+        console.log('[FCM] RLS is blocking access - table exists but needs proper policies');
+      }
     } catch (dbTestError) {
       console.error('[FCM] Database connectivity test failed:', dbTestError);
     }
@@ -164,80 +329,13 @@ export const useFcm = () => {
         // Continue anyway - don't fail for cleanup issues
       }
 
-      // Save token to database with multi-device support
-      let saveError = null;
-
-      // Check if this specific FCM token already exists for this user
-      console.log('[FCM] Checking for existing token in database for user:', user.id);
-      console.log('[FCM] Token to check:', token?.substring(0, 20) + '...');
-
-      const { data: existingTokenRecord, error: tokenCheckError } = await supabase
-        .from('push_subscriptions')
-        .select('id, is_active')
-        .eq('user_id', user.id)
-        .eq('fcm_token', token)
-        .maybeSingle();
-
-      console.log('[FCM] Existing token check result:', { existingTokenRecord, tokenCheckError });
-
-      if (tokenCheckError && tokenCheckError.code !== 'PGRST116') {
-        console.warn('Error checking existing token:', tokenCheckError);
-        // Continue anyway
-      }
-
-      if (existingTokenRecord) {
-        // This exact token already exists for this user, just update it
-        console.log('[FCM] Updating existing FCM token record for this device');
-        const { data: updateResult, error: updateError } = await supabase
-          .from('push_subscriptions')
-          .update({
-            is_active: true,
-            user_email: user.email, // Update email in case it changed
-            device_info: {
-              userAgent: navigator.userAgent,
-              timestamp: new Date().toISOString(),
-              platform: navigator.platform
-            }
-          })
-          .eq('id', existingTokenRecord.id)
-          .select();
-
-        console.log('[FCM] Update result:', { updateResult, updateError });
-        saveError = updateError;
-      } else {
-        // This is a new token for this user (new device), insert it
-        console.log('[FCM] Inserting new FCM token record for additional device');
-        console.log('[FCM] Insert data:', {
-          user_id: user.id,
-          user_email: user.email,
-          user_id_type: typeof user.id,
-          user_id_length: user.id?.length,
-          fcm_token: token?.substring(0, 20) + '...',
-          fcm_token_length: token?.length,
-          is_active: true
-        });
-
-        const { data: insertResult, error: insertError } = await supabase
-          .from('push_subscriptions')
-          .insert({
-            user_id: user.id,
-            user_email: user.email, // Add email for easy identification
-            fcm_token: token,
-            is_active: true,
-            device_info: {
-              userAgent: navigator.userAgent,
-              timestamp: new Date().toISOString(),
-              platform: navigator.platform
-            }
-          })
-          .select();
-
-        console.log('[FCM] Insert result:', { insertResult, insertError });
-        saveError = insertError;
-      }
-
-      if (saveError) {
-        console.error('[FCM] Error saving FCM token:', saveError);
+      // Use the robust subscription management system
+      try {
+        console.log('[FCM] Using robust subscription management...');
+        const subscriptionResult = await manageFCMSubscription(user.id, user.email, token);
+        console.log('[FCM] Subscription management result:', subscriptionResult);
+      } catch (saveError) {
+        console.error('[FCM] Error managing FCM subscription:', saveError);
         console.error('[FCM] Error details:', {
           message: saveError.message,
           details: saveError.details,
