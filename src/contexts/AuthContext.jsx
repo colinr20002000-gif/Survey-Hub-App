@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { supabase } from '../supabaseClient';
+import { getMessaging, deleteToken } from 'firebase/messaging';
+import firebaseApp from '../firebaseConfig';
 
 // This context manages user authentication across the entire app
 // It keeps track of who's logged in and provides login/logout functions
@@ -289,85 +291,20 @@ export const AuthProvider = ({ children }) => {
 
   // This function logs the user out using Supabase
   const logout = async () => {
-    console.log('🔐 Starting logout process...');
-    setIsLoading(true);
-
     try {
-      // Store current user info for cleanup
-      const currentUser = user;
+      console.log('Logout initiated: Deleting FCM token before signing out.');
+      const messaging = getMessaging(firebaseApp);
 
-      // Deactivate push subscriptions for this user on logout
-      if (currentUser?.id) {
-        console.log('🔔 Deactivating push subscriptions for user:', currentUser.email);
+      // This is the crucial step to invalidate the old token on the client
+      await deleteToken(messaging);
 
-        try {
-          // Deactivate FCM subscriptions for this user on this device
-          // We need to get the FCM token from the current browser session
-          const fcmTokenFromStorage = localStorage.getItem('fcm_token');
-
-          if (fcmTokenFromStorage) {
-            console.log('🔔 Deactivating FCM token for current device on logout');
-            const { error: fcmError } = await supabase
-              .from('push_subscriptions')
-              .update({ is_active: false })
-              .eq('user_id', currentUser.id)
-              .eq('fcm_token', fcmTokenFromStorage);
-
-            if (fcmError) {
-              console.error('Error deactivating FCM subscription:', fcmError);
-            } else {
-              console.log('🔔 FCM subscription deactivated for current device');
-              // Clear the stored token
-              localStorage.removeItem('fcm_token');
-            }
-          } else {
-            console.log('🔔 No FCM token found in storage for current device');
-          }
-        } catch (fcmError) {
-          console.error('Error during FCM cleanup (non-critical):', fcmError);
-          // Don't fail logout for this
-        }
-      }
-
-      // Always attempt to sign out from Supabase
-      console.log('🔐 Signing out from Supabase...');
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        console.error('Supabase signOut error:', error.message);
-        // Still clear local state even if signOut fails
-      }
-
-      // Force clear user state regardless of signOut result
-      setUser(null);
-      console.log('🔐 User state cleared successfully');
-
-      // Clear any local storage or session storage if needed
-      try {
-        localStorage.removeItem('supabase.auth.token');
-        sessionStorage.clear();
-      } catch (storageError) {
-        console.warn('Could not clear storage:', storageError);
-      }
-
-      console.log('🔐 Logout completed successfully');
-      return { success: true };
-
-    } catch (err) {
-      console.error('Critical error during logout:', err);
-
-      // Emergency logout - force clear everything
-      setUser(null);
-
-      try {
-        await supabase.auth.signOut();
-      } catch (emergencyError) {
-        console.error('Emergency signOut also failed:', emergencyError);
-      }
-
-      return { success: false, error: err.message };
+      console.log('FCM token deleted successfully.');
+    } catch (error) {
+      console.error('Could not delete FCM token during logout:', error);
     } finally {
-      setIsLoading(false);
+      // Ensure the user is always signed out, even if token deletion fails
+      console.log('Signing out from Supabase.');
+      await supabase.auth.signOut();
     }
   };
 
