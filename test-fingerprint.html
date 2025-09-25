@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Device Fingerprint Test</title>
+</head>
+<body>
+    <h1>Device Fingerprint Test</h1>
+    <button onclick="testFingerprint()">Generate Fingerprint</button>
+    <div id="result"></div>
+
+    <script>
+        function generateDeviceFingerprint() {
+            // Enhanced canvas fingerprinting for more unique rendering
+            const canvas = document.createElement('canvas');
+            canvas.width = 200;
+            canvas.height = 50;
+            const ctx = canvas.getContext('2d');
+
+            // Create more complex canvas rendering for better uniqueness
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillText('Device fingerprint test', 2, 2);
+            ctx.font = '12px serif';
+            ctx.fillText('123456789', 2, 20);
+
+            // Add some shapes to increase uniqueness
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.fillRect(100, 5, 20, 20);
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+            ctx.fillRect(120, 10, 15, 15);
+
+            // Collect comprehensive device characteristics
+            const getWebGLFingerprint = () => {
+                try {
+                    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    if (!gl) return 'no-webgl';
+
+                    return [
+                        gl.getParameter(gl.RENDERER),
+                        gl.getParameter(gl.VENDOR),
+                        gl.getParameter(gl.VERSION),
+                        gl.getParameter(gl.SHADING_LANGUAGE_VERSION)
+                    ].join('|');
+                } catch {
+                    return 'webgl-error';
+                }
+            };
+
+            const getAudioFingerprint = () => {
+                try {
+                    if (!window.AudioContext && !window.webkitAudioContext) return 'no-audio';
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    const audioCtx = new AudioContext();
+                    const oscillator = audioCtx.createOscillator();
+                    const analyser = audioCtx.createAnalyser();
+                    const gain = audioCtx.createGain();
+
+                    oscillator.connect(analyser);
+                    analyser.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    const fingerprint = [
+                        audioCtx.sampleRate,
+                        audioCtx.state,
+                        analyser.frequencyBinCount,
+                        gain.gain.value
+                    ].join('|');
+
+                    audioCtx.close();
+                    return fingerprint;
+                } catch {
+                    return 'audio-error';
+                }
+            };
+
+            // Generate a persistent browser-specific ID
+            const getBrowserId = () => {
+                let browserId = localStorage.getItem('browser_device_id');
+                if (!browserId) {
+                    browserId = 'bid_' + Math.random().toString(36).substr(2, 16) + Date.now().toString(36);
+                    localStorage.setItem('browser_device_id', browserId);
+                }
+                return browserId;
+            };
+
+            const fingerprint = [
+                navigator.userAgent,
+                navigator.language,
+                navigator.languages ? navigator.languages.join(',') : '',
+                navigator.platform,
+                navigator.hardwareConcurrency || 'unknown',
+                screen.width + 'x' + screen.height,
+                screen.availWidth + 'x' + screen.availHeight,
+                screen.colorDepth,
+                screen.pixelDepth,
+                new Date().getTimezoneOffset(),
+                Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+                navigator.cookieEnabled,
+                navigator.doNotTrack || 'unknown',
+                navigator.maxTouchPoints || 0,
+                canvas.toDataURL(),
+                getWebGLFingerprint(),
+                getAudioFingerprint(),
+                getBrowserId(), // This ensures uniqueness per browser installation
+                window.devicePixelRatio || 1,
+                window.screen.orientation ? window.screen.orientation.type : 'unknown'
+            ].join('|');
+
+            // Create a more robust hash
+            let hash = 0;
+            for (let i = 0; i < fingerprint.length; i++) {
+                const char = fingerprint.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32bit integer
+            }
+
+            return 'device_' + Math.abs(hash).toString(36);
+        }
+
+        function testFingerprint() {
+            const fingerprint = generateDeviceFingerprint();
+            const browserId = localStorage.getItem('browser_device_id');
+
+            document.getElementById('result').innerHTML = `
+                <h2>Results:</h2>
+                <p><strong>Device Fingerprint:</strong> ${fingerprint}</p>
+                <p><strong>Browser ID:</strong> ${browserId}</p>
+                <p><strong>User Agent:</strong> ${navigator.userAgent}</p>
+                <p><strong>Platform:</strong> ${navigator.platform}</p>
+                <p><strong>Screen:</strong> ${screen.width}x${screen.height}</p>
+                <p><strong>Hardware Concurrency:</strong> ${navigator.hardwareConcurrency || 'unknown'}</p>
+            `;
+        }
+    </script>
+</body>
+</html>
