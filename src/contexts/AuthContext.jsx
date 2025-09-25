@@ -378,12 +378,32 @@ export const AuthProvider = ({ children }) => {
       const { error: signOutError } = await supabase.auth.signOut();
 
       if (signOutError) {
-        console.error('❌ Supabase signOut error:', signOutError);
-        throw signOutError;
+        // Check if error is just "session missing" which means already logged out
+        if (signOutError.message?.includes('Auth session missing') ||
+            signOutError.message?.includes('session missing') ||
+            signOutError.name === 'AuthSessionMissingError') {
+          console.log('ℹ️ Session already cleared - logout successful');
+        } else {
+          console.error('❌ Supabase signOut error:', signOutError);
+          throw signOutError;
+        }
       }
 
       console.log('✅ Logout completed successfully');
     } catch (signOutError) {
+      // Check if error is just "session missing" which means already logged out
+      if (signOutError.message?.includes('Auth session missing') ||
+          signOutError.message?.includes('session missing') ||
+          signOutError.name === 'AuthSessionMissingError') {
+        console.log('ℹ️ Session was already cleared - treating as successful logout');
+
+        // Clear local state to ensure clean logout
+        setUser(null);
+        setIsLoading(false);
+
+        return; // Exit successfully
+      }
+
       console.error('❌ Critical logout error:', signOutError);
 
       // Force clear local session state even if Supabase signout fails
