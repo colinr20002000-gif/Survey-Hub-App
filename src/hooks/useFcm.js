@@ -212,7 +212,11 @@ export const useFcm = () => {
       }
 
       if (result && result.length > 0) {
-        const { id, action } = result[0];
+        // Handle both old and new column names for compatibility
+        const resultData = result[0];
+        const id = resultData.subscription_id || resultData.id;
+        const action = resultData.action_taken || resultData.action;
+
         console.log(`[FCM] Subscription ${action} successfully:`, id);
         return { id, action };
       } else {

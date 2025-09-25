@@ -73,11 +73,11 @@ CREATE OR REPLACE FUNCTION manage_user_push_subscription(
     p_device_info JSONB
 )
 RETURNS TABLE (
-    id UUID,
-    action TEXT
+    subscription_id UUID,
+    action_taken TEXT
 ) AS $$
 DECLARE
-    existing_record UUID;
+    existing_record_id UUID;
     result_action TEXT;
 BEGIN
     -- Deactivate subscriptions for this device from other users
@@ -87,14 +87,14 @@ BEGIN
     AND user_id != p_user_id;
 
     -- Check for existing subscription for this user
-    SELECT push_subscriptions.id INTO existing_record
+    SELECT push_subscriptions.id INTO existing_record_id
     FROM push_subscriptions
     WHERE user_id = p_user_id
     AND (fcm_token = p_fcm_token OR device_fingerprint = p_device_fingerprint)
     ORDER BY updated_at DESC
     LIMIT 1;
 
-    IF existing_record IS NOT NULL THEN
+    IF existing_record_id IS NOT NULL THEN
         -- Update existing subscription
         UPDATE push_subscriptions
         SET fcm_token = p_fcm_token,
@@ -104,29 +104,24 @@ BEGIN
             device_info = p_device_info,
             last_used_at = NOW(),
             updated_at = NOW()
-        WHERE push_subscriptions.id = existing_record;
+        WHERE push_subscriptions.id = existing_record_id;
 
         result_action := 'updated';
     ELSE
-        -- Create new subscription
+        -- Create new subscription and get the returned ID
         INSERT INTO push_subscriptions (
             user_id, user_email, fcm_token, device_fingerprint,
             device_info, is_active, last_used_at
         ) VALUES (
             p_user_id, p_user_email, p_fcm_token, p_device_fingerprint,
             p_device_info, true, NOW()
-        );
-
-        SELECT push_subscriptions.id INTO existing_record
-        FROM push_subscriptions
-        WHERE user_id = p_user_id AND fcm_token = p_fcm_token
-        ORDER BY created_at DESC
-        LIMIT 1;
+        ) RETURNING id INTO existing_record_id;
 
         result_action := 'created';
     END IF;
 
-    RETURN QUERY SELECT existing_record, result_action;
+    -- Return the result with properly named columns
+    RETURN QUERY SELECT existing_record_id AS subscription_id, result_action AS action_taken;
 END;
 $$ LANGUAGE plpgsql;
 
