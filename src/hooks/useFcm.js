@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getFCMToken, onForegroundMessage } from '../firebaseConfig';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,7 +9,13 @@ import { useAuth } from '../contexts/AuthContext';
  */
 export const useFcm = () => {
   const [fcmToken, setFcmToken] = useState(null);
-  const [permission, setPermission] = useState(Notification.permission);
+  const [permission, setPermission] = useState(() => {
+    try {
+      return typeof Notification !== 'undefined' ? Notification.permission : 'default';
+    } catch (e) {
+      return 'default';
+    }
+  });
   const [isSupported, setIsSupported] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -51,8 +57,15 @@ export const useFcm = () => {
           setFcmToken(subscriptions[0].fcm_token);
           console.log('Loaded existing FCM token from database');
         } else {
-          // No active subscription found - temporarily disabled auto-subscription to debug error
-          console.log('No active FCM subscription found (auto-subscription temporarily disabled)');
+          // No active subscription found - auto-subscribe user
+          console.log('No active FCM subscription found, attempting auto-subscription...');
+          try {
+            await requestPermission();
+            console.log('Auto-subscription completed successfully');
+          } catch (autoSubError) {
+            console.log('Auto-subscription failed (user interaction may be required):', autoSubError.message);
+            // This is expected if user hasn't interacted with the page yet
+          }
         }
       } catch (err) {
         console.error('Error in loadExistingTokenAndAutoSubscribe:', err);
@@ -516,7 +529,9 @@ export const useFcm = () => {
   /**
    * Check if notifications are currently enabled
    */
-  const isEnabled = permission === 'granted' && !!fcmToken;
+  const isEnabled = useMemo(() => {
+    return permission === 'granted' && !!fcmToken;
+  }, [permission, fcmToken]);
 
   /**
    * Set up foreground message listener
