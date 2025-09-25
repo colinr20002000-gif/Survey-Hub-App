@@ -51,29 +51,8 @@ export const useFcm = () => {
           setFcmToken(subscriptions[0].fcm_token);
           console.log('Loaded existing FCM token from database');
         } else {
-          // No active subscription found - auto-subscribe the user
-          console.log('No active FCM subscription found, attempting auto-subscription...');
-
-          // Check if user has previously denied notifications
-          if (Notification.permission === 'denied') {
-            console.log('Auto-subscription skipped: User has denied notification permissions');
-            return;
-          }
-
-          // Check if user has opted out of auto-subscription
-          const hasOptedOut = localStorage.getItem('fcm_auto_subscribe_opted_out');
-          if (hasOptedOut === 'true') {
-            console.log('Auto-subscription skipped: User has opted out of automatic subscriptions');
-            return;
-          }
-
-          try {
-            await requestPermission();
-            console.log('Auto-subscription completed successfully');
-          } catch (autoSubError) {
-            console.log('Auto-subscription failed:', autoSubError);
-            // Don't throw - this is a non-critical failure
-          }
+          // No active subscription found - temporarily disabled auto-subscription to debug error
+          console.log('No active FCM subscription found (auto-subscription temporarily disabled)');
         }
       } catch (err) {
         console.error('Error in loadExistingTokenAndAutoSubscribe:', err);
