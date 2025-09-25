@@ -5252,7 +5252,6 @@ const NotificationSettings = () => {
 
     const {
         isSubscribed,
-        toggleSubscription,
         isLoading: subscriptionLoading,
         error: subscriptionError
     } = useSubscription();
@@ -5298,17 +5297,6 @@ const NotificationSettings = () => {
         }
     };
 
-    // Handle subscription toggle
-    const handleSubscriptionToggle = async () => {
-        try {
-            const success = await toggleSubscription();
-            if (!success) {
-                console.error('Failed to toggle subscription');
-            }
-        } catch (error) {
-            console.error('Error toggling subscription:', error);
-        }
-    };
 
     const handleInstallApp = async () => {
         if (installPrompt) {
@@ -5399,28 +5387,38 @@ const NotificationSettings = () => {
                             </div>
                         </div>
 
-                        {/* Subscription Toggle */}
+                        {/* Subscription Status */}
                         <div className="flex items-center justify-between">
                             <div>
                                 <span className="block font-medium">Notification Subscription</span>
                                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                                    Subscribe to receive announcements on this device
+                                    Automatically managed when you log in
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Switch
-                                    isChecked={isSubscribed}
-                                    onToggle={handleSubscriptionToggle}
-                                    disabled={subscriptionLoading}
-                                />
-                                {subscriptionLoading && (
-                                    <span className="text-xs text-blue-500">Loading...</span>
-                                )}
-                                {isSubscribed && (
-                                    <span className="text-xs text-green-500">Subscribed</span>
-                                )}
-                                {!isSubscribed && (
-                                    <span className="text-xs text-gray-500">Unsubscribed</span>
+                                {subscriptionLoading ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                        <span className="text-sm text-blue-500">Checking...</span>
+                                    </div>
+                                ) : (
+                                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                        isSubscribed
+                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+                                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                                    }`}>
+                                        {isSubscribed ? (
+                                            <div className="flex items-center gap-1">
+                                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                                Subscribed
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1">
+                                                <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                                                Not Subscribed
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -5453,8 +5451,8 @@ const NotificationSettings = () => {
                         {/* Help Text */}
                         <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
                             <p>• <strong>Device Permissions:</strong> Allows your browser to show notifications</p>
-                            <p>• <strong>Subscription:</strong> Controls whether you receive notifications from this app</p>
-                            <p>• Both must be enabled to receive push notifications</p>
+                            <p>• <strong>Subscription:</strong> Automatically created when you log in - shows your current status</p>
+                            <p>• Device permissions must be enabled to receive push notifications</p>
                         </div>
                     </div>
                 </div>
