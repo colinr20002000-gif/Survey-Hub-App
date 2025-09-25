@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getFCMToken, onForegroundMessage } from '../firebaseConfig';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { useRefreshOnLogin } from './useRefreshOnLogin';
 
 /**
  * Custom hook for managing Firebase Cloud Messaging
@@ -34,38 +35,63 @@ export const useFcm = () => {
     checkSupport();
   }, []);
 
-  // Load existing FCM token from database on mount and auto-subscribe if needed
-  useEffect(() => {
-    const loadExistingTokenAndAutoSubscribe = async () => {
-      if (!user?.id || !isSupported) return;
+  // Function to refresh FCM token from database
+  const refreshFcmTokenFromDatabase = useCallback(async () => {
+    console.log('[FCM] Refreshing FCM token from database');
 
-      try {
-        const { data: subscriptions, error } = await supabase
-          .from('push_subscriptions')
-          .select('fcm_token')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(1);
+    if (!user?.id || !isSupported) {
+      // Clear token when no user or not supported
+      setFcmToken(null);
+      localStorage.removeItem('fcm_token');
+      console.log('[FCM] Cleared FCM token - no user or not supported');
+      return;
+    }
 
-        if (error) {
-          console.error('Error loading existing FCM token:', error);
-          return;
-        }
+    try {
+      const { data: subscriptions, error } = await supabase
+        .from('push_subscriptions')
+        .select('fcm_token')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-        if (subscriptions && subscriptions.length > 0) {
-          setFcmToken(subscriptions[0].fcm_token);
-          console.log('Loaded existing FCM token from database');
-        } else {
-          console.log('No active FCM subscription found - auto-subscription is handled by AuthContext during login');
-        }
-      } catch (err) {
-        console.error('Error in loadExistingTokenAndAutoSubscribe:', err);
+      if (error) {
+        console.error('Error loading existing FCM token:', error);
+        // Clear token on error
+        setFcmToken(null);
+        localStorage.removeItem('fcm_token');
+        return;
       }
-    };
 
-    loadExistingTokenAndAutoSubscribe();
+      if (subscriptions && subscriptions.length > 0 && subscriptions[0].fcm_token !== 'pending') {
+        // Only use valid FCM tokens (not placeholder values)
+        const dbToken = subscriptions[0].fcm_token;
+        setFcmToken(dbToken);
+        localStorage.setItem('fcm_token', dbToken);
+        console.log('[FCM] Loaded existing FCM token from database');
+      } else {
+        console.log('[FCM] No active FCM subscription found - clearing local state');
+        // Clear local state if no valid subscription exists
+        setFcmToken(null);
+        localStorage.removeItem('fcm_token');
+      }
+    } catch (err) {
+      console.error('Error in refreshFcmTokenFromDatabase:', err);
+      // Clear token on error
+      setFcmToken(null);
+      localStorage.removeItem('fcm_token');
+    }
   }, [user?.id, isSupported]);
+
+  // Use refresh on login hook to ensure data is always fresh
+  useRefreshOnLogin(refreshFcmTokenFromDatabase);
+
+  // Initial load on mount
+  useEffect(() => {
+    refreshFcmTokenFromDatabase();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   /**
    * Generate a device fingerprint for this browser/device
@@ -547,6 +573,7 @@ export const useFcm = () => {
     refreshToken,
     optOutOfAutoSubscribe,
     optInToAutoSubscribe,
+    refreshFcmTokenFromDatabase,
 
     // Computed values (safe)
     ...computedValues

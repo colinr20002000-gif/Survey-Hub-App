@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { useRefreshOnLogin } from './useRefreshOnLogin';
 
 /**
  * Custom hook for managing push notification subscriptions (database operations)
@@ -79,10 +80,27 @@ export const useSubscription = () => {
     }
   }, [user?.id, generateDeviceFingerprint]);
 
-  // Load subscription status on mount and when user changes
+  // Add a manual refresh function that can be called externally
+  const refreshSubscriptionStatus = useCallback(async () => {
+    console.log('[Subscription] Manual refresh requested');
+    if (user?.id) {
+      return await checkSubscriptionStatus();
+    } else {
+      // Clear subscription state when no user
+      setIsSubscribed(false);
+      setError(null);
+      return false;
+    }
+  }, [checkSubscriptionStatus, user?.id]);
+
+  // Use refresh on login hook to ensure data is always fresh
+  useRefreshOnLogin(refreshSubscriptionStatus);
+
+  // Initial load on mount
   useEffect(() => {
-    checkSubscriptionStatus();
-  }, [checkSubscriptionStatus]);
+    refreshSubscriptionStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // Enable subscription (activate existing or create new)
   const enableSubscription = useCallback(async () => {
@@ -159,6 +177,10 @@ export const useSubscription = () => {
 
       setIsSubscribed(true);
       setIsLoading(false);
+
+      // Refresh subscription status to ensure consistency
+      setTimeout(() => checkSubscriptionStatus(), 500);
+
       return true;
 
     } catch (err) {
@@ -198,6 +220,10 @@ export const useSubscription = () => {
       console.log('Subscription disabled for user:', user?.email);
       setIsSubscribed(false);
       setIsLoading(false);
+
+      // Refresh subscription status to ensure consistency
+      setTimeout(() => checkSubscriptionStatus(), 500);
+
       return true;
 
     } catch (err) {
@@ -227,7 +253,8 @@ export const useSubscription = () => {
     enableSubscription,
     disableSubscription,
     toggleSubscription,
-    checkSubscriptionStatus
+    checkSubscriptionStatus,
+    refreshSubscriptionStatus
   };
 };
 
