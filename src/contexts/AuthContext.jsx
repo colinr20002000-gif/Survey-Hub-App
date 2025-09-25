@@ -296,156 +296,101 @@ export const AuthProvider = ({ children }) => {
 
   // This function logs the user out using Supabase
   const logout = async () => {
+    console.log('🔄 Logout process started');
+
+    // Try to clean up FCM tokens, but don't let failures block logout
     try {
-      console.log('Logout initiated: Deleting FCM token before signing out.');
+      console.log('🧹 Starting FCM cleanup...');
 
       // First, deactivate FCM subscriptions for current device if user exists
       if (user?.id) {
-        console.log('Deactivating FCM subscriptions for current device...');
         try {
-          // Generate the same device fingerprint as used in FCM hook
-          const generateDeviceFingerprint = () => {
-            // Enhanced canvas fingerprinting for more unique rendering
-            const canvas = document.createElement('canvas');
-            canvas.width = 200;
-            canvas.height = 50;
-            const ctx = canvas.getContext('2d');
+          // Get stored browser ID for fingerprint generation during logout
+          const browserId = localStorage.getItem('browser_device_id');
 
-            // Create more complex canvas rendering for better uniqueness
-            ctx.textBaseline = 'top';
-            ctx.font = '14px Arial';
-            ctx.fillText('Device fingerprint test', 2, 2);
-            ctx.font = '12px serif';
-            ctx.fillText('123456789', 2, 20);
-
-            // Add some shapes to increase uniqueness
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-            ctx.fillRect(100, 5, 20, 20);
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-            ctx.fillRect(120, 10, 15, 15);
-
-            // Collect comprehensive device characteristics
-            const getWebGLFingerprint = () => {
-              try {
-                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-                if (!gl) return 'no-webgl';
-
-                return [
-                  gl.getParameter(gl.RENDERER),
-                  gl.getParameter(gl.VENDOR),
-                  gl.getParameter(gl.VERSION),
-                  gl.getParameter(gl.SHADING_LANGUAGE_VERSION)
-                ].join('|');
-              } catch {
-                return 'webgl-error';
-              }
-            };
-
-            const getAudioFingerprint = () => {
-              try {
-                if (!window.AudioContext && !window.webkitAudioContext) return 'no-audio';
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                const audioCtx = new AudioContext();
-                const oscillator = audioCtx.createOscillator();
-                const analyser = audioCtx.createAnalyser();
-                const gain = audioCtx.createGain();
-
-                oscillator.connect(analyser);
-                analyser.connect(gain);
-                gain.connect(audioCtx.destination);
-
-                const fingerprint = [
-                  audioCtx.sampleRate,
-                  audioCtx.state,
-                  analyser.frequencyBinCount,
-                  gain.gain.value
-                ].join('|');
-
-                audioCtx.close();
-                return fingerprint;
-              } catch {
-                return 'audio-error';
-              }
-            };
-
-            // Generate a persistent browser-specific ID
-            const getBrowserId = () => {
-              let browserId = localStorage.getItem('browser_device_id');
-              if (!browserId) {
-                browserId = 'bid_' + Math.random().toString(36).substr(2, 16) + Date.now().toString(36);
-                localStorage.setItem('browser_device_id', browserId);
-              }
-              return browserId;
-            };
-
-            const fingerprint = [
+          if (browserId) {
+            // Use a simplified fingerprinting approach during logout to avoid potential issues
+            const simpleFingerprint = [
               navigator.userAgent,
               navigator.language,
-              navigator.languages ? navigator.languages.join(',') : '',
               navigator.platform,
-              navigator.hardwareConcurrency || 'unknown',
               screen.width + 'x' + screen.height,
-              screen.availWidth + 'x' + screen.availHeight,
-              screen.colorDepth,
-              screen.pixelDepth,
-              new Date().getTimezoneOffset(),
-              Intl.DateTimeFormat().resolvedOptions().timeZone || '',
-              navigator.cookieEnabled,
-              navigator.doNotTrack || 'unknown',
-              navigator.maxTouchPoints || 0,
-              canvas.toDataURL(),
-              getWebGLFingerprint(),
-              getAudioFingerprint(),
-              getBrowserId(), // This ensures uniqueness per browser installation
-              window.devicePixelRatio || 1,
-              window.screen.orientation ? window.screen.orientation.type : 'unknown'
+              browserId
             ].join('|');
 
-            // Create a more robust hash
             let hash = 0;
-            for (let i = 0; i < fingerprint.length; i++) {
-              const char = fingerprint.charCodeAt(i);
+            for (let i = 0; i < simpleFingerprint.length; i++) {
+              const char = simpleFingerprint.charCodeAt(i);
               hash = ((hash << 5) - hash) + char;
-              hash = hash & hash; // Convert to 32bit integer
+              hash = hash & hash;
             }
 
-            return 'device_' + Math.abs(hash).toString(36);
-          };
+            const deviceFingerprint = 'device_' + Math.abs(hash).toString(36);
+            console.log('📱 Device fingerprint for logout cleanup:', deviceFingerprint);
 
-          const deviceFingerprint = generateDeviceFingerprint();
-          console.log('Device fingerprint for logout:', deviceFingerprint);
+            // Deactivate push subscriptions for this user on this device
+            const { error: deactivateError } = await Promise.race([
+              supabase
+                .from('push_subscriptions')
+                .update({
+                  is_active: false,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('user_id', user.id)
+                .eq('device_fingerprint', deviceFingerprint),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Database cleanup timeout')), 3000)
+              )
+            ]);
 
-          // Only deactivate subscriptions for this specific user on this device
-          const { error: deactivateError } = await supabase
-            .from('push_subscriptions')
-            .update({
-              is_active: false,
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', user.id)
-            .eq('device_fingerprint', deviceFingerprint);
-
-          if (deactivateError) {
-            console.error('Error deactivating FCM subscriptions:', deactivateError);
-          } else {
-            console.log('FCM subscriptions deactivated successfully for current device.');
+            if (deactivateError) {
+              console.warn('⚠️ Error deactivating FCM subscriptions (non-blocking):', deactivateError);
+            } else {
+              console.log('✅ FCM subscriptions deactivated successfully');
+            }
           }
         } catch (dbError) {
-          console.error('Database error during FCM cleanup:', dbError);
+          console.warn('⚠️ Database cleanup error (non-blocking):', dbError);
         }
       }
 
-      // Then delete the Firebase token from the client
-      const messaging = getMessaging(firebaseApp);
-      await deleteToken(messaging);
+      // Try to delete Firebase token with timeout
+      try {
+        const messaging = getMessaging(firebaseApp);
+        await Promise.race([
+          deleteToken(messaging),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Token deletion timeout')), 3000)
+          )
+        ]);
+        console.log('🔥 FCM token deleted successfully');
+      } catch (tokenError) {
+        console.warn('⚠️ FCM token deletion failed (non-blocking):', tokenError);
+      }
 
-      console.log('FCM token deleted successfully.');
     } catch (error) {
-      console.error('Could not delete FCM token during logout:', error);
-    } finally {
-      // Ensure the user is always signed out, even if token deletion fails
-      console.log('Signing out from Supabase.');
-      await supabase.auth.signOut();
+      console.warn('⚠️ FCM cleanup error (non-blocking):', error);
+    }
+
+    // ALWAYS sign out, regardless of cleanup success/failure
+    try {
+      console.log('🚪 Signing out from Supabase...');
+      const { error: signOutError } = await supabase.auth.signOut();
+
+      if (signOutError) {
+        console.error('❌ Supabase signOut error:', signOutError);
+        throw signOutError;
+      }
+
+      console.log('✅ Logout completed successfully');
+    } catch (signOutError) {
+      console.error('❌ Critical logout error:', signOutError);
+
+      // Force clear local session state even if Supabase signout fails
+      setUser(null);
+      setIsLoading(false);
+
+      throw signOutError;
     }
   };
 
