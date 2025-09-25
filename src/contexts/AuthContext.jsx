@@ -372,10 +372,30 @@ export const AuthProvider = ({ children }) => {
       console.warn('⚠️ FCM cleanup error (non-blocking):', error);
     }
 
+    // Clear local state FIRST to prevent re-authentication
+    setUser(null);
+    setIsLoading(false);
+
     // ALWAYS sign out, regardless of cleanup success/failure
     try {
       console.log('🚪 Signing out from Supabase...');
-      const { error: signOutError } = await supabase.auth.signOut();
+
+      // Try local scope first, then global if needed
+      let signOutError = null;
+
+      try {
+        const result = await supabase.auth.signOut({ scope: 'local' });
+        signOutError = result.error;
+      } catch (localError) {
+        console.warn('Local signOut failed, trying global scope:', localError);
+        try {
+          const result = await supabase.auth.signOut({ scope: 'global' });
+          signOutError = result.error;
+        } catch (globalError) {
+          console.warn('Global signOut also failed, proceeding with cleanup:', globalError);
+          // Continue with local cleanup even if remote signout fails
+        }
+      }
 
       if (signOutError) {
         // Check if error is just "session missing" which means already logged out
@@ -384,8 +404,8 @@ export const AuthProvider = ({ children }) => {
             signOutError.name === 'AuthSessionMissingError') {
           console.log('ℹ️ Session already cleared - logout successful');
         } else {
-          console.error('❌ Supabase signOut error:', signOutError);
-          throw signOutError;
+          console.warn('⚠️ Supabase signOut error (non-blocking):', signOutError);
+          // Don't throw, continue with cleanup
         }
       }
 
@@ -396,21 +416,13 @@ export const AuthProvider = ({ children }) => {
           signOutError.message?.includes('session missing') ||
           signOutError.name === 'AuthSessionMissingError') {
         console.log('ℹ️ Session was already cleared - treating as successful logout');
-
-        // Clear local state to ensure clean logout
-        setUser(null);
-        setIsLoading(false);
-
         return; // Exit successfully
       }
 
-      console.error('❌ Critical logout error:', signOutError);
+      console.warn('⚠️ Logout error (non-blocking, local state cleared):', signOutError);
 
-      // Force clear local session state even if Supabase signout fails
-      setUser(null);
-      setIsLoading(false);
-
-      throw signOutError;
+      // Don't throw error - local state is already cleared
+      // User experience should be smooth even if remote logout fails
     }
   };
 
