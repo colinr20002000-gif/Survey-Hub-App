@@ -57,8 +57,7 @@ export const useFcm = () => {
           setFcmToken(subscriptions[0].fcm_token);
           console.log('Loaded existing FCM token from database');
         } else {
-          // No active subscription found - temporarily disable auto-subscription to debug error
-          console.log('No active FCM subscription found (auto-subscription temporarily disabled for debugging)');
+          console.log('No active FCM subscription found - auto-subscription is handled by AuthContext during login');
         }
       } catch (err) {
         console.error('Error in loadExistingTokenAndAutoSubscribe:', err);

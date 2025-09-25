@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { supabase } from '../supabaseClient';
 import { getMessaging, deleteToken } from 'firebase/messaging';
 import firebaseApp from '../firebaseConfig';
+import { getFCMToken } from '../firebaseConfig';
 
 // This context manages user authentication across the entire app
 // It keeps track of who's logged in and provides login/logout functions
@@ -192,6 +193,154 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Auto-subscribe to push notifications for authenticated users
+  const autoSubscribePushNotifications = async (userData) => {
+    // Skip if user has opted out of auto-subscribe
+    if (localStorage.getItem('fcm_auto_subscribe_opted_out') === 'true') {
+      console.log('📵 User opted out of automatic push notifications');
+      return;
+    }
+
+    // Skip if push notifications are not supported
+    if (!('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)) {
+      console.log('📵 Push notifications not supported in this browser');
+      return;
+    }
+
+    // Skip if user ID is missing
+    if (!userData?.id || !userData?.email) {
+      console.log('📵 Missing user data for push notification subscription');
+      return;
+    }
+
+    try {
+      console.log('🔔 Attempting automatic push notification subscription for:', userData.email);
+
+      // Generate device fingerprint (similar to useFcm hook)
+      const generateDeviceFingerprint = () => {
+        const getBrowserId = () => {
+          let browserId = localStorage.getItem('browser_device_id');
+          if (!browserId) {
+            browserId = 'bid_' + Math.random().toString(36).substr(2, 16) + Date.now().toString(36);
+            localStorage.setItem('browser_device_id', browserId);
+          }
+          return browserId;
+        };
+
+        const fingerprint = [
+          navigator.userAgent,
+          navigator.language,
+          navigator.platform,
+          screen.width + 'x' + screen.height,
+          new Date().getTimezoneOffset(),
+          getBrowserId()
+        ].join('|');
+
+        let hash = 0;
+        for (let i = 0; i < fingerprint.length; i++) {
+          const char = fingerprint.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+
+        return 'device_' + Math.abs(hash).toString(36);
+      };
+
+      // Check if user already has an active subscription for this device
+      const deviceFingerprint = generateDeviceFingerprint();
+
+      const { data: existingSubscriptions, error: checkError } = await supabase
+        .from('push_subscriptions')
+        .select('id, is_active')
+        .eq('user_id', userData.id)
+        .eq('device_fingerprint', deviceFingerprint)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.warn('📵 Error checking existing push subscriptions:', checkError);
+        return;
+      }
+
+      // If user already has active subscription for this device, no need to create another
+      if (existingSubscriptions && existingSubscriptions.length > 0) {
+        console.log('✅ User already has active push subscription for this device');
+        return;
+      }
+
+      // Check notification permission
+      let permission = Notification.permission;
+
+      // If permission is 'default', silently request it
+      if (permission === 'default') {
+        try {
+          permission = await Notification.requestPermission();
+          console.log('🔔 Notification permission requested:', permission);
+        } catch (permError) {
+          console.log('📵 Silent permission request failed:', permError);
+          return;
+        }
+      }
+
+      // Only proceed if permission is granted
+      if (permission !== 'granted') {
+        console.log('📵 Notification permission not granted:', permission);
+        return;
+      }
+
+      // Get FCM token
+      let fcmToken;
+      try {
+        fcmToken = await getFCMToken();
+        if (!fcmToken) {
+          console.log('📵 Failed to get FCM token');
+          return;
+        }
+      } catch (tokenError) {
+        console.log('📵 Error getting FCM token:', tokenError);
+        return;
+      }
+
+      // Device info for subscription
+      const deviceInfo = {
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+        platform: navigator.platform,
+        language: navigator.language,
+        screen: `${screen.width}x${screen.height}`,
+        timezone: new Date().getTimezoneOffset(),
+        autoSubscribed: true
+      };
+
+      // Use the database function to manage subscription
+      const { data: result, error: subscriptionError } = await supabase
+        .rpc('manage_user_push_subscription', {
+          p_user_id: userData.id,
+          p_user_email: userData.email,
+          p_fcm_token: fcmToken,
+          p_device_fingerprint: deviceFingerprint,
+          p_device_info: deviceInfo
+        });
+
+      if (subscriptionError) {
+        console.warn('📵 Auto-subscribe failed (non-blocking):', subscriptionError);
+        return;
+      }
+
+      if (result && result.length > 0) {
+        const action = result[0].action_taken || result[0].action;
+        console.log(`✅ Auto-subscribed to push notifications (${action})`);
+
+        // Store token in localStorage for cleanup during logout
+        localStorage.setItem('fcm_token', fcmToken);
+      }
+
+    } catch (error) {
+      console.warn('📵 Auto-subscribe error (non-blocking):', error);
+      // Don't throw error - auto-subscribe should not block login
+    }
+  };
+
   // Set up authentication state listener on component mount
   useEffect(() => {
     console.log('🔐 AuthProvider mounted - initializing authentication');
@@ -228,6 +377,11 @@ export const AuthProvider = ({ children }) => {
           }
 
           setUser(userData);
+
+          // Auto-subscribe to push notifications after successful login
+          if (userData) {
+            autoSubscribePushNotifications(userData);
+          }
         } catch (err) {
           console.error('🔐 Error loading user data:', err);
           setUser(null);
@@ -260,8 +414,13 @@ export const AuthProvider = ({ children }) => {
           console.log('🔐 Super admin override: Setting privilege to Admin.');
           userData.privilege = 'Admin';
         }
-        
+
         setUser(userData);
+
+        // Auto-subscribe to push notifications after successful login
+        if (userData) {
+          autoSubscribePushNotifications(userData);
+        }
       } else {
         console.log('Auth change - no session');
         setUser(null);
@@ -462,6 +621,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Functions to manage auto-subscribe preferences
+  const optOutOfAutoSubscribe = () => {
+    localStorage.setItem('fcm_auto_subscribe_opted_out', 'true');
+    console.log('📵 User opted out of automatic push notifications');
+  };
+
+  const optInToAutoSubscribe = () => {
+    localStorage.removeItem('fcm_auto_subscribe_opted_out');
+    console.log('🔔 User opted in to automatic push notifications');
+  };
+
+  const isAutoSubscribeEnabled = () => {
+    return localStorage.getItem('fcm_auto_subscribe_opted_out') !== 'true';
+  };
+
   // Bundle up all the data and functions that components might need
   const value = {
     user,                    // Current user info (or null if not logged in)
@@ -470,6 +644,11 @@ export const AuthProvider = ({ children }) => {
     updateUser,              // Function to update user data
     isLoading,              // Whether a login attempt is in progress
     isAuthenticated: !!user, // Quick way to check if someone is logged in
+
+    // Push notification auto-subscribe management
+    optOutOfAutoSubscribe,   // Function to opt out of auto-subscribe
+    optInToAutoSubscribe,    // Function to opt in to auto-subscribe
+    isAutoSubscribeEnabled,  // Function to check if auto-subscribe is enabled
   };
 
   // Provide this data to all child components
