@@ -28,9 +28,9 @@ export const useFcm = () => {
     checkSupport();
   }, []);
 
-  // Load existing FCM token from database on mount
+  // Load existing FCM token from database on mount and auto-subscribe if needed
   useEffect(() => {
-    const loadExistingToken = async () => {
+    const loadExistingTokenAndAutoSubscribe = async () => {
       if (!user?.id || !isSupported) return;
 
       try {
@@ -50,14 +50,38 @@ export const useFcm = () => {
         if (subscriptions && subscriptions.length > 0) {
           setFcmToken(subscriptions[0].fcm_token);
           console.log('Loaded existing FCM token from database');
+        } else {
+          // No active subscription found - auto-subscribe the user
+          console.log('No active FCM subscription found, attempting auto-subscription...');
+
+          // Check if user has previously denied notifications
+          if (Notification.permission === 'denied') {
+            console.log('Auto-subscription skipped: User has denied notification permissions');
+            return;
+          }
+
+          // Check if user has opted out of auto-subscription
+          const hasOptedOut = localStorage.getItem('fcm_auto_subscribe_opted_out');
+          if (hasOptedOut === 'true') {
+            console.log('Auto-subscription skipped: User has opted out of automatic subscriptions');
+            return;
+          }
+
+          try {
+            await requestPermission();
+            console.log('Auto-subscription completed successfully');
+          } catch (autoSubError) {
+            console.log('Auto-subscription failed:', autoSubError);
+            // Don't throw - this is a non-critical failure
+          }
         }
       } catch (err) {
-        console.error('Error in loadExistingToken:', err);
+        console.error('Error in loadExistingTokenAndAutoSubscribe:', err);
       }
     };
 
-    loadExistingToken();
-  }, [user?.id, isSupported]);
+    loadExistingTokenAndAutoSubscribe();
+  }, [user?.id, isSupported, requestPermission]);
 
   /**
    * Generate a device fingerprint for this browser/device
@@ -601,6 +625,22 @@ export const useFcm = () => {
     return await requestPermission();
   }, [requestPermission, isSupported, user?.id]);
 
+  /**
+   * Allow users to opt out of automatic subscription on login
+   */
+  const optOutOfAutoSubscribe = useCallback(() => {
+    localStorage.setItem('fcm_auto_subscribe_opted_out', 'true');
+    console.log('User opted out of automatic FCM subscription');
+  }, []);
+
+  /**
+   * Allow users to opt back in to automatic subscription on login
+   */
+  const optInToAutoSubscribe = useCallback(() => {
+    localStorage.removeItem('fcm_auto_subscribe_opted_out');
+    console.log('User opted in to automatic FCM subscription');
+  }, []);
+
   return {
     // State
     fcmToken,
@@ -615,6 +655,8 @@ export const useFcm = () => {
     enableNotifications,
     disableNotifications,
     refreshToken,
+    optOutOfAutoSubscribe,
+    optInToAutoSubscribe,
 
     // Computed values
     canNotify: permission === 'granted' && isSupported,

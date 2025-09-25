@@ -342,7 +342,7 @@ Deno.serve(async (req) => {
         message: 'No active users to send notifications to.',
         sent: 0,
         totalSubscriptions: subscriptions.length,
-        activeUsers: 0
+        notificationsSent: 0
       }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         status: 200,
@@ -382,13 +382,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[DEBUG] --- Process complete. ${successCount} FCM notifications sent successfully. ---`);
+    // Calculate unique users who received notifications
+    const successfulResults = results.filter(r => r.status === 'success');
+    const notifiedUserIds = new Set();
+
+    // Map successful tokens back to user IDs
+    successfulResults.forEach(result => {
+      const subscription = activeSubscriptions.find(sub => sub.fcm_token === result.token);
+      if (subscription) {
+        notifiedUserIds.add(subscription.user_id);
+      }
+    });
+
+    const uniqueUsersNotified = notifiedUserIds.size;
+
+    console.log(`[DEBUG] --- Process complete. ${successCount} FCM notifications sent to ${uniqueUsersNotified} unique users. ---`);
 
     // --- 6. RETURN RESPONSE ---
     return new Response(JSON.stringify({
       message: 'FCM notification process completed.',
-      sent: successCount,
-      total: subscriptions.length,
+      sent: uniqueUsersNotified,
+      totalSubscriptions: subscriptions.length,
+      notificationsSent: successCount,
       results: results
     }), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
