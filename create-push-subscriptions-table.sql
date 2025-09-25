@@ -86,11 +86,11 @@ BEGIN
     WHERE device_fingerprint = p_device_fingerprint
     AND user_id != p_user_id;
 
-    -- Check for existing subscription for this user
+    -- Check for existing subscription for this user on this specific device
     SELECT push_subscriptions.id INTO existing_record_id
     FROM push_subscriptions
     WHERE user_id = p_user_id
-    AND (fcm_token = p_fcm_token OR device_fingerprint = p_device_fingerprint)
+    AND device_fingerprint = p_device_fingerprint
     ORDER BY updated_at DESC
     LIMIT 1;
 
