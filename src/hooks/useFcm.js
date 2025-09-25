@@ -57,15 +57,8 @@ export const useFcm = () => {
           setFcmToken(subscriptions[0].fcm_token);
           console.log('Loaded existing FCM token from database');
         } else {
-          // No active subscription found - auto-subscribe user
-          console.log('No active FCM subscription found, attempting auto-subscription...');
-          try {
-            await requestPermission();
-            console.log('Auto-subscription completed successfully');
-          } catch (autoSubError) {
-            console.log('Auto-subscription failed (user interaction may be required):', autoSubError.message);
-            // This is expected if user hasn't interacted with the page yet
-          }
+          // No active subscription found - temporarily disable auto-subscription to debug error
+          console.log('No active FCM subscription found (auto-subscription temporarily disabled for debugging)');
         }
       } catch (err) {
         console.error('Error in loadExistingTokenAndAutoSubscribe:', err);
@@ -73,7 +66,7 @@ export const useFcm = () => {
     };
 
     loadExistingTokenAndAutoSubscribe();
-  }, [user?.id, isSupported, requestPermission]);
+  }, [user?.id, isSupported]);
 
   /**
    * Generate a device fingerprint for this browser/device
@@ -608,7 +601,7 @@ export const useFcm = () => {
 
     // Otherwise, use the full permission request flow
     return await requestPermission();
-  }, [isSupported, user?.id, fcmToken, requestPermission]);
+  }, [isSupported, user?.id, fcmToken]);
 
   /**
    * Refresh the FCM token (useful for handling token refresh)
@@ -617,7 +610,7 @@ export const useFcm = () => {
     if (!isSupported || !user?.id) return false;
 
     return await requestPermission();
-  }, [requestPermission, isSupported, user?.id]);
+  }, [isSupported, user?.id]);
 
   /**
    * Allow users to opt out of automatic subscription on login
@@ -634,6 +627,12 @@ export const useFcm = () => {
     localStorage.removeItem('fcm_auto_subscribe_opted_out');
     console.log('User opted in to automatic FCM subscription');
   }, []);
+
+  // Create safe computed values to prevent temporal dead zone issues
+  const computedValues = useMemo(() => ({
+    canNotify: permission === 'granted' && isSupported,
+    hasToken: !!fcmToken
+  }), [permission, isSupported, fcmToken]);
 
   return {
     // State
@@ -652,9 +651,8 @@ export const useFcm = () => {
     optOutOfAutoSubscribe,
     optInToAutoSubscribe,
 
-    // Computed values
-    canNotify: permission === 'granted' && isSupported,
-    hasToken: !!fcmToken
+    // Computed values (safe)
+    ...computedValues
   };
 };
 
