@@ -198,14 +198,25 @@ export const useFcm = () => {
     try {
       // Use the database function for atomic subscription management
       console.log('[FCM] Using database function for subscription management...');
+      const functionParams = {
+        p_user_id: userId,
+        p_user_email: userEmail,
+        p_fcm_token: fcmToken,
+        p_device_fingerprint: deviceFingerprint,
+        p_device_info: deviceInfo
+      };
+
+      console.log('[FCM] Function parameters:', functionParams);
+      console.log('[FCM] Parameter types:', {
+        userId_type: typeof userId,
+        userEmail_type: typeof userEmail,
+        fcmToken_type: typeof fcmToken,
+        deviceFingerprint_type: typeof deviceFingerprint,
+        deviceInfo_type: typeof deviceInfo
+      });
+
       const { data: result, error } = await supabase
-        .rpc('manage_user_push_subscription', {
-          p_user_id: userId,
-          p_user_email: userEmail,
-          p_fcm_token: fcmToken,
-          p_device_fingerprint: deviceFingerprint,
-          p_device_info: deviceInfo
-        });
+        .rpc('manage_user_push_subscription', functionParams);
 
       if (error) {
         throw error;
