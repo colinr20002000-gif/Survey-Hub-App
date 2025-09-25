@@ -9,6 +9,7 @@ import { ToastProvider, useToast } from './contexts/ToastContext';
 import { sendAnnouncementFCMNotification } from './utils/fcmNotifications';
 import { notificationManager } from './utils/realTimeNotifications';
 import { useFcm } from './hooks/useFcm';
+import { useSubscription } from './hooks/useSubscription';
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
 import PasswordChangePrompt from './components/PasswordChangePrompt';
@@ -5235,59 +5236,30 @@ const AppearanceSettings = () => {
 };
 
 const NotificationSettings = () => {
-    const [settings, setSettings] = useState({
-        pushNotifications: false
-    });
     const [installPrompt, setInstallPrompt] = useState(null);
     const [isInstalled, setIsInstalled] = useState(false);
-    const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
-    const [showNotificationError, setShowNotificationError] = useState(false);
 
-    // Use the useFcm hook directly - the initialization fixes should handle the temporal dead zone
+    // Separate hooks for device permissions and subscriptions
     const {
         permission,
         requestPermission,
         enableNotifications,
         disableNotifications,
-        canNotify,
-        isEnabled,
-        isLoading,
-        error,
-        hasToken
+        isLoading: fcmLoading,
+        error: fcmError,
+        fcmToken
     } = useFcm();
 
-    // Load settings from localStorage and check FCM subscription status
-    useEffect(() => {
-        const loadSettings = async () => {
-            try {
-                // Load saved settings from localStorage
-                const savedSettings = localStorage.getItem('notificationSettings');
-                if (savedSettings) {
-                    const parsed = JSON.parse(savedSettings);
-                    setSettings(prev => ({ ...prev, ...parsed }));
-                }
+    const {
+        isSubscribed,
+        toggleSubscription,
+        isLoading: subscriptionLoading,
+        error: subscriptionError
+    } = useSubscription();
 
-                // Update toggle to match FCM subscription status
-                setSettings(prev => ({
-                    ...prev,
-                    pushNotifications: isEnabled
-                }));
-            } catch (error) {
-                console.error('Error loading notification settings:', error);
-            } finally {
-                setIsCheckingSubscription(false);
-            }
-        };
-
-        loadSettings();
-    }, [isEnabled]);
-
-    // Save settings to localStorage whenever they change
-    useEffect(() => {
-        if (!isCheckingSubscription) {
-            localStorage.setItem('notificationSettings', JSON.stringify(settings));
-        }
-    }, [settings, isCheckingSubscription]);
+    // Device permissions status
+    const hasDevicePermissions = permission === 'granted' && !!fcmToken;
+    const isDeviceBlocked = permission === 'denied';
 
     // Check if app is installed as PWA
     useEffect(() => {
@@ -5305,50 +5277,36 @@ const NotificationSettings = () => {
     }, []);
 
 
-    const handlePushToggle = async () => {
+    // Handle device permissions toggle
+    const handleDevicePermissionToggle = async () => {
         try {
-            if (settings.pushNotifications) {
-                // User wants to turn OFF notifications - disable FCM
+            if (hasDevicePermissions) {
+                // User wants to turn OFF device permissions
                 const success = await disableNotifications();
-                if (success) {
-                    console.log('Successfully disabled FCM notifications');
-                    setSettings(prev => ({ ...prev, pushNotifications: false }));
-                } else {
-                    console.error('Failed to disable FCM notifications');
+                if (!success) {
+                    console.error('Failed to disable device notifications');
                 }
             } else {
-                // User wants to turn ON notifications - enable FCM
-                // Use enableNotifications for better handling of existing subscribers
-                const success = await (hasToken ? enableNotifications() : requestPermission());
-                if (success) {
-                    console.log('Successfully enabled FCM notifications');
-                    setSettings(prev => ({ ...prev, pushNotifications: true }));
-                } else {
-                    console.error('Failed to enable FCM notifications');
+                // User wants to turn ON device permissions
+                const success = await (fcmToken ? enableNotifications() : requestPermission());
+                if (!success) {
+                    console.error('Failed to enable device notifications');
                 }
             }
         } catch (error) {
-            console.error('Error toggling FCM notifications:', error);
+            console.error('Error toggling device permissions:', error);
+        }
+    };
 
-            // Show user-friendly error popup for notification-related errors
-            if (error.message?.includes('token') ||
-                error.message?.includes('save') ||
-                error.message?.includes('Failed to get FCM token') ||
-                error.message?.includes('Failed to save notification settings') ||
-                error.message?.includes('reset browser permissions') ||
-                error.message?.includes('permission')) {
-                setShowNotificationError(true);
-            } else if (error.message?.includes('blocked') || error.message?.includes('denied')) {
-                // For clearly blocked permissions, show the popup too
-                setShowNotificationError(true);
-            } else {
-                // For other errors, log them but still show the popup as a fallback
-                console.error('Unexpected notification error:', error);
-                setShowNotificationError(true);
+    // Handle subscription toggle
+    const handleSubscriptionToggle = async () => {
+        try {
+            const success = await toggleSubscription();
+            if (!success) {
+                console.error('Failed to toggle subscription');
             }
-
-            // Revert the toggle on error
-            setSettings(prev => ({ ...prev, pushNotifications: !prev.pushNotifications }));
+        } catch (error) {
+            console.error('Error toggling subscription:', error);
         }
     };
 
@@ -5412,35 +5370,63 @@ const NotificationSettings = () => {
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                     <h3 className="font-medium mb-3">🔔 Push Notifications</h3>
                     <div className="space-y-4">
+                        {/* Device Permissions Toggle */}
                         <div className="flex items-center justify-between">
                             <div>
-                                <span className="block font-medium">Push Notifications</span>
+                                <span className="block font-medium">Device Permissions</span>
                                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                                    Get notified instantly about new announcements
+                                    Allow browser to show push notifications
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Switch
-                                    isChecked={isEnabled}
-                                    onToggle={handlePushToggle}
-                                    disabled={isLoading || isCheckingSubscription}
+                                    isChecked={hasDevicePermissions}
+                                    onToggle={handleDevicePermissionToggle}
+                                    disabled={fcmLoading}
                                 />
-                                {isLoading && (
+                                {fcmLoading && (
                                     <span className="text-xs text-blue-500">Loading...</span>
                                 )}
-                                {permission === 'denied' && (
+                                {isDeviceBlocked && (
                                     <span className="text-xs text-red-500">Blocked</span>
                                 )}
-                                {permission === 'granted' && hasToken && (
+                                {hasDevicePermissions && (
                                     <span className="text-xs text-green-500">Enabled</span>
                                 )}
-                                {permission === 'granted' && !hasToken && (
-                                    <span className="text-xs text-yellow-500">Setup Required</span>
+                                {permission === 'default' && (
+                                    <span className="text-xs text-gray-500">Not Set</span>
                                 )}
                             </div>
                         </div>
 
-                        {permission === 'denied' && (
+                        {/* Subscription Toggle */}
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="block font-medium">Notification Subscription</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    Subscribe to receive announcements on this device
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Switch
+                                    isChecked={isSubscribed}
+                                    onToggle={handleSubscriptionToggle}
+                                    disabled={subscriptionLoading}
+                                />
+                                {subscriptionLoading && (
+                                    <span className="text-xs text-blue-500">Loading...</span>
+                                )}
+                                {isSubscribed && (
+                                    <span className="text-xs text-green-500">Subscribed</span>
+                                )}
+                                {!isSubscribed && (
+                                    <span className="text-xs text-gray-500">Unsubscribed</span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Information Messages */}
+                        {isDeviceBlocked && (
                             <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 rounded-lg p-3">
                                 <p className="text-sm text-yellow-800 dark:text-yellow-200">
                                     <strong>Notifications Blocked:</strong> Please enable notifications in your browser settings and refresh the page.
@@ -5448,13 +5434,28 @@ const NotificationSettings = () => {
                             </div>
                         )}
 
-                        {error && (
-                            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg p-3">
-                                <p className="text-sm text-red-800 dark:text-red-200">
-                                    <strong>Error:</strong> {error}
+                        {!hasDevicePermissions && isSubscribed && (
+                            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3">
+                                <p className="text-sm text-blue-800 dark:text-blue-200">
+                                    <strong>Note:</strong> You're subscribed but need to enable device permissions to receive notifications.
                                 </p>
                             </div>
                         )}
+
+                        {(fcmError || subscriptionError) && (
+                            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg p-3">
+                                <p className="text-sm text-red-800 dark:text-red-200">
+                                    <strong>Error:</strong> {fcmError || subscriptionError}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Help Text */}
+                        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                            <p>• <strong>Device Permissions:</strong> Allows your browser to show notifications</p>
+                            <p>• <strong>Subscription:</strong> Controls whether you receive notifications from this app</p>
+                            <p>• Both must be enabled to receive push notifications</p>
+                        </div>
                     </div>
                 </div>
 
