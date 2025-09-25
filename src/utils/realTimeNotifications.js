@@ -11,7 +11,10 @@ export class RealTimeNotificationManager {
   }
 
   async initialize() {
-    if (this.isInitialized) return;
+    if (this.isInitialized) {
+      console.log('🔔 Real-time notification system already initialized, skipping...');
+      return;
+    }
 
     try {
       console.log('🔔 Initializing real-time notification system...');
@@ -151,9 +154,15 @@ export class RealTimeNotificationManager {
   cleanup() {
     if (this.subscription) {
       console.log('🧹 Cleaning up real-time notification subscription');
-      supabase.removeChannel(this.subscription);
+      try {
+        supabase.removeChannel(this.subscription);
+      } catch (error) {
+        console.warn('⚠️ Error during cleanup (non-critical):', error);
+      }
       this.subscription = null;
       this.isInitialized = false;
+    } else {
+      console.log('🧹 No active subscription to cleanup');
     }
   }
 }

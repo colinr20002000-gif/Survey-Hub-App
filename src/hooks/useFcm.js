@@ -381,15 +381,15 @@ export const useFcm = () => {
       // Check current permission status first
       const currentPermission = Notification.permission;
 
-      let permission = currentPermission;
+      let newPermission = currentPermission;
       if (currentPermission === 'default') {
         // Only request permission if not already decided
-        permission = await Notification.requestPermission();
+        newPermission = await Notification.requestPermission();
       }
 
-      setPermission(permission);
+      setPermission(newPermission);
 
-      if (permission !== 'granted') {
+      if (newPermission !== 'granted') {
         setError('Notification permission denied');
         setIsLoading(false);
         return false;

@@ -5242,6 +5242,8 @@ const NotificationSettings = () => {
     const [isInstalled, setIsInstalled] = useState(false);
     const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
     const [showNotificationError, setShowNotificationError] = useState(false);
+
+    // Use the useFcm hook directly - the initialization fixes should handle the temporal dead zone
     const {
         permission,
         requestPermission,
@@ -7669,16 +7671,16 @@ const MainLayout = () => {
 
     // Initialize real-time notifications when user is loaded
     useEffect(() => {
-        if (user && !isLoading) {
+        if (user?.id && !isLoading) {
             console.log('🔔 Initializing real-time notifications for user:', user.email);
             notificationManager.initialize();
-        }
 
-        // Cleanup on unmount
-        return () => {
-            notificationManager.cleanup();
-        };
-    }, [user, isLoading]);
+            // Cleanup only when user changes or component unmounts
+            return () => {
+                notificationManager.cleanup();
+            };
+        }
+    }, [user?.id, isLoading]);
 
     // Note: Automatic push notification subscription removed to comply with browser requirements
     // Users must explicitly request notifications through UI interaction
