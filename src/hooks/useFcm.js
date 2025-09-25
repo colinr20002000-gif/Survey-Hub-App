@@ -176,6 +176,13 @@ export const useFcm = () => {
   const manageFCMSubscription = useCallback(async (userId, userEmail, fcmToken) => {
     console.log('[FCM] Managing subscription for user:', userId);
 
+    // Validate userId is a proper UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      console.error('[FCM] Invalid user ID format:', userId, 'Expected UUID format');
+      throw new Error(`Invalid user ID format: "${userId}". Expected UUID format.`);
+    }
+
     const deviceFingerprint = generateDeviceFingerprint();
     console.log('[FCM] Device fingerprint:', deviceFingerprint);
 
@@ -414,6 +421,12 @@ export const useFcm = () => {
       // Use the robust subscription management system
       try {
         console.log('[FCM] Using robust subscription management...');
+        console.log('[FCM] User object:', { id: user?.id, email: user?.email, typeof_id: typeof user?.id });
+
+        if (!user?.id || !user?.email) {
+          throw new Error(`Invalid user data: id=${user?.id}, email=${user?.email}`);
+        }
+
         const subscriptionResult = await manageFCMSubscription(user.id, user.email, token);
         console.log('[FCM] Subscription management result:', subscriptionResult);
       } catch (saveError) {
