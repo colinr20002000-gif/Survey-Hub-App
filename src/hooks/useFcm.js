@@ -258,12 +258,12 @@ export const useFcm = () => {
         .eq('device_fingerprint', deviceFingerprint)
         .neq('user_id', userId);
 
-      // Step 2: Check if current user has an existing subscription for this device/token
+      // Step 2: Check if current user has an existing subscription for this specific device
       const { data: existingSubscription, error: checkError } = await supabase
         .from('push_subscriptions')
         .select('id, is_active, fcm_token, device_fingerprint')
         .eq('user_id', userId)
-        .or(`fcm_token.eq.${fcmToken},device_fingerprint.eq.${deviceFingerprint}`)
+        .eq('device_fingerprint', deviceFingerprint)
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
