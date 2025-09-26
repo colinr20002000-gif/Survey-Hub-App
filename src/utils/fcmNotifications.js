@@ -244,10 +244,16 @@ export async function sendProjectTaskAssignmentNotification(taskData, authorId) 
       }
     );
 
+    console.log('🎯 DEBUG: FCM Result from sendFCMNotification:', fcmResult);
     console.log(`Project task assignment notification sent to ${assignedUserIds.length} users:`, assignedNames);
+
+    // Use the actual count from FCM result if available, otherwise fall back to assignedUserIds length
+    const actualSentCount = fcmResult.sent || assignedUserIds.length;
+    console.log('🎯 DEBUG: Actual sent count:', actualSentCount);
+
     return {
       ...fcmResult,
-      sent: assignedUserIds.length,
+      sent: actualSentCount,
       assignedUsers: assignedNames
     };
 

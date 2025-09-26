@@ -336,11 +336,16 @@ Deno.serve(async (req) => {
     const notificationType = notification.data?.type || 'announcement';
     const isTaskNotification = notificationType === 'delivery_task_assignment' || notificationType === 'project_task_assignment';
 
+    console.log(`[DEBUG] Notification type: ${notificationType}`);
+    console.log(`[DEBUG] Is task notification: ${isTaskNotification}`);
+    console.log(`[DEBUG] Full notification data:`, notification.data);
+
     let activeSubscriptions;
     if (isTaskNotification) {
       console.log('[DEBUG] Task notification detected - skipping active session validation');
       activeSubscriptions = subscriptions;
     } else {
+      console.log('[DEBUG] Non-task notification - applying active session validation');
       const activeUserIds = await getActiveUserSessions(supabaseClient, userIds);
       // Filter subscriptions to only include active users for announcements
       activeSubscriptions = subscriptions.filter(sub => activeUserIds.includes(sub.user_id));
