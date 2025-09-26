@@ -1,30 +1,10 @@
 /* eslint-env serviceworker */
-/* global clients, importScripts, firebase */
+/* global clients */
 
-// Service Worker for Survey Hub PWA
+// Service Worker for Survey Hub PWA - PWA functionality only
+// Firebase messaging is handled by firebase-messaging-sw.js
 const CACHE_NAME = 'survey-hub-v1';
 const OFFLINE_URL = '/offline.html';
-
-// Import Firebase scripts for messaging
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
-
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyAL6kYLAXcTglnkDC3iR5skcRgeetsVQ84",
-  authDomain: "survey-hub-xyz.firebaseapp.com",
-  projectId: "survey-hub-xyz",
-  storageBucket: "survey-hub-xyz.firebasestorage.app",
-  messagingSenderId: "825099555628",
-  appId: "1:825099555628:web:c061c4a41c68375e231289",
-  measurementId: "G-JK8KXZTETN"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-
-// Retrieve an instance of Firebase Messaging
-const messaging = firebase.messaging();
 
 // Workbox will inject the manifest here during build
 // self.__WB_MANIFEST is replaced by the actual precache manifest during build
@@ -102,40 +82,7 @@ self.addEventListener('fetch', (event) => {
   // and fall back to network for non-precached resources
 });
 
-// Push notifications are handled by firebase-messaging-sw.js to prevent duplicates
-
-// Notification click event
-self.addEventListener('notificationclick', (event) => {
-  console.log('Notification clicked:', event);
-
-  event.notification.close();
-
-  const targetUrl = event.notification.data?.url || '/';
-
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        // Check if app is already open
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && 'focus' in client) {
-            client.focus();
-            if (targetUrl !== '/') {
-              client.postMessage({ 
-                type: 'NAVIGATE', 
-                url: targetUrl 
-              });
-            }
-            return;
-          }
-        }
-
-        // Open new window if app is not open
-        if (clients.openWindow) {
-          return clients.openWindow(targetUrl);
-        }
-      })
-  );
-});
+// Push notifications and notification clicks are handled by firebase-messaging-sw.js to prevent duplicates
 
 // Background sync event (for when connection is restored)
 self.addEventListener('sync', (event) => {

@@ -46,19 +46,18 @@ export const getFCMToken = async () => {
       return null;
     }
 
-    // Use the existing main service worker registration
+    // Use the dedicated Firebase messaging service worker
     let registration;
     try {
-      // Check if main service worker is already registered
-      registration = await navigator.serviceWorker.getRegistration('/');
+      // Check if Firebase messaging service worker is already registered
+      registration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
       if (!registration) {
-        // Register main service worker if not already registered
-        registration = await navigator.serviceWorker.register('/sw.js', {
-          scope: '/',
+        // Register Firebase messaging service worker if not already registered
+        registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
           updateViaCache: 'none'
         });
       }
-      console.log('Service worker registration successful:', registration);
+      console.log('Firebase messaging service worker registration successful:', registration);
 
       // Wait for the service worker to be ready and ensure it has pushManager
       const readyRegistration = await navigator.serviceWorker.ready;
