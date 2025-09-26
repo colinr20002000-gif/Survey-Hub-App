@@ -6,7 +6,7 @@ import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
-import { sendAnnouncementFCMNotification } from './utils/fcmNotifications';
+import { sendAnnouncementFCMNotification, sendDeliveryTaskAssignmentNotification, sendProjectTaskAssignmentNotification } from './utils/fcmNotifications';
 import { notificationManager } from './utils/realTimeNotifications';
 import { useFcm } from './hooks/useFcm';
 import { useSubscription } from './hooks/useSubscription';
@@ -7350,6 +7350,7 @@ export const JobProvider = ({ children }) => {
 // --- DELIVERY TASK PROVIDER ---
 export const DeliveryTaskProvider = ({ children }) => {
     const { user } = useAuth();
+    const { showSuccessModal, showErrorModal } = useToast();
     const [deliveryTasks, setDeliveryTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -7421,12 +7422,20 @@ export const DeliveryTaskProvider = ({ children }) => {
             // Send notification to assigned users
             if (taskData.assignedTo && taskData.assignedTo.length > 0) {
                 try {
-                    const { sendDeliveryTaskAssignmentNotification } = await import('./utils/fcmNotifications.js');
-                    await sendDeliveryTaskAssignmentNotification(newTask, user?.id);
+                    const notificationResult = await sendDeliveryTaskAssignmentNotification(newTask, user?.id);
+
+                    if (notificationResult.success) {
+                        const successMessage = `Delivery task created successfully! Notifications sent to ${notificationResult.sent} users.`;
+                        showSuccessModal(successMessage, 'Success');
+                    } else {
+                        showSuccessModal('Delivery task created successfully! (Note: Some notifications may have failed to send)', 'Success');
+                    }
                 } catch (notificationError) {
                     console.error('Error sending task assignment notification:', notificationError);
-                    // Don't fail the task creation if notification fails
+                    showSuccessModal('Delivery task created successfully! (Note: Push notifications failed to send)', 'Success');
                 }
+            } else {
+                showSuccessModal('Delivery task created successfully!', 'Success');
             }
         }
     };
@@ -7469,6 +7478,7 @@ export const DeliveryTaskProvider = ({ children }) => {
 // --- PROJECT TASK PROVIDER ---
 export const ProjectTaskProvider = ({ children }) => {
     const { user } = useAuth();
+    const { showSuccessModal, showErrorModal } = useToast();
     const [projectTasks, setProjectTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -7540,18 +7550,20 @@ export const ProjectTaskProvider = ({ children }) => {
             // Send notification to assigned users
             if (taskData.assignedTo && taskData.assignedTo.length > 0) {
                 try {
-                    const { sendDeliveryTaskAssignmentNotification } = await import('./utils/fcmNotifications.js');
-                    // Create a modified notification function for project tasks
-                    const notificationData = {
-                        ...newTask,
-                        text: newTask.text,
-                        project: 'Project Team'
-                    };
-                    await sendDeliveryTaskAssignmentNotification(notificationData, user?.id);
+                    const notificationResult = await sendProjectTaskAssignmentNotification(newTask, user?.id);
+
+                    if (notificationResult.success) {
+                        const successMessage = `Project task created successfully! Notifications sent to ${notificationResult.sent} users.`;
+                        showSuccessModal(successMessage, 'Success');
+                    } else {
+                        showSuccessModal('Project task created successfully! (Note: Some notifications may have failed to send)', 'Success');
+                    }
                 } catch (notificationError) {
                     console.error('Error sending project task assignment notification:', notificationError);
-                    // Don't fail the task creation if notification fails
+                    showSuccessModal('Project task created successfully! (Note: Push notifications failed to send)', 'Success');
                 }
+            } else {
+                showSuccessModal('Project task created successfully!', 'Success');
             }
         }
     };

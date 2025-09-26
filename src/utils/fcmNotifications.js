@@ -172,10 +172,81 @@ export async function sendDeliveryTaskAssignmentNotification(taskData, authorId)
     );
 
     console.log(`Delivery task assignment notification sent to ${assignedUserIds.length} users:`, assignedNames);
-    return fcmResult;
+    return {
+      ...fcmResult,
+      sent: assignedUserIds.length,
+      assignedUsers: assignedNames
+    };
 
   } catch (error) {
     console.error('Error sending delivery task assignment notification:', error);
+    return {
+      success: false,
+      message: error.message,
+      error: error
+    };
+  }
+}
+
+/**
+ * Send FCM notification for new project task assignment
+ * @param {Object} taskData - Project task data
+ * @param {string} authorId - ID of the user who created the task
+ */
+export async function sendProjectTaskAssignmentNotification(taskData, authorId) {
+  try {
+    // Get assigned user IDs from the task data
+    const assignedUserIds = Array.isArray(taskData.assignedTo) ? taskData.assignedTo : [];
+
+    if (assignedUserIds.length === 0) {
+      console.log('No users assigned to project task, skipping notification');
+      return { success: true, message: 'No users assigned' };
+    }
+
+    // Get assigned user names for the notification body
+    const { data: assignedUsers, error: usersError } = await supabase
+      .from('users')
+      .select('id, name')
+      .in('id', assignedUserIds);
+
+    if (usersError) {
+      console.error('Error fetching assigned users:', usersError);
+      // Continue with notification even if we can't get names
+    }
+
+    const assignedNames = assignedUsers ? assignedUsers.map(user => user.name).join(', ') : 'team members';
+
+    // Send FCM notification
+    const fcmResult = await sendFCMNotification(
+      {
+        title: '🎯 New Project Task Assigned',
+        body: `"${taskData.text}" has been assigned to you`,
+        tag: `project-task-${taskData.id || Date.now()}`,
+        priority: 'medium',
+        data: {
+          type: 'project_task_assignment',
+          taskId: taskData.id,
+          taskText: taskData.text,
+          project: taskData.project || 'Project Team',
+          url: '/project-tasks',
+          timestamp: new Date().toISOString()
+        }
+      },
+      {
+        targetUserIds: assignedUserIds,
+        excludeAuthorId: authorId
+      }
+    );
+
+    console.log(`Project task assignment notification sent to ${assignedUserIds.length} users:`, assignedNames);
+    return {
+      ...fcmResult,
+      sent: assignedUserIds.length,
+      assignedUsers: assignedNames
+    };
+
+  } catch (error) {
+    console.error('Error sending project task assignment notification:', error);
     return {
       success: false,
       message: error.message,
