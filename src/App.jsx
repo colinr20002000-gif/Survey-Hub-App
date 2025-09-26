@@ -4426,7 +4426,9 @@ const DeliveryTaskModal = ({ isOpen, onClose, onSave, task, users, usersLoading,
                     </div>
                     <div className="flex justify-end space-x-2 pt-4">
                         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-                        <Button type="submit">Save Delivery Task</Button>
+                        <Button type="submit">
+                            {title && title.includes('Project') ? 'Save Project Task' : 'Save Delivery Task'}
+                        </Button>
                     </div>
                 </form>
             </div>

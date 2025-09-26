@@ -195,6 +195,12 @@ export async function sendDeliveryTaskAssignmentNotification(taskData, authorId)
  */
 export async function sendProjectTaskAssignmentNotification(taskData, authorId) {
   try {
+    // Debug logging
+    console.log('🎯 DEBUG: Project task data received:', taskData);
+    console.log('🎯 DEBUG: assignedTo field:', taskData.assignedTo);
+    console.log('🎯 DEBUG: assignedTo type:', typeof taskData.assignedTo);
+    console.log('🎯 DEBUG: assignedTo isArray:', Array.isArray(taskData.assignedTo));
+
     // Get assigned user IDs from the task data
     const assignedUserIds = Array.isArray(taskData.assignedTo) ? taskData.assignedTo : [];
 
