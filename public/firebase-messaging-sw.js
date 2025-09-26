@@ -25,6 +25,7 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('Received background message:', payload);
 
+  // Prevent default notification by handling it manually
   const notificationTitle = payload.notification?.title || payload.data?.title || 'Survey Hub Notification';
   const notificationOptions = {
     body: payload.notification?.body || payload.data?.body || 'You have a new notification',
@@ -54,7 +55,7 @@ messaging.onBackgroundMessage((payload) => {
     ]
   };
 
-  // Show the notification
+  // Show the notification manually (this prevents Firebase's default notification)
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
@@ -102,12 +103,7 @@ self.addEventListener('notificationclose', (event) => {
   }
 });
 
-// Handle push events (if additional processing is needed)
-self.addEventListener('push', (event) => {
-  console.log('Push event received:', event);
-
-  // This will be handled by firebase messaging, but we can add custom logic here if needed
-});
+// Push events are handled by Firebase messaging.onBackgroundMessage() above
 
 // Service worker installation and activation
 self.addEventListener('install', (event) => {

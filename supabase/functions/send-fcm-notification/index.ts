@@ -151,13 +151,15 @@ async function sendFCMMessage(accessToken: string, fcmTokens: string[], notifica
       const message = {
         message: {
           token: token,
-          notification: {
-            title: notification.title,
-            body: notification.body,
-            ...(notification.icon && { image: notification.icon })
-          },
+          // Remove the notification payload to prevent Firebase's automatic notification
           data: {
             ...data,
+            // Move notification details into data payload for our service worker to handle
+            title: notification.title,
+            body: notification.body,
+            icon: notification.icon || '/android-chrome-192x192.png',
+            badge: notification.badge || '/favicon-32x32.png',
+            tag: notification.tag || 'survey-hub-notification',
             click_action: data.url || '/',
             sound: 'default'
           },
@@ -165,22 +167,7 @@ async function sendFCMMessage(accessToken: string, fcmTokens: string[], notifica
             headers: {
               TTL: '86400'
             },
-            notification: {
-              title: notification.title,
-              body: notification.body,
-              icon: notification.icon || '/android-chrome-192x192.png',
-              badge: notification.badge || '/favicon-32x32.png',
-              tag: notification.tag || 'survey-hub-notification',
-              requireInteraction: notification.priority === 'urgent',
-              silent: false,
-              vibrate: [200, 100, 200],
-              data: {
-                url: data.url || '/',
-                type: data.type || 'general',
-                priority: data.priority || 'medium',
-                ...data
-              }
-            },
+            // Remove webpush.notification to prevent duplicate notifications
             fcm_options: {
               link: data.url || '/'
             }
