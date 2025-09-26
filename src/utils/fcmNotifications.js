@@ -158,7 +158,7 @@ export async function sendDeliveryTaskAssignmentNotification(taskData, authorId)
         priority: 'medium',
         data: {
           type: 'delivery_task_assignment',
-          taskId: taskData.id,
+          taskId: String(taskData.id),
           taskText: taskData.text,
           project: taskData.project || 'Delivery Team',
           url: '/delivery-tasks',
@@ -195,12 +195,6 @@ export async function sendDeliveryTaskAssignmentNotification(taskData, authorId)
  */
 export async function sendProjectTaskAssignmentNotification(taskData, authorId) {
   try {
-    // Debug logging
-    console.log('🎯 DEBUG: Project task data received:', taskData);
-    console.log('🎯 DEBUG: assignedTo field:', taskData.assignedTo);
-    console.log('🎯 DEBUG: assignedTo type:', typeof taskData.assignedTo);
-    console.log('🎯 DEBUG: assignedTo isArray:', Array.isArray(taskData.assignedTo));
-
     // Get assigned user IDs from the task data
     const assignedUserIds = Array.isArray(taskData.assignedTo) ? taskData.assignedTo : [];
 
@@ -231,7 +225,7 @@ export async function sendProjectTaskAssignmentNotification(taskData, authorId) 
         priority: 'medium',
         data: {
           type: 'project_task_assignment',
-          taskId: taskData.id,
+          taskId: String(taskData.id),
           taskText: taskData.text,
           project: taskData.project || 'Project Team',
           url: '/project-tasks',
@@ -244,25 +238,10 @@ export async function sendProjectTaskAssignmentNotification(taskData, authorId) 
       }
     );
 
-    console.log('🎯 DEBUG: FCM Result from sendFCMNotification:', fcmResult);
-    console.log('🎯 DEBUG: FCM Results array:', fcmResult.results);
-    if (fcmResult.results && fcmResult.results.length > 0) {
-      fcmResult.results.forEach((result, index) => {
-        console.log(`🎯 DEBUG: Result ${index}:`, result);
-        if (result.status === 'failed') {
-          console.log(`🎯 DEBUG: FAILURE - Token: ${result.token}, Error: ${result.error}`);
-        }
-      });
-    }
     console.log(`Project task assignment notification sent to ${assignedUserIds.length} users:`, assignedNames);
-
-    // Use the actual count from FCM result if available, otherwise fall back to assignedUserIds length
-    const actualSentCount = fcmResult.sent || assignedUserIds.length;
-    console.log('🎯 DEBUG: Actual sent count:', actualSentCount);
-
     return {
       ...fcmResult,
-      sent: actualSentCount,
+      sent: fcmResult.sent || assignedUserIds.length,
       assignedUsers: assignedNames
     };
 
