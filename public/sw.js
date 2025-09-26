@@ -102,46 +102,7 @@ self.addEventListener('fetch', (event) => {
   // and fall back to network for non-precached resources
 });
 
-// Push notification event
-self.addEventListener('push', (event) => {
-  console.log('Push notification received:', event);
-
-  let notificationData = {
-    title: 'Survey Hub',
-    body: 'You have a new notification',
-    icon: '/android-chrome-192x192.png',
-    badge: '/favicon-32x32.png',
-    tag: 'survey-hub-notification',
-    data: {
-      url: '/'
-    }
-  };
-
-  try {
-    if (event.data) {
-      const data = event.data.json();
-      notificationData = {
-        ...notificationData,
-        ...data
-      };
-    }
-  } catch (error) {
-    console.error('Error parsing push data:', error);
-  }
-
-  event.waitUntil(
-    self.registration.showNotification(notificationData.title, {
-      body: notificationData.body,
-      icon: notificationData.icon,
-      badge: notificationData.badge,
-      tag: notificationData.tag,
-      data: notificationData.data,
-      requireInteraction: false,
-      silent: false,
-      vibrate: [200, 100, 200]
-    })
-  );
-});
+// Push notifications are handled by firebase-messaging-sw.js to prevent duplicates
 
 // Notification click event
 self.addEventListener('notificationclick', (event) => {
