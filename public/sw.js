@@ -191,39 +191,5 @@ self.addEventListener('sync', (event) => {
   }
 });
 
-// Firebase Cloud Messaging background message handler
-messaging.onBackgroundMessage((payload) => {
-  console.log('🔥 Received background FCM message:', payload);
-
-  const notificationTitle = payload.notification?.title || payload.data?.title || 'Survey Hub Notification';
-  const notificationOptions = {
-    body: payload.notification?.body || payload.data?.body || 'You have a new notification',
-    icon: payload.notification?.icon || payload.data?.icon || '/android-chrome-192x192.png',
-    badge: payload.notification?.badge || payload.data?.badge || '/favicon-32x32.png',
-    tag: payload.data?.tag || 'survey-hub-notification',
-    data: {
-      url: payload.data?.url || '/',
-      type: payload.data?.type || 'general',
-      priority: payload.data?.priority || 'medium',
-      timestamp: Date.now(),
-      ...payload.data
-    },
-    requireInteraction: payload.data?.priority === 'urgent',
-    silent: false,
-    vibrate: [200, 100, 200],
-    actions: [
-      {
-        action: 'view',
-        title: 'View',
-        icon: '/android-chrome-192x192.png'
-      },
-      {
-        action: 'dismiss',
-        title: 'Dismiss'
-      }
-    ]
-  };
-
-  // Show the notification
-  return self.registration.showNotification(notificationTitle, notificationOptions);
-});
+// Note: Firebase Cloud Messaging is handled by firebase-messaging-sw.js
+// This prevents duplicate notifications from multiple service workers
