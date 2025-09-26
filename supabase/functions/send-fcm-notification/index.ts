@@ -331,10 +331,20 @@ Deno.serve(async (req) => {
     // --- 3.5. VALIDATE ACTIVE USER SESSIONS ---
     console.log('[DEBUG] Step 3.5: Validating active user sessions.');
     const userIds = subscriptions.map(sub => sub.user_id);
-    const activeUserIds = await getActiveUserSessions(supabaseClient, userIds);
 
-    // Filter subscriptions to only include active users
-    const activeSubscriptions = subscriptions.filter(sub => activeUserIds.includes(sub.user_id));
+    // Skip active session validation for task assignments - users should get task notifications regardless of login status
+    const notificationType = notification.data?.type || 'announcement';
+    const isTaskNotification = notificationType === 'delivery_task_assignment' || notificationType === 'project_task_assignment';
+
+    let activeSubscriptions;
+    if (isTaskNotification) {
+      console.log('[DEBUG] Task notification detected - skipping active session validation');
+      activeSubscriptions = subscriptions;
+    } else {
+      const activeUserIds = await getActiveUserSessions(supabaseClient, userIds);
+      // Filter subscriptions to only include active users for announcements
+      activeSubscriptions = subscriptions.filter(sub => activeUserIds.includes(sub.user_id));
+    }
 
     if (activeSubscriptions.length === 0) {
       console.log('[DEBUG] No active users found. Exiting gracefully.');
