@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const UserAdmin = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
+  const [teamRoles, setTeamRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingUsername, setEditingUsername] = useState(null);
@@ -18,14 +19,46 @@ const UserAdmin = () => {
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   useEffect(() => {
     fetchUsers();
+    fetchTeamRoles();
   }, []);
 
   // Check if current user has admin privileges
   const isAdmin = user?.privilege === 'Admin';
   const isSuperAdmin = user?.email === 'colin.rogers@inorail.co.uk';
 
-  // Available team roles
-  const teamRoles = ['Site Team', 'Project Team', 'Delivery Team', 'Design Team', 'Office Staff', 'Subcontractor'];
+  // Fetch team roles from database
+  const fetchTeamRoles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dropdown_items')
+        .select(`
+          display_text,
+          dropdown_categories!inner(name)
+        `)
+        .eq('dropdown_categories.name', 'team_role')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      if (error) {
+        console.error('Error fetching team roles:', error);
+        // Fallback to hardcoded roles if database query fails
+        setTeamRoles(['Site Team', 'Project Team', 'Delivery Team', 'Design Team', 'Office Staff', 'Subcontractor']);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setTeamRoles(data.map(role => role.display_text));
+      } else {
+        // If no team roles found in database, use hardcoded fallback
+        console.log('No team roles found in database, using fallback');
+        setTeamRoles(['Site Team', 'Project Team', 'Delivery Team', 'Design Team', 'Office Staff', 'Subcontractor']);
+      }
+    } catch (error) {
+      console.error('Error fetching team roles:', error);
+      // Fallback to hardcoded roles if there's an error
+      setTeamRoles(['Site Team', 'Project Team', 'Delivery Team', 'Design Team', 'Office Staff', 'Subcontractor']);
+    }
+  };
 
   // Sorting functionality
   const handleSort = (key) => {

@@ -3523,7 +3523,57 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const isAdminOrManager = currentUser.privilege === 'Admin' || currentUser.privilege === 'Project Managers';
     const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
     const { projects } = useProjects();
-    const { teamRoles } = useTeamRoles();
+    const [teamRoles, setTeamRoles] = useState([]);
+    const [teamRolesLoading, setTeamRolesLoading] = useState(true);
+    const [teamRolesError, setTeamRolesError] = useState(null);
+
+    // Fetch team roles directly from dropdown_items table
+    useEffect(() => {
+        const fetchTeamRoles = async () => {
+            setTeamRolesLoading(true);
+            setTeamRolesError(null);
+            try {
+                // First get the team_role category ID
+                const { data: categoryData, error: categoryError } = await supabase
+                    .from('dropdown_categories')
+                    .select('id')
+                    .eq('name', 'team_role')
+                    .single();
+
+                if (categoryError) {
+                    console.error('Error fetching team role category:', categoryError);
+                    setTeamRolesError(categoryError.message);
+                    setTeamRoles([]);
+                    return;
+                }
+
+                // Then get the team role items
+                const { data: itemsData, error: itemsError } = await supabase
+                    .from('dropdown_items')
+                    .select('value, display_text, sort_order')
+                    .eq('category_id', categoryData.id)
+                    .eq('is_active', true)
+                    .order('sort_order');
+
+                if (itemsError) {
+                    console.error('Error fetching team role items:', itemsError);
+                    setTeamRolesError(itemsError.message);
+                    setTeamRoles([]);
+                } else {
+                    console.log('Successfully fetched team roles:', itemsData);
+                    setTeamRoles(itemsData || []);
+                }
+            } catch (error) {
+                console.error('Error in fetchTeamRoles:', error);
+                setTeamRolesError(error.message);
+                setTeamRoles([]);
+            } finally {
+                setTeamRolesLoading(false);
+            }
+        };
+
+        fetchTeamRoles();
+    }, []);
 
     const getTeamRoleDisplayText = (roleValue) => {
         const role = teamRoles.find(r => r.value === roleValue);
@@ -3670,12 +3720,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
         if (sortOrder === 'alphabetical') {
             usersToDisplay.sort((a, b) => a.name.localeCompare(b.name));
-        } else if (sortOrder === 'role') {
-            usersToDisplay.sort((a, b) => {
-                const roleComparison = (a.team_role || '').localeCompare(b.team_role || '');
-                if (roleComparison !== 0) return roleComparison;
-                return a.name.localeCompare(b.name);
-            });
         }
 
         return usersToDisplay;
@@ -3836,6 +3880,18 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         setFilterRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
     };
 
+    const handleSelectAllRoles = () => {
+        if (filterRoles.length === teamRoles.length) {
+            // If all are selected, deselect all
+            setFilterRoles([]);
+        } else {
+            // Select all team roles
+            setFilterRoles(teamRoles.map(role => role.display_text));
+        }
+    };
+
+    const isAllRolesSelected = teamRoles.length > 0 && filterRoles.length === teamRoles.length;
+
     const weekKey = formatDateForKey(currentWeekStart);
     const fiscalWeek = getFiscalWeek(currentWeekStart);
     const currentWeekAllocations = allocations[weekKey] || {};
@@ -3881,12 +3937,31 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                              <div className="absolute top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4">
                                  <h4 className="font-semibold mb-2 text-sm">Roles</h4>
                                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                                     {teamRoles.map(role => (
-                                         <label key={role.value} className="flex items-center space-x-2 text-sm">
-                                             <input type="checkbox" checked={filterRoles.includes(role.value)} onChange={() => handleRoleFilterChange(role.value)} className="rounded text-orange-500 focus:ring-orange-500"/>
-                                             <span>{role.display_text}</span>
-                                         </label>
-                                     ))}
+                                     {teamRolesLoading ? (
+                                         <div className="text-sm text-gray-500">Loading team roles...</div>
+                                     ) : teamRolesError ? (
+                                         <div className="text-sm text-red-500">Error loading roles: {teamRolesError}</div>
+                                     ) : teamRoles.length === 0 ? (
+                                         <div className="text-sm text-gray-500">No team roles found</div>
+                                     ) : (
+                                         <>
+                                             <label className="flex items-center space-x-2 text-sm font-medium border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">
+                                                 <input
+                                                     type="checkbox"
+                                                     checked={isAllRolesSelected}
+                                                     onChange={handleSelectAllRoles}
+                                                     className="rounded text-orange-500 focus:ring-orange-500"
+                                                 />
+                                                 <span>All</span>
+                                             </label>
+                                             {teamRoles.map(role => (
+                                                 <label key={role.value} className="flex items-center space-x-2 text-sm">
+                                                     <input type="checkbox" checked={filterRoles.includes(role.display_text)} onChange={() => handleRoleFilterChange(role.display_text)} className="rounded text-orange-500 focus:ring-orange-500"/>
+                                                     <span>{role.display_text}</span>
+                                                 </label>
+                                             ))}
+                                         </>
+                                     )}
                                  </div>
                                  <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setFilterRoles([])}>Clear</Button>
                              </div>
@@ -3896,7 +3971,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                         <label htmlFor="sort-by" className="text-sm mr-2">Sort by:</label>
                         <Select id="sort-by" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="!py-1.5">
                             <option value="alphabetical">Alphabetical</option>
-                            <option value="role">Role</option>
                         </Select>
                     </div>
                 </div>
@@ -4616,59 +4690,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
 const UserContext = createContext(null);
 const useUsers = () => useContext(UserContext);
 
-const useTeamRoles = () => {
-    const [teamRoles, setTeamRoles] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-
-    const fetchTeamRoles = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            // Get the team_role category first
-            const { data: categoryData, error: categoryError } = await supabase
-                .from('dropdown_categories')
-                .select('id')
-                .eq('name', 'team_role')
-                .single();
-
-            if (categoryError) throw categoryError;
-
-            // Get the team role items
-            const { data: itemsData, error: itemsError } = await supabase
-                .from('dropdown_items')
-                .select('value, display_text')
-                .eq('category_id', categoryData.id)
-                .eq('is_active', true)
-                .order('sort_order');
-
-            if (itemsError) throw itemsError;
-
-            setTeamRoles(itemsData || []);
-        } catch (err) {
-            console.error('Error fetching team roles:', err);
-            setError(err.message);
-            // Fallback to hardcoded roles if database fetch fails
-            setTeamRoles([
-                { value: 'site_team', display_text: 'Site Team' },
-                { value: 'project_team', display_text: 'Project Team' },
-                { value: 'delivery_team', display_text: 'Delivery Team' },
-                { value: 'design_team', display_text: 'Design Team' },
-                { value: 'office_staff', display_text: 'Office Staff' },
-                { value: 'subcontractor', display_text: 'Subcontractor' }
-            ]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchTeamRoles();
-    }, []);
-
-    return { teamRoles, loading, error, refetch: fetchTeamRoles };
-};
+// Removed useTeamRoles hook - now fetching team roles directly in ResourceCalendarPage
 
 const UserProvider = ({ children }) => {
     const [users, setUsers] = useState([]);
