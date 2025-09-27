@@ -1294,8 +1294,72 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
         expires_at: ''
     });
     const [loading, setLoading] = useState(false);
+    const [departments, setDepartments] = useState([]);
     const { user } = useAuth();
     const { showSuccessModal, showErrorModal } = useToast();
+
+    // Fetch departments from database
+    const fetchDepartments = async () => {
+        try {
+            console.log('📢 Fetching departments for announcements...');
+            const { data, error } = await supabase
+                .from('dropdown_items')
+                .select(`
+                    display_text,
+                    dropdown_categories!inner(name)
+                `)
+                .eq('dropdown_categories.name', 'department')
+                .eq('is_active', true)
+                .order('sort_order');
+
+            if (error) {
+                console.error('Error fetching departments:', error);
+                // Try with capitalized name as fallback
+                console.log('📢 Trying with capitalized "Department"...');
+                const { data: capitalData, error: capitalError } = await supabase
+                    .from('dropdown_items')
+                    .select(`
+                        display_text,
+                        dropdown_categories!inner(name)
+                    `)
+                    .eq('dropdown_categories.name', 'Department')
+                    .eq('is_active', true)
+                    .order('sort_order');
+
+                if (capitalError) {
+                    console.error('Error fetching departments with capital D:', capitalError);
+                    setDepartments([]);
+                    return;
+                }
+
+                if (capitalData && capitalData.length > 0) {
+                    console.log('📢 Found departments with capital D:', capitalData);
+                    setDepartments(capitalData.map(dept => dept.display_text));
+                } else {
+                    console.log('No departments found with capital D either');
+                    setDepartments([]);
+                }
+                return;
+            }
+
+            if (data && data.length > 0) {
+                console.log('📢 Found departments:', data);
+                setDepartments(data.map(dept => dept.display_text));
+            } else {
+                console.log('No departments found in database');
+                setDepartments([]);
+            }
+        } catch (error) {
+            console.error('Error fetching departments:', error);
+            setDepartments([]);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchDepartments();
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         if (announcement) {
@@ -1453,20 +1517,24 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Target Roles (optional - leave empty for all users)
+                            Target Departments (optional - leave empty for all users)
                         </label>
                         <div className="flex flex-wrap gap-2">
-                            {['surveyor', 'team_leader', 'project_manager', 'admin'].map(role => (
-                                <label key={role} className="flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.target_roles.includes(role)}
-                                        onChange={() => handleTargetRoleChange(role)}
-                                        className="mr-2"
-                                    />
-                                    <span className="text-sm capitalize">{role.replace('_', ' ')}</span>
-                                </label>
-                            ))}
+                            {departments.length > 0 ? (
+                                departments.map(department => (
+                                    <label key={department} className="flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.target_roles.includes(department)}
+                                            onChange={() => handleTargetRoleChange(department)}
+                                            className="mr-2"
+                                        />
+                                        <span className="text-sm">{department}</span>
+                                    </label>
+                                ))
+                            ) : (
+                                <span className="text-sm text-gray-500">Loading departments...</span>
+                            )}
                         </div>
                     </div>
 
