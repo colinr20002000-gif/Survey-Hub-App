@@ -3111,7 +3111,7 @@ const ProjectsPage = ({ onViewProject }) => {
     const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'project_number', direction: 'ascending' });
-    const [itemsPerPage, setItemsPerPage] = useState(5);
+    const itemsPerPage = 10; // Fixed items per page
     const [currentPage, setCurrentPage] = useState(1);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -3356,8 +3356,6 @@ const ProjectsPage = ({ onViewProject }) => {
                 currentPage={currentPage}
                 setCurrentPage={setCurrentPage}
                 totalPages={totalPages}
-                itemsPerPage={itemsPerPage}
-                setItemsPerPage={setItemsPerPage}
                 totalItems={sortedProjects.length}
             />
 
@@ -7218,15 +7216,23 @@ const Pagination = ({ currentPage, setCurrentPage, totalPages, itemsPerPage, set
     return (
         <div className="flex flex-col md:flex-row justify-between items-center mt-4 text-sm text-gray-700 dark:text-gray-400">
             <div className="flex items-center mb-2 md:mb-0">
-                <span>Rows per page:</span>
-                <Select value={itemsPerPage} onChange={e => setItemsPerPage(Number(e.target.value))} className="ml-2 !py-1 !text-sm">
-                    <option value={5}>5</option>
-                    <option value={10}>10</option>
-                    <option value={20}>20</option>
-                </Select>
-                <span className="ml-4">
-                    {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems}
-                </span>
+                {itemsPerPage && setItemsPerPage ? (
+                    <>
+                        <span>Rows per page:</span>
+                        <Select value={itemsPerPage} onChange={e => setItemsPerPage(Number(e.target.value))} className="ml-2 !py-1 !text-sm">
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                        </Select>
+                        <span className="ml-4">
+                            {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems}
+                        </span>
+                    </>
+                ) : (
+                    <span>
+                        Showing {totalItems} items
+                    </span>
+                )}
             </div>
             <div className="flex items-center space-x-1">
                 <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded-md disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700"><ChevronLeft size={14} className="mr-[-4px]"/><ChevronLeft size={14}/></button>
