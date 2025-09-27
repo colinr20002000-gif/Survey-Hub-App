@@ -105,7 +105,19 @@ self.addEventListener('notificationclose', (event) => {
   }
 });
 
-// Push events are handled by Firebase messaging.onBackgroundMessage() above
+// Handle push events directly (fallback)
+self.addEventListener('push', (event) => {
+  console.log('🔔 [SW] Direct push event received:', event);
+  if (event.data) {
+    console.log('🔔 [SW] Push event data:', event.data.text());
+    try {
+      const payload = JSON.parse(event.data.text());
+      console.log('🔔 [SW] Parsed push payload:', payload);
+    } catch (e) {
+      console.log('🔔 [SW] Failed to parse push data:', e);
+    }
+  }
+});
 
 // Service worker installation and activation
 self.addEventListener('install', (event) => {
