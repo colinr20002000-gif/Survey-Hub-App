@@ -104,13 +104,13 @@ const userPrivileges = {
 };
 
 const initialProjects = [
-  { id: 1, project_number: '23001', project_name: 'West Coast Main Line - Track Renewal', client: 'Network Rail', date_created: '2023-10-26', status: 'In Progress', team: ['BC', 'CD'], description: 'Comprehensive topographical survey and track renewal assessment for a 20-mile section.', startDate: '2023-11-01', targetDate: '2024-12-31', tasksText: '- Finalize Survey Report\n- Produce Track Alignment Drawings' },
-  { id: 2, project_number: '23045', project_name: 'HS2 Phase 2a - Topographical Survey', client: 'HS2 Ltd', date_created: '2023-09-15', status: 'Completed', team: ['BC', 'DE'], description: 'Topographical survey for the HS2 Phase 2a route.', startDate: '2023-10-01', targetDate: '2024-06-30', tasksText: 'All tasks completed. Final data delivered to client.' },
-  { id: 3, project_number: '24012', project_name: 'Crossrail - Asset Verification', client: 'Transport for London', date_created: '2024-01-20', status: 'Planning', team: ['BC', 'CD', 'DE'], description: 'Verification of assets along the Crossrail line.', startDate: '2024-02-01', targetDate: '2025-01-31', tasksText: 'Awaiting final instruction from TfL before commencing site visits.' },
-  { id: 4, project_number: '24005', project_name: 'Great Western Electrification - OLE Survey', client: 'Network Rail', date_created: '2024-02-10', status: 'In Progress', team: ['BC', 'CD'], description: 'Overhead Line Equipment survey for the GWEP project.', startDate: '2024-03-01', targetDate: '2024-11-30', tasksText: '' },
-  { id: 5, project_number: '24002', project_name: 'Docklands Light Railway - Tunnel Inspection', client: 'TfL', date_created: '2024-03-05', status: 'On Hold', team: ['BC'], description: 'Detailed inspection of DLR tunnels.', startDate: '2024-04-01', targetDate: '2024-09-30', tasksText: 'Project on hold due to access restrictions.' },
-  { id: 6, project_number: '24018', project_name: 'Midland Main Line - Embankment Stability', client: 'Network Rail', date_created: '2024-04-12', status: 'In Progress', team: ['BC', 'CD', 'DE'], description: 'Assessment of embankment stability on the MML.', startDate: '2024-05-01', targetDate: '2025-03-31', tasksText: '' },
-  { id: 7, project_number: '24091', project_name: 'Old Oak Common - Site Survey', client: 'HS2 Ltd', date_created: '2024-05-21', status: 'Planning', team: ['BC', 'CD'], description: 'Initial site survey for the new Old Oak Common station.', startDate: '2024-06-01', targetDate: '2024-10-31', tasksText: '' },
+  { id: 1, project_number: '23001', project_name: 'West Coast Main Line - Track Renewal', client: 'Network Rail', date_created: '2023-10-26', team: ['BC', 'CD'], description: 'Comprehensive topographical survey and track renewal assessment for a 20-mile section.', startDate: '2023-11-01', targetDate: '2024-12-31', tasksText: '- Finalize Survey Report\n- Produce Track Alignment Drawings' },
+  { id: 2, project_number: '23045', project_name: 'HS2 Phase 2a - Topographical Survey', client: 'HS2 Ltd', date_created: '2023-09-15', team: ['BC', 'DE'], description: 'Topographical survey for the HS2 Phase 2a route.', startDate: '2023-10-01', targetDate: '2024-06-30', tasksText: 'All tasks completed. Final data delivered to client.' },
+  { id: 3, project_number: '24012', project_name: 'Crossrail - Asset Verification', client: 'Transport for London', date_created: '2024-01-20', team: ['BC', 'CD', 'DE'], description: 'Verification of assets along the Crossrail line.', startDate: '2024-02-01', targetDate: '2025-01-31', tasksText: 'Awaiting final instruction from TfL before commencing site visits.' },
+  { id: 4, project_number: '24005', project_name: 'Great Western Electrification - OLE Survey', client: 'Network Rail', date_created: '2024-02-10', team: ['BC', 'CD'], description: 'Overhead Line Equipment survey for the GWEP project.', startDate: '2024-03-01', targetDate: '2024-11-30', tasksText: '' },
+  { id: 5, project_number: '24002', project_name: 'Docklands Light Railway - Tunnel Inspection', client: 'TfL', date_created: '2024-03-05', team: ['BC'], description: 'Detailed inspection of DLR tunnels.', startDate: '2024-04-01', targetDate: '2024-09-30', tasksText: 'Project on hold due to access restrictions.' },
+  { id: 6, project_number: '24018', project_name: 'Midland Main Line - Embankment Stability', client: 'Network Rail', date_created: '2024-04-12', team: ['BC', 'CD', 'DE'], description: 'Assessment of embankment stability on the MML.', startDate: '2024-05-01', targetDate: '2025-03-31', tasksText: '' },
+  { id: 7, project_number: '24091', project_name: 'Old Oak Common - Site Survey', client: 'HS2 Ltd', date_created: '2024-05-21', team: ['BC', 'CD'], description: 'Initial site survey for the new Old Oak Common station.', startDate: '2024-06-01', targetDate: '2024-10-31', tasksText: '' },
 ];
 
 const mockAssignedTasks = [
@@ -1912,10 +1912,12 @@ const DropdownMenuPage = () => {
     const [isEditCategoryModalOpen, setIsEditCategoryModalOpen] = useState(false);
     const [isCreateItemModalOpen, setIsCreateItemModalOpen] = useState(false);
     const [isEditItemModalOpen, setIsEditItemModalOpen] = useState(false);
+    const [isPasteListModalOpen, setIsPasteListModalOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
     const [selectedCategoryForEdit, setSelectedCategoryForEdit] = useState(null);
     const [deleteConfirmation, setDeleteConfirmation] = useState(null);
     const [deleteCategoryConfirmation, setDeleteCategoryConfirmation] = useState(null);
+    const [deleteAllConfirmation, setDeleteAllConfirmation] = useState(false);
     const { showSuccessModal, showErrorModal } = useToast();
 
     useEffect(() => {
@@ -2099,6 +2101,29 @@ const DropdownMenuPage = () => {
         }
     };
 
+    const createItemsFromList = async (itemsData) => {
+        try {
+            const itemsToInsert = itemsData.map(item => ({
+                ...item,
+                category_id: selectedCategory.id
+            }));
+
+            const { data, error } = await supabase
+                .from('dropdown_items')
+                .insert(itemsToInsert)
+                .select();
+
+            if (error) throw error;
+
+            setItems(prev => [...prev, ...data].sort((a, b) => a.sort_order - b.sort_order));
+            setIsPasteListModalOpen(false);
+            showSuccessModal(`${data.length} items created successfully`);
+        } catch (error) {
+            console.error('Error creating items:', error);
+            showErrorModal('Error creating items');
+        }
+    };
+
     const updateItem = async (itemId, itemData) => {
         try {
             const { data, error } = await supabase
@@ -2135,6 +2160,24 @@ const DropdownMenuPage = () => {
         } catch (error) {
             console.error('Error deleting item:', error);
             showErrorModal('Error deleting item');
+        }
+    };
+
+    const deleteAllItems = async () => {
+        try {
+            const { error } = await supabase
+                .from('dropdown_items')
+                .delete()
+                .eq('category_id', selectedCategory.id);
+
+            if (error) throw error;
+
+            setItems([]);
+            setDeleteAllConfirmation(false);
+            showSuccessModal('All items deleted successfully');
+        } catch (error) {
+            console.error('Error deleting all items:', error);
+            showErrorModal('Error deleting all items');
         }
     };
 
@@ -2310,14 +2353,34 @@ const DropdownMenuPage = () => {
                             )}
                         </div>
                         {selectedCategory && isAdminOrSuperAdmin && (
-                            <Button
-                                onClick={() => setIsCreateItemModalOpen(true)}
-                                size="sm"
-                                className="bg-green-500 hover:bg-green-600"
-                            >
-                                <PlusCircle size={16} className="mr-1" />
-                                Add Item
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={() => setIsCreateItemModalOpen(true)}
+                                    size="sm"
+                                    className="bg-green-500 hover:bg-green-600"
+                                >
+                                    <PlusCircle size={16} className="mr-1" />
+                                    Add Item
+                                </Button>
+                                <Button
+                                    onClick={() => setIsPasteListModalOpen(true)}
+                                    size="sm"
+                                    className="bg-blue-500 hover:bg-blue-600"
+                                >
+                                    <PlusCircle size={16} className="mr-1" />
+                                    Paste List
+                                </Button>
+                                {items.length > 0 && (
+                                    <Button
+                                        onClick={() => setDeleteAllConfirmation(true)}
+                                        size="sm"
+                                        className="bg-red-500 hover:bg-red-600"
+                                    >
+                                        <Trash2 size={16} className="mr-1" />
+                                        Delete All
+                                    </Button>
+                                )}
+                            </div>
                         )}
                     </div>
 
@@ -2429,6 +2492,15 @@ const DropdownMenuPage = () => {
                 existingItems={items}
             />
 
+            {/* Paste List Modal */}
+            <PasteListModal
+                isOpen={isPasteListModalOpen}
+                onClose={() => setIsPasteListModalOpen(false)}
+                onSave={createItemsFromList}
+                category={selectedCategory}
+                existingItems={items}
+            />
+
             {/* Edit Item Modal */}
             <ItemModal
                 isOpen={isEditItemModalOpen}
@@ -2478,6 +2550,19 @@ const DropdownMenuPage = () => {
                     title="Delete Category"
                     message={`Are you sure you want to delete "${deleteCategoryConfirmation.name}"? This will also delete all items in this category. This action cannot be undone.`}
                     confirmText="Delete"
+                    confirmVariant="danger"
+                />
+            )}
+
+            {/* Delete All Items Confirmation Modal */}
+            {deleteAllConfirmation && (
+                <ConfirmationModal
+                    isOpen={deleteAllConfirmation}
+                    onClose={() => setDeleteAllConfirmation(false)}
+                    onConfirm={deleteAllItems}
+                    title="Delete All Items"
+                    message={`Are you sure you want to delete all ${items.length} items from "${selectedCategory?.name}"? This action cannot be undone.`}
+                    confirmText="Delete All"
                     confirmVariant="danger"
                 />
             )}
@@ -2664,10 +2749,122 @@ const ItemModal = ({ isOpen, onClose, onSave, category, existingItems, item, isE
     );
 };
 
+const PasteListModal = ({ isOpen, onClose, onSave, category, existingItems }) => {
+    const [textInput, setTextInput] = useState('');
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setTextInput('');
+            setItems([]);
+        }
+    }, [isOpen]);
+
+    const parseItems = () => {
+        if (!textInput.trim()) {
+            setItems([]);
+            return;
+        }
+
+        const lines = textInput.split('\n').filter(line => line.trim());
+        const maxSortOrder = Math.max(...existingItems.map(i => i.sort_order), 0);
+
+        const parsedItems = lines.map((line, index) => ({
+            display_text: line.trim(),
+            value: line.trim(),
+            sort_order: maxSortOrder + index + 1,
+            is_active: true
+        }));
+
+        setItems(parsedItems);
+    };
+
+    useEffect(() => {
+        parseItems();
+    }, [textInput, existingItems]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (items.length === 0) return;
+
+        setLoading(true);
+        try {
+            await onSave(items);
+            onClose();
+        } catch (error) {
+            console.error('Error saving items:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const removeItem = (index) => {
+        setItems(prev => prev.filter((_, i) => i !== index));
+        const lines = textInput.split('\n');
+        lines.splice(index, 1);
+        setTextInput(lines.join('\n'));
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Paste Items List">
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Paste List *
+                    </label>
+                    <textarea
+                        value={textInput}
+                        onChange={(e) => setTextInput(e.target.value)}
+                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        placeholder="Paste your list here, one item per line:&#10;Project Manager&#10;Developer&#10;Designer&#10;QA Tester"
+                        rows={8}
+                        required
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Paste your list with one item per line. Empty lines will be ignored.
+                    </p>
+                </div>
+
+                {items.length > 0 && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Preview ({items.length} items)
+                        </label>
+                        <div className="max-h-48 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
+                            {items.map((item, index) => (
+                                <div key={index} className="flex justify-between items-center p-2 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+                                    <span className="text-sm text-gray-900 dark:text-white">{item.display_text}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeItem(index)}
+                                        className="text-red-500 hover:text-red-700 text-xs"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex gap-2 pt-4">
+                    <Button type="submit" disabled={items.length === 0 || loading}>
+                        {loading ? 'Creating...' : `Create ${items.length} Items`}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={onClose}>
+                        Cancel
+                    </Button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
+
 const ProjectsPage = ({ onViewProject }) => {
     const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortConfig, setSortConfig] = useState({ key: 'date_created', direction: 'descending' });
+    const [sortConfig, setSortConfig] = useState({ key: 'project_number', direction: 'ascending' });
     const [itemsPerPage, setItemsPerPage] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -2676,8 +2873,8 @@ const ProjectsPage = ({ onViewProject }) => {
     const [showArchived, setShowArchived] = useState(false);
     const [openDropdownId, setOpenDropdownId] = useState(null);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const [statusFilter, setStatusFilter] = useState([]);
     const [clientFilter, setClientFilter] = useState('');
+    const [yearFilter, setYearFilter] = useState('');
     const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
 
     const dropdownRef = useRef(null);
@@ -2718,11 +2915,11 @@ const ProjectsPage = ({ onViewProject }) => {
         const matchesSearch = p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             p.project_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
             p.client.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesArchive = showArchived ? p.status === 'Archived' : p.status !== 'Archived';
-        const matchesStatus = statusFilter.length === 0 || statusFilter.includes(p.status);
+        const matchesArchive = showArchived ? p.archived : !p.archived;
         const matchesClient = clientFilter === '' || p.client === clientFilter;
-        return matchesSearch && matchesArchive && matchesStatus && matchesClient;
-    }), [projects, searchTerm, showArchived, statusFilter, clientFilter]);
+        const matchesYear = yearFilter === '' || p.year === yearFilter;
+        return matchesSearch && matchesArchive && matchesClient && matchesYear;
+    }), [projects, searchTerm, showArchived, clientFilter, yearFilter]);
 
     const sortedProjects = useMemo(() => {
         let sortableItems = [...filteredProjects];
@@ -2734,12 +2931,6 @@ const ProjectsPage = ({ onViewProject }) => {
         return sortableItems;
     }, [filteredProjects, sortConfig]);
 
-    const paginatedProjects = useMemo(() => {
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        return sortedProjects.slice(startIndex, startIndex + itemsPerPage);
-    }, [sortedProjects, currentPage, itemsPerPage]);
-
-    const totalPages = Math.ceil(sortedProjects.length / itemsPerPage);
 
     const requestSort = (key) => {
         let direction = 'ascending';
@@ -2780,7 +2971,7 @@ const ProjectsPage = ({ onViewProject }) => {
     };
 
     const confirmArchive = () => {
-        updateProject({ ...projectToManage, status: 'Archived' });
+        updateProject({ ...projectToManage, archived: true });
         setIsArchiveModalOpen(false);
         setProjectToManage(null);
     };
@@ -2788,7 +2979,7 @@ const ProjectsPage = ({ onViewProject }) => {
     const handleUnarchiveProject = (projectId) => {
         const project = projects.find(p => p.id === projectId);
         if (project) {
-            updateProject({ ...project, status: 'In Progress' }); // Or a default status
+            updateProject({ ...project, archived: false });
         }
         setOpenDropdownId(null);
     };
@@ -2804,16 +2995,13 @@ const ProjectsPage = ({ onViewProject }) => {
         setOpenDropdownId(null);
     };
     
-    const handleStatusFilterChange = (status) => {
-        setStatusFilter(prev => prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]);
-    };
-    
     const clearFilters = () => {
-        setStatusFilter([]);
         setClientFilter('');
+        setYearFilter('');
     };
     
-    const uniqueClients = [...new Set(projects.map(p => p.client))];
+    const uniqueClients = [...new Set(projects.map(p => p.client))].sort();
+    const uniqueYears = [...new Set(projects.map(p => p.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
 
     return (
         <div className="p-4 md:p-6">
@@ -2831,22 +3019,18 @@ const ProjectsPage = ({ onViewProject }) => {
                             </button>
                             {isFilterOpen && (
                                 <div className="absolute right-0 sm:right-0 mt-2 w-full sm:w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
-                                    <div className="p-4">
-                                        <h4 className="font-semibold mb-2">Status</h4>
-                                        <div className="grid grid-cols-1 gap-2">
-                                            {['Planning', 'In Progress', 'On Hold', 'Completed', 'Archived'].map(status => (
-                                                <label key={status} className="flex items-center space-x-2 text-sm">
-                                                    <input type="checkbox" checked={statusFilter.includes(status)} onChange={() => handleStatusFilterChange(status)} className="rounded text-orange-500 focus:ring-orange-500" />
-                                                    <span>{status}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
                                     <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                                         <h4 className="font-semibold mb-2">Client</h4>
                                         <Select value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
                                             <option value="">All Clients</option>
                                             {uniqueClients.map(client => <option key={client}>{client}</option>)}
+                                        </Select>
+                                    </div>
+                                    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                        <h4 className="font-semibold mb-2">Year</h4>
+                                        <Select value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
+                                            <option value="">All Years</option>
+                                            {uniqueYears.map(year => <option key={year}>{year}</option>)}
                                         </Select>
                                     </div>
                                     <div className="p-2 bg-gray-50 dark:bg-gray-900/50 flex justify-end">
@@ -2870,7 +3054,7 @@ const ProjectsPage = ({ onViewProject }) => {
                 <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                         <tr>
-                            {['project_number', 'project_name', 'client', 'date_created', 'status'].map(key => (
+                            {['project_number', 'project_name', 'client', 'year'].map(key => (
                                 <th key={key} scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort(key)}>
                                     <div className="flex items-center">
                                         {key.replace('_', ' ')}
@@ -2882,7 +3066,7 @@ const ProjectsPage = ({ onViewProject }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {paginatedProjects.map(project => (
+                        {sortedProjects.map(project => (
                             <tr key={project.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
                                 <td className="px-6 py-4 font-mono text-gray-600 dark:text-gray-300">{project.project_number}</td>
                                 <th scope="row" className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
@@ -2891,8 +3075,7 @@ const ProjectsPage = ({ onViewProject }) => {
                                     </button>
                                 </th>
                                 <td className="px-6 py-4">{project.client}</td>
-                                <td className="px-6 py-4">{project.date_created}</td>
-                                <td className="px-6 py-4"><StatusBadge status={project.status} /></td>
+                                <td className="px-6 py-4">{project.year || 'N/A'}</td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center space-x-1">
                                         <button onClick={() => { setProjectToManage(project); setIsEditModalOpen(true); }} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={16} /></button>
@@ -2902,7 +3085,7 @@ const ProjectsPage = ({ onViewProject }) => {
                                             {openDropdownId === project.id && (
                                                 <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10">
                                                     <button onClick={() => handleDuplicateProject(project)} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2"/>Duplicate</button>
-                                                    {project.status === 'Archived' ? (
+                                                    {project.archived ? (
                                                         <button onClick={() => handleUnarchiveProject(project.id)} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ArchiveRestore size={14} className="mr-2"/>Unarchive</button>
                                                     ) : (
                                                         <button onClick={() => handleArchiveClick(project)} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Archive size={14} className="mr-2"/>Archive</button>
@@ -2918,7 +3101,6 @@ const ProjectsPage = ({ onViewProject }) => {
                 </table>
             </div>
 
-            <Pagination currentPage={currentPage} setCurrentPage={setCurrentPage} totalPages={totalPages} itemsPerPage={itemsPerPage} setItemsPerPage={setItemsPerPage} totalItems={sortedProjects.length} />
             <ProjectModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} onSave={handleSaveProject} project={projectToManage} />
             <ConfirmationModal 
                 isOpen={isDeleteModalOpen} 
@@ -5524,7 +5706,6 @@ const ProjectDetailPage = ({ project, onBack }) => {
                     <h1 className="text-3xl font-bold text-gray-800 dark:text-white">{project.project_name}</h1>
                     <p className="text-gray-500 dark:text-gray-400">{project.project_number} - {project.client}</p>
                 </div>
-                <StatusBadge status={project.status} />
             </div>
             <div className="border-b border-gray-200 dark:border-gray-700">
                 <nav className="-mb-px flex space-x-6">
@@ -6080,17 +6261,11 @@ const ProjectsAnalytics = () => {
     };
 
     const handleExport = (format) => {
-        const headers = ["ID", "Project Number", "Project Name", "Client", "Date Created", "Status"];
-        const data = filteredData.map(p => [p.id, p.project_number, p.project_name, p.client, p.date_created, p.status]);
+        const headers = ["ID", "Project Number", "Project Name", "Client", "Year"];
+        const data = filteredData.map(p => [p.id, p.project_number, p.project_name, p.client, p.year || 'N/A']);
         exportData(headers, data, `projects_analytics`, format);
     };
     
-    const projectsByStatus = useMemo(() => {
-        return filteredData.reduce((acc, project) => {
-            acc[project.status] = (acc[project.status] || 0) + 1;
-            return acc;
-        }, {});
-    }, [filteredData]);
 
     const projectsByClient = useMemo(() => {
         return filteredData.reduce((acc, project) => {
@@ -6833,15 +7008,55 @@ const Modal = ({ isOpen, onClose, title, children }) => (
 );
 
 const ProjectModal = ({ isOpen, onClose, onSave, project }) => {
-    const [formData, setFormData] = useState({ project_name: '', project_number: '', client: '', status: 'Planning' });
+    const [formData, setFormData] = useState({ project_name: '', project_number: '', client: '', year: '' });
+    const [yearOptions, setYearOptions] = useState([]);
 
     useEffect(() => {
         if (project) {
-            setFormData({ project_name: project.project_name, project_number: project.project_number, client: project.client, status: project.status });
+            setFormData({ project_name: project.project_name, project_number: project.project_number, client: project.client, year: project.year || '' });
         } else {
-            setFormData({ project_name: '', project_number: '', client: '', status: 'Planning' });
+            setFormData({ project_name: '', project_number: '', client: '', year: '' });
         }
     }, [project, isOpen]);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchYearOptions();
+        }
+    }, [isOpen]);
+
+    const fetchYearOptions = async () => {
+        try {
+            // Get the Year category - try case insensitive search to be safe
+            const { data: categories, error: catError } = await supabase
+                .from('dropdown_categories')
+                .select('id')
+                .ilike('name', 'year')
+                .limit(1);
+
+            if (catError || !categories || categories.length === 0) {
+                console.error('Year category not found');
+                return;
+            }
+
+            // Get the year options
+            const { data: items, error: itemError } = await supabase
+                .from('dropdown_items')
+                .select('id, display_text, sort_order')
+                .eq('category_id', categories[0].id)
+                .eq('is_active', true)
+                .order('sort_order', { ascending: true });
+
+            if (itemError) {
+                console.error('Error fetching year items:', itemError);
+                return;
+            }
+
+            setYearOptions(items || []);
+        } catch (error) {
+            console.error('Error fetching year options:', error);
+        }
+    };
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -6859,11 +7074,11 @@ const ProjectModal = ({ isOpen, onClose, onSave, project }) => {
                     <Input label="Project Name" name="project_name" value={formData.project_name} onChange={handleChange} required />
                     <Input label="Project Number" name="project_number" value={formData.project_number} onChange={handleChange} required />
                     <Input label="Client" name="client" value={formData.client} onChange={handleChange} required />
-                    <Select label="Status" name="status" value={formData.status} onChange={handleChange}>
-                        <option>Planning</option>
-                        <option>In Progress</option>
-                        <option>On Hold</option>
-                        <option>Completed</option>
+                    <Select label="Year" name="year" value={formData.year} onChange={handleChange} required>
+                        <option value="">Select Year</option>
+                        {yearOptions.map(option => (
+                            <option key={option.id} value={option.display_text}>{option.display_text}</option>
+                        ))}
                     </Select>
                     <div className="flex justify-end space-x-2 pt-4">
                         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
