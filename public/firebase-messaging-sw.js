@@ -25,6 +25,8 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('🔔 [SW] Received background message:', payload);
   console.log('🔔 [SW] Payload structure:', JSON.stringify(payload, null, 2));
+  console.log('🔔 [SW] Document visibility:', document.visibilityState);
+  console.log('🔔 [SW] Notification permission:', Notification.permission);
 
   // Prevent default notification by handling it manually
   const notificationTitle = payload.notification?.title || payload.data?.title || 'Survey Hub Notification';
