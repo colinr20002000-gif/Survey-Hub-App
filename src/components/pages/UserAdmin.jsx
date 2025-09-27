@@ -6,12 +6,18 @@ const UserAdmin = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [teamRoles, setTeamRoles] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [organisations, setOrganisations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingUsername, setEditingUsername] = useState(null);
   const [newUsername, setNewUsername] = useState('');
   const [editingTeamRole, setEditingTeamRole] = useState(null);
   const [newTeamRole, setNewTeamRole] = useState('');
+  const [editingDepartment, setEditingDepartment] = useState(null);
+  const [newDepartment, setNewDepartment] = useState('');
+  const [editingOrganisation, setEditingOrganisation] = useState(null);
+  const [newOrganisation, setNewOrganisation] = useState('');
   const [editingAvatar, setEditingAvatar] = useState(null);
   const [newAvatar, setNewAvatar] = useState('');
   const [editingName, setEditingName] = useState(null);
@@ -20,6 +26,8 @@ const UserAdmin = () => {
   useEffect(() => {
     fetchUsers();
     fetchTeamRoles();
+    fetchDepartments();
+    fetchOrganisations();
   }, []);
 
   // Check if current user has admin privileges
@@ -57,6 +65,68 @@ const UserAdmin = () => {
       console.error('Error fetching team roles:', error);
       // Fallback to hardcoded roles if there's an error
       setTeamRoles(['Site Team', 'Project Team', 'Delivery Team', 'Design Team', 'Office Staff', 'Subcontractor']);
+    }
+  };
+
+  // Fetch departments from database
+  const fetchDepartments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dropdown_items')
+        .select(`
+          display_text,
+          dropdown_categories!inner(name)
+        `)
+        .eq('dropdown_categories.name', 'Department')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      if (error) {
+        console.error('Error fetching departments:', error);
+        setDepartments([]);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setDepartments(data.map(dept => dept.display_text));
+      } else {
+        console.log('No departments found in database');
+        setDepartments([]);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      setDepartments([]);
+    }
+  };
+
+  // Fetch organisations from database
+  const fetchOrganisations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dropdown_items')
+        .select(`
+          display_text,
+          dropdown_categories!inner(name)
+        `)
+        .eq('dropdown_categories.name', 'Organisation')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      if (error) {
+        console.error('Error fetching organisations:', error);
+        setOrganisations([]);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setOrganisations(data.map(org => org.display_text));
+      } else {
+        console.log('No organisations found in database');
+        setOrganisations([]);
+      }
+    } catch (error) {
+      console.error('Error fetching organisations:', error);
+      setOrganisations([]);
     }
   };
 
@@ -117,7 +187,7 @@ const UserAdmin = () => {
       
       const userQuery = Promise.race([
         supabase.from('users').select('*').order('created_at', { ascending: false }),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Database query timeout')), 8000)
         )
       ]);
@@ -275,6 +345,90 @@ const UserAdmin = () => {
   const cancelEditingTeamRole = () => {
     setEditingTeamRole(null);
     setNewTeamRole('');
+  };
+
+  const updateDepartment = async (userId, department) => {
+    if (!isSuperAdmin) {
+      alert('Only super administrators can modify departments');
+      return;
+    }
+
+    try {
+      const updateQuery = Promise.race([
+        supabase.from('users').update({ department: department }).eq('id', userId).select(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database update timeout')), 8000)
+        )
+      ]);
+
+      const { data, error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data[0]) {
+        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
+        alert('Department updated successfully');
+        setEditingDepartment(null);
+        setNewDepartment('');
+      }
+    } catch (err) {
+      console.error('Error updating department:', err);
+      alert(`Error updating department: ${err.message}`);
+    }
+  };
+
+  const startEditingDepartment = (userItem) => {
+    setEditingDepartment(userItem.id);
+    setNewDepartment(userItem.department || '');
+  };
+
+  const cancelEditingDepartment = () => {
+    setEditingDepartment(null);
+    setNewDepartment('');
+  };
+
+  const updateOrganisation = async (userId, organisation) => {
+    if (!isSuperAdmin) {
+      alert('Only super administrators can modify organisations');
+      return;
+    }
+
+    try {
+      const updateQuery = Promise.race([
+        supabase.from('users').update({ organisation: organisation }).eq('id', userId).select(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database update timeout')), 8000)
+        )
+      ]);
+
+      const { data, error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data[0]) {
+        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
+        alert('Organisation updated successfully');
+        setEditingOrganisation(null);
+        setNewOrganisation('');
+      }
+    } catch (err) {
+      console.error('Error updating organisation:', err);
+      alert(`Error updating organisation: ${err.message}`);
+    }
+  };
+
+  const startEditingOrganisation = (userItem) => {
+    setEditingOrganisation(userItem.id);
+    setNewOrganisation(userItem.organisation || '');
+  };
+
+  const cancelEditingOrganisation = () => {
+    setEditingOrganisation(null);
+    setNewOrganisation('');
   };
 
   const updateAvatar = async (userId, avatar) => {
@@ -576,6 +730,24 @@ const UserAdmin = () => {
                 </th>
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('department')}
+                >
+                  <div className="flex items-center">
+                    Department
+                    <span className="ml-1">{getSortIcon('department')}</span>
+                  </div>
+                </th>
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('organisation')}
+                >
+                  <div className="flex items-center">
+                    Organisation
+                    <span className="ml-1">{getSortIcon('organisation')}</span>
+                  </div>
+                </th>
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('created_at')}
                 >
                   <div className="flex items-center">
@@ -807,6 +979,118 @@ const UserAdmin = () => {
                             onClick={() => startEditingTeamRole(userItem)}
                             className="text-blue-600 hover:text-blue-800 text-xs ml-1"
                             title="Edit team role"
+                          >
+                            ✏️
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {isSuperAdmin && editingDepartment === userItem.id ? (
+                      <div className="flex items-center gap-1">
+                        <select
+                          value={newDepartment}
+                          onChange={(e) => setNewDepartment(e.target.value)}
+                          className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              updateDepartment(userItem.id, newDepartment);
+                            } else if (e.key === 'Escape') {
+                              cancelEditingDepartment();
+                            }
+                          }}
+                          style={{
+                            backgroundColor: 'white',
+                            color: 'black'
+                          }}
+                        >
+                          <option value="" style={{ backgroundColor: 'white', color: 'black' }}>Select Department</option>
+                          {departments.map(dept => (
+                            <option key={dept} value={dept} style={{ backgroundColor: 'white', color: 'black' }}>
+                              {dept}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => updateDepartment(userItem.id, newDepartment)}
+                          className="text-green-600 hover:text-green-800 text-xs"
+                          title="Save"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={cancelEditingDepartment}
+                          className="text-red-600 hover:text-red-800 text-xs"
+                          title="Cancel"
+                        >
+                          ✗
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span>{userItem.department || 'Not assigned'}</span>
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => startEditingDepartment(userItem)}
+                            className="text-blue-600 hover:text-blue-800 text-xs ml-1"
+                            title="Edit department"
+                          >
+                            ✏️
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {isSuperAdmin && editingOrganisation === userItem.id ? (
+                      <div className="flex items-center gap-1">
+                        <select
+                          value={newOrganisation}
+                          onChange={(e) => setNewOrganisation(e.target.value)}
+                          className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              updateOrganisation(userItem.id, newOrganisation);
+                            } else if (e.key === 'Escape') {
+                              cancelEditingOrganisation();
+                            }
+                          }}
+                          style={{
+                            backgroundColor: 'white',
+                            color: 'black'
+                          }}
+                        >
+                          <option value="" style={{ backgroundColor: 'white', color: 'black' }}>Select Organisation</option>
+                          {organisations.map(org => (
+                            <option key={org} value={org} style={{ backgroundColor: 'white', color: 'black' }}>
+                              {org}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => updateOrganisation(userItem.id, newOrganisation)}
+                          className="text-green-600 hover:text-green-800 text-xs"
+                          title="Save"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={cancelEditingOrganisation}
+                          className="text-red-600 hover:text-red-800 text-xs"
+                          title="Cancel"
+                        >
+                          ✗
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span>{userItem.organisation || 'Not assigned'}</span>
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => startEditingOrganisation(userItem)}
+                            className="text-blue-600 hover:text-blue-800 text-xs ml-1"
+                            title="Edit organisation"
                           >
                             ✏️
                           </button>

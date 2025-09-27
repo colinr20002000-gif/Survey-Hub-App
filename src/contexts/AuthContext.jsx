@@ -340,6 +340,7 @@ export const AuthProvider = ({ children }) => {
           console.log('📵 FCM token already exists - auto-subscribe completed successfully');
           return;
         }
+        // Only log actual errors, not duplicate token situations
         console.warn('📵 Auto-subscribe failed (non-blocking):', subscriptionError);
         return;
       }
