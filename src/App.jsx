@@ -3108,6 +3108,7 @@ const PasteListModal = ({ isOpen, onClose, onSave, category, existingItems }) =>
 };
 
 const ProjectsPage = ({ onViewProject }) => {
+    // No pagination - shows all projects
     const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'project_number', direction: 'ascending' });
@@ -3172,6 +3173,7 @@ const ProjectsPage = ({ onViewProject }) => {
             if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1;
             return 0;
         });
+        console.log('🔵 Projects - showing all projects:', sortableItems.length);
         return sortableItems;
     }, [filteredProjects, sortConfig]);
 
