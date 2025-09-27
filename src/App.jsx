@@ -178,16 +178,6 @@ const NOTIFICATION_METHODS = {
     all: 'All Methods'
 };
 
-const ANNOUNCEMENT_CATEGORIES = [
-    'General',
-    'Safety',
-    'Equipment',
-    'Policy',
-    'Training',
-    'Project Updates',
-    'Maintenance'
-];
-
 
 
 
@@ -913,6 +903,7 @@ const AnnouncementsPage = () => {
     const [selectedPriority, setSelectedPriority] = useState('All');
     const [announcementToDelete, setAnnouncementToDelete] = useState(null);
     const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
+    const [categories, setCategories] = useState([]);
     const { user } = useAuth();
     const { showSuccessModal, showErrorModal } = useToast();
     const { markAsRead, refreshNotifications, announcementRefreshTrigger } = useNotifications();
@@ -963,8 +954,71 @@ const AnnouncementsPage = () => {
         }
     };
 
+    // Fetch announcement categories from database
+    const fetchCategories = async () => {
+        try {
+            console.log('📢 Fetching announcement categories for filter...');
+            const { data, error } = await supabase
+                .from('dropdown_items')
+                .select(`
+                    display_text,
+                    dropdown_categories!inner(name)
+                `)
+                .eq('dropdown_categories.name', 'announcement category')
+                .eq('is_active', true)
+                .order('sort_order');
+
+            if (error) {
+                console.error('Error fetching announcement categories:', error);
+                // Try variations of the category name as fallback
+                console.log('📢 Trying with capitalized "Announcement Category"...');
+                const { data: capitalData, error: capitalError } = await supabase
+                    .from('dropdown_items')
+                    .select(`
+                        display_text,
+                        dropdown_categories!inner(name)
+                    `)
+                    .eq('dropdown_categories.name', 'Announcement Category')
+                    .eq('is_active', true)
+                    .order('sort_order');
+
+                if (capitalError) {
+                    console.error('Error fetching announcement categories with capitals:', capitalError);
+                    // Fallback to hardcoded categories
+                    console.log('📢 Using hardcoded categories as fallback for filter');
+                    setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                    return;
+                }
+
+                if (capitalData && capitalData.length > 0) {
+                    console.log('📢 Found announcement categories with capitals for filter:', capitalData);
+                    setCategories(capitalData.map(cat => cat.display_text));
+                } else {
+                    console.log('No announcement categories found, using hardcoded fallback for filter');
+                    setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                }
+                return;
+            }
+
+            if (data && data.length > 0) {
+                console.log('📢 Found announcement categories for filter:', data);
+                setCategories(data.map(cat => cat.display_text));
+            } else {
+                console.log('No announcement categories found in database, using hardcoded fallback for filter');
+                setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+            }
+        } catch (error) {
+            console.error('Error fetching announcement categories:', error);
+            // Fallback to hardcoded categories
+            setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+        }
+    };
+
     useEffect(() => {
-        if (user) fetchAnnouncements();
+        if (user) {
+            fetchAnnouncements();
+            fetchCategories();
+        }
     }, [user]);
 
     // Refresh announcements when markAllAsRead is called from notification bell
@@ -1120,7 +1174,7 @@ const AnnouncementsPage = () => {
                     <div className="flex flex-col sm:flex-row gap-4">
                         <Select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
                             <option value="All">All Categories</option>
-                            {ANNOUNCEMENT_CATEGORIES.map(cat => (
+                            {categories.map(cat => (
                                 <option key={cat} value={cat}>{cat}</option>
                             ))}
                             {user?.email === 'colin.rogers@inorail.co.uk' && (
@@ -1295,6 +1349,7 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
     });
     const [loading, setLoading] = useState(false);
     const [departments, setDepartments] = useState([]);
+    const [categories, setCategories] = useState([]);
     const { user } = useAuth();
     const { showSuccessModal, showErrorModal } = useToast();
 
@@ -1355,9 +1410,70 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
         }
     };
 
+    // Fetch announcement categories from database
+    const fetchCategories = async () => {
+        try {
+            console.log('📢 Fetching announcement categories...');
+            const { data, error } = await supabase
+                .from('dropdown_items')
+                .select(`
+                    display_text,
+                    dropdown_categories!inner(name)
+                `)
+                .eq('dropdown_categories.name', 'announcement category')
+                .eq('is_active', true)
+                .order('sort_order');
+
+            if (error) {
+                console.error('Error fetching announcement categories:', error);
+                // Try variations of the category name as fallback
+                console.log('📢 Trying with capitalized "Announcement Category"...');
+                const { data: capitalData, error: capitalError } = await supabase
+                    .from('dropdown_items')
+                    .select(`
+                        display_text,
+                        dropdown_categories!inner(name)
+                    `)
+                    .eq('dropdown_categories.name', 'Announcement Category')
+                    .eq('is_active', true)
+                    .order('sort_order');
+
+                if (capitalError) {
+                    console.error('Error fetching announcement categories with capitals:', capitalError);
+                    // Fallback to hardcoded categories
+                    console.log('📢 Using hardcoded categories as fallback');
+                    setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                    return;
+                }
+
+                if (capitalData && capitalData.length > 0) {
+                    console.log('📢 Found announcement categories with capitals:', capitalData);
+                    setCategories(capitalData.map(cat => cat.display_text));
+                } else {
+                    console.log('No announcement categories found, using hardcoded fallback');
+                    setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                }
+                return;
+            }
+
+            if (data && data.length > 0) {
+                console.log('📢 Found announcement categories:', data);
+                setCategories(data.map(cat => cat.display_text));
+            } else {
+                console.log('No announcement categories found in database, using hardcoded fallback');
+                setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+            }
+        } catch (error) {
+            console.error('Error fetching announcement categories:', error);
+            // Fallback to hardcoded categories
+            setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+        }
+    };
+
     useEffect(() => {
         if (isOpen) {
             fetchDepartments();
+            fetchCategories();
         }
     }, [isOpen]);
 
@@ -1491,9 +1607,13 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                             value={formData.category}
                             onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                         >
-                            {ANNOUNCEMENT_CATEGORIES.map(category => (
-                                <option key={category} value={category}>{category}</option>
-                            ))}
+                            {categories.length > 0 ? (
+                                categories.map(category => (
+                                    <option key={category} value={category}>{category}</option>
+                                ))
+                            ) : (
+                                <option value="General">General</option>
+                            )}
                         </Select>
 
                         <Select

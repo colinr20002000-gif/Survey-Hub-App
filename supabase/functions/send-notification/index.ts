@@ -82,11 +82,56 @@ Deno.serve(async (req) => {
 
     // --- 3. FETCH SUBSCRIPTIONS ---
     console.log('[DEBUG] Step 3: Fetching subscriptions from database.');
-    let query = supabaseClient.from('subscriptions').select('id, user_id, subscription_object');
+    console.log(`[DEBUG] Target roles: ${JSON.stringify(targetRoles)}`);
+
+    let query;
+
+    if (targetRoles && targetRoles.length > 0) {
+      // When targetRoles are specified, we need to filter by user departments
+      console.log('[DEBUG] Filtering subscriptions by target roles/departments.');
+      query = supabaseClient
+        .from('subscriptions')
+        .select(`
+          id,
+          user_id,
+          subscription_object,
+          users!inner(department, privilege, email)
+        `);
+
+      // Build the OR condition for department and privilege matching
+      const conditions = [];
+
+      // Add department matching for each target role
+      targetRoles.forEach(role => {
+        conditions.push(`users.department.eq.${role}`);
+      });
+
+      // Add privilege matching for backwards compatibility
+      targetRoles.forEach(role => {
+        conditions.push(`users.privilege.eq.${role}`);
+      });
+
+      // Add super admin condition if needed
+      if (targetRoles.length > 0) {
+        conditions.push('users.email.eq.colin.rogers@inorail.co.uk');
+      }
+
+      if (conditions.length > 0) {
+        query = query.or(conditions.join(','));
+      }
+
+      console.log(`[DEBUG] Applied OR conditions: ${conditions.join(', ')}`);
+    } else {
+      // No target roles - send to all users
+      console.log('[DEBUG] No target roles specified - fetching all subscriptions.');
+      query = supabaseClient.from('subscriptions').select('id, user_id, subscription_object');
+    }
+
     if (excludeAuthorId) {
       console.log(`[DEBUG] Excluding author ID: ${excludeAuthorId}`);
       query = query.neq('user_id', excludeAuthorId);
     }
+
     const { data: subscriptions, error: fetchError } = await query;
 
     if (fetchError) {

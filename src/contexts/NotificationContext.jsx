@@ -50,7 +50,7 @@ export const NotificationProvider = ({ children }) => {
             user_id
           )
         `)
-        .or(`target_roles.is.null,target_roles.cs.{${user.privilege}}${user.email === 'colin.rogers@inorail.co.uk' ? ',target_roles.cs.{SuperAdmin}' : ''}`)
+        .or(`target_roles.is.null,target_roles.cs.{${user.department || ''}}${user.privilege ? ',target_roles.cs.{' + user.privilege + '}' : ''}${user.email === 'colin.rogers@inorail.co.uk' ? ',target_roles.cs.{SuperAdmin}' : ''}`)
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .neq('author_id', user.id)  // Exclude announcements created by current user
         .order('created_at', { ascending: false });
