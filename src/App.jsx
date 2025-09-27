@@ -1499,10 +1499,14 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
             }
 
             if (foundData && foundData.length > 0) {
-                console.log(`📢 [MODAL] Using categories from "${foundCategoryName}":`, foundData.map(cat => cat.display_text));
+                console.log(`📢 [MODAL] SUCCESS! Using categories from "${foundCategoryName}":`, foundData.map(cat => cat.display_text));
                 setCategories(foundData.map(cat => cat.display_text));
             } else {
-                console.log('📢 [MODAL] No announcement categories found in any variation, using hardcoded fallback');
+                console.log('📢 [MODAL] ❌ No announcement categories found in any variation!');
+                console.log('📢 [MODAL] Available dropdown categories in your database:', allCategories.map(cat => cat.name));
+                console.log('📢 [MODAL] ⚠️  ACTION NEEDED: Create a dropdown category called "Announcement Category" in your admin panel');
+                console.log('📢 [MODAL] Then add items: General, Safety, Equipment, Policy, Training, Project Updates, Maintenance');
+                console.log('📢 [MODAL] Using hardcoded fallback for now');
                 setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
             }
         } catch (error) {
@@ -1654,7 +1658,15 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                                     <option key={category} value={category}>{category}</option>
                                 ))
                             ) : (
-                                <option value="General">General</option>
+                                <>
+                                    <option value="General">General (Loading...)</option>
+                                    <option value="Safety">Safety</option>
+                                    <option value="Equipment">Equipment</option>
+                                    <option value="Policy">Policy</option>
+                                    <option value="Training">Training</option>
+                                    <option value="Project Updates">Project Updates</option>
+                                    <option value="Maintenance">Maintenance</option>
+                                </>
                             )}
                         </Select>
 
