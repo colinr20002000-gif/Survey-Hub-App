@@ -253,6 +253,11 @@ export const useFcm = () => {
         .rpc('manage_user_push_subscription', functionParams);
 
       if (error) {
+        // Handle duplicate FCM token gracefully (409 conflict)
+        if (error.code === '23505' && error.message?.includes('fcm_token')) {
+          console.log('[FCM] FCM token already exists - treating as success');
+          return { id: 'existing', action: 'already_exists' };
+        }
         throw error;
       }
 

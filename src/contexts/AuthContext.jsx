@@ -335,6 +335,11 @@ export const AuthProvider = ({ children }) => {
         });
 
       if (subscriptionError) {
+        // Handle duplicate FCM token gracefully (409 conflict)
+        if (subscriptionError.code === '23505' && subscriptionError.message?.includes('fcm_token')) {
+          console.log('📵 FCM token already exists - auto-subscribe completed successfully');
+          return;
+        }
         console.warn('📵 Auto-subscribe failed (non-blocking):', subscriptionError);
         return;
       }
