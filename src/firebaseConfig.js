@@ -18,7 +18,8 @@ const app = initializeApp(firebaseConfig);
 const messaging = getMessaging(app);
 
 // VAPID key for web push notifications
-const VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "BGAKVb1ZE-Byuvl_YgGxjTKWrb17qsek986xjCw0vMjhMarzGLrQNZKS1c4bULRQC8Cdr8ehF7-cyIa8Gp5ZgQU";
+// Note: Using the key that was working in production (firebase console configured with this key)
+const VAPID_KEY = "BBNKx2nNyydVZGU7UGCJvDiBPOucsz57KvQy5dDkmaR_acdfh-z6wrPs0k20-NSJEZ5UODEpi0-e6BPRAXqxRnM";
 
 /**
  * Get the FCM registration token for the current device
