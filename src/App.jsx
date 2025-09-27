@@ -909,6 +909,8 @@ const AnnouncementsPage = () => {
     const { markAsRead, refreshNotifications, announcementRefreshTrigger } = useNotifications();
     const privileges = userPrivileges[user?.privilege];
 
+    console.log('📢 [FILTER] AnnouncementsPage rendered, categories state:', categories);
+
     const fetchAnnouncements = async () => {
         try {
             const { data, error } = await supabase
@@ -957,58 +959,77 @@ const AnnouncementsPage = () => {
     // Fetch announcement categories from database
     const fetchCategories = async () => {
         try {
-            console.log('📢 Fetching announcement categories for filter...');
-            const { data, error } = await supabase
-                .from('dropdown_items')
-                .select(`
-                    display_text,
-                    dropdown_categories!inner(name)
-                `)
-                .eq('dropdown_categories.name', 'announcement category')
-                .eq('is_active', true)
-                .order('sort_order');
+            console.log('📢 [FILTER] Fetching announcement categories for filter...');
 
-            if (error) {
-                console.error('Error fetching announcement categories:', error);
-                // Try variations of the category name as fallback
-                console.log('📢 Trying with capitalized "Announcement Category"...');
-                const { data: capitalData, error: capitalError } = await supabase
+            // First, let's see what categories exist in the database
+            const { data: allCategories, error: allError } = await supabase
+                .from('dropdown_categories')
+                .select('name');
+
+            console.log('📢 [FILTER] Available dropdown categories:', allCategories);
+
+            if (allError) {
+                console.log('📢 [FILTER] Error fetching dropdown_categories (table may not exist):', allError.message);
+                console.log('📢 [FILTER] Using hardcoded fallback due to table access error');
+                setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                return;
+            }
+
+            if (!allCategories || allCategories.length === 0) {
+                console.log('📢 [FILTER] No dropdown categories found in database - using hardcoded fallback');
+                setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                return;
+            }
+
+            // Try different possible variations of announcement category names
+            const possibleNames = [
+                'announcement category',
+                'Announcement Category',
+                'Announcement',
+                'announcement',
+                'Category',
+                'category'
+            ];
+
+            let foundData = null;
+            let foundCategoryName = null;
+
+            for (const categoryName of possibleNames) {
+                console.log(`📢 [FILTER] Trying category name: "${categoryName}"`);
+                const { data, error } = await supabase
                     .from('dropdown_items')
                     .select(`
                         display_text,
                         dropdown_categories!inner(name)
                     `)
-                    .eq('dropdown_categories.name', 'Announcement Category')
+                    .eq('dropdown_categories.name', categoryName)
                     .eq('is_active', true)
                     .order('sort_order');
 
-                if (capitalError) {
-                    console.error('Error fetching announcement categories with capitals:', capitalError);
-                    // Fallback to hardcoded categories
-                    console.log('📢 Using hardcoded categories as fallback for filter');
-                    setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
-                    return;
-                }
-
-                if (capitalData && capitalData.length > 0) {
-                    console.log('📢 Found announcement categories with capitals for filter:', capitalData);
-                    setCategories(capitalData.map(cat => cat.display_text));
+                if (!error && data && data.length > 0) {
+                    console.log(`📢 [FILTER] SUCCESS! Found categories with name "${categoryName}":`, data);
+                    foundData = data;
+                    foundCategoryName = categoryName;
+                    break;
+                } else if (error) {
+                    console.log(`📢 [FILTER] Error with "${categoryName}":`, error.message);
                 } else {
-                    console.log('No announcement categories found, using hardcoded fallback for filter');
-                    setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                    console.log(`📢 [FILTER] No data found for "${categoryName}"`);
                 }
-                return;
             }
 
-            if (data && data.length > 0) {
-                console.log('📢 Found announcement categories for filter:', data);
-                setCategories(data.map(cat => cat.display_text));
+            if (foundData && foundData.length > 0) {
+                console.log(`📢 [FILTER] Using categories from "${foundCategoryName}":`, foundData.map(cat => cat.display_text));
+                setCategories(foundData.map(cat => cat.display_text));
             } else {
-                console.log('No announcement categories found in database, using hardcoded fallback for filter');
+                console.log('📢 [FILTER] No announcement categories found in any variation.');
+                console.log('📢 [FILTER] Available category names to try:', allCategories.map(cat => cat.name));
+                console.log('📢 [FILTER] RECOMMENDATION: Create a dropdown category called "Announcement Category" with items: General, Safety, Equipment, Policy, Training, Project Updates, Maintenance');
+                console.log('📢 [FILTER] Using hardcoded fallback for now');
                 setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
             }
         } catch (error) {
-            console.error('Error fetching announcement categories:', error);
+            console.error('📢 [FILTER] Error fetching announcement categories:', error);
             // Fallback to hardcoded categories
             setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
         }
@@ -1020,6 +1041,11 @@ const AnnouncementsPage = () => {
             fetchCategories();
         }
     }, [user]);
+
+    // Debug: Log categories whenever they change
+    useEffect(() => {
+        console.log('📢 [FILTER] Categories state updated:', categories);
+    }, [categories]);
 
     // Refresh announcements when markAllAsRead is called from notification bell
     useEffect(() => {
@@ -1413,58 +1439,74 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
     // Fetch announcement categories from database
     const fetchCategories = async () => {
         try {
-            console.log('📢 Fetching announcement categories...');
-            const { data, error } = await supabase
-                .from('dropdown_items')
-                .select(`
-                    display_text,
-                    dropdown_categories!inner(name)
-                `)
-                .eq('dropdown_categories.name', 'announcement category')
-                .eq('is_active', true)
-                .order('sort_order');
+            console.log('📢 [MODAL] Fetching announcement categories...');
 
-            if (error) {
-                console.error('Error fetching announcement categories:', error);
-                // Try variations of the category name as fallback
-                console.log('📢 Trying with capitalized "Announcement Category"...');
-                const { data: capitalData, error: capitalError } = await supabase
+            // First, let's see what categories exist in the database
+            const { data: allCategories, error: allError } = await supabase
+                .from('dropdown_categories')
+                .select('name');
+
+            console.log('📢 [MODAL] Available dropdown categories:', allCategories);
+
+            if (allError) {
+                console.log('📢 [MODAL] Error fetching dropdown_categories (table may not exist):', allError.message);
+                console.log('📢 [MODAL] Using hardcoded fallback due to table access error');
+                setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                return;
+            }
+
+            if (!allCategories || allCategories.length === 0) {
+                console.log('📢 [MODAL] No dropdown categories found in database - using hardcoded fallback');
+                setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                return;
+            }
+
+            // Try different possible variations of announcement category names
+            const possibleNames = [
+                'announcement category',
+                'Announcement Category',
+                'Announcement',
+                'announcement',
+                'Category',
+                'category'
+            ];
+
+            let foundData = null;
+            let foundCategoryName = null;
+
+            for (const categoryName of possibleNames) {
+                console.log(`📢 [MODAL] Trying category name: "${categoryName}"`);
+                const { data, error } = await supabase
                     .from('dropdown_items')
                     .select(`
                         display_text,
                         dropdown_categories!inner(name)
                     `)
-                    .eq('dropdown_categories.name', 'Announcement Category')
+                    .eq('dropdown_categories.name', categoryName)
                     .eq('is_active', true)
                     .order('sort_order');
 
-                if (capitalError) {
-                    console.error('Error fetching announcement categories with capitals:', capitalError);
-                    // Fallback to hardcoded categories
-                    console.log('📢 Using hardcoded categories as fallback');
-                    setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
-                    return;
-                }
-
-                if (capitalData && capitalData.length > 0) {
-                    console.log('📢 Found announcement categories with capitals:', capitalData);
-                    setCategories(capitalData.map(cat => cat.display_text));
+                if (!error && data && data.length > 0) {
+                    console.log(`📢 [MODAL] SUCCESS! Found categories with name "${categoryName}":`, data);
+                    foundData = data;
+                    foundCategoryName = categoryName;
+                    break;
+                } else if (error) {
+                    console.log(`📢 [MODAL] Error with "${categoryName}":`, error.message);
                 } else {
-                    console.log('No announcement categories found, using hardcoded fallback');
-                    setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
+                    console.log(`📢 [MODAL] No data found for "${categoryName}"`);
                 }
-                return;
             }
 
-            if (data && data.length > 0) {
-                console.log('📢 Found announcement categories:', data);
-                setCategories(data.map(cat => cat.display_text));
+            if (foundData && foundData.length > 0) {
+                console.log(`📢 [MODAL] Using categories from "${foundCategoryName}":`, foundData.map(cat => cat.display_text));
+                setCategories(foundData.map(cat => cat.display_text));
             } else {
-                console.log('No announcement categories found in database, using hardcoded fallback');
+                console.log('📢 [MODAL] No announcement categories found in any variation, using hardcoded fallback');
                 setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
             }
         } catch (error) {
-            console.error('Error fetching announcement categories:', error);
+            console.error('📢 [MODAL] Error fetching announcement categories:', error);
             // Fallback to hardcoded categories
             setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
         }
