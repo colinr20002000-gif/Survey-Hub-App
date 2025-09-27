@@ -1207,9 +1207,6 @@ const AnnouncementsPage = () => {
                             {categories.map(cat => (
                                 <option key={cat} value={cat}>{cat}</option>
                             ))}
-                            {user?.email === 'colin.rogers@inorail.co.uk' && (
-                                <option value="Feedback">Feedback</option>
-                            )}
                         </Select>
                         <Select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)}>
                             <option value="All">All Priorities</option>
