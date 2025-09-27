@@ -38,6 +38,9 @@ export const AuthProvider = ({ children }) => {
   // Keep track of whether we're in the middle of logging in
   const [isLoading, setIsLoading] = useState(true);
 
+  // Track if push notification subscription has been attempted for current user
+  const [pushSubscriptionAttempted, setPushSubscriptionAttempted] = useState(false);
+
   // Function to fetch or create user data from users table
   const fetchUserData = async (authUser) => {
     if (!authUser) return null;
@@ -195,6 +198,12 @@ export const AuthProvider = ({ children }) => {
 
   // Auto-subscribe to push notifications for authenticated users
   const autoSubscribePushNotifications = async (userData) => {
+    // Skip if already attempted for this user session
+    if (pushSubscriptionAttempted) {
+      console.log('📵 Push notification subscription already attempted for this session');
+      return;
+    }
+
     // Skip if user has opted out of auto-subscribe
     if (localStorage.getItem('fcm_auto_subscribe_opted_out') === 'true') {
       console.log('📵 User opted out of automatic push notifications');
@@ -214,6 +223,9 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      // Mark as attempted to prevent duplicate calls
+      setPushSubscriptionAttempted(true);
+
       console.log('🔔 Attempting automatic push notification subscription for:', userData.email);
 
       // Generate device fingerprint (similar to useFcm hook)
@@ -424,6 +436,7 @@ export const AuthProvider = ({ children }) => {
       } else {
         console.log('Auth change - no session');
         setUser(null);
+        setPushSubscriptionAttempted(false);
       }
       setIsLoading(false);
     });
@@ -534,6 +547,7 @@ export const AuthProvider = ({ children }) => {
     // Clear local state FIRST to prevent re-authentication
     setUser(null);
     setIsLoading(false);
+    setPushSubscriptionAttempted(false);
 
     // ALWAYS sign out, regardless of cleanup success/failure
     try {
