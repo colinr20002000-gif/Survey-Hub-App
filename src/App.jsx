@@ -983,6 +983,7 @@ const AnnouncementsPage = () => {
 
             // Try different possible variations of announcement category names
             const possibleNames = [
+                'announcement_category',  // Your database has this one!
                 'announcement category',
                 'Announcement Category',
                 'Announcement',
@@ -1024,7 +1025,10 @@ const AnnouncementsPage = () => {
             } else {
                 console.log('📢 [FILTER] No announcement categories found in any variation.');
                 console.log('📢 [FILTER] Available category names to try:', allCategories.map(cat => cat.name));
-                console.log('📢 [FILTER] RECOMMENDATION: Create a dropdown category called "Announcement Category" with items: General, Safety, Equipment, Policy, Training, Project Updates, Maintenance');
+                console.log('📢 [FILTER] ✅ Found "announcement_category" category but it has NO ITEMS!');
+                console.log('📢 [FILTER] ⚠️  ACTION NEEDED: Go to Dropdown Menu Management → announcement_category');
+                console.log('📢 [FILTER] ➕ ADD THESE ITEMS: General, Safety, Equipment, Policy, Training, Project Updates, Maintenance');
+                console.log('📢 [FILTER] 🔄 Then refresh this page - the dropdown will work automatically!');
                 console.log('📢 [FILTER] Using hardcoded fallback for now');
                 setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
             }
@@ -1463,6 +1467,7 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
 
             // Try different possible variations of announcement category names
             const possibleNames = [
+                'announcement_category',  // Your database has this one!
                 'announcement category',
                 'Announcement Category',
                 'Announcement',
@@ -1504,8 +1509,10 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
             } else {
                 console.log('📢 [MODAL] ❌ No announcement categories found in any variation!');
                 console.log('📢 [MODAL] Available dropdown categories in your database:', allCategories.map(cat => cat.name));
-                console.log('📢 [MODAL] ⚠️  ACTION NEEDED: Create a dropdown category called "Announcement Category" in your admin panel');
-                console.log('📢 [MODAL] Then add items: General, Safety, Equipment, Policy, Training, Project Updates, Maintenance');
+                console.log('📢 [MODAL] ✅ Found "announcement_category" category but it has NO ITEMS!');
+                console.log('📢 [MODAL] ⚠️  ACTION NEEDED: Go to Dropdown Menu Management → announcement_category');
+                console.log('📢 [MODAL] ➕ ADD THESE ITEMS: General, Safety, Equipment, Policy, Training, Project Updates, Maintenance');
+                console.log('📢 [MODAL] 🔄 Then refresh this page - the dropdown will work automatically!');
                 console.log('📢 [MODAL] Using hardcoded fallback for now');
                 setCategories(['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']);
             }
