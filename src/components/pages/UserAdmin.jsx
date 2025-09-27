@@ -71,23 +71,49 @@ const UserAdmin = () => {
   // Fetch departments from database
   const fetchDepartments = async () => {
     try {
+      console.log('🏢 Fetching departments...');
       const { data, error } = await supabase
         .from('dropdown_items')
         .select(`
           display_text,
           dropdown_categories!inner(name)
         `)
-        .eq('dropdown_categories.name', 'Department')
+        .eq('dropdown_categories.name', 'department')
         .eq('is_active', true)
         .order('sort_order');
 
       if (error) {
         console.error('Error fetching departments:', error);
-        setDepartments([]);
+        // Try with capitalized name as fallback
+        console.log('🏢 Trying with capitalized "Department"...');
+        const { data: capitalData, error: capitalError } = await supabase
+          .from('dropdown_items')
+          .select(`
+            display_text,
+            dropdown_categories!inner(name)
+          `)
+          .eq('dropdown_categories.name', 'Department')
+          .eq('is_active', true)
+          .order('sort_order');
+
+        if (capitalError) {
+          console.error('Error fetching departments with capital D:', capitalError);
+          setDepartments([]);
+          return;
+        }
+
+        if (capitalData && capitalData.length > 0) {
+          console.log('🏢 Found departments with capital D:', capitalData);
+          setDepartments(capitalData.map(dept => dept.display_text));
+        } else {
+          console.log('No departments found with capital D either');
+          setDepartments([]);
+        }
         return;
       }
 
       if (data && data.length > 0) {
+        console.log('🏢 Found departments:', data);
         setDepartments(data.map(dept => dept.display_text));
       } else {
         console.log('No departments found in database');
@@ -102,23 +128,49 @@ const UserAdmin = () => {
   // Fetch organisations from database
   const fetchOrganisations = async () => {
     try {
+      console.log('🏛️ Fetching organisations...');
       const { data, error } = await supabase
         .from('dropdown_items')
         .select(`
           display_text,
           dropdown_categories!inner(name)
         `)
-        .eq('dropdown_categories.name', 'Organisation')
+        .eq('dropdown_categories.name', 'organisation')
         .eq('is_active', true)
         .order('sort_order');
 
       if (error) {
         console.error('Error fetching organisations:', error);
-        setOrganisations([]);
+        // Try with capitalized name as fallback
+        console.log('🏛️ Trying with capitalized "Organisation"...');
+        const { data: capitalData, error: capitalError } = await supabase
+          .from('dropdown_items')
+          .select(`
+            display_text,
+            dropdown_categories!inner(name)
+          `)
+          .eq('dropdown_categories.name', 'Organisation')
+          .eq('is_active', true)
+          .order('sort_order');
+
+        if (capitalError) {
+          console.error('Error fetching organisations with capital O:', capitalError);
+          setOrganisations([]);
+          return;
+        }
+
+        if (capitalData && capitalData.length > 0) {
+          console.log('🏛️ Found organisations with capital O:', capitalData);
+          setOrganisations(capitalData.map(org => org.display_text));
+        } else {
+          console.log('No organisations found with capital O either');
+          setOrganisations([]);
+        }
         return;
       }
 
       if (data && data.length > 0) {
+        console.log('🏛️ Found organisations:', data);
         setOrganisations(data.map(org => org.display_text));
       } else {
         console.log('No organisations found in database');
