@@ -199,15 +199,28 @@ const initialJobs = [
     { id: 3, projectName: "OLE Foundation Survey", projectNumber: "OOC-OLE-23-002", itemName: "Old Oak Common Site", projectManager: "Colin Rogers", client: "HS2 Ltd", processingHours: 60, checkingHours: 12, siteStartDate: "2024-09-01", siteCompletionDate: "2024-10-10", plannedDeliveryDate: "2024-10-20", actualDeliveryDate: "", discipline: "Utility", comments: "Access constraints on weekends.", archived: false, status: "Site Not Started" },
 ];
 
-// --- NEW MOCK DATA FOR AUDIT TRAIL ---
+// --- ENHANCED MOCK DATA FOR AUDIT TRAIL ---
 const mockAuditTrail = [
-    { id: 1, userId: 1, action: 'LOGIN', entity: 'USER', entityId: 1, timestamp: '2024-08-25 10:30:15', details: { ip_address: '192.168.1.10' } },
-    { id: 2, userId: 2, action: 'CREATE', entity: 'PROJECT', entityId: 7, timestamp: '2024-08-25 09:15:45', details: { after: { project_name: 'Old Oak Common - Site Survey' } } },
-    { id: 3, userId: 1, action: 'UPDATE', entity: 'USER', entityId: 3, timestamp: '2024-08-25 08:45:22', details: { before: { role: 'Viewer' }, after: { role: 'Editor' } } },
-    { id: 4, userId: 3, action: 'DELETE', entity: 'TASK', entityId: 5, timestamp: '2024-08-24 15:50:00', details: { before: { text: 'Initial site walkover' } } },
-    { id: 5, userId: 2, action: 'LOGOUT', entity: 'USER', entityId: 2, timestamp: '2024-08-24 12:30:00', details: {} },
-    { id: 6, action: 'SYSTEM_EVENT', entity: 'SYSTEM', timestamp: '2024-08-24 11:00:00', details: { type: 'ERROR', message: 'Database connection failed' } },
-    { id: 7, userId: 4, action: 'VIEW', entity: 'DELIVERY_TRACKER', timestamp: '2024-08-23 11:22:10', details: {} },
+    { id: 1, userId: 1, action: 'LOGIN', entity: 'USER', entityId: 1, timestamp: '2024-12-27 10:30:15', details: { ip_address: '192.168.1.10', user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', session_id: 'sess_abc123' } },
+    { id: 2, userId: 2, action: 'CREATE', entity: 'PROJECT', entityId: 7, timestamp: '2024-12-27 09:15:45', details: { after: { project_name: 'Old Oak Common - Site Survey', client: 'Network Rail', project_number: 'NR-2024-001' }, created_fields: ['project_name', 'client', 'project_number'] } },
+    { id: 3, userId: 1, action: 'UPDATE', entity: 'USER', entityId: 3, timestamp: '2024-12-27 08:45:22', details: { before: { role: 'Viewer', department: 'Engineering' }, after: { role: 'Editor', department: 'Engineering' }, changed_fields: ['role'] } },
+    { id: 4, userId: 3, action: 'DELETE', entity: 'TASK', entityId: 5, timestamp: '2024-12-26 15:50:00', details: { before: { text: 'Initial site walkover', project_id: 3, assigned_to: 'Colin Rogers' }, reason: 'Task completed' } },
+    { id: 5, userId: 2, action: 'LOGOUT', entity: 'USER', entityId: 2, timestamp: '2024-12-26 12:30:00', details: { session_duration: '2h 15m', ip_address: '192.168.1.20' } },
+    { id: 6, action: 'SYSTEM_EVENT', entity: 'SYSTEM', timestamp: '2024-12-26 11:00:00', details: { type: 'ERROR', message: 'Database connection failed', error_code: 'CONN_TIMEOUT', retry_attempts: 3 } },
+    { id: 7, userId: 4, action: 'VIEW', entity: 'DELIVERY_TRACKER', timestamp: '2024-12-26 11:22:10', details: { filters_applied: { status: 'In Progress', date_range: '2024-12-01 to 2024-12-26' } } },
+    { id: 8, userId: 1, action: 'CREATE', entity: 'ANNOUNCEMENT', entityId: 12, timestamp: '2024-12-26 14:20:30', details: { after: { title: 'System Maintenance Notice', priority: 'high', target_roles: ['Admin', 'Manager'] } } },
+    { id: 9, userId: 3, action: 'UPDATE', entity: 'PROJECT', entityId: 7, timestamp: '2024-12-26 16:45:12', details: { before: { status: 'Planning' }, after: { status: 'In Progress' }, changed_fields: ['status'], updated_by: 'Auto-workflow' } },
+    { id: 10, action: 'WARNING', entity: 'SYSTEM', timestamp: '2024-12-26 09:30:00', details: { type: 'STORAGE_WARNING', message: 'Disk usage above 85%', current_usage: '87%', threshold: '85%' } },
+    { id: 11, userId: 2, action: 'CREATE', entity: 'USER', entityId: 8, timestamp: '2024-12-25 11:15:22', details: { after: { name: 'Sarah Johnson', email: 'sarah.johnson@inorail.co.uk', role: 'Viewer', department: 'CAD' } } },
+    { id: 12, userId: 4, action: 'DELETE', entity: 'PROJECT', entityId: 15, timestamp: '2024-12-25 13:40:18', details: { before: { project_name: 'Cancelled Survey Project', client: 'Test Client', archived: true }, reason: 'Project permanently cancelled' } },
+    { id: 13, userId: 1, action: 'LOGIN', entity: 'USER', entityId: 1, timestamp: '2024-12-25 08:00:05', details: { ip_address: '192.168.1.10', user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', session_id: 'sess_xyz789' } },
+    { id: 14, action: 'SYSTEM_EVENT', entity: 'BACKUP', timestamp: '2024-12-25 02:00:00', details: { type: 'BACKUP_COMPLETED', backup_size: '2.4GB', duration: '18 minutes', backup_id: 'backup_20241225_020000' } },
+    { id: 15, userId: 3, action: 'UPDATE', entity: 'DELIVERY_TRACKER', entityId: 45, timestamp: '2024-12-24 16:30:44', details: { before: { status: 'Site Work Completed' }, after: { status: 'Delivered' }, delivery_date: '2024-12-24', changed_fields: ['status', 'actual_delivery_date'] } },
+    { id: 16, userId: 2, action: 'VIEW', entity: 'AUDIT_TRAIL', timestamp: '2024-12-24 10:15:33', details: { filters_applied: { date_range: '2024-12-01 to 2024-12-24', action_filter: 'LOGIN' }, records_viewed: 45 } },
+    { id: 17, action: 'ERROR', entity: 'NOTIFICATION', timestamp: '2024-12-24 14:22:11', details: { type: 'PUSH_NOTIFICATION_FAILED', error_message: 'Invalid subscription endpoint', user_id: 6, notification_id: 'notif_001' } },
+    { id: 18, userId: 4, action: 'CREATE', entity: 'TASK', entityId: 156, timestamp: '2024-12-23 09:45:12', details: { after: { text: 'Review final drawings', project_id: 7, assigned_to: 'Ben Carter', due_date: '2024-12-30' } } },
+    { id: 19, userId: 1, action: 'UPDATE', entity: 'SETTINGS', entityId: 1, timestamp: '2024-12-23 15:20:18', details: { before: { theme: 'light', notifications: true }, after: { theme: 'dark', notifications: true }, changed_fields: ['theme'] } },
+    { id: 20, action: 'SYSTEM_EVENT', entity: 'SYSTEM', timestamp: '2024-12-23 06:00:00', details: { type: 'SCHEDULED_MAINTENANCE', status: 'COMPLETED', duration: '30 minutes', affected_services: ['Database', 'File Storage'] } }
 ];
 
 
@@ -809,11 +822,10 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
                         <ul className="space-y-3">
                             {projects.slice(0, 4).map(p => (
                                 <li key={p.id} className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                    <button onClick={() => onViewProject(p)} className="text-left">
+                                    <button onClick={() => onViewProject(p)} className="text-left w-full">
                                         <p className="font-semibold text-gray-700 dark:text-gray-200 hover:text-orange-500">{p.project_name}</p>
                                         <p className="text-sm text-gray-500 dark:text-gray-400">{p.project_number}</p>
                                     </button>
-                                    <StatusBadge status={p.status} />
                                 </li>
                             ))}
                         </ul>
@@ -4005,6 +4017,55 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         fetchTeamRoles();
     }, []);
 
+    // Fetch departments for filtering
+    useEffect(() => {
+        const fetchDepartments = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('dropdown_items')
+                    .select(`
+                        display_text,
+                        dropdown_categories!inner(name)
+                    `)
+                    .eq('dropdown_categories.name', 'department')
+                    .eq('is_active', true)
+                    .order('sort_order');
+
+                if (error) {
+                    console.error('Error fetching departments:', error);
+                    // Try with capitalized name as fallback
+                    const { data: capitalData, error: capitalError } = await supabase
+                        .from('dropdown_items')
+                        .select(`
+                            display_text,
+                            dropdown_categories!inner(name)
+                        `)
+                        .eq('dropdown_categories.name', 'Department')
+                        .eq('is_active', true)
+                        .order('sort_order');
+
+                    if (!capitalError && capitalData && capitalData.length > 0) {
+                        setDepartments(capitalData.map(dept => dept.display_text));
+                    } else {
+                        setDepartments([]);
+                    }
+                    return;
+                }
+
+                if (data && data.length > 0) {
+                    setDepartments(data.map(dept => dept.display_text));
+                } else {
+                    setDepartments([]);
+                }
+            } catch (error) {
+                console.error('Error fetching departments:', error);
+                setDepartments([]);
+            }
+        };
+
+        fetchDepartments();
+    }, []);
+
     const getTeamRoleDisplayText = (roleValue) => {
         const role = teamRoles.find(r => r.value === roleValue);
         return role ? role.display_text : roleValue;
@@ -4020,6 +4081,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const [selectedCell, setSelectedCell] = useState(null);
     const [visibleUserIds, setVisibleUserIds] = useState([]);
     const [filterRoles, setFilterRoles] = useState([]);
+    const [filterDepartments, setFilterDepartments] = useState([]);
+    const [departments, setDepartments] = useState([]);
     const [sortOrder, setSortOrder] = useState('alphabetical');
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
     const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null });
@@ -4146,6 +4209,10 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             usersToDisplay = usersToDisplay.filter(user => filterRoles.includes(user.team_role));
         }
 
+        if (filterDepartments.length > 0) {
+            usersToDisplay = usersToDisplay.filter(user => filterDepartments.includes(user.department));
+        }
+
         usersToDisplay = usersToDisplay.filter(user => visibleUserIds.includes(user.id));
 
         if (sortOrder === 'alphabetical') {
@@ -4153,7 +4220,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         }
 
         return usersToDisplay;
-    }, [allUsers, visibleUserIds, filterRoles, sortOrder]);
+    }, [allUsers, visibleUserIds, filterRoles, filterDepartments, sortOrder]);
 
     const weekDates = useMemo(() => {
         return Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
@@ -4322,6 +4389,22 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
     const isAllRolesSelected = teamRoles.length > 0 && filterRoles.length === teamRoles.length;
 
+    const handleDepartmentFilterChange = (department) => {
+        setFilterDepartments(prev => prev.includes(department) ? prev.filter(d => d !== department) : [...prev, department]);
+    };
+
+    const handleSelectAllDepartments = () => {
+        if (filterDepartments.length === departments.length) {
+            // If all are selected, deselect all
+            setFilterDepartments([]);
+        } else {
+            // Select all departments
+            setFilterDepartments([...departments]);
+        }
+    };
+
+    const isAllDepartmentsSelected = departments.length > 0 && filterDepartments.length === departments.length;
+
     const weekKey = formatDateForKey(currentWeekStart);
     const fiscalWeek = getFiscalWeek(currentWeekStart);
     const currentWeekAllocations = allocations[weekKey] || {};
@@ -4362,38 +4445,75 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
                  <div className="flex items-center gap-2">
                     <div className="relative" ref={filterRef}>
-                         <Button variant="outline" onClick={() => setIsFilterOpen(!isFilterOpen)}><Filter size={16} className="mr-2"/>Filter by Role</Button>
+                         <Button variant="outline" onClick={() => setIsFilterOpen(!isFilterOpen)}><Filter size={16} className="mr-2"/>Filter</Button>
                          {isFilterOpen && (
-                             <div className="absolute top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4">
-                                 <h4 className="font-semibold mb-2 text-sm">Roles</h4>
-                                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                                     {teamRolesLoading ? (
-                                         <div className="text-sm text-gray-500">Loading team roles...</div>
-                                     ) : teamRolesError ? (
-                                         <div className="text-sm text-red-500">Error loading roles: {teamRolesError}</div>
-                                     ) : teamRoles.length === 0 ? (
-                                         <div className="text-sm text-gray-500">No team roles found</div>
-                                     ) : (
-                                         <>
-                                             <label className="flex items-center space-x-2 text-sm font-medium border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">
-                                                 <input
-                                                     type="checkbox"
-                                                     checked={isAllRolesSelected}
-                                                     onChange={handleSelectAllRoles}
-                                                     className="rounded text-orange-500 focus:ring-orange-500"
-                                                 />
-                                                 <span>All</span>
-                                             </label>
-                                             {teamRoles.map(role => (
-                                                 <label key={role.value} className="flex items-center space-x-2 text-sm">
-                                                     <input type="checkbox" checked={filterRoles.includes(role.display_text)} onChange={() => handleRoleFilterChange(role.display_text)} className="rounded text-orange-500 focus:ring-orange-500"/>
-                                                     <span>{role.display_text}</span>
+                             <div className="absolute top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4 space-y-4">
+                                 {/* Roles Filter */}
+                                 <div>
+                                     <h4 className="font-semibold mb-2 text-sm">Roles</h4>
+                                     <div className="space-y-2 max-h-40 overflow-y-auto">
+                                         {teamRolesLoading ? (
+                                             <div className="text-sm text-gray-500">Loading team roles...</div>
+                                         ) : teamRolesError ? (
+                                             <div className="text-sm text-red-500">Error loading roles: {teamRolesError}</div>
+                                         ) : teamRoles.length === 0 ? (
+                                             <div className="text-sm text-gray-500">No team roles found</div>
+                                         ) : (
+                                             <>
+                                                 <label className="flex items-center space-x-2 text-sm font-medium border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">
+                                                     <input
+                                                         type="checkbox"
+                                                         checked={isAllRolesSelected}
+                                                         onChange={handleSelectAllRoles}
+                                                         className="rounded text-orange-500 focus:ring-orange-500"
+                                                     />
+                                                     <span>All Roles</span>
                                                  </label>
-                                             ))}
-                                         </>
-                                     )}
+                                                 {teamRoles.map(role => (
+                                                     <label key={role.value} className="flex items-center space-x-2 text-sm">
+                                                         <input type="checkbox" checked={filterRoles.includes(role.display_text)} onChange={() => handleRoleFilterChange(role.display_text)} className="rounded text-orange-500 focus:ring-orange-500"/>
+                                                         <span>{role.display_text}</span>
+                                                     </label>
+                                                 ))}
+                                             </>
+                                         )}
+                                     </div>
+                                     <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setFilterRoles([])}>Clear Roles</Button>
                                  </div>
-                                 <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setFilterRoles([])}>Clear</Button>
+
+                                 {/* Departments Filter */}
+                                 <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+                                     <h4 className="font-semibold mb-2 text-sm">Departments</h4>
+                                     <div className="space-y-2 max-h-40 overflow-y-auto">
+                                         {departments.length === 0 ? (
+                                             <div className="text-sm text-gray-500">No departments found</div>
+                                         ) : (
+                                             <>
+                                                 <label className="flex items-center space-x-2 text-sm font-medium border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">
+                                                     <input
+                                                         type="checkbox"
+                                                         checked={isAllDepartmentsSelected}
+                                                         onChange={handleSelectAllDepartments}
+                                                         className="rounded text-orange-500 focus:ring-orange-500"
+                                                     />
+                                                     <span>All Departments</span>
+                                                 </label>
+                                                 {departments.map(department => (
+                                                     <label key={department} className="flex items-center space-x-2 text-sm">
+                                                         <input
+                                                             type="checkbox"
+                                                             checked={filterDepartments.includes(department)}
+                                                             onChange={() => handleDepartmentFilterChange(department)}
+                                                             className="rounded text-orange-500 focus:ring-orange-500"
+                                                         />
+                                                         <span>{department}</span>
+                                                     </label>
+                                                 ))}
+                                             </>
+                                         )}
+                                     </div>
+                                     <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setFilterDepartments([])}>Clear Departments</Button>
+                                 </div>
                              </div>
                          )}
                     </div>
@@ -6302,11 +6422,18 @@ const AuditTrailPage = () => {
     const [logs, setLogs] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'timestamp', direction: 'descending' });
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [itemsPerPage, setItemsPerPage] = useState(20);
     const [currentPage, setCurrentPage] = useState(1);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [actionFilter, setActionFilter] = useState([]);
     const [userFilter, setUserFilter] = useState('');
+    const [entityFilter, setEntityFilter] = useState('');
+    const [dateRange, setDateRange] = useState({
+        start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        end: new Date().toISOString().split('T')[0]
+    });
+    const [severityFilter, setSeverityFilter] = useState('');
+    const [expandedRows, setExpandedRows] = useState(new Set());
     const filterRef = useRef(null);
 
     useEffect(() => {
@@ -6323,26 +6450,66 @@ const AuditTrailPage = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Enhanced action icons and colors
+    const getActionIcon = (action) => {
+        switch (action) {
+            case 'LOGIN': return { icon: '🔐', color: 'text-green-600 bg-green-100 dark:bg-green-900/30' };
+            case 'LOGOUT': return { icon: '🚪', color: 'text-gray-600 bg-gray-100 dark:bg-gray-700' };
+            case 'CREATE': return { icon: '➕', color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' };
+            case 'UPDATE': return { icon: '✏️', color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' };
+            case 'DELETE': return { icon: '🗑️', color: 'text-red-600 bg-red-100 dark:bg-red-900/30' };
+            case 'VIEW': return { icon: '👁️', color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' };
+            case 'SYSTEM_EVENT': return { icon: '⚙️', color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' };
+            case 'ERROR': return { icon: '❌', color: 'text-red-600 bg-red-100 dark:bg-red-900/30' };
+            case 'WARNING': return { icon: '⚠️', color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' };
+            default: return { icon: '📝', color: 'text-gray-600 bg-gray-100 dark:bg-gray-700' };
+        }
+    };
+
+    const getSeverity = (action, details) => {
+        if (action === 'DELETE' || action === 'ERROR') return 'HIGH';
+        if (action === 'UPDATE' || action === 'WARNING') return 'MEDIUM';
+        return 'LOW';
+    };
+
     const filteredLogs = useMemo(() => logs.filter(log => {
         const user = log.userId ? mockUsers[log.userId] : { name: 'SYSTEM' };
+        const logDate = new Date(log.timestamp).toISOString().split('T')[0];
+
         const matchesSearch = (user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            log.entity.toLowerCase().includes(searchTerm.toLowerCase()));
+            log.entity.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (log.entityId && log.entityId.toString().includes(searchTerm)));
+
         const matchesAction = actionFilter.length === 0 || actionFilter.includes(log.action);
         const matchesUser = userFilter === '' || log.userId === parseInt(userFilter);
-        return matchesSearch && matchesAction && matchesUser;
-    }), [logs, searchTerm, actionFilter, userFilter]);
+        const matchesEntity = entityFilter === '' || log.entity === entityFilter;
+        const matchesDate = (!dateRange.start || logDate >= dateRange.start) &&
+                           (!dateRange.end || logDate <= dateRange.end);
+        const matchesSeverity = severityFilter === '' || getSeverity(log.action, log.details) === severityFilter;
+
+        return matchesSearch && matchesAction && matchesUser && matchesEntity && matchesDate && matchesSeverity;
+    }), [logs, searchTerm, actionFilter, userFilter, entityFilter, dateRange, severityFilter]);
 
     const sortedLogs = useMemo(() => {
         let sortableItems = [...filteredLogs];
         sortableItems.sort((a, b) => {
-            if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'ascending' ? -1 : 1;
-            if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1;
+            let aVal = a[sortConfig.key];
+            let bVal = b[sortConfig.key];
+
+            // Special handling for timestamp sorting
+            if (sortConfig.key === 'timestamp') {
+                aVal = new Date(aVal);
+                bVal = new Date(bVal);
+            }
+
+            if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
             return 0;
         });
         return sortableItems;
     }, [filteredLogs, sortConfig]);
-    
+
     const paginatedLogs = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;
         return sortedLogs.slice(startIndex, startIndex + itemsPerPage);
@@ -6357,19 +6524,95 @@ const AuditTrailPage = () => {
         }
         setSortConfig({ key, direction });
     };
-    
+
     const getSortIndicator = (key) => {
         if (sortConfig.key !== key) return '↕';
         return sortConfig.direction === 'ascending' ? '↑' : '↓';
     };
 
+    const toggleRowExpansion = (logId) => {
+        const newExpanded = new Set(expandedRows);
+        if (newExpanded.has(logId)) {
+            newExpanded.delete(logId);
+        } else {
+            newExpanded.add(logId);
+        }
+        setExpandedRows(newExpanded);
+    };
+
     const handleExport = (format) => {
-        console.log(`Exporting audit trail as ${format}...`);
-        alert(`Exporting audit trail as ${format}... (See console for details)`);
+        const headers = ['Timestamp', 'User', 'Action', 'Entity', 'Entity ID', 'Severity', 'Details'];
+        const rows = sortedLogs.map(log => {
+            const user = log.userId ? mockUsers[log.userId] : { name: 'SYSTEM' };
+            return [
+                formatTimestamp(log.timestamp),
+                user.name,
+                log.action,
+                log.entity,
+                log.entityId || '',
+                getSeverity(log.action, log.details),
+                JSON.stringify(log.details)
+            ];
+        });
+
+        if (format === 'CSV') {
+            const csvContent = [headers, ...rows].map(row =>
+                row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audit-trail-${dateRange.start}-to-${dateRange.end}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        // Add other export formats as needed
+    };
+
+    const formatTimestamp = (timestamp) => {
+        return new Date(timestamp).toLocaleString('en-GB', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZone: 'Europe/London'
+        });
+    };
+
+    const formatRelativeTime = (timestamp) => {
+        const now = new Date();
+        const logTime = new Date(timestamp);
+        const diffInMs = now - logTime;
+        const diffInMins = Math.floor(diffInMs / (1000 * 60));
+        const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+        const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+        if (diffInMins < 1) return 'Just now';
+        if (diffInMins < 60) return `${diffInMins}m ago`;
+        if (diffInHours < 24) return `${diffInHours}h ago`;
+        if (diffInDays < 7) return `${diffInDays}d ago`;
+        return formatTimestamp(timestamp);
     };
 
     const uniqueActions = [...new Set(logs.map(log => log.action))];
+    const uniqueEntities = [...new Set(logs.map(log => log.entity))];
     const allUsers = Object.values(mockUsers);
+
+    // Summary statistics
+    const stats = {
+        total: filteredLogs.length,
+        high: filteredLogs.filter(log => getSeverity(log.action, log.details) === 'HIGH').length,
+        medium: filteredLogs.filter(log => getSeverity(log.action, log.details) === 'MEDIUM').length,
+        low: filteredLogs.filter(log => getSeverity(log.action, log.details) === 'LOW').length,
+        today: filteredLogs.filter(log => {
+            const logDate = new Date(log.timestamp).toDateString();
+            const today = new Date().toDateString();
+            return logDate === today;
+        }).length
+    };
 
     if (loading) {
         return (
@@ -6383,81 +6626,271 @@ const AuditTrailPage = () => {
     }
 
     return (
-        <div className="p-4 md:p-6">
+        <div className="p-4 md:p-6 space-y-6">
             {error && (
-                <div className="mb-4 p-4 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 rounded">
-                    Error loading audit logs: {error}
+                <div className="p-4 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg">
+                    <div className="flex items-center">
+                        <span className="mr-2">❌</span>
+                        <span>Error loading audit logs: {error}</span>
+                    </div>
                 </div>
             )}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Audit Trail</h1>
-                <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-grow">
-                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                         <input type="text" placeholder="Search logs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+
+            {/* Header */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Audit Trail</h1>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">System activity monitoring and security logs</p>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 text-center">
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="text-lg font-bold text-gray-900 dark:text-white">{stats.total}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Total</div>
                     </div>
-                    <div className="relative" ref={filterRef}>
-                        <Button variant="outline" onClick={() => setIsFilterOpen(!isFilterOpen)}>
-                            <Filter size={16} className="mr-2" /> Filter
-                        </Button>
-                         {isFilterOpen && (
-                            <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4 space-y-4">
-                                <div>
-                                    <h4 className="font-semibold mb-2">Action</h4>
-                                    {uniqueActions.map(action => <label key={action} className="flex items-center space-x-2 text-sm"><input type="checkbox" checked={actionFilter.includes(action)} onChange={() => setActionFilter(prev => prev.includes(action) ? prev.filter(i => i !== action) : [...prev, action])} className="rounded text-orange-500"/><span>{action}</span></label>)}
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="text-lg font-bold text-red-600">{stats.high}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">High</div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="text-lg font-bold text-yellow-600">{stats.medium}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Medium</div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="text-lg font-bold text-green-600">{stats.low}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Low</div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="text-lg font-bold text-blue-600">{stats.today}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Today</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Enhanced Filters */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
+                    {/* Search */}
+                    <div className="lg:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Search logs..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Date Range */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From</label>
+                        <input
+                            type="date"
+                            value={dateRange.start}
+                            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To</label>
+                        <input
+                            type="date"
+                            value={dateRange.end}
+                            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                    </div>
+
+                    {/* Filters */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Action</label>
+                        <select
+                            value={actionFilter[0] || ''}
+                            onChange={(e) => setActionFilter(e.target.value ? [e.target.value] : [])}
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        >
+                            <option value="">All Actions</option>
+                            {uniqueActions.map(action => (
+                                <option key={action} value={action}>{action}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entity</label>
+                        <select
+                            value={entityFilter}
+                            onChange={(e) => setEntityFilter(e.target.value)}
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        >
+                            <option value="">All Entities</option>
+                            {uniqueEntities.map(entity => (
+                                <option key={entity} value={entity}>{entity}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Actions</label>
+                        <div className="flex gap-2">
+                            <Button
+                                onClick={() => {
+                                    setSearchTerm('');
+                                    setActionFilter([]);
+                                    setUserFilter('');
+                                    setEntityFilter('');
+                                    setSeverityFilter('');
+                                }}
+                                variant="outline"
+                                className="flex-1"
+                            >
+                                Clear
+                            </Button>
+                            <div className="relative group">
+                                <Button variant="outline" className="flex-1">
+                                    <Download size={16} className="mr-1"/>Export
+                                </Button>
+                                <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 z-20">
+                                    <button onClick={() => handleExport('CSV')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">CSV</button>
                                 </div>
-                                 <div>
-                                    <h4 className="font-semibold mb-2">User</h4>
-                                    <Select value={userFilter} onChange={e => setUserFilter(e.target.value)}>
-                                        <option value="">All Users</option>
-                                        {(allUsers || []).map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
-                                    </Select>
-                                </div>
-                                <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => { setActionFilter([]); setUserFilter(''); }}>Clear Filters</Button>
                             </div>
-                        )}
-                    </div>
-                    <div className="relative group">
-                        <Button variant="outline"><Download size={16} className="mr-2"/>Export</Button>
-                        <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 z-20">
-                            <button onClick={() => handleExport('CSV')} className="w-full text-left px-4 py-2 text-sm">CSV</button>
-                            <button onClick={() => handleExport('XLSX')} className="w-full text-left px-4 py-2 text-sm">XLSX</button>
-                            <button onClick={() => handleExport('PDF')} className="w-full text-left px-4 py-2 text-sm">PDF</button>
                         </div>
                     </div>
                 </div>
             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                        <tr>
-                            {['timestamp', 'user', 'action', 'entity', 'details'].map(key => (
-                                <th key={key} scope="col" className="px-6 py-3 cursor-pointer" onClick={() => requestSort(key)}>
-                                    <div className="flex items-center">{key}<span className="ml-2">{getSortIndicator(key)}</span></div>
+
+            {/* Enhanced Audit Log Table */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                            <tr>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('timestamp')}>
+                                    Timestamp {getSortIndicator('timestamp')}
                                 </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {paginatedLogs.map(log => {
-                            const user = log.userId ? mockUsers[log.userId] : { name: 'SYSTEM', avatar: 'SYS' };
-                            return (
-                                <tr key={log.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
-                                    <td className="px-6 py-4">{log.timestamp}</td>
-                                    <td className="px-6 py-4 flex items-center">
-                                        <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center font-bold text-xs mr-2">{user.avatar}</div>
-                                        {user.name}
-                                    </td>
-                                    <td className="px-6 py-4"><StatusBadge status={log.action} /></td>
-                                    <td className="px-6 py-4">{log.entity} {log.entityId && `#${log.entityId}`}</td>
-                                    <td className="px-6 py-4 font-mono text-xs"><pre>{JSON.stringify(log.details, null, 2)}</pre></td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('user')}>
+                                    User {getSortIndicator('user')}
+                                </th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('action')}>
+                                    Action {getSortIndicator('action')}
+                                </th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('entity')}>
+                                    Entity {getSortIndicator('entity')}
+                                </th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Severity
+                                </th>
+                                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Details
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {paginatedLogs.map(log => {
+                                const user = log.userId ? mockUsers[log.userId] : { name: 'SYSTEM', avatar: 'SYS' };
+                                const actionData = getActionIcon(log.action);
+                                const severity = getSeverity(log.action, log.details);
+                                const isExpanded = expandedRows.has(log.id);
+
+                                return (
+                                    <React.Fragment key={log.id}>
+                                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-600/20 cursor-pointer" onClick={() => toggleRowExpansion(log.id)}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900 dark:text-white font-mono">
+                                                    {formatRelativeTime(log.timestamp)}
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {formatTimestamp(log.timestamp)}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center font-bold text-xs mr-3">
+                                                        {user.avatar}
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                            {user.name}
+                                                        </div>
+                                                        {log.details?.ip_address && (
+                                                            <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                                                {log.details.ip_address}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${actionData.color}`}>
+                                                    <span className="mr-1">{actionData.icon}</span>
+                                                    {log.action}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900 dark:text-white">
+                                                    {log.entity}
+                                                    {log.entityId && (
+                                                        <span className="ml-1 text-gray-500 dark:text-gray-400">#{log.entityId}</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                    severity === 'HIGH' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                                                    severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                                                    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                                }`}>
+                                                    {severity}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-xs">
+                                                        {Object.keys(log.details || {}).length > 0 ?
+                                                            `${Object.keys(log.details).length} properties` :
+                                                            'No details'
+                                                        }
+                                                    </div>
+                                                    <span className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                                                        ▼
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {isExpanded && (
+                                            <tr>
+                                                <td colSpan="6" className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50">
+                                                    <div className="space-y-2">
+                                                        <h4 className="font-medium text-gray-900 dark:text-white">Event Details:</h4>
+                                                        <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-3 rounded-md overflow-x-auto text-gray-800 dark:text-gray-200">
+                                                            {JSON.stringify(log.details, null, 2)}
+                                                        </pre>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <Pagination currentPage={currentPage} setCurrentPage={setCurrentPage} totalPages={totalPages} itemsPerPage={itemsPerPage} setItemsPerPage={setItemsPerPage} totalItems={sortedLogs.length} />
+
+            <Pagination
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+                totalPages={totalPages}
+                itemsPerPage={itemsPerPage}
+                setItemsPerPage={setItemsPerPage}
+                totalItems={sortedLogs.length}
+            />
         </div>
     );
 };
@@ -6492,71 +6925,1232 @@ const AnalyticsPage = () => {
     );
 };
 
+// Shared export utility functions for all analytics components
+const showLoadingIndicator = (message = 'Processing...') => {
+    const loadingElement = document.createElement('div');
+    loadingElement.id = 'export-loading';
+    loadingElement.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        ">
+            <div style="
+                background: white;
+                padding: 20px 40px;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            ">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite; margin-right: 12px; color: #f97316;">
+                    <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c.93 0 1.83.14 2.68.4"></path>
+                </svg>
+                <span style="color: #374151; font-weight: 500;">${message}</span>
+            </div>
+        </div>
+        <style>
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+    document.body.appendChild(loadingElement);
+    return loadingElement;
+};
+
+const hideLoadingIndicator = () => {
+    const loadingElement = document.getElementById('export-loading');
+    if (loadingElement) {
+        document.body.removeChild(loadingElement);
+    }
+};
+
+const loadHtml2Canvas = () => {
+    return new Promise((resolve, reject) => {
+        // Check if html2canvas is already loaded
+        if (window.html2canvas) {
+            resolve();
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        script.onload = () => {
+            console.log('html2canvas loaded successfully');
+            resolve();
+        };
+        script.onerror = (error) => {
+            console.error('Failed to load html2canvas:', error);
+            reject(new Error('Failed to load html2canvas library'));
+        };
+        document.head.appendChild(script);
+    });
+};
+
+const captureScreenshot = async (element) => {
+    try {
+        // Load html2canvas if not available
+        if (!window.html2canvas) {
+            await loadHtml2Canvas();
+        }
+
+        // Wait a moment for animations to settle
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Try multiple capture approaches with onclone callback
+        return await attemptCapture(element);
+
+    } catch (error) {
+        console.error('Screenshot capture failed:', error);
+        throw error;
+    }
+};
+
+const attemptCapture = async (element) => {
+    const oklchToHex = {
+        'oklch(0.986 0.003 247.858)': '#f9fafb', 'oklch(0.943 0.006 264.052)': '#f3f4f6',
+        'oklch(0.875 0.013 253.094)': '#e5e7eb', 'oklch(0.789 0.019 252.665)': '#d1d5db',
+        'oklch(0.682 0.025 260.067)': '#9ca3af', 'oklch(0.566 0.031 259.816)': '#6b7280',
+        'oklch(0.451 0.037 259.734)': '#4b5563', 'oklch(0.337 0.043 259.692)': '#374151',
+        'oklch(0.227 0.049 259.654)': '#1f2937', 'oklch(0.117 0.055 259.616)': '#111827',
+        'oklch(0.989 0.002 106.423)': '#fafaf9', 'oklch(0.925 0.013 106.423)': '#f5f5f4',
+        'oklch(0.871 0.022 106.423)': '#e7e5e4', 'oklch(0.764 0.044 106.423)': '#d6d3d1',
+        'oklch(0.656 0.065 106.423)': '#a8a29e', 'oklch(0.543 0.087 106.423)': '#78716c',
+        'oklch(0.434 0.109 106.423)': '#57534e', 'oklch(0.325 0.131 106.423)': '#44403c',
+        'oklch(0.216 0.152 106.423)': '#292524', 'oklch(0.108 0.174 106.423)': '#1c1917',
+        'oklch(0.986 0.012 70.672)': '#fff7ed', 'oklch(0.959 0.042 65.552)': '#ffedd5',
+        'oklch(0.910 0.079 58.454)': '#fed7aa', 'oklch(0.848 0.119 53.503)': '#fdba74',
+        'oklch(0.781 0.159 50.066)': '#fb923c', 'oklch(0.706 0.195 47.644)': '#f97316',
+        'oklch(0.627 0.224 45.843)': '#ea580c', 'oklch(0.548 0.252 44.484)': '#c2410c',
+        'oklch(0.985 0.007 252.417)': '#eff6ff', 'oklch(0.953 0.028 248.515)': '#dbeafe',
+        'oklch(0.900 0.065 243.837)': '#bfdbfe', 'oklch(0.638 0.198 234.752)': '#3b82f6',
+        'oklch(0.987 0.013 17.381)': '#fef2f2', 'oklch(0.732 0.205 15.030)': '#ef4444',
+        'oklch(0.986 0.014 163.214)': '#f0fdf4', 'oklch(0.705 0.207 161.826)': '#22c55e'
+    };
+
+    const onCloneCallback = (clonedDoc) => {
+        console.log('Processing cloned document to fix oklch colors...');
+
+        // Find and modify all stylesheets in the cloned document
+        const stylesheets = clonedDoc.styleSheets || [];
+        for (const stylesheet of stylesheets) {
+            try {
+                if (stylesheet.cssRules) {
+                    for (const rule of stylesheet.cssRules) {
+                        if (rule.style) {
+                            // Process each CSS property
+                            for (let i = 0; i < rule.style.length; i++) {
+                                const prop = rule.style[i];
+                                let value = rule.style.getPropertyValue(prop);
+
+                                if (value && value.includes('oklch(')) {
+                                    // Replace oklch with hex
+                                    for (const [oklch, hex] of Object.entries(oklchToHex)) {
+                                        value = value.replace(new RegExp(oklch.replace(/[()]/g, '\\$&'), 'g'), hex);
+                                    }
+                                    // Fallback for unmapped oklch
+                                    value = value.replace(/oklch\([^)]+\)/g, '#6b7280');
+
+                                    rule.style.setProperty(prop, value);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                // Skip CORS-blocked stylesheets
+                console.warn('Could not process stylesheet:', e.message);
+            }
+        }
+
+        // Also inject a style element to override any remaining oklch colors
+        const overrideStyle = clonedDoc.createElement('style');
+        overrideStyle.textContent = `
+            * {
+                color: inherit !important;
+                background-color: inherit !important;
+                border-color: inherit !important;
+            }
+            [style*="oklch"] {
+                color: #374151 !important;
+                background-color: #ffffff !important;
+            }
+        `;
+        clonedDoc.head.appendChild(overrideStyle);
+
+        console.log('Cloned document processing complete');
+    };
+
+    const captureOptions = [
+        // Option 1: True screenshot with current viewport rendering
+        {
+            scale: 1,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: null, // Preserve original background
+            logging: false,
+            width: element.offsetWidth,
+            height: element.offsetHeight,
+            x: 0,
+            y: 0,
+            scrollX: 0,
+            scrollY: 0,
+            onclone: (clonedDoc, clonedElement) => {
+                // Preserve exact layout as shown in browser
+                clonedElement.style.transform = 'none';
+                clonedElement.style.position = 'static';
+
+                // Apply oklch color fixes only
+                onCloneCallback(clonedDoc);
+            },
+            ignoreElements: (el) => {
+                // Only ignore truly hidden elements
+                return el.style?.display === 'none' ||
+                       el.style?.visibility === 'hidden' ||
+                       el.classList?.contains('sr-only') ||
+                       (el.offsetWidth === 0 && el.offsetHeight === 0);
+            }
+        },
+        // Option 2: High-quality screenshot capture
+        {
+            scale: 2,
+            backgroundColor: null,
+            allowTaint: true,
+            useCORS: true,
+            logging: false,
+            width: element.offsetWidth,
+            height: element.offsetHeight,
+            onclone: (clonedDoc, clonedElement) => {
+                // Keep original styling
+                clonedElement.style.width = element.offsetWidth + 'px';
+                clonedElement.style.height = element.offsetHeight + 'px';
+
+                // Apply oklch color fixes
+                onCloneCallback(clonedDoc);
+            },
+            ignoreElements: (el) => {
+                return el.style?.display === 'none' ||
+                       el.style?.visibility === 'hidden';
+            }
+        },
+        // Option 3: Fallback with basic cleanup
+        {
+            backgroundColor: '#ffffff',
+            allowTaint: true,
+            scale: 1,
+            logging: true,
+            onclone: (clonedDoc) => {
+                // Simple color fallback only
+                const style = clonedDoc.createElement('style');
+                style.textContent = `
+                    [style*="oklch"] {
+                        color: #374151 !important;
+                        background-color: #ffffff !important;
+                        border-color: #d1d5db !important;
+                    }
+                `;
+                clonedDoc.head.appendChild(style);
+            }
+        }
+    ];
+
+    for (let i = 0; i < captureOptions.length; i++) {
+        try {
+            console.log(`Attempting capture with option ${i + 1}`);
+            const canvas = await window.html2canvas(element, captureOptions[i]);
+            console.log(`Capture successful with option ${i + 1}`);
+            return canvas;
+        } catch (error) {
+            console.warn(`Capture attempt ${i + 1} failed:`, error.message);
+            if (i === captureOptions.length - 1) {
+                throw error;
+            }
+        }
+    }
+};
+
 const ProjectsAnalytics = () => {
     const { projects } = useProjects();
     const [filteredData, setFilteredData] = useState(projects);
-    const [dateRange, setDateRange] = useState({ start: '', end: '' });
+    const [filters, setFilters] = useState({
+        dateRange: { start: '', end: '' },
+        predefinedRange: '',
+        clients: [],
+        years: [],
+        archived: 'all'
+    });
+    const [availableClients, setAvailableClients] = useState([]);
+    const [availableYears, setAvailableYears] = useState([]);
 
-    const handleFilter = () => {
-        let data = projects;
-        if (dateRange.start) {
-            data = data.filter(p => new Date(p.date_created) >= new Date(dateRange.start));
+    // Predefined date ranges
+    const predefinedRanges = {
+        'last7days': {
+            label: 'Last 7 Days',
+            start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            end: new Date()
+        },
+        'last30days': {
+            label: 'Last 30 Days',
+            start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            end: new Date()
+        },
+        'last90days': {
+            label: 'Last 90 Days',
+            start: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
+            end: new Date()
+        },
+        'thisMonth': {
+            label: 'This Month',
+            start: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+            end: new Date()
+        },
+        'lastMonth': {
+            label: 'Last Month',
+            start: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1),
+            end: new Date(new Date().getFullYear(), new Date().getMonth(), 0)
+        },
+        'thisYear': {
+            label: 'This Year',
+            start: new Date(new Date().getFullYear(), 0, 1),
+            end: new Date()
+        },
+        'lastYear': {
+            label: 'Last Year',
+            start: new Date(new Date().getFullYear() - 1, 0, 1),
+            end: new Date(new Date().getFullYear() - 1, 11, 31)
         }
-        if (dateRange.end) {
-            data = data.filter(p => new Date(p.date_created) <= new Date(dateRange.end));
+    };
+
+    // Initialize available filters when projects load
+    useEffect(() => {
+        if (projects && projects.length > 0) {
+            const clients = [...new Set(projects.map(p => p.client).filter(Boolean))].sort();
+            const years = [...new Set(projects.map(p => p.year).filter(Boolean))].sort((a, b) => b - a);
+
+            setAvailableClients(clients);
+            setAvailableYears(years);
+            setFilteredData(projects);
         }
+    }, [projects]);
+
+    // Handle predefined date range selection
+    const handlePredefinedRange = (rangeKey) => {
+        if (rangeKey === '') {
+            setFilters(prev => ({
+                ...prev,
+                predefinedRange: '',
+                dateRange: { start: '', end: '' }
+            }));
+        } else {
+            const range = predefinedRanges[rangeKey];
+            setFilters(prev => ({
+                ...prev,
+                predefinedRange: rangeKey,
+                dateRange: {
+                    start: range.start.toISOString().split('T')[0],
+                    end: range.end.toISOString().split('T')[0]
+                }
+            }));
+        }
+    };
+
+    // Apply all filters
+    const applyFilters = () => {
+        let data = [...projects];
+
+        // Date filtering
+        if (filters.dateRange.start) {
+            data = data.filter(p => {
+                const projectDate = new Date(p.date_created);
+                return projectDate >= new Date(filters.dateRange.start);
+            });
+        }
+        if (filters.dateRange.end) {
+            data = data.filter(p => {
+                const projectDate = new Date(p.date_created);
+                return projectDate <= new Date(filters.dateRange.end);
+            });
+        }
+
+        // Client filtering
+        if (filters.clients.length > 0) {
+            data = data.filter(p => filters.clients.includes(p.client));
+        }
+
+        // Year filtering
+        if (filters.years.length > 0) {
+            data = data.filter(p => filters.years.includes(p.year));
+        }
+
+        // Archived filtering
+        if (filters.archived === 'active') {
+            data = data.filter(p => !p.archived);
+        } else if (filters.archived === 'archived') {
+            data = data.filter(p => p.archived);
+        }
+
         setFilteredData(data);
     };
 
-    const handleExport = (format) => {
-        const headers = ["ID", "Project Number", "Project Name", "Client", "Year"];
-        const data = filteredData.map(p => [p.id, p.project_number, p.project_name, p.client, p.year || 'N/A']);
-        exportData(headers, data, `projects_analytics`, format);
+    // Clear all filters
+    const clearFilters = () => {
+        setFilters({
+            dateRange: { start: '', end: '' },
+            predefinedRange: '',
+            clients: [],
+            years: [],
+            archived: 'all'
+        });
+        setFilteredData(projects);
     };
-    
 
-    const projectsByClient = useMemo(() => {
-        return filteredData.reduce((acc, project) => {
+    // Enhanced export with more data including PDF and Image
+    const handleExport = (format) => {
+        if (format === 'pdf') {
+            exportToPDF();
+            return;
+        }
+        if (format === 'image') {
+            exportToImage();
+            return;
+        }
+
+        const headers = [
+            "ID", "Project Number", "Project Name", "Client", "Year",
+            "Date Created", "Archived", "Description"
+        ];
+        const data = filteredData.map(p => [
+            p.id,
+            p.project_number,
+            p.project_name,
+            p.client,
+            p.year || 'N/A',
+            p.date_created ? new Date(p.date_created).toLocaleDateString() : 'N/A',
+            p.archived ? 'Yes' : 'No',
+            p.description || 'N/A'
+        ]);
+        exportData(headers, data, `projects_analytics_${new Date().toISOString().split('T')[0]}`, format);
+    };
+
+    const loadHtml2Canvas = () => {
+        return new Promise((resolve, reject) => {
+            // Check if html2canvas is already loaded
+            if (window.html2canvas) {
+                resolve();
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script.onload = () => {
+                console.log('html2canvas loaded successfully');
+                resolve();
+            };
+            script.onerror = (error) => {
+                console.error('Failed to load html2canvas:', error);
+                reject(new Error('Failed to load html2canvas library'));
+            };
+            document.head.appendChild(script);
+        });
+    };
+
+    const showLoadingIndicator = (message = 'Processing...') => {
+        const loadingElement = document.createElement('div');
+        loadingElement.id = 'export-loading';
+        loadingElement.innerHTML = `
+            <div style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+                color: white;
+                font-family: sans-serif;
+            ">
+                <div style="
+                    background: white;
+                    color: #333;
+                    padding: 20px 40px;
+                    border-radius: 8px;
+                    text-align: center;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                ">
+                    <div style="
+                        width: 40px;
+                        height: 40px;
+                        border: 4px solid #f3f3f3;
+                        border-top: 4px solid #f97316;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin: 0 auto 10px auto;
+                    "></div>
+                    <p style="margin: 0; font-weight: 500;">${message}</p>
+                </div>
+            </div>
+            <style>
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            </style>
+        `;
+        document.body.appendChild(loadingElement);
+        return loadingElement;
+    };
+
+    const hideLoadingIndicator = () => {
+        const loadingElement = document.getElementById('export-loading');
+        if (loadingElement) {
+            document.body.removeChild(loadingElement);
+        }
+    };
+
+    // Advanced CSS preprocessing to handle oklch and inject CSS override
+    const createOklchOverrideStylesheet = () => {
+        const oklchToHex = {
+            // Common oklch patterns with their hex equivalents
+            'oklch(0.986 0.003 247.858)': '#f9fafb', 'oklch(0.943 0.006 264.052)': '#f3f4f6',
+            'oklch(0.875 0.013 253.094)': '#e5e7eb', 'oklch(0.789 0.019 252.665)': '#d1d5db',
+            'oklch(0.682 0.025 260.067)': '#9ca3af', 'oklch(0.566 0.031 259.816)': '#6b7280',
+            'oklch(0.451 0.037 259.734)': '#4b5563', 'oklch(0.337 0.043 259.692)': '#374151',
+            'oklch(0.227 0.049 259.654)': '#1f2937', 'oklch(0.117 0.055 259.616)': '#111827',
+            'oklch(0.989 0.002 106.423)': '#fafaf9', 'oklch(0.925 0.013 106.423)': '#f5f5f4',
+            'oklch(0.871 0.022 106.423)': '#e7e5e4', 'oklch(0.764 0.044 106.423)': '#d6d3d1',
+            'oklch(0.656 0.065 106.423)': '#a8a29e', 'oklch(0.543 0.087 106.423)': '#78716c',
+            'oklch(0.434 0.109 106.423)': '#57534e', 'oklch(0.325 0.131 106.423)': '#44403c',
+            'oklch(0.216 0.152 106.423)': '#292524', 'oklch(0.108 0.174 106.423)': '#1c1917',
+            'oklch(0.986 0.012 70.672)': '#fff7ed', 'oklch(0.959 0.042 65.552)': '#ffedd5',
+            'oklch(0.910 0.079 58.454)': '#fed7aa', 'oklch(0.848 0.119 53.503)': '#fdba74',
+            'oklch(0.781 0.159 50.066)': '#fb923c', 'oklch(0.706 0.195 47.644)': '#f97316',
+            'oklch(0.627 0.224 45.843)': '#ea580c', 'oklch(0.548 0.252 44.484)': '#c2410c',
+            'oklch(0.985 0.007 252.417)': '#eff6ff', 'oklch(0.953 0.028 248.515)': '#dbeafe',
+            'oklch(0.900 0.065 243.837)': '#bfdbfe', 'oklch(0.638 0.198 234.752)': '#3b82f6',
+            'oklch(0.987 0.013 17.381)': '#fef2f2', 'oklch(0.732 0.205 15.030)': '#ef4444',
+            'oklch(0.986 0.014 163.214)': '#f0fdf4', 'oklch(0.705 0.207 161.826)': '#22c55e'
+        };
+
+        // Create comprehensive CSS override
+        let cssOverride = '/* html2canvas oklch fallback styles */\n';
+
+        // Get all stylesheets and process their CSS text
+        for (const stylesheet of document.styleSheets) {
+            try {
+                if (stylesheet.cssRules) {
+                    for (const rule of stylesheet.cssRules) {
+                        if (rule.style && rule.cssText.includes('oklch(')) {
+                            let modifiedRule = rule.cssText;
+
+                            // Replace oklch functions with hex equivalents
+                            for (const [oklch, hex] of Object.entries(oklchToHex)) {
+                                const escapedOklch = oklch.replace(/[()]/g, '\\$&');
+                                modifiedRule = modifiedRule.replace(new RegExp(escapedOklch, 'g'), hex);
+                            }
+
+                            // Fallback for unmapped oklch colors
+                            modifiedRule = modifiedRule.replace(/oklch\([^)]+\)/g, '#6b7280');
+
+                            if (modifiedRule !== rule.cssText) {
+                                cssOverride += modifiedRule + '\n';
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                // Skip CORS-blocked stylesheets
+            }
+        }
+
+        return cssOverride;
+    };
+
+    const injectTemporaryStylesheet = (cssText) => {
+        const style = document.createElement('style');
+        style.id = 'html2canvas-oklch-override';
+        style.textContent = cssText;
+        document.head.appendChild(style);
+        return style;
+    };
+
+    const preprocessColors = (element) => {
+        // Create and inject CSS override stylesheet
+        const cssOverride = createOklchOverrideStylesheet();
+        const injectedStyle = injectTemporaryStylesheet(cssOverride);
+
+        console.log('Injected CSS override for oklch colors');
+        return { injectedStyle };
+    };
+
+    const restoreOriginalStyles = ({ injectedStyle }) => {
+        if (injectedStyle && injectedStyle.parentNode) {
+            injectedStyle.parentNode.removeChild(injectedStyle);
+            console.log('Removed CSS override stylesheet');
+        }
+    };
+
+    const captureScreenshot = async (element) => {
+        try {
+            // Load html2canvas if not available
+            if (!window.html2canvas) {
+                await loadHtml2Canvas();
+            }
+
+            // Wait a moment for animations to settle
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Try multiple capture approaches with onclone callback
+            return await attemptCapture(element);
+
+        } catch (error) {
+            console.error('Screenshot capture failed:', error);
+            throw error;
+        }
+    };
+
+    const attemptCapture = async (element) => {
+        const oklchToHex = {
+            'oklch(0.986 0.003 247.858)': '#f9fafb', 'oklch(0.943 0.006 264.052)': '#f3f4f6',
+            'oklch(0.875 0.013 253.094)': '#e5e7eb', 'oklch(0.789 0.019 252.665)': '#d1d5db',
+            'oklch(0.682 0.025 260.067)': '#9ca3af', 'oklch(0.566 0.031 259.816)': '#6b7280',
+            'oklch(0.451 0.037 259.734)': '#4b5563', 'oklch(0.337 0.043 259.692)': '#374151',
+            'oklch(0.227 0.049 259.654)': '#1f2937', 'oklch(0.117 0.055 259.616)': '#111827',
+            'oklch(0.989 0.002 106.423)': '#fafaf9', 'oklch(0.925 0.013 106.423)': '#f5f5f4',
+            'oklch(0.871 0.022 106.423)': '#e7e5e4', 'oklch(0.764 0.044 106.423)': '#d6d3d1',
+            'oklch(0.656 0.065 106.423)': '#a8a29e', 'oklch(0.543 0.087 106.423)': '#78716c',
+            'oklch(0.434 0.109 106.423)': '#57534e', 'oklch(0.325 0.131 106.423)': '#44403c',
+            'oklch(0.216 0.152 106.423)': '#292524', 'oklch(0.108 0.174 106.423)': '#1c1917',
+            'oklch(0.986 0.012 70.672)': '#fff7ed', 'oklch(0.959 0.042 65.552)': '#ffedd5',
+            'oklch(0.910 0.079 58.454)': '#fed7aa', 'oklch(0.848 0.119 53.503)': '#fdba74',
+            'oklch(0.781 0.159 50.066)': '#fb923c', 'oklch(0.706 0.195 47.644)': '#f97316',
+            'oklch(0.627 0.224 45.843)': '#ea580c', 'oklch(0.548 0.252 44.484)': '#c2410c',
+            'oklch(0.985 0.007 252.417)': '#eff6ff', 'oklch(0.953 0.028 248.515)': '#dbeafe',
+            'oklch(0.900 0.065 243.837)': '#bfdbfe', 'oklch(0.638 0.198 234.752)': '#3b82f6',
+            'oklch(0.987 0.013 17.381)': '#fef2f2', 'oklch(0.732 0.205 15.030)': '#ef4444',
+            'oklch(0.986 0.014 163.214)': '#f0fdf4', 'oklch(0.705 0.207 161.826)': '#22c55e'
+        };
+
+        const onCloneCallback = (clonedDoc) => {
+            console.log('Processing cloned document to fix oklch colors...');
+
+            // Find and modify all stylesheets in the cloned document
+            const stylesheets = clonedDoc.styleSheets || [];
+            for (const stylesheet of stylesheets) {
+                try {
+                    if (stylesheet.cssRules) {
+                        for (const rule of stylesheet.cssRules) {
+                            if (rule.style) {
+                                // Process each CSS property
+                                for (let i = 0; i < rule.style.length; i++) {
+                                    const prop = rule.style[i];
+                                    let value = rule.style.getPropertyValue(prop);
+
+                                    if (value && value.includes('oklch(')) {
+                                        // Replace oklch with hex
+                                        for (const [oklch, hex] of Object.entries(oklchToHex)) {
+                                            value = value.replace(new RegExp(oklch.replace(/[()]/g, '\\$&'), 'g'), hex);
+                                        }
+                                        // Fallback for unmapped oklch
+                                        value = value.replace(/oklch\([^)]+\)/g, '#6b7280');
+
+                                        rule.style.setProperty(prop, value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // Skip CORS-blocked stylesheets
+                    console.warn('Could not process stylesheet:', e.message);
+                }
+            }
+
+            // Also inject a style element to override any remaining oklch colors
+            const overrideStyle = clonedDoc.createElement('style');
+            overrideStyle.textContent = `
+                * {
+                    color: inherit !important;
+                    background-color: inherit !important;
+                    border-color: inherit !important;
+                }
+                [style*="oklch"] {
+                    color: #374151 !important;
+                    background-color: #ffffff !important;
+                }
+            `;
+            clonedDoc.head.appendChild(overrideStyle);
+
+            console.log('Cloned document processing complete');
+        };
+
+        const captureOptions = [
+            // Option 1: True screenshot with current viewport rendering
+            {
+                scale: 1,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: null, // Preserve original background
+                logging: false,
+                width: element.offsetWidth,
+                height: element.offsetHeight,
+                x: 0,
+                y: 0,
+                scrollX: 0,
+                scrollY: 0,
+                onclone: (clonedDoc, clonedElement) => {
+                    // Preserve exact layout as shown in browser
+                    clonedElement.style.transform = 'none';
+                    clonedElement.style.position = 'static';
+
+                    // Apply oklch color fixes only
+                    onCloneCallback(clonedDoc);
+                },
+                ignoreElements: (el) => {
+                    // Only ignore truly hidden elements
+                    return el.style?.display === 'none' ||
+                           el.style?.visibility === 'hidden' ||
+                           el.classList?.contains('sr-only') ||
+                           (el.offsetWidth === 0 && el.offsetHeight === 0);
+                }
+            },
+            // Option 2: High-quality screenshot capture
+            {
+                scale: 2,
+                backgroundColor: null,
+                allowTaint: true,
+                useCORS: true,
+                logging: false,
+                width: element.offsetWidth,
+                height: element.offsetHeight,
+                onclone: (clonedDoc, clonedElement) => {
+                    // Keep original styling
+                    clonedElement.style.width = element.offsetWidth + 'px';
+                    clonedElement.style.height = element.offsetHeight + 'px';
+
+                    // Apply oklch color fixes
+                    onCloneCallback(clonedDoc);
+                },
+                ignoreElements: (el) => {
+                    return el.style?.display === 'none' ||
+                           el.style?.visibility === 'hidden';
+                }
+            },
+            // Option 3: Fallback with basic cleanup
+            {
+                backgroundColor: '#ffffff',
+                allowTaint: true,
+                scale: 1,
+                logging: true,
+                onclone: (clonedDoc) => {
+                    // Simple color fallback only
+                    const style = clonedDoc.createElement('style');
+                    style.textContent = `
+                        [style*="oklch"] {
+                            color: #374151 !important;
+                            background-color: #ffffff !important;
+                            border-color: #d1d5db !important;
+                        }
+                    `;
+                    clonedDoc.head.appendChild(style);
+                }
+            }
+        ];
+
+        for (let i = 0; i < captureOptions.length; i++) {
+            try {
+                console.log(`Attempting capture with option ${i + 1}`);
+                const canvas = await window.html2canvas(element, captureOptions[i]);
+                console.log(`Capture successful with option ${i + 1}`);
+                return canvas;
+            } catch (error) {
+                console.warn(`Capture attempt ${i + 1} failed:`, error.message);
+                if (i === captureOptions.length - 1) {
+                    throw error;
+                }
+            }
+        }
+    };
+
+    const exportToImage = async () => {
+        const loadingElement = showLoadingIndicator('Taking Dashboard Screenshot...');
+
+        try {
+            // Find the main dashboard container
+            const dashboardElement = document.querySelector('.space-y-6');
+            if (!dashboardElement) {
+                throw new Error('Dashboard element not found. Please ensure you are on the analytics page.');
+            }
+
+            console.log('Taking screenshot of dashboard as displayed in browser...');
+            console.log('Dashboard dimensions:', {
+                offsetWidth: dashboardElement.offsetWidth,
+                offsetHeight: dashboardElement.offsetHeight,
+                scrollWidth: dashboardElement.scrollWidth,
+                scrollHeight: dashboardElement.scrollHeight
+            });
+
+            const canvas = await captureScreenshot(dashboardElement);
+
+            // Create PNG screenshot exactly as displayed in browser
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().split('T')[0];
+            link.download = `dashboard_screenshot_${timestamp}.png`;
+            link.href = canvas.toDataURL('image/png', 1.0); // Maximum quality
+
+            // Trigger download
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            console.log('Dashboard screenshot export completed successfully');
+            console.log('Screenshot dimensions:', canvas.width, 'x', canvas.height);
+
+        } catch (error) {
+            console.error('Screenshot export failed:', error);
+            alert('Failed to export dashboard screenshot: ' + error.message);
+        } finally {
+            hideLoadingIndicator();
+        }
+    };
+
+    const exportToPDF = async () => {
+        const loadingElement = showLoadingIndicator('Creating PDF from Dashboard Screenshot...');
+
+        try {
+            // Find the main dashboard container
+            const dashboardElement = document.querySelector('.space-y-6');
+            if (!dashboardElement) {
+                throw new Error('Dashboard element not found. Please ensure you are on the analytics page.');
+            }
+
+            console.log('Taking screenshot of dashboard to create PDF...');
+            console.log('Dashboard dimensions:', {
+                offsetWidth: dashboardElement.offsetWidth,
+                offsetHeight: dashboardElement.offsetHeight,
+                scrollWidth: dashboardElement.scrollWidth,
+                scrollHeight: dashboardElement.scrollHeight
+            });
+
+            const canvas = await captureScreenshot(dashboardElement);
+            const imgData = canvas.toDataURL('image/png', 1.0); // Maximum quality
+
+            // Create PDF from the dashboard screenshot (no headers/footers)
+            createPDFFromImage(imgData, canvas.width, canvas.height);
+
+            console.log('Dashboard screenshot PDF export completed successfully');
+            console.log('Screenshot dimensions:', canvas.width, 'x', canvas.height);
+
+        } catch (error) {
+            console.error('PDF export failed:', error);
+            alert('Failed to create PDF from dashboard screenshot: ' + error.message);
+        } finally {
+            hideLoadingIndicator();
+        }
+    };
+
+    const createPDFFromImage = (imgData, canvasWidth, canvasHeight) => {
+        const printWindow = window.open('', '_blank');
+
+        if (!printWindow) {
+            alert('Please allow popups to export PDF');
+            return;
+        }
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB');
+
+        // Create a simple HTML that just shows the screenshot as-is
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Projects Analytics Dashboard Screenshot - ${dateStr}</title>
+            <style>
+                @page {
+                    size: auto;
+                    margin: 0;
+                }
+                body {
+                    margin: 0;
+                    padding: 0;
+                    background: white;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                }
+                .screenshot {
+                    max-width: 100%;
+                    max-height: 100vh;
+                }
+                .screenshot img {
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                }
+                @media print {
+                    body {
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .screenshot {
+                        width: 100%;
+                        height: 100%;
+                    }
+                    .screenshot img {
+                        width: 100%;
+                        height: auto;
+                        object-fit: contain;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="screenshot">
+                <img src="${imgData}" alt="Projects Analytics Dashboard Screenshot" />
+            </div>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+
+        // Wait for image to load then print
+        printWindow.onload = () => {
+            setTimeout(() => {
+                printWindow.print();
+                // Don't close automatically to allow user to save
+            }, 1000);
+        };
+    };
+
+
+    // Analytics calculations
+    const analytics = useMemo(() => {
+        const projectsByClient = filteredData.reduce((acc, project) => {
             acc[project.client] = (acc[project.client] || 0) + 1;
             return acc;
         }, {});
-    }, [filteredData]);
 
-    const pieDataStatus = Object.entries(projectsByStatus).map(([name, value]) => ({ name, value }));
-    const barDataClient = Object.entries(projectsByClient).map(([name, value]) => ({ name, projects: value }));
+        const projectsByYear = filteredData.reduce((acc, project) => {
+            const year = project.year || 'Unknown';
+            acc[year] = (acc[year] || 0) + 1;
+            return acc;
+        }, {});
+
+        const projectsByMonth = filteredData.reduce((acc, project) => {
+            if (project.date_created) {
+                const date = new Date(project.date_created);
+                const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                acc[monthYear] = (acc[monthYear] || 0) + 1;
+            }
+            return acc;
+        }, {});
+
+        const archivedStats = {
+            active: filteredData.filter(p => !p.archived).length,
+            archived: filteredData.filter(p => p.archived).length
+        };
+
+        return {
+            total: filteredData.length,
+            projectsByClient,
+            projectsByYear,
+            projectsByMonth,
+            archivedStats
+        };
+    }, [filteredData]);
 
     return (
         <div className="space-y-6">
-            <AnalyticsToolbar 
-                dateRange={dateRange} 
-                setDateRange={setDateRange} 
-                onFilter={handleFilter} 
+            {/* Enhanced Filters */}
+            <ProjectsAnalyticsToolbar
+                filters={filters}
+                setFilters={setFilters}
+                predefinedRanges={predefinedRanges}
+                availableClients={availableClients}
+                availableYears={availableYears}
+                onPredefinedRange={handlePredefinedRange}
+                onApplyFilters={applyFilters}
+                onClearFilters={clearFilters}
                 onExport={handleExport}
             />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnalyticsCard title="Projects by Status">
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie data={pieDataStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>
-                                {pieDataStatus.map((entry, index) => <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042'][index % 4]} />)}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
+
+            {/* Summary Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <AnalyticsCard title="Total Projects">
+                    <div className="text-3xl font-bold text-orange-600">{analytics.total}</div>
+                    <div className="text-sm text-gray-500">
+                        {projects.length > analytics.total && `of ${projects.length} total`}
+                    </div>
                 </AnalyticsCard>
+                <AnalyticsCard title="Active Projects">
+                    <div className="text-3xl font-bold text-green-600">{analytics.archivedStats.active}</div>
+                    <div className="text-sm text-gray-500">Currently active</div>
+                </AnalyticsCard>
+                <AnalyticsCard title="Archived Projects">
+                    <div className="text-3xl font-bold text-gray-600">{analytics.archivedStats.archived}</div>
+                    <div className="text-sm text-gray-500">Completed/Archived</div>
+                </AnalyticsCard>
+                <AnalyticsCard title="Unique Clients">
+                    <div className="text-3xl font-bold text-blue-600">
+                        {Object.keys(analytics.projectsByClient).length}
+                    </div>
+                    <div className="text-sm text-gray-500">Different clients</div>
+                </AnalyticsCard>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <AnalyticsCard title="Projects by Client">
-                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={barDataClient}>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={Object.entries(analytics.projectsByClient).map(([name, value]) => ({ name, projects: value }))}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
+                            <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                             <YAxis />
                             <Tooltip />
                             <Legend />
-                            <Bar dataKey="projects" fill="#82ca9d" />
+                            <Bar dataKey="projects" fill="#f97316" />
                         </BarChart>
                     </ResponsiveContainer>
                 </AnalyticsCard>
+
+                <AnalyticsCard title="Projects by Year">
+                    <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                            <Pie
+                                data={Object.entries(analytics.projectsByYear).map(([name, value]) => ({ name, value }))}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={100}
+                                fill="#8884d8"
+                                label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            >
+                                {Object.entries(analytics.projectsByYear).map((_, index) => (
+                                    <Cell key={`cell-${index}`} fill={['#f97316', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 6]} />
+                                ))}
+                            </Pie>
+                            <Tooltip />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </AnalyticsCard>
+
+                <AnalyticsCard title="Project Creation Timeline">
+                    <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={Object.entries(analytics.projectsByMonth).sort().map(([month, count]) => ({ month, projects: count }))}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" />
+                            <YAxis />
+                            <Tooltip />
+                            <Legend />
+                            <Line type="monotone" dataKey="projects" stroke="#f97316" strokeWidth={2} />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </AnalyticsCard>
+
+                <AnalyticsCard title="Active vs Archived">
+                    <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                            <Pie
+                                data={[
+                                    { name: 'Active', value: analytics.archivedStats.active },
+                                    { name: 'Archived', value: analytics.archivedStats.archived }
+                                ]}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={100}
+                                fill="#8884d8"
+                                label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            >
+                                <Cell fill="#10b981" />
+                                <Cell fill="#6b7280" />
+                            </Pie>
+                            <Tooltip />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </AnalyticsCard>
+            </div>
+        </div>
+    );
+};
+
+const ProjectsAnalyticsToolbar = ({
+    filters,
+    setFilters,
+    predefinedRanges,
+    availableClients,
+    availableYears,
+    onPredefinedRange,
+    onApplyFilters,
+    onClearFilters,
+    onExport
+}) => {
+    return (
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Date Range Selector */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Date Range
+                    </label>
+                    <select
+                        value={filters.predefinedRange}
+                        onChange={(e) => {
+                            const value = e.target.value;
+                            setFilters(prev => ({ ...prev, predefinedRange: value }));
+                            if (value && predefinedRanges[value]) {
+                                onPredefinedRange(value);
+                            }
+                        }}
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                        <option value="">Custom Range</option>
+                        {Object.entries(predefinedRanges).map(([key, range]) => (
+                            <option key={key} value={key}>
+                                {range.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Custom Date Inputs */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        From Date
+                    </label>
+                    <input
+                        type="date"
+                        value={filters.dateRange.start}
+                        onChange={(e) => setFilters(prev => ({
+                            ...prev,
+                            dateRange: { ...prev.dateRange, start: e.target.value },
+                            predefinedRange: ''
+                        }))}
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        To Date
+                    </label>
+                    <input
+                        type="date"
+                        value={filters.dateRange.end}
+                        onChange={(e) => setFilters(prev => ({
+                            ...prev,
+                            dateRange: { ...prev.dateRange, end: e.target.value },
+                            predefinedRange: ''
+                        }))}
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                </div>
+
+                {/* Client Filter */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Clients
+                    </label>
+                    <select
+                        multiple
+                        value={filters.clients}
+                        onChange={(e) => {
+                            const values = Array.from(e.target.selectedOptions, option => option.value);
+                            setFilters(prev => ({ ...prev, clients: values }));
+                        }}
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        size="3"
+                    >
+                        {availableClients.map(client => (
+                            <option key={client} value={client}>
+                                {client}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Year Filter */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Years
+                    </label>
+                    <select
+                        multiple
+                        value={filters.years}
+                        onChange={(e) => {
+                            const values = Array.from(e.target.selectedOptions, option => option.value);
+                            setFilters(prev => ({ ...prev, years: values }));
+                        }}
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        size="3"
+                    >
+                        {availableYears.map(year => (
+                            <option key={year} value={year}>
+                                {year}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Archived Status Filter */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Status
+                    </label>
+                    <select
+                        value={filters.archived}
+                        onChange={(e) => setFilters(prev => ({ ...prev, archived: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                        <option value="all">All Projects</option>
+                        <option value="active">Active Only</option>
+                        <option value="archived">Archived Only</option>
+                    </select>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Actions
+                    </label>
+                    <div className="flex flex-col gap-2">
+                        <Button onClick={onApplyFilters} className="w-full">
+                            Apply Filters
+                        </Button>
+                        <Button variant="outline" onClick={onClearFilters} className="w-full">
+                            Clear All
+                        </Button>
+                        <div className="relative group">
+                            <Button variant="outline" className="w-full">
+                                <Download size={16} className="mr-2"/>Export Data
+                            </Button>
+                            <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 z-20">
+                                <button onClick={() => onExport('csv')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">as CSV</button>
+                                <button onClick={() => onExport('txt')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">as TXT</button>
+                                <button onClick={() => onExport('image')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">as Image</button>
+                                <button onClick={() => onExport('pdf')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">as PDF</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -6602,7 +8196,145 @@ const ResourceAnalytics = () => {
             exportResourceDataAsCSV();
         } else if (format === 'txt') {
             exportResourceDataAsTXT();
+        } else if (format === 'pdf') {
+            exportResourceAnalyticsToPDF();
+        } else if (format === 'image') {
+            exportResourceAnalyticsToImage();
         }
+    };
+
+    const exportResourceAnalyticsToPDF = async () => {
+        const loadingElement = showLoadingIndicator('Creating PDF from Resource Analytics Screenshot...');
+
+        try {
+            // Find the main analytics container
+            const analyticsElement = document.querySelector('.space-y-6');
+            if (!analyticsElement) {
+                throw new Error('Analytics element not found. Please ensure you are on the resource analytics page.');
+            }
+
+            console.log('Taking screenshot of resource analytics to create PDF...');
+            const canvas = await captureScreenshot(analyticsElement);
+            const imgData = canvas.toDataURL('image/png', 1.0);
+
+            // Create PDF from the analytics screenshot
+            createResourcePDFFromImage(imgData, canvas.width, canvas.height);
+
+            console.log('Resource analytics PDF export completed successfully');
+
+        } catch (error) {
+            console.error('Resource analytics PDF export failed:', error);
+            alert('Failed to create PDF from resource analytics: ' + error.message);
+        } finally {
+            hideLoadingIndicator();
+        }
+    };
+
+    const exportResourceAnalyticsToImage = async () => {
+        const loadingElement = showLoadingIndicator('Taking Resource Analytics Screenshot...');
+
+        try {
+            // Find the main analytics container
+            const analyticsElement = document.querySelector('.space-y-6');
+            if (!analyticsElement) {
+                throw new Error('Analytics element not found. Please ensure you are on the resource analytics page.');
+            }
+
+            console.log('Taking screenshot of resource analytics...');
+            const canvas = await captureScreenshot(analyticsElement);
+
+            // Create PNG screenshot
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().split('T')[0];
+            link.download = `resource_analytics_screenshot_${timestamp}.png`;
+            link.href = canvas.toDataURL('image/png', 1.0);
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            console.log('Resource analytics screenshot export completed successfully');
+
+        } catch (error) {
+            console.error('Resource analytics screenshot export failed:', error);
+            alert('Failed to export resource analytics screenshot: ' + error.message);
+        } finally {
+            hideLoadingIndicator();
+        }
+    };
+
+    const createResourcePDFFromImage = (imgData, canvasWidth, canvasHeight) => {
+        const printWindow = window.open('', '_blank');
+
+        if (!printWindow) {
+            alert('Please allow popups to export PDF');
+            return;
+        }
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB');
+
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Resource Analytics Screenshot - ${dateStr}</title>
+            <style>
+                @page {
+                    size: auto;
+                    margin: 0;
+                }
+                body {
+                    margin: 0;
+                    padding: 0;
+                    background: white;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                }
+                .screenshot {
+                    max-width: 100%;
+                    max-height: 100vh;
+                }
+                .screenshot img {
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                }
+                @media print {
+                    body {
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .screenshot {
+                        width: 100%;
+                        height: 100%;
+                    }
+                    .screenshot img {
+                        width: 100%;
+                        height: auto;
+                        object-fit: contain;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="screenshot">
+                <img src="${imgData}" alt="Resource Analytics Screenshot" />
+            </div>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+
+        printWindow.onload = () => {
+            setTimeout(() => {
+                printWindow.print();
+            }, 1000);
+        };
     };
 
     const exportResourceDataAsCSV = () => {
@@ -6846,7 +8578,145 @@ const DeliveryTrackerAnalytics = () => {
             exportDeliveryDataAsCSV();
         } else if (format === 'txt') {
             exportDeliveryDataAsTXT();
+        } else if (format === 'pdf') {
+            exportDeliveryAnalyticsToPDF();
+        } else if (format === 'image') {
+            exportDeliveryAnalyticsToImage();
         }
+    };
+
+    const exportDeliveryAnalyticsToPDF = async () => {
+        const loadingElement = showLoadingIndicator('Creating PDF from Delivery Analytics Screenshot...');
+
+        try {
+            // Find the main analytics container
+            const analyticsElement = document.querySelector('.space-y-6');
+            if (!analyticsElement) {
+                throw new Error('Analytics element not found. Please ensure you are on the delivery analytics page.');
+            }
+
+            console.log('Taking screenshot of delivery analytics to create PDF...');
+            const canvas = await captureScreenshot(analyticsElement);
+            const imgData = canvas.toDataURL('image/png', 1.0);
+
+            // Create PDF from the analytics screenshot
+            createDeliveryPDFFromImage(imgData, canvas.width, canvas.height);
+
+            console.log('Delivery analytics PDF export completed successfully');
+
+        } catch (error) {
+            console.error('Delivery analytics PDF export failed:', error);
+            alert('Failed to create PDF from delivery analytics: ' + error.message);
+        } finally {
+            hideLoadingIndicator();
+        }
+    };
+
+    const exportDeliveryAnalyticsToImage = async () => {
+        const loadingElement = showLoadingIndicator('Taking Delivery Analytics Screenshot...');
+
+        try {
+            // Find the main analytics container
+            const analyticsElement = document.querySelector('.space-y-6');
+            if (!analyticsElement) {
+                throw new Error('Analytics element not found. Please ensure you are on the delivery analytics page.');
+            }
+
+            console.log('Taking screenshot of delivery analytics...');
+            const canvas = await captureScreenshot(analyticsElement);
+
+            // Create PNG screenshot
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().split('T')[0];
+            link.download = `delivery_analytics_screenshot_${timestamp}.png`;
+            link.href = canvas.toDataURL('image/png', 1.0);
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            console.log('Delivery analytics screenshot export completed successfully');
+
+        } catch (error) {
+            console.error('Delivery analytics screenshot export failed:', error);
+            alert('Failed to export delivery analytics screenshot: ' + error.message);
+        } finally {
+            hideLoadingIndicator();
+        }
+    };
+
+    const createDeliveryPDFFromImage = (imgData, canvasWidth, canvasHeight) => {
+        const printWindow = window.open('', '_blank');
+
+        if (!printWindow) {
+            alert('Please allow popups to export PDF');
+            return;
+        }
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB');
+
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Delivery Analytics Screenshot - ${dateStr}</title>
+            <style>
+                @page {
+                    size: auto;
+                    margin: 0;
+                }
+                body {
+                    margin: 0;
+                    padding: 0;
+                    background: white;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                }
+                .screenshot {
+                    max-width: 100%;
+                    max-height: 100vh;
+                }
+                .screenshot img {
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                }
+                @media print {
+                    body {
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .screenshot {
+                        width: 100%;
+                        height: 100%;
+                    }
+                    .screenshot img {
+                        width: 100%;
+                        height: auto;
+                        object-fit: contain;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="screenshot">
+                <img src="${imgData}" alt="Delivery Analytics Screenshot" />
+            </div>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+
+        printWindow.onload = () => {
+            setTimeout(() => {
+                printWindow.print();
+            }, 1000);
+        };
     };
 
     const exportDeliveryDataAsCSV = () => {
@@ -7125,23 +8995,142 @@ const DeliveryTrackerAnalytics = () => {
     );
 };
 
-const AnalyticsToolbar = ({ dateRange, setDateRange, onFilter, onExport }) => (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-            <Input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} />
-            <span>to</span>
-            <Input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} />
-            <Button onClick={onFilter}>Apply Filter</Button>
-        </div>
-        <div className="relative group">
-            <Button variant="outline"><Download size={16} className="mr-2"/>Export Data</Button>
-            <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 z-20">
-                <button onClick={() => onExport('csv')} className="w-full text-left px-4 py-2 text-sm">as CSV</button>
-                <button onClick={() => onExport('txt')} className="w-full text-left px-4 py-2 text-sm">as TXT</button>
+const AnalyticsToolbar = ({ dateRange, setDateRange, onFilter, onExport }) => {
+    // Predefined date ranges
+    const predefinedRanges = {
+        'last7days': {
+            label: 'Last 7 Days',
+            start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            end: new Date()
+        },
+        'last30days': {
+            label: 'Last 30 Days',
+            start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            end: new Date()
+        },
+        'last90days': {
+            label: 'Last 90 Days',
+            start: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
+            end: new Date()
+        },
+        'last6months': {
+            label: 'Last 6 Months',
+            start: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000),
+            end: new Date()
+        },
+        'last12months': {
+            label: 'Last 12 Months',
+            start: new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000),
+            end: new Date()
+        },
+        'thisMonth': {
+            label: 'This Month',
+            start: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+            end: new Date()
+        },
+        'lastMonth': {
+            label: 'Last Month',
+            start: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1),
+            end: new Date(new Date().getFullYear(), new Date().getMonth(), 0)
+        },
+        'thisYear': {
+            label: 'This Year',
+            start: new Date(new Date().getFullYear(), 0, 1),
+            end: new Date()
+        },
+        'lastYear': {
+            label: 'Last Year',
+            start: new Date(new Date().getFullYear() - 1, 0, 1),
+            end: new Date(new Date().getFullYear() - 1, 11, 31)
+        }
+    };
+
+    const handlePredefinedRange = (rangeKey) => {
+        const range = predefinedRanges[rangeKey];
+        if (range) {
+            setDateRange({
+                start: range.start.toISOString().split('T')[0],
+                end: range.end.toISOString().split('T')[0]
+            });
+        }
+    };
+
+    return (
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Predefined Date Range Selector */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Quick Select
+                    </label>
+                    <select
+                        onChange={(e) => {
+                            if (e.target.value) {
+                                handlePredefinedRange(e.target.value);
+                            }
+                        }}
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        defaultValue=""
+                    >
+                        <option value="">Select Range</option>
+                        {Object.entries(predefinedRanges).map(([key, range]) => (
+                            <option key={key} value={key}>
+                                {range.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* From Date */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        From Date
+                    </label>
+                    <Input
+                        type="date"
+                        value={dateRange.start}
+                        onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))}
+                    />
+                </div>
+
+                {/* To Date */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        To Date
+                    </label>
+                    <Input
+                        type="date"
+                        value={dateRange.end}
+                        onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))}
+                    />
+                </div>
+
+                {/* Actions */}
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Actions
+                    </label>
+                    <div className="flex flex-col gap-2">
+                        <Button onClick={onFilter} className="w-full">
+                            Apply Filter
+                        </Button>
+                        <div className="relative group">
+                            <Button variant="outline" className="w-full">
+                                <Download size={16} className="mr-2"/>Export Data
+                            </Button>
+                            <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 z-20">
+                                <button onClick={() => onExport('csv')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">as CSV</button>
+                                <button onClick={() => onExport('txt')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">as TXT</button>
+                                <button onClick={() => onExport('pdf')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">as PDF</button>
+                                <button onClick={() => onExport('image')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">as Image</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const AnalyticsCard = ({ title, children }) => (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
