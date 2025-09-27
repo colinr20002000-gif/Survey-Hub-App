@@ -3111,8 +3111,6 @@ const ProjectsPage = ({ onViewProject }) => {
     const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'project_number', direction: 'ascending' });
-    const itemsPerPage = 10; // Fixed items per page
-    const [currentPage, setCurrentPage] = useState(1);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [projectToManage, setProjectToManage] = useState(null);
@@ -3177,10 +3175,6 @@ const ProjectsPage = ({ onViewProject }) => {
         return sortableItems;
     }, [filteredProjects, sortConfig]);
 
-    const totalPages = Math.ceil(sortedProjects.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentProjects = sortedProjects.slice(startIndex, endIndex);
 
 
     const requestSort = (key) => {
@@ -3317,7 +3311,7 @@ const ProjectsPage = ({ onViewProject }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {currentProjects.map(project => (
+                        {sortedProjects.map(project => (
                             <tr key={project.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
                                 <td className="px-6 py-4 font-mono text-gray-600 dark:text-gray-300">{project.project_number}</td>
                                 <th scope="row" className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
@@ -3352,12 +3346,6 @@ const ProjectsPage = ({ onViewProject }) => {
                 </table>
             </div>
 
-            <Pagination
-                currentPage={currentPage}
-                setCurrentPage={setCurrentPage}
-                totalPages={totalPages}
-                totalItems={sortedProjects.length}
-            />
 
             <ProjectModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} onSave={handleSaveProject} project={projectToManage} />
             <ConfirmationModal 
