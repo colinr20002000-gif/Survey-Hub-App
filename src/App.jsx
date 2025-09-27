@@ -498,24 +498,22 @@ const Header = ({ onMenuClick, setActiveTab }) => {
 const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const { user } = useAuth();
     const privileges = userPrivileges[user.privilege];
-    const [deliveryTeamExpanded, setDeliveryTeamExpanded] = useState(false);
-    const [deliveryTeamManuallyCollapsed, setDeliveryTeamManuallyCollapsed] = useState(false);
-    const [projectTeamExpanded, setProjectTeamExpanded] = useState(false);
-    const [projectTeamManuallyCollapsed, setProjectTeamManuallyCollapsed] = useState(false);
-    const [trainingCentreExpanded, setTrainingCentreExpanded] = useState(false);
-    const [trainingCentreManuallyCollapsed, setTrainingCentreManuallyCollapsed] = useState(false);
+    const [isAdminMode, setIsAdminMode] = useState(false);
     const sidebarRef = useRef(null);
 
-    const allNavItems = [
+    // Check if user is admin or super admin
+    const isAdminUser = privileges.canViewUserAdmin || user?.email === 'colin.rogers@inorail.co.uk';
+
+    // Regular navigation items (visible to all users)
+    const regularNavItems = [
         { name: 'Dashboard', icon: BarChartIcon, show: true },
         { name: 'Projects', icon: FolderKanban, show: true },
         { name: 'Announcements', icon: Megaphone, show: true },
-        { name: 'Feedback', icon: Bug, show: user?.email === 'colin.rogers@inorail.co.uk' }, // Super admin only
         {
             name: 'Project Team',
             icon: FolderOpen,
             show: true,
-            isCollapsible: true,
+            isGroup: true,
             subItems: [
                 { name: 'Resource Calendar', parent: 'Project Team' },
                 { name: 'Project Tasks', parent: 'Project Team' }
@@ -525,7 +523,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             name: 'Delivery Team',
             icon: ClipboardPaste,
             show: true,
-            isCollapsible: true,
+            isGroup: true,
             subItems: [
                 { name: 'Delivery Tracker', parent: 'Delivery Team' },
                 { name: 'Delivery Tasks', parent: 'Delivery Team' }
@@ -535,7 +533,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             name: 'Training Centre',
             icon: Presentation,
             show: true,
-            isCollapsible: true,
+            isGroup: true,
             subItems: [
                 { name: 'Standards & Specs', parent: 'Training Centre' },
                 { name: 'Procedures', parent: 'Training Centre' },
@@ -544,51 +542,26 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             ]
         },
         { name: 'Analytics', icon: TrendingUp, show: privileges.canViewAnalytics },
-        { name: 'User Admin', icon: Users, show: privileges.canViewUserAdmin },
-        { name: 'Document Management', icon: FileText, show: privileges.canEditUserAdmin },
-        { name: 'Dropdown Menu', icon: List, show: privileges.canEditUserAdmin }, // Admin and Super Admin only
-        { name: 'Audit Trail', icon: History, show: privileges.canViewAuditTrail },
         { name: 'Settings', icon: Settings, show: true },
     ];
 
-    const navItems = allNavItems.filter(item => item.show);
+    // Admin-specific navigation items (only visible in admin mode)
+    const adminNavItems = [
+        { name: 'Feedback', icon: Bug, show: user?.email === 'colin.rogers@inorail.co.uk' }, // Super admin only
+        { name: 'User Admin', icon: Users, show: privileges.canViewUserAdmin },
+        { name: 'Document Management', icon: FileText, show: privileges.canEditUserAdmin },
+        { name: 'Dropdown Menu', icon: List, show: privileges.canEditUserAdmin },
+        { name: 'Audit Trail', icon: History, show: privileges.canViewAuditTrail },
+    ];
+
+    // Choose which navigation items to show based on mode
+    const currentNavItems = isAdminMode ? adminNavItems : regularNavItems;
+    const navItems = currentNavItems.filter(item => item.show);
 
     const handleItemClick = (item, e) => {
         e.preventDefault();
-        if (item.isCollapsible) {
-            if (item.name === 'Delivery Team') {
-                const newExpandedState = !deliveryTeamExpanded;
-                setDeliveryTeamExpanded(newExpandedState);
-
-                // Track if user manually collapsed when on an active page
-                if (isDeliveryTeamActive && !newExpandedState) {
-                    setDeliveryTeamManuallyCollapsed(true);
-                } else if (newExpandedState) {
-                    setDeliveryTeamManuallyCollapsed(false);
-                }
-            } else if (item.name === 'Project Team') {
-                const newExpandedState = !projectTeamExpanded;
-                setProjectTeamExpanded(newExpandedState);
-
-                // Track if user manually collapsed when on an active page
-                if (isProjectTeamActive && !newExpandedState) {
-                    setProjectTeamManuallyCollapsed(true);
-                } else if (newExpandedState) {
-                    setProjectTeamManuallyCollapsed(false);
-                }
-            } else if (item.name === 'Training Centre') {
-                const newExpandedState = !trainingCentreExpanded;
-                setTrainingCentreExpanded(newExpandedState);
-
-                // Track if user manually collapsed when on an active page
-                if (isTrainingCentreActive && !newExpandedState) {
-                    setTrainingCentreManuallyCollapsed(true);
-                } else if (newExpandedState) {
-                    setTrainingCentreManuallyCollapsed(false);
-                }
-            }
-            // Don't close sidebar in mobile when just toggling collapsible menu
-        } else {
+        // For group items (Project Team, Delivery Team, Training Centre), do nothing as they're just headers
+        if (!item.isGroup) {
             setActiveTab(item.name);
             // Only close sidebar in mobile when navigating to a page
             if(window.innerWidth < 768) setIsOpen(false);
@@ -605,19 +578,6 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Project Tasks';
     const isTrainingCentreActive = activeTab === 'Standards & Specs' || activeTab === 'Procedures' || activeTab === 'Video Tutorials' || activeTab === 'Templates';
 
-    // Reset manually collapsed state when navigating away from team pages
-    useEffect(() => {
-        if (!isDeliveryTeamActive) {
-            setDeliveryTeamManuallyCollapsed(false);
-        }
-        if (!isProjectTeamActive) {
-            setProjectTeamManuallyCollapsed(false);
-        }
-        if (!isTrainingCentreActive) {
-            setTrainingCentreManuallyCollapsed(false);
-        }
-    }, [isDeliveryTeamActive, isProjectTeamActive, isTrainingCentreActive]);
-
     // Close sidebar when clicking outside in mobile mode
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -633,45 +593,88 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
 
     return (
         <aside ref={sidebarRef} className={`fixed md:relative z-40 md:z-auto inset-y-0 left-0 w-64 bg-gray-100 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out`}>
-            <div className="flex items-center h-16 px-6 border-b border-gray-200 dark:border-gray-700">
-                <RetroTargetIcon className="w-8 h-8 text-orange-500" />
-                <span className="ml-3 text-xl font-bold text-gray-800 dark:text-white">Survey Hub</span>
+            <div className="border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between h-16 px-6">
+                    <div className="flex items-center">
+                        <RetroTargetIcon className="w-8 h-8 text-orange-500" />
+                        <span className="ml-3 text-xl font-bold text-gray-800 dark:text-white">Survey Hub</span>
+                    </div>
+                    {isAdminUser && (
+                        <button
+                            onClick={() => {
+                                const newAdminMode = !isAdminMode;
+                                setIsAdminMode(newAdminMode);
+
+                                // Check if current tab exists in the new mode
+                                const newNavItems = newAdminMode ? adminNavItems : regularNavItems;
+                                const filteredNewNavItems = newNavItems.filter(item => item.show);
+                                const currentTabExists = filteredNewNavItems.some(item => item.name === activeTab);
+
+                                // If current tab doesn't exist in new mode, switch to appropriate default
+                                if (!currentTabExists) {
+                                    if (newAdminMode) {
+                                        // Switching to admin mode, go to first available admin item (likely Feedback or User Admin)
+                                        const firstAdminItem = filteredNewNavItems[0];
+                                        setActiveTab(firstAdminItem ? firstAdminItem.name : 'Feedback');
+                                    } else {
+                                        // Switching to regular mode, go to Dashboard
+                                        setActiveTab('Dashboard');
+                                    }
+                                }
+                            }}
+                            className={`p-2 rounded-lg transition-colors duration-200 ${
+                                isAdminMode
+                                    ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
+                                    : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
+                            }`}
+                            title={`Switch to ${isAdminMode ? 'Regular' : 'Admin'} Mode`}
+                        >
+                            <Settings size={16} />
+                        </button>
+                    )}
+                </div>
+                {isAdminUser && (
+                    <div className="px-6 pb-3">
+                        <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                            isAdminMode
+                                ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                        }`}>
+                            {isAdminMode ? 'Admin Mode' : 'Regular Mode'}
+                        </span>
+                    </div>
+                )}
             </div>
             <nav className="p-4">
                 <ul>
                     {navItems.map(item => (
                         <li key={item.name}>
-                            <a
-                                href="#"
-                                onClick={(e) => handleItemClick(item, e)}
-                                className={`flex items-center px-4 py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                                    (activeTab === item.name ||
-                                     (item.name === 'Delivery Team' && (isDeliveryTeamActive || deliveryTeamExpanded)) ||
-                                     (item.name === 'Project Team' && (isProjectTeamActive || projectTeamExpanded)) ||
-                                     (item.name === 'Training Centre' && (isTrainingCentreActive || trainingCentreExpanded)))
+                            {item.isGroup ? (
+                                <div className={`flex items-center px-4 py-2.5 my-1 text-sm font-medium rounded-lg ${
+                                    (item.name === 'Delivery Team' && isDeliveryTeamActive) ||
+                                    (item.name === 'Project Team' && isProjectTeamActive) ||
+                                    (item.name === 'Training Centre' && isTrainingCentreActive)
                                         ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
-                                        : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
-                                }`}
-                            >
-                                <item.icon size={20} className="mr-3" />
-                                <span className="flex-1">{item.name}</span>
-                                {item.isCollapsible && (
-                                    <ChevronDown 
-                                        size={16} 
-                                        className={`ml-2 transition-transform duration-200 ${
-                                            (item.name === 'Delivery Team' && (deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed))) ||
-                                            (item.name === 'Project Team' && (projectTeamExpanded || (isProjectTeamActive && !projectTeamManuallyCollapsed))) ||
-                                            (item.name === 'Training Centre' && (trainingCentreExpanded || (isTrainingCentreActive && !trainingCentreManuallyCollapsed)))
-                                                ? 'rotate-180' : ''
-                                        }`} 
-                                    />
-                                )}
-                            </a>
-                            {item.isCollapsible && (
-                                (item.name === 'Delivery Team' && (deliveryTeamExpanded || (isDeliveryTeamActive && !deliveryTeamManuallyCollapsed))) ||
-                                (item.name === 'Project Team' && (projectTeamExpanded || (isProjectTeamActive && !projectTeamManuallyCollapsed))) ||
-                                (item.name === 'Training Centre' && (trainingCentreExpanded || (isTrainingCentreActive && !trainingCentreManuallyCollapsed)))
-                            ) && (
+                                        : 'text-gray-700 dark:text-gray-300'
+                                }`}>
+                                    <item.icon size={20} className="mr-3" />
+                                    <span className="flex-1">{item.name}</span>
+                                </div>
+                            ) : (
+                                <a
+                                    href="#"
+                                    onClick={(e) => handleItemClick(item, e)}
+                                    className={`flex items-center px-4 py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                                        activeTab === item.name
+                                            ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
+                                            : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
+                                    }`}
+                                >
+                                    <item.icon size={20} className="mr-3" />
+                                    <span className="flex-1">{item.name}</span>
+                                </a>
+                            )}
+                            {item.isGroup && (
                                 <ul className="ml-4 mt-1 space-y-1">
                                     {item.subItems.map(subItem => (
                                         <li key={subItem.name}>
