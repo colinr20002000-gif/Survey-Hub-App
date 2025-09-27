@@ -461,37 +461,64 @@ export const useFcm = () => {
     if (!isSupported || !fcmToken) return;
 
     const unsubscribe = onForegroundMessage((payload) => {
-      console.log('Foreground FCM message received:', payload);
+      console.log('🔔 [FCM] Foreground FCM message received:', payload);
+      console.log('🔔 [FCM] Payload structure:', JSON.stringify(payload, null, 2));
 
       // Show a browser notification for foreground messages
       if (permission === 'granted') {
         const { notification, data } = payload;
 
-        if (notification) {
+        // Handle both notification and data-only payloads
+        const notificationTitle = notification?.title || data?.title || 'Survey Hub Notification';
+        const notificationBody = notification?.body || data?.body || 'You have a new notification';
+
+        if (notificationTitle && notificationBody) {
           const notificationOptions = {
-            body: notification.body,
-            icon: notification.icon || '/android-chrome-192x192.png',
-            badge: '/favicon-32x32.png',
-            tag: 'fcm-foreground-notification',
-            data: data || {},
+            body: notificationBody,
+            icon: notification?.icon || data?.icon || '/android-chrome-192x192.png',
+            badge: notification?.badge || data?.badge || '/favicon-32x32.png',
+            tag: data?.tag || 'fcm-foreground-notification',
+            data: {
+              url: data?.url || '/',
+              type: data?.type || 'general',
+              priority: data?.priority || 'medium',
+              timestamp: Date.now(),
+              ...data
+            },
             requireInteraction: data?.priority === 'urgent',
             silent: false,
-            vibrate: [200, 100, 200]
+            vibrate: [200, 100, 200],
+            actions: [
+              {
+                action: 'view',
+                title: 'View'
+              },
+              {
+                action: 'dismiss',
+                title: 'Dismiss'
+              }
+            ]
           };
+
+          console.log('🔔 [FCM] Showing foreground notification:', notificationTitle, notificationOptions);
 
           // Show notification using service worker if available
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.ready.then((registration) => {
-              registration.showNotification(notification.title, notificationOptions);
+              registration.showNotification(notificationTitle, notificationOptions);
             }).catch((error) => {
-              console.error('Error showing notification via service worker:', error);
+              console.error('❌ [FCM] Error showing notification via service worker:', error);
               // Fallback to regular notification
-              new Notification(notification.title, notificationOptions);
+              new Notification(notificationTitle, notificationOptions);
             });
           } else {
-            new Notification(notification.title, notificationOptions);
+            new Notification(notificationTitle, notificationOptions);
           }
+        } else {
+          console.log('🔔 [FCM] No title or body found in payload, skipping notification');
         }
+      } else {
+        console.log('🔔 [FCM] Notification permission not granted, cannot show foreground notification');
       }
     });
 

@@ -23,7 +23,8 @@ const messaging = firebase.messaging();
 
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log('Received background message:', payload);
+  console.log('🔔 [SW] Received background message:', payload);
+  console.log('🔔 [SW] Payload structure:', JSON.stringify(payload, null, 2));
 
   // Prevent default notification by handling it manually
   const notificationTitle = payload.notification?.title || payload.data?.title || 'Survey Hub Notification';
@@ -56,6 +57,7 @@ messaging.onBackgroundMessage((payload) => {
   };
 
   // Show the notification manually (this prevents Firebase's default notification)
+  console.log('🔔 [SW] Showing notification:', notificationTitle, notificationOptions);
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
