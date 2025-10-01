@@ -376,14 +376,6 @@ export const AuthProvider = ({ children }) => {
     console.log('🔐 AuthProvider mounted - initializing authentication');
     console.log('🔐 Supabase client:', supabase);
 
-    // Clear any existing session on app load (disable auto-login on refresh)
-    const initAuth = async () => {
-      console.log('🔐 Clearing existing session to require fresh login');
-      await supabase.auth.signOut({ scope: 'local' });
-      setUser(null);
-      setIsLoading(false);
-    };
-
     // Get initial session with timeout
     const sessionTimeout = setTimeout(() => {
       console.error('🔐 Session check timed out, proceeding without session');
@@ -391,17 +383,6 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(false);
     }, 5000);
 
-    // Initialize auth by clearing session
-    initAuth().then(() => {
-      clearTimeout(sessionTimeout);
-    }).catch(() => {
-      setUser(null);
-      setIsLoading(false);
-      clearTimeout(sessionTimeout);
-    });
-
-    // Old code - now commented out to force logout on every page load
-    /*
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       clearTimeout(sessionTimeout);
       console.log('🔐 Initial session check:', { session: !!session, error });
@@ -423,12 +404,7 @@ export const AuthProvider = ({ children }) => {
             console.error('🔐 Failed to load user data - keeping user logged out');
             setUser(null);
           } else {
-            // Super admin override
-            if (userData.email === 'colin.rogers@inorail.co.uk') {
-              console.log('🔐 Super admin override: Setting privilege to Admin.');
-              userData.privilege = 'Admin';
-            }
-
+            // Privilege is now correctly set in database via migration
             setUser(userData);
 
             // Auto-subscribe to push notifications after successful login
@@ -449,7 +425,6 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setIsLoading(false);
     });
-    */
 
     // Listen for auth changes
     const {
@@ -466,12 +441,7 @@ export const AuthProvider = ({ children }) => {
           console.error('🔐 Failed to load user data during auth state change');
           setUser(null);
         } else {
-          // Super admin override
-          if (userData.email === 'colin.rogers@inorail.co.uk') {
-            console.log('🔐 Super admin override: Setting privilege to Admin.');
-            userData.privilege = 'Admin';
-          }
-
+          // Privilege is now correctly set in database via migration
           setUser(userData);
 
           // Auto-subscribe to push notifications after successful login
@@ -485,19 +455,7 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(false);
     });
 
-    // Sign out user when browser/tab closes (disable auto-login)
-    const handleBeforeUnload = () => {
-      console.log('🔐 Browser closing - signing out user');
-      // Use synchronous signOut to ensure it completes before page unload
-      supabase.auth.signOut({ scope: 'local' });
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   // This function handles the login process using Supabase
