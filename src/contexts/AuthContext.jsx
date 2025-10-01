@@ -60,9 +60,9 @@ export const AuthProvider = ({ children }) => {
       let userArray = null;
       let fetchError = null;
 
-      while (queryAttempt < 3 && !userArray) {
+      while (queryAttempt < 1 && !userArray) {
         queryAttempt++;
-        console.log(`🔐 Query attempt ${queryAttempt}/3...`);
+        console.log(`🔐 Query attempt ${queryAttempt}/1...`);
 
         const queryPromise = supabase
           .from('users')
@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }) => {
           .eq('id', authUser.id);
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Query timeout')), 8000)
+          setTimeout(() => reject(new Error('Query timeout')), 3000)
         );
 
         const result = await Promise.race([
@@ -89,10 +89,10 @@ export const AuthProvider = ({ children }) => {
           break;
         }
 
-        // Wait 1 second before retry if it was a timeout
-        if (queryAttempt < 3) {
-          console.log('🔐 Waiting 1s before retry...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait 500ms before retry if it was a timeout
+        if (queryAttempt < 1) {
+          console.log('🔐 Waiting 500ms before retry...');
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
@@ -375,25 +375,44 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     console.log('🔐 AuthProvider mounted - initializing authentication');
     console.log('🔐 Supabase client:', supabase);
-    
-    // Get initial session with increased timeout
+
+    // Clear any existing session on app load (disable auto-login on refresh)
+    const initAuth = async () => {
+      console.log('🔐 Clearing existing session to require fresh login');
+      await supabase.auth.signOut({ scope: 'local' });
+      setUser(null);
+      setIsLoading(false);
+    };
+
+    // Get initial session with timeout
     const sessionTimeout = setTimeout(() => {
       console.error('🔐 Session check timed out, proceeding without session');
       setUser(null);
       setIsLoading(false);
-    }, 15000);
+    }, 5000);
 
+    // Initialize auth by clearing session
+    initAuth().then(() => {
+      clearTimeout(sessionTimeout);
+    }).catch(() => {
+      setUser(null);
+      setIsLoading(false);
+      clearTimeout(sessionTimeout);
+    });
+
+    // Old code - now commented out to force logout on every page load
+    /*
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       clearTimeout(sessionTimeout);
       console.log('🔐 Initial session check:', { session: !!session, error });
-      
+
       if (error) {
         console.error('🔐 Session error:', error);
         setUser(null);
         setIsLoading(false);
         return;
       }
-      
+
       if (session?.user) {
         console.log('🔐 Found existing session for:', session.user.email);
         try {
@@ -430,6 +449,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setIsLoading(false);
     });
+    */
 
     // Listen for auth changes
     const {
@@ -465,7 +485,19 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // Sign out user when browser/tab closes (disable auto-login)
+    const handleBeforeUnload = () => {
+      console.log('🔐 Browser closing - signing out user');
+      // Use synchronous signOut to ensure it completes before page unload
+      supabase.auth.signOut({ scope: 'local' });
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, []);
 
   // This function handles the login process using Supabase

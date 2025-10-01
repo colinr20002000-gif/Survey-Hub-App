@@ -2235,8 +2235,9 @@ const ProjectsPage = ({ onViewProject }) => {
     }, [filteredProjects, sortConfig]);
 
     // Calculate pagination
-    const totalPages = Math.ceil(sortedProjects.length / itemsPerPage);
+    const totalPages = Math.ceil((sortedProjects?.length || 0) / itemsPerPage);
     const paginatedProjects = useMemo(() => {
+        if (!sortedProjects) return [];
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = startIndex + itemsPerPage;
         return sortedProjects.slice(startIndex, endIndex);
