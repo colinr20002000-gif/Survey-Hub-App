@@ -42,7 +42,12 @@
       "Bash(do sed -i 's/CREATE TRIGGER \\(.*\\) BEFORE/DROP TRIGGER IF EXISTS \\1 ON ;\\nCREATE TRIGGER \\1 BEFORE/g' \"$file\")",
       "Bash(timeout 120 bash -c 'echo \"\"y\"\" | npx supabase db push 2>&1')",
       "Bash(timeout:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "WebSearch",
+      "WebFetch(domain:supabase.com)",
+      "Bash(npx:*)"
     ],
     "deny": [],
     "ask": []
