@@ -79,14 +79,44 @@ Toast.propTypes = {
 
 const ModalConfirmation = ({ modal, onClose }) => {
   const { icon: Icon, className } = TOAST_TYPES[modal.type];
-  
+
+  // Define modal styles based on type
+  const modalStyles = {
+    success: {
+      border: 'border-green-200 dark:border-green-800',
+      iconBg: 'bg-green-100 dark:bg-green-900/20',
+      iconColor: 'text-green-600 dark:text-green-400',
+      button: 'bg-green-600 hover:bg-green-700 text-white'
+    },
+    error: {
+      border: 'border-red-200 dark:border-red-800',
+      iconBg: 'bg-red-100 dark:bg-red-900/20',
+      iconColor: 'text-red-600 dark:text-red-400',
+      button: 'bg-red-600 hover:bg-red-700 text-white'
+    },
+    warning: {
+      border: 'border-yellow-200 dark:border-yellow-800',
+      iconBg: 'bg-yellow-100 dark:bg-yellow-900/20',
+      iconColor: 'text-yellow-600 dark:text-yellow-400',
+      button: 'bg-yellow-600 hover:bg-yellow-700 text-white'
+    },
+    info: {
+      border: 'border-blue-200 dark:border-blue-800',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/20',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      button: 'bg-blue-600 hover:bg-blue-700 text-white'
+    }
+  };
+
+  const styles = modalStyles[modal.type] || modalStyles.info;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-2xl border max-w-md w-full mx-auto ${modal.type === 'success' ? 'border-green-200 dark:border-green-800' : 'border-red-200 dark:border-red-800'}`}>
+      <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-2xl border max-w-md w-full mx-auto ${styles.border}`}>
         <div className="p-6">
           <div className="flex items-start gap-4">
-            <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${modal.type === 'success' ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20'}`}>
-              <Icon className={`w-6 h-6 ${modal.type === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`} />
+            <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${styles.iconBg}`}>
+              <Icon className={`w-6 h-6 ${styles.iconColor}`} />
             </div>
             <div className="flex-1 min-w-0">
               {modal.title && (
@@ -100,15 +130,11 @@ const ModalConfirmation = ({ modal, onClose }) => {
             </div>
           </div>
         </div>
-        
+
         <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 rounded-b-xl flex justify-end">
           <button
             onClick={() => onClose(modal.id)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              modal.type === 'success' 
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
-                : 'bg-red-600 hover:bg-red-700 text-white'
-            }`}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${styles.button}`}
           >
             OK
           </button>
@@ -215,6 +241,15 @@ export const ToastProvider = ({ children }) => {
     return addModal({ type: 'info', message, title });
   }, [addModal]);
 
+  // Special modal for privilege errors
+  const showPrivilegeError = useCallback((message) => {
+    return addModal({
+      type: 'warning',
+      message,
+      title: 'Insufficient Privileges'
+    });
+  }, [addModal]);
+
   const value = {
     showSuccess,
     showError,
@@ -228,6 +263,7 @@ export const ToastProvider = ({ children }) => {
     showErrorModal,
     showWarningModal,
     showInfoModal,
+    showPrivilegeError,
     addToast,
     removeToast,
     addModal,

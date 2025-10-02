@@ -21,7 +21,7 @@ import { UserProvider, useUsers } from './contexts/UserContext';
 import { sendAnnouncementFCMNotification, sendDeliveryTaskAssignmentNotification, sendProjectTaskAssignmentNotification } from './utils/fcmNotifications';
 import { notificationManager } from './utils/realTimeNotifications';
 import { getDepartmentColor, getAvatarText, getAvatarProps } from './utils/avatarColors';
-import { handleSupabaseError } from './utils/rlsErrorHandler';
+import { handleSupabaseError, isRLSError } from './utils/rlsErrorHandler';
 import { useFcm } from './hooks/useFcm';
 import { useSubscription } from './hooks/useSubscription';
 import { usePermissions } from './hooks/usePermissions';
@@ -2236,7 +2236,10 @@ const ProjectsPage = ({ onViewProject }) => {
     }, [filteredProjects, sortConfig]);
 
     // Calculate pagination
-    const totalPages = Math.ceil((sortedProjects?.length || 0) / itemsPerPage);
+    const totalPages = useMemo(() => {
+        return Math.ceil((sortedProjects?.length || 0) / itemsPerPage);
+    }, [sortedProjects, itemsPerPage]);
+
     const paginatedProjects = useMemo(() => {
         if (!sortedProjects) return [];
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -3093,6 +3096,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const { canAllocateResources, canSetAvailabilityStatus } = usePermissions();
     const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
     const { projects } = useProjects();
+    const { showPrivilegeError, showErrorModal } = useToast();
     const [teamRoles, setTeamRoles] = useState([]);
     const [teamRolesLoading, setTeamRolesLoading] = useState(true);
     const [teamRolesError, setTeamRolesError] = useState(null);
@@ -3572,6 +3576,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         const isDummyUser = user?.isDummy === true;
         const tableName = isDummyUser ? 'dummy_resource_allocations' : 'resource_allocations';
 
+        let recordData = null; // For error handling
+
         try {
             const allocationDate = cellToUpdate.date;
             const allocationDateString = formatDateForKey(allocationDate);
@@ -3599,7 +3605,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 }
             } else if (isSecondProject) {
                 // Adding a second project - insert new record
-                const recordToInsert = {
+                recordData = {
                     user_id: userId,
                     allocation_date: allocationDateString,
                     assignment_type: 'project',
@@ -3616,34 +3622,34 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
                 const { error } = await supabase
                     .from(tableName)
-                    .insert([recordToInsert]);
+                    .insert([recordData]);
 
                 if (error) throw error;
             } else {
-                let recordToUpsert = {
+                recordData = {
                     user_id: userId,
                     allocation_date: allocationDateString,
                 };
 
                 if (allocationData.type === 'leave') {
-                    recordToUpsert = {
-                        ...recordToUpsert,
+                    recordData = {
+                        ...recordData,
                         assignment_type: 'leave',
                         leave_type: allocationData.leaveType,
                         comment: allocationData.comment || null,
                         project_id: null, project_number: null, project_name: null, client: null, task: null, shift: null, time: null
                     };
                 } else if (allocationData.type === 'status') {
-                    recordToUpsert = {
-                        ...recordToUpsert,
+                    recordData = {
+                        ...recordData,
                         assignment_type: 'status',
                         comment: allocationData.status,
                         leave_type: null,
                         project_id: null, project_number: null, project_name: null, client: null, task: null, shift: null, time: null
                     };
                 } else {
-                    recordToUpsert = {
-                        ...recordToUpsert,
+                    recordData = {
+                        ...recordData,
                         assignment_type: 'project',
                         project_id: allocationData.projectId || null,
                         project_number: allocationData.projectNumber || null,
@@ -3671,13 +3677,17 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
                 const { error } = await supabase
                     .from(tableName)
-                    .insert([recordToUpsert]);
+                    .insert([recordData]);
                 if (error) throw error;
             }
         } catch (err) {
             console.error('Error saving allocation to Supabase:', err);
-            const errorMessage = handleSupabaseError(err, tableName, 'insert', recordToUpsert);
-            alert(`Failed to save allocation: ${errorMessage}`);
+            const errorMessage = handleSupabaseError(err, tableName, 'insert', recordData);
+            if (isRLSError(err)) {
+                showPrivilegeError(errorMessage);
+            } else {
+                showErrorModal(errorMessage, 'Failed to Save Allocation');
+            }
         }
     };
 

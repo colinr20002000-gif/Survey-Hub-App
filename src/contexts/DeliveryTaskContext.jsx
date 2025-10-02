@@ -3,29 +3,33 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { sendDeliveryTaskAssignmentNotification } from '../utils/fcmNotifications';
+import { handleSupabaseError, isRLSError } from '../utils/rlsErrorHandler';
 
 const DeliveryTaskContext = createContext(null);
 
 export const DeliveryTaskProvider = ({ children }) => {
     const { user } = useAuth();
-    const { showSuccessModal, showErrorModal } = useToast();
+    const { showSuccessModal, showErrorModal, showPrivilegeError } = useToast();
     const [deliveryTasks, setDeliveryTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     // Map database snake_case to component camelCase
-    const mapToCamelCase = (task) => ({
-        id: task.id,
-        createdAt: task.created_at,
-        text: task.text,
-        completed: task.completed,
-        project: task.project,
-        assignedTo: task.assigned_to,
-        createdBy: task.created_by,
-        completedAt: task.completed_at,
-        completedBy: task.completed_by,
-        archived: task.archived,
-    });
+    const mapToCamelCase = (task) => {
+        if (!task) return null;
+        return {
+            id: task.id,
+            createdAt: task.created_at,
+            text: task.text,
+            completed: task.completed,
+            project: task.project,
+            assignedTo: task.assigned_to,
+            createdBy: task.created_by,
+            completedAt: task.completed_at,
+            completedBy: task.completed_by,
+            archived: task.archived,
+        };
+    };
 
     // Map component camelCase to database snake_case
     const mapToSnakeCase = (task) => ({
@@ -50,7 +54,7 @@ export const DeliveryTaskProvider = ({ children }) => {
 
             if (fetchError) throw fetchError;
 
-            setDeliveryTasks(data.map(mapToCamelCase) || []);
+            setDeliveryTasks(data?.map(mapToCamelCase).filter(Boolean) || []);
         } catch (err) {
             console.error("Error fetching delivery tasks:", err);
             setError(err.message);
@@ -76,11 +80,17 @@ export const DeliveryTaskProvider = ({ children }) => {
                     console.log('📋 Delivery tasks table changed:', payload.eventType);
 
                     // Handle different event types for optimized updates
-                    if (payload.eventType === 'INSERT') {
-                        setDeliveryTasks(prev => [mapToCamelCase(payload.new), ...prev]);
-                    } else if (payload.eventType === 'UPDATE') {
-                        setDeliveryTasks(prev => prev.map(t => t.id === payload.new.id ? mapToCamelCase(payload.new) : t));
-                    } else if (payload.eventType === 'DELETE') {
+                    if (payload.eventType === 'INSERT' && payload.new) {
+                        const newTask = mapToCamelCase(payload.new);
+                        if (newTask) {
+                            setDeliveryTasks(prev => [newTask, ...prev]);
+                        }
+                    } else if (payload.eventType === 'UPDATE' && payload.new) {
+                        const updatedTask = mapToCamelCase(payload.new);
+                        if (updatedTask) {
+                            setDeliveryTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+                        }
+                    } else if (payload.eventType === 'DELETE' && payload.old) {
                         setDeliveryTasks(prev => prev.filter(t => t.id !== payload.old.id));
                     } else {
                         // Fallback: refresh all data
@@ -104,10 +114,15 @@ export const DeliveryTaskProvider = ({ children }) => {
 
         if (error) {
              console.error('Error adding delivery task:', error);
-             alert(`Error adding delivery task: ${error.message}`);
+             const errorMessage = handleSupabaseError(error, 'delivery_tasks', 'insert', taskRecord);
+             if (isRLSError(error)) {
+                 showPrivilegeError(errorMessage);
+             } else {
+                 showErrorModal(errorMessage, 'Error Adding Delivery Task');
+             }
              return;
         }
-        if (data) {
+        if (data && data[0]) {
             const newTask = mapToCamelCase(data[0]);
             setDeliveryTasks(prev => [newTask, ...prev]);
 
@@ -142,9 +157,17 @@ export const DeliveryTaskProvider = ({ children }) => {
 
         if (error) {
             console.error('Error updating delivery task:', error);
-            alert(`Error updating delivery task: ${error.message}`);
-        } else if (data) {
+            const errorMessage = handleSupabaseError(error, 'delivery_tasks', 'update', taskRecord);
+            if (isRLSError(error)) {
+                showPrivilegeError(errorMessage);
+            } else {
+                showErrorModal(errorMessage, 'Error Updating Delivery Task');
+            }
+        } else if (data && data[0]) {
             setDeliveryTasks(prev => prev.map(t => (t.id === updatedTask.id ? mapToCamelCase(data[0]) : t)));
+        } else {
+            console.error('No data returned from delivery task update - possibly blocked by RLS');
+            showPrivilegeError('You need Editor privileges or higher to modify delivery tasks.');
         }
     };
 
@@ -156,7 +179,12 @@ export const DeliveryTaskProvider = ({ children }) => {
 
         if (error) {
             console.error('Error deleting delivery task:', error);
-            alert(`Error deleting delivery task: ${error.message}`);
+            const errorMessage = handleSupabaseError(error, 'delivery_tasks', 'delete');
+            if (isRLSError(error)) {
+                showPrivilegeError(errorMessage);
+            } else {
+                showErrorModal(errorMessage, 'Error Deleting Delivery Task');
+            }
         } else {
             setDeliveryTasks(prev => prev.filter(t => t.id !== taskId));
         }
