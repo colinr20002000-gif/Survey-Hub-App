@@ -21,6 +21,7 @@ import { UserProvider, useUsers } from './contexts/UserContext';
 import { sendAnnouncementFCMNotification, sendDeliveryTaskAssignmentNotification, sendProjectTaskAssignmentNotification } from './utils/fcmNotifications';
 import { notificationManager } from './utils/realTimeNotifications';
 import { getDepartmentColor, getAvatarText, getAvatarProps } from './utils/avatarColors';
+import { handleSupabaseError } from './utils/rlsErrorHandler';
 import { useFcm } from './hooks/useFcm';
 import { useSubscription } from './hooks/useSubscription';
 import { usePermissions } from './hooks/usePermissions';
@@ -3675,7 +3676,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             }
         } catch (err) {
             console.error('Error saving allocation to Supabase:', err);
-            alert(`Failed to save allocation: ${err.message}`);
+            const errorMessage = handleSupabaseError(err, tableName, 'insert', recordToUpsert);
+            alert(`Failed to save allocation: ${errorMessage}`);
         }
     };
 
