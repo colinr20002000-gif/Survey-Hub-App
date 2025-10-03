@@ -31,3 +31,19 @@ export const leaveColors = {
     'Sick Day': 'bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-orange-200',
     'Rest Day': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200',
 };
+
+// Announcement priorities
+export const ANNOUNCEMENT_PRIORITIES = {
+    low: { label: 'Low', color: 'text-gray-500', bg: 'bg-gray-100 dark:bg-gray-700' },
+    medium: { label: 'Medium', color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900' },
+    high: { label: 'High', color: 'text-orange-500', bg: 'bg-orange-100 dark:bg-orange-900' },
+    urgent: { label: 'Urgent', color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-900' }
+};
+
+// Notification delivery methods
+export const NOTIFICATION_METHODS = {
+    push: 'Browser Push',
+    email: 'Email',
+    sms: 'SMS',
+    all: 'All Methods'
+};
