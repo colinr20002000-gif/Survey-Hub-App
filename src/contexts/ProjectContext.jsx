@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
 const ProjectContext = createContext(null);
@@ -8,7 +8,7 @@ export const ProjectProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const getProjects = async () => {
+    const getProjects = useCallback(async () => {
         setLoading(true);
         setError(null);
 
@@ -30,7 +30,7 @@ export const ProjectProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []); // Empty dependency array - getProjects is stable
 
     useEffect(() => {
         getProjects();
@@ -66,9 +66,9 @@ export const ProjectProvider = ({ children }) => {
         return () => {
             subscription.unsubscribe();
         };
-    }, []);
+    }, [getProjects]); // Depend on getProjects
 
-    const addProject = async (projectData) => {
+    const addProject = useCallback(async (projectData) => {
         try {
             // Remove id field if present to let database auto-generate it
             const { id, ...dataWithoutId } = projectData;
@@ -94,9 +94,9 @@ export const ProjectProvider = ({ children }) => {
             console.error('Database timeout:', timeoutError);
             alert('Database connection timeout. Please try again.');
         }
-    };
+    }, []); // No dependencies
 
-    const updateProject = async (updatedProject) => {
+    const updateProject = useCallback(async (updatedProject) => {
         try {
             const updateQuery = Promise.race([
                 supabase.from('projects').update(updatedProject).eq('id', updatedProject.id).select(),
@@ -112,9 +112,9 @@ export const ProjectProvider = ({ children }) => {
             console.error('Database timeout:', timeoutError);
             alert('Database connection timeout. Please try again.');
         }
-    };
+    }, []); // No dependencies
 
-    const deleteProject = async (projectId) => {
+    const deleteProject = useCallback(async (projectId) => {
         try {
             const deleteQuery = Promise.race([
                 supabase.from('projects').delete().eq('id', projectId),
@@ -130,9 +130,17 @@ export const ProjectProvider = ({ children }) => {
             console.error('Database timeout:', timeoutError);
             alert('Database connection timeout. Please try again.');
         }
-    };
-    
-    const value = { projects, addProject, updateProject, deleteProject, loading, error };
+    }, []); // No dependencies
+
+    // Memoize the context value to prevent unnecessary re-renders
+    const value = useMemo(() => ({
+        projects,
+        addProject,
+        updateProject,
+        deleteProject,
+        loading,
+        error
+    }), [projects, addProject, updateProject, deleteProject, loading, error]);
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 };

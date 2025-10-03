@@ -37,6 +37,11 @@ import { Card, Input, Select, Button, Switch, Modal, ConfirmationModal, StatusBa
 import FileManagementSystem from './components/FileManagement/FileManagementSystem';
 import EquipmentPage from './components/Equipment/EquipmentPage';
 import VehiclesPage from './components/Vehicles/VehiclesPage';
+import ProjectsPageComponent from './pages/ProjectsPage';
+import ProjectModal from './components/modals/ProjectModal';
+import JobModal from './components/modals/JobModal';
+import { getWeekStartDate, getFiscalWeek, addDays, formatDateForDisplay, formatDateForKey } from './utils/dateHelpers';
+import { jobStatuses, shiftColors, leaveColors } from './constants';
 
 // --- USER PRIVILEGES & MOCK DATA ---
 // Temporary mock data until all components are updated to use UserProvider
@@ -219,8 +224,6 @@ const formatTimeAgo = (dateString) => {
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
 };
-
-const jobStatuses = ["Site Not Started", "Site Work Completed", "Delivered", "Postponed", "Cancelled", "On Hold", "Revisit Required"];
 
 const initialJobs = [
     { id: 1, projectName: "HS2 Phase 1 Enabling Works", projectNumber: "HS2-EW-21-001", itemName: "Euston Station Survey", projectManager: "Ben Carter", client: "HS2 Ltd", processingHours: 80, checkingHours: 16, siteStartDate: "2024-08-01", siteCompletionDate: "2024-09-30", plannedDeliveryDate: "2024-10-15", actualDeliveryDate: "", discipline: "Survey", comments: "Awaiting final sign-off from client.", archived: false, status: "Site Work Completed" },
@@ -2164,311 +2167,9 @@ const FeedbackPage = () => {
 // DropdownMenuPage moved to src/components/pages/DropdownMenuPage.jsx
 
 
+// ProjectsPage has been extracted to src/pages/ProjectsPage.jsx
 const ProjectsPage = ({ onViewProject }) => {
-    const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
-    const { canCreateProjects, canEditProjects, canDeleteProjects, canDownloadFiles } = usePermissions();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [sortConfig, setSortConfig] = useState({ key: 'project_number', direction: 'descending' });
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [projectToManage, setProjectToManage] = useState(null);
-    const [showArchived, setShowArchived] = useState(false);
-    const [openDropdownId, setOpenDropdownId] = useState(null);
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const [clientFilter, setClientFilter] = useState('');
-    const [yearFilter, setYearFilter] = useState('');
-    const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 25;
-
-    const dropdownRef = useRef(null);
-    const filterRef = useRef(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                setOpenDropdownId(null);
-            }
-            if (filterRef.current && !filterRef.current.contains(event.target)) {
-                setIsFilterOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    if (loading) {
-        return <div className="p-8 text-2xl font-semibold text-center">Loading Projects...</div>;
-    }
-
-    if (error) {
-        return (
-            <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                <h2 className="font-bold text-xl mb-2">Error Loading Projects</h2>
-                <p>There was a problem fetching data from the database.</p>
-                <p className="mt-4 font-bold">Error Message:</p>
-                <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
-                <p className="mt-4">
-                    Please check the browser's developer console (F12) for more details. This could be due to an RLS policy, an incorrect API key in Vercel, or a network issue.
-                </p>
-            </div>
-        );
-    }
-    
-    const filteredProjects = useMemo(() => projects.filter(p => {
-        const matchesSearch = p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.project_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.client.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesArchive = showArchived ? p.archived : !p.archived;
-        const matchesClient = clientFilter === '' || p.client === clientFilter;
-        const matchesYear = yearFilter === '' || p.year === yearFilter;
-        return matchesSearch && matchesArchive && matchesClient && matchesYear;
-    }), [projects, searchTerm, showArchived, clientFilter, yearFilter]);
-
-    const sortedProjects = useMemo(() => {
-        let sortableItems = [...filteredProjects];
-        sortableItems.sort((a, b) => {
-            if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'ascending' ? -1 : 1;
-            if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1;
-            return 0;
-        });
-        return sortableItems;
-    }, [filteredProjects, sortConfig]);
-
-    // Calculate pagination
-    const totalPages = useMemo(() => {
-        return Math.ceil((sortedProjects?.length || 0) / itemsPerPage);
-    }, [sortedProjects, itemsPerPage]);
-
-    const paginatedProjects = useMemo(() => {
-        if (!sortedProjects) return [];
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        return sortedProjects.slice(startIndex, endIndex);
-    }, [sortedProjects, currentPage, itemsPerPage]);
-
-    // Reset to page 1 when filters change
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm, showArchived, clientFilter, yearFilter]);
-
-
-
-    const requestSort = (key) => {
-        let direction = 'ascending';
-        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
-        }
-        setSortConfig({ key, direction });
-    };
-
-    const getSortIndicator = (key) => {
-        if (sortConfig.key !== key) return '↕';
-        return sortConfig.direction === 'ascending' ? '↑' : '↓';
-    };
-
-    const handleSaveProject = (projectData) => {
-        if (projectToManage) {
-            updateProject({ ...projectToManage, ...projectData });
-        } else {
-            addProject(projectData);
-        }
-        setIsEditModalOpen(false);
-    };
-
-    const handleDeleteClick = (project) => {
-        setProjectToManage(project);
-        setIsDeleteModalOpen(true);
-    };
-
-    const confirmDelete = () => {
-        deleteProject(projectToManage.id);
-        setIsDeleteModalOpen(false);
-        setProjectToManage(null);
-    };
-    
-    const handleArchiveClick = (project) => {
-        setProjectToManage(project);
-        setIsArchiveModalOpen(true);
-    };
-
-    const confirmArchive = () => {
-        updateProject({ ...projectToManage, archived: true });
-        setIsArchiveModalOpen(false);
-        setProjectToManage(null);
-    };
-
-    const handleUnarchiveProject = (projectId) => {
-        const project = projects.find(p => p.id === projectId);
-        if (project) {
-            updateProject({ ...project, archived: false });
-        }
-        setOpenDropdownId(null);
-    };
-
-    const handleDuplicateProject = (project) => {
-        const newProject = {
-            ...project,
-            project_name: `${project.project_name} (Copy)`,
-            project_number: String(Math.floor(Math.random() * 90000) + 10000)
-        };
-        delete newProject.id; // remove id so addProject creates a new one
-        addProject(newProject);
-        setOpenDropdownId(null);
-    };
-    
-    const clearFilters = () => {
-        setClientFilter('');
-        setYearFilter('');
-    };
-    
-    const uniqueClients = [...new Set(projects.map(p => p.client))].sort();
-    const uniqueYears = [...new Set(projects.map(p => p.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
-
-    return (
-        <div className="p-4 md:p-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Projects</h1>
-                <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-grow">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input type="text" placeholder="Search projects..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                    </div>
-                    <div className="flex gap-2">
-                        <div className="relative" ref={filterRef}>
-                            <button onClick={() => setIsFilterOpen(!isFilterOpen)} className="flex-1 sm:flex-none w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700">
-                                <Filter size={16} className="mr-2" /> Filter
-                            </button>
-                            {isFilterOpen && (
-                                <div className="absolute right-0 sm:right-0 mt-2 w-full sm:w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
-                                    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                                        <h4 className="font-semibold mb-2">Client</h4>
-                                        <Select value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
-                                            <option value="">All Clients</option>
-                                            {uniqueClients.map(client => <option key={client}>{client}</option>)}
-                                        </Select>
-                                    </div>
-                                    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                                        <h4 className="font-semibold mb-2">Year</h4>
-                                        <Select value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
-                                            <option value="">All Years</option>
-                                            {uniqueYears.map(year => <option key={year}>{year}</option>)}
-                                        </Select>
-                                    </div>
-                                    <div className="p-2 bg-gray-50 dark:bg-gray-900/50 flex justify-end">
-                                        <Button variant="outline" onClick={clearFilters}>Clear</Button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        {canCreateProjects && (
-                            <button onClick={() => { setProjectToManage(null); setIsEditModalOpen(true); }} className="flex-1 sm:flex-none flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600">
-                                <PlusCircle size={16} className="mr-2" /> New Project
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
-             <div className="flex items-center mb-4">
-                 <label htmlFor="show-archived" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Show Archived</label>
-                 <Switch id="show-archived" isChecked={showArchived} onToggle={() => setShowArchived(!showArchived)} />
-             </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                        <tr>
-                            {['project_number', 'project_name', 'client', 'year'].map(key => (
-                                <th key={key} scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort(key)}>
-                                    <div className="flex items-center">
-                                        {key.replace('_', ' ')}
-                                        <span className="ml-2">{getSortIndicator(key)}</span>
-                                    </div>
-                                </th>
-                            ))}
-                            <th scope="col" className="px-6 py-3">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {paginatedProjects.map(project => (
-                            <tr key={project.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
-                                <td className="px-6 py-4 font-mono text-gray-600 dark:text-gray-300">{project.project_number}</td>
-                                <th scope="row" className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
-                                    <button onClick={() => onViewProject(project)} className="hover:underline text-orange-500 text-left">
-                                        {project.project_name}
-                                    </button>
-                                </th>
-                                <td className="px-6 py-4">{project.client}</td>
-                                <td className="px-6 py-4">{project.year || 'N/A'}</td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center space-x-1">
-                                        {canEditProjects && (
-                                            <button onClick={() => { setProjectToManage(project); setIsEditModalOpen(true); }} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={16} /></button>
-                                        )}
-                                        {canDeleteProjects && (
-                                            <button onClick={() => handleDeleteClick(project)} className="p-1.5 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={16} /></button>
-                                        )}
-                                        {(canEditProjects || canDeleteProjects) && (
-                                            <div className="relative" ref={openDropdownId === project.id ? dropdownRef : null}>
-                                                <button onClick={() => setOpenDropdownId(openDropdownId === project.id ? null : project.id)} className="p-1.5 text-gray-500 hover:text-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><MoreVertical size={16} /></button>
-                                                {openDropdownId === project.id && (
-                                                    <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10">
-                                                        {canCreateProjects && (
-                                                            <button onClick={() => handleDuplicateProject(project)} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2"/>Duplicate</button>
-                                                        )}
-                                                        {canEditProjects && (
-                                                            project.archived ? (
-                                                                <button onClick={() => handleUnarchiveProject(project.id)} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ArchiveRestore size={14} className="mr-2"/>Unarchive</button>
-                                                            ) : (
-                                                                <button onClick={() => handleArchiveClick(project)} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Archive size={14} className="mr-2"/>Archive</button>
-                                                            )
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-                <div className="mt-4">
-                    <Pagination
-                        currentPage={currentPage}
-                        setCurrentPage={setCurrentPage}
-                        totalPages={totalPages}
-                        totalItems={sortedProjects.length}
-                        itemsPerPage={itemsPerPage}
-                    />
-                </div>
-            )}
-
-            <ProjectModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} onSave={handleSaveProject} project={projectToManage} />
-            <ConfirmationModal 
-                isOpen={isDeleteModalOpen} 
-                onClose={() => setIsDeleteModalOpen(false)} 
-                onConfirm={confirmDelete} 
-                title="Confirm Project Deletion" 
-                message={`Are you sure you want to delete the project "${projectToManage?.project_name}"? This action cannot be undone.`}
-                confirmText="Delete"
-                confirmVariant="danger"
-            />
-            <ConfirmationModal 
-                isOpen={isArchiveModalOpen} 
-                onClose={() => setIsArchiveModalOpen(false)} 
-                onConfirm={confirmArchive} 
-                title="Confirm Project Archival" 
-                message={`Are you sure you want to archive the project "${projectToManage?.project_name}"?`}
-                confirmText="Archive"
-                confirmVariant="primary"
-            />
-        </div>
-    );
+    return <ProjectsPageComponent onViewProject={onViewProject} />;
 };
 
 const AssignedTasksPage = () => {
@@ -2957,65 +2658,7 @@ const DeliveryTrackerContent = () => {
     );
 };
 
-const JobModal = ({ isOpen, onClose, onSave, job }) => {
-    const [formData, setFormData] = useState({
-        projectName: '', projectNumber: '', itemName: '', projectManager: '', client: '',
-        processingHours: '', checkingHours: '', siteStartDate: '', siteCompletionDate: '',
-        plannedDeliveryDate: '', actualDeliveryDate: '', discipline: '', comments: '', status: 'Site Not Started'
-    });
-
-    useEffect(() => {
-        if (job) {
-            setFormData(job);
-        } else {
-            setFormData({
-                projectName: '', projectNumber: '', itemName: '', projectManager: '', client: '',
-                processingHours: '', checkingHours: '', siteStartDate: '', siteCompletionDate: '',
-                plannedDeliveryDate: '', actualDeliveryDate: '', discipline: '', comments: '', status: 'Site Not Started'
-            });
-        }
-    }, [job, isOpen]);
-
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave(formData);
-    };
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={job ? 'Edit Job' : 'Add Job'}>
-            <div className="p-6 max-h-[80vh] overflow-y-auto">
-                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="Project Name" name="projectName" value={formData.projectName} onChange={handleChange} required />
-                    <Input label="Project Number" name="projectNumber" value={formData.projectNumber} onChange={handleChange} required />
-                    <Input label="Item Name" name="itemName" value={formData.itemName} onChange={handleChange} required />
-                    <Input label="Project Manager" name="projectManager" value={formData.projectManager} onChange={handleChange} required />
-                    <Input label="Client" name="client" value={formData.client} onChange={handleChange} required />
-                    <Input label="Processing Hours" name="processingHours" type="number" value={formData.processingHours} onChange={handleChange} required />
-                    <Input label="Checking Hours" name="checkingHours" type="number" value={formData.checkingHours} onChange={handleChange} required />
-                    <Input label="Site Start Date" name="siteStartDate" type="date" value={formData.siteStartDate} onChange={handleChange} />
-                    <Input label="Site Completion Date" name="siteCompletionDate" type="date" value={formData.siteCompletionDate} onChange={handleChange} />
-                    <Input label="Planned Delivery Date" name="plannedDeliveryDate" type="date" value={formData.plannedDeliveryDate} onChange={handleChange} />
-                    <Input label="Actual Delivery Date" name="actualDeliveryDate" type="date" value={formData.actualDeliveryDate} onChange={handleChange} />
-                    <Input label="Discipline" name="discipline" value={formData.discipline} onChange={handleChange} required />
-                    <Select label="Status" name="status" value={formData.status} onChange={handleChange}>
-                        {jobStatuses.map(status => <option key={status}>{status}</option>)}
-                    </Select>
-                    <div className="md:col-span-2">
-                        <Input label="Comments" name="comments" value={formData.comments} onChange={handleChange} />
-                    </div>
-                    <div className="md:col-span-2 flex justify-end space-x-2 pt-4">
-                        <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-                        <Button type="submit">Save Job</Button>
-                    </div>
-                </form>
-            </div>
-        </Modal>
-    );
-};
+// JobModal has been extracted to src/components/modals/JobModal.jsx
 
 const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate, canSetStatus }) => {
     const menuRef = useRef(null);
@@ -3234,22 +2877,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const filterRef = useRef(null);
     const scrollPositionRef = useRef(0);
 
-    const shiftColors = {
-      Days: 'bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200',
-      Evening: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200',
-      Nights: 'bg-indigo-200 text-indigo-800 dark:bg-indigo-900/80 dark:text-indigo-200',
-    };
-
-    const leaveColors = {
-      'Annual Leave': 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200',
-      'Bank Holiday': 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200',
-      'Office (Haydock)': 'bg-pink-100 text-pink-800 dark:bg-pink-900/60 dark:text-pink-200',
-      'Office (Home)': 'bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-200',
-      'Training': 'bg-gray-200 text-gray-800 dark:bg-gray-700/60 dark:text-gray-200',
-      'Stand Down': 'bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200',
-      'Sick Day': 'bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-orange-200',
-      'Rest Day': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200',
-    };
+    // shiftColors and leaveColors imported from src/constants/index.js
 
     const getResourceAllocations = useCallback(async (silent = false) => {
         // Save scroll position before updating if in silent mode
@@ -9366,88 +8994,7 @@ const exportData = (headers, data, filename, format) => {
 // - Pagination
 // - Modal
 
-const ProjectModal = ({ isOpen, onClose, onSave, project }) => {
-    const [formData, setFormData] = useState({ project_name: '', project_number: '', client: '', year: '' });
-    const [yearOptions, setYearOptions] = useState([]);
-
-    useEffect(() => {
-        if (project) {
-            setFormData({ project_name: project.project_name, project_number: project.project_number, client: project.client, year: project.year || '' });
-        } else {
-            setFormData({ project_name: '', project_number: '', client: '', year: '' });
-        }
-    }, [project, isOpen]);
-
-    useEffect(() => {
-        if (isOpen) {
-            fetchYearOptions();
-        }
-    }, [isOpen]);
-
-    const fetchYearOptions = async () => {
-        try {
-            // Get the Year category - try case insensitive search to be safe
-            const { data: categories, error: catError } = await supabase
-                .from('dropdown_categories')
-                .select('id')
-                .ilike('name', 'year')
-                .limit(1);
-
-            if (catError || !categories || categories.length === 0) {
-                console.error('Year category not found');
-                return;
-            }
-
-            // Get the year options
-            const { data: items, error: itemError } = await supabase
-                .from('dropdown_items')
-                .select('id, display_text, sort_order')
-                .eq('category_id', categories[0].id)
-                .eq('is_active', true)
-                .order('sort_order', { ascending: true });
-
-            if (itemError) {
-                console.error('Error fetching year items:', itemError);
-                return;
-            }
-
-            setYearOptions(items || []);
-        } catch (error) {
-            console.error('Error fetching year options:', error);
-        }
-    };
-
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave(formData);
-    };
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={project ? 'Edit Project' : 'New Project'}>
-            <div className="p-6">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <Input label="Project Name" name="project_name" value={formData.project_name} onChange={handleChange} required />
-                    <Input label="Project Number" name="project_number" value={formData.project_number} onChange={handleChange} required />
-                    <Input label="Client" name="client" value={formData.client} onChange={handleChange} required />
-                    <Select label="Year" name="year" value={formData.year} onChange={handleChange} required>
-                        <option value="">Select Year</option>
-                        {yearOptions.map(option => (
-                            <option key={option.id} value={option.display_text}>{option.display_text}</option>
-                        ))}
-                    </Select>
-                    <div className="flex justify-end space-x-2 pt-4">
-                        <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-                        <Button type="submit">Save Project</Button>
-                    </div>
-                </form>
-            </div>
-        </Modal>
-    );
-};
+// ProjectModal has been extracted to src/components/modals/ProjectModal.jsx
 
 // UI Components moved to src/components/ui/index.jsx:
 // - ConfirmationModal
@@ -9456,41 +9003,12 @@ const ProjectModal = ({ isOpen, onClose, onSave, project }) => {
 // - Button
 // - Switch
 
-const getWeekStartDate = (d) => {
-    const date = new Date(d);
-    const day = date.getDay();
-    // Calculate days to subtract to get to Saturday (day 6)
-    const diff = day === 6 ? 0 : -(day + 1);
-    const saturday = new Date(date);
-    saturday.setDate(date.getDate() + diff);
-    saturday.setHours(0, 0, 0, 0);
-    return saturday;
-};
-
-const getFiscalWeek = (d) => {
-    const date = new Date(d);
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
-    const week1 = new Date(date.getFullYear(), 0, 4);
-    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
-}
-
-const addDays = (date, days) => {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
-};
-
-const formatDateForDisplay = (date) => {
-    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-};
-
-const formatDateForKey = (date) => {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // getMonth() is 0-indexed
-    const day = date.getDate().toString().padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
+// Date helper functions moved to src/utils/dateHelpers.js:
+// - getWeekStartDate
+// - getFiscalWeek
+// - addDays
+// - formatDateForDisplay
+// - formatDateForKey
 
 
 // --- PROVIDERS & MAIN APP ---

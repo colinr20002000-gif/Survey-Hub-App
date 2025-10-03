@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
 const UserContext = createContext(null);
@@ -8,58 +8,58 @@ export const UserProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const getUsers = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                // Fetch only active real users (not deleted)
-                const { data: realUsers, error: realUsersError } = await supabase
-                    .from('users')
-                    .select('*')
-                    .is('deleted_at', null)
-                    .order('name', { ascending: true });
+    const getUsers = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            // Fetch only active real users (not deleted)
+            const { data: realUsers, error: realUsersError} = await supabase
+                .from('users')
+                .select('*')
+                .is('deleted_at', null)
+                .order('name', { ascending: true });
 
-                // Fetch only active dummy users (not deleted and is_active = true)
-                const { data: dummyUsers, error: dummyUsersError } = await supabase
-                    .from('dummy_users')
-                    .select('*')
-                    .eq('is_active', true)
-                    .is('deleted_at', null)
-                    .order('name', { ascending: true });
+            // Fetch only active dummy users (not deleted and is_active = true)
+            const { data: dummyUsers, error: dummyUsersError } = await supabase
+                .from('dummy_users')
+                .select('*')
+                .eq('is_active', true)
+                .is('deleted_at', null)
+                .order('name', { ascending: true });
 
-                if (realUsersError && dummyUsersError) {
-                    throw new Error(`Failed to fetch users: ${realUsersError.message} and ${dummyUsersError.message}`);
-                }
-
-                // Combine real users and dummy users
-                const allUsers = [];
-
-                // Add real users (mark them as real users)
-                if (realUsers) {
-                    allUsers.push(...realUsers.map(user => ({ ...user, isDummy: false })));
-                }
-
-                // Add dummy users (mark them as dummy users and normalize fields)
-                if (dummyUsers) {
-                    allUsers.push(...dummyUsers.map(dummyUser => ({
-                        ...dummyUser,
-                        isDummy: true,
-                        privilege: 'Dummy', // Special privilege for dummy users
-                        last_login: null // Dummy users don't login
-                    })));
-                }
-
-                // Sort combined list by name
-                allUsers.sort((a, b) => a.name.localeCompare(b.name));
-
-                setUsers(allUsers);
-            } catch (err) {
-                console.error("Error fetching users:", err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
+            if (realUsersError && dummyUsersError) {
+                throw new Error(`Failed to fetch users: ${realUsersError.message} and ${dummyUsersError.message}`);
             }
-        };
+
+            // Combine real users and dummy users
+            const allUsers = [];
+
+            // Add real users (mark them as real users)
+            if (realUsers) {
+                allUsers.push(...realUsers.map(user => ({ ...user, isDummy: false })));
+            }
+
+            // Add dummy users (mark them as dummy users and normalize fields)
+            if (dummyUsers) {
+                allUsers.push(...dummyUsers.map(dummyUser => ({
+                    ...dummyUser,
+                    isDummy: true,
+                    privilege: 'Dummy', // Special privilege for dummy users
+                    last_login: null // Dummy users don't login
+                })));
+            }
+
+            // Sort combined list by name
+            allUsers.sort((a, b) => a.name.localeCompare(b.name));
+
+            setUsers(allUsers);
+        } catch (err) {
+            console.error("Error fetching users:", err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         getUsers();
@@ -96,9 +96,9 @@ export const UserProvider = ({ children }) => {
         return () => {
             subscription.unsubscribe();
         };
-    }, []);
+    }, [getUsers]);
 
-    const addUser = async (userData) => {
+    const addUser = useCallback(async (userData) => {
         const { data, error } = await supabase
             .from('users')
             .insert([userData])
@@ -110,9 +110,9 @@ export const UserProvider = ({ children }) => {
              return;
         }
         if (data) setUsers(prev => [...prev, data[0]].sort((a, b) => a.name.localeCompare(b.name)));
-    };
+    }, []);
 
-    const updateUser = async (updatedUser) => {
+    const updateUser = useCallback(async (updatedUser) => {
         const { data, error } = await supabase
             .from('users')
             .update(updatedUser)
@@ -125,9 +125,9 @@ export const UserProvider = ({ children }) => {
         } else if (data) {
             setUsers(prev => prev.map(u => u.id === updatedUser.id ? data[0] : u));
         }
-    };
+    }, []);
 
-    const deleteUser = async (userId) => {
+    const deleteUser = useCallback(async (userId) => {
         const { error } = await supabase
             .from('users')
             .delete()
@@ -139,9 +139,18 @@ export const UserProvider = ({ children }) => {
         } else {
             setUsers(prev => prev.filter(u => u.id !== userId));
         }
-    };
+    }, []);
 
-    const value = { users, addUser, updateUser, deleteUser, loading, error, refreshUsers: getUsers };
+    // Memoize the context value to prevent unnecessary re-renders
+    const value = useMemo(() => ({
+        users,
+        addUser,
+        updateUser,
+        deleteUser,
+        loading,
+        error,
+        refreshUsers: getUsers
+    }), [users, addUser, updateUser, deleteUser, loading, error, getUsers]);
 
     return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 };

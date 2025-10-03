@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
 const TaskContext = createContext(null);
@@ -8,7 +8,7 @@ export const TaskProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const getTasks = async () => {
+    const getTasks = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
@@ -29,7 +29,7 @@ export const TaskProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         getTasks();
@@ -65,52 +65,60 @@ export const TaskProvider = ({ children }) => {
         return () => {
             subscription.unsubscribe();
         };
-    }, []);
+    }, [getTasks]);
 
-    const addTask = async (taskData) => {
+    const addTask = useCallback(async (taskData) => {
         const { data, error } = await supabase
             .from('tasks')
             .insert([taskData])
             .select();
-        
+
         if (error) {
             console.error('Supabase insert error:', error);
             alert(`Error creating task: ${error.message}`);
             return;
         }
         if (data) setTasks(prev => [data[0], ...prev]);
-    };
+    }, []);
 
-    const updateTask = async (updatedTask) => {
+    const updateTask = useCallback(async (updatedTask) => {
         const { data, error } = await supabase
             .from('tasks')
             .update(updatedTask)
             .eq('id', updatedTask.id)
             .select();
-            
+
         if (error) {
             console.error('Error updating task:', error);
              alert(`Error updating task: ${error.message}`);
         } else if (data) {
             setTasks(prev => prev.map(t => t.id === updatedTask.id ? data[0] : t));
         }
-    };
+    }, []);
 
-    const deleteTask = async (taskId) => {
+    const deleteTask = useCallback(async (taskId) => {
         const { error } = await supabase
             .from('tasks')
             .delete()
             .eq('id', taskId);
-            
+
         if (error) {
             console.error('Error deleting task:', error);
             alert(`Error deleting task: ${error.message}`);
         } else {
             setTasks(prev => prev.filter(t => t.id !== taskId));
         }
-    };
-    
-    const value = { tasks, addTask, updateTask, deleteTask, loading, error };
+    }, []);
+
+    // Memoize the context value to prevent unnecessary re-renders
+    const value = useMemo(() => ({
+        tasks,
+        addTask,
+        updateTask,
+        deleteTask,
+        loading,
+        error
+    }), [tasks, addTask, updateTask, deleteTask, loading, error]);
 
     return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
 };

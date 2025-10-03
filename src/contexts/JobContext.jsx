@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
 const JobContext = createContext(null);
@@ -9,7 +9,7 @@ export const JobProvider = ({ children }) => {
     const [error, setError] = useState(null);
 
     // Map database snake_case to component camelCase
-    const mapToCamelCase = (job) => ({
+    const mapToCamelCase = useCallback((job) => ({
         id: job.id,
         createdAt: job.created_at,
         projectName: job.project_name,
@@ -27,10 +27,10 @@ export const JobProvider = ({ children }) => {
         comments: job.comments,
         status: job.status,
         archived: job.archived,
-    });
+    }), []);
 
     // Map component camelCase to database snake_case
-    const mapToSnakeCase = (job) => ({
+    const mapToSnakeCase = useCallback((job) => ({
         project_name: job.projectName,
         project_number: job.projectNumber,
         item_name: job.itemName,
@@ -46,34 +46,33 @@ export const JobProvider = ({ children }) => {
         comments: job.comments,
         status: job.status,
         archived: job.archived,
-    });
+    }), []);
 
+    const getJobs = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const { data, error: fetchError } = await supabase
+                .from('jobs')
+                .select('*')
+                .order('planned_delivery_date', { ascending: true });
+
+            if (fetchError) throw fetchError;
+
+            setJobs(data.map(mapToCamelCase) || []);
+        } catch (err) {
+            console.error("Error fetching jobs:", err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [mapToCamelCase]);
 
     useEffect(() => {
-        const getJobs = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const { data, error: fetchError } = await supabase
-                    .from('jobs')
-                    .select('*')
-                    .order('planned_delivery_date', { ascending: true });
-
-                if (fetchError) throw fetchError;
-
-                setJobs(data.map(mapToCamelCase) || []);
-            } catch (err) {
-                console.error("Error fetching jobs:", err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         getJobs();
-    }, []);
+    }, [getJobs]);
 
-    const addJob = async (jobData) => {
+    const addJob = useCallback(async (jobData) => {
         const jobRecord = mapToSnakeCase(jobData);
         const { data, error } = await supabase
             .from('jobs')
@@ -86,9 +85,9 @@ export const JobProvider = ({ children }) => {
              return;
         }
         if (data) setJobs(prev => [...prev, mapToCamelCase(data[0])]);
-    };
+    }, [mapToSnakeCase, mapToCamelCase]);
 
-    const updateJob = async (updatedJob) => {
+    const updateJob = useCallback(async (updatedJob) => {
         const jobRecord = mapToSnakeCase(updatedJob);
         const { data, error } = await supabase
             .from('jobs')
@@ -102,9 +101,9 @@ export const JobProvider = ({ children }) => {
         } else if (data) {
             setJobs(prev => prev.map(j => (j.id === updatedJob.id ? mapToCamelCase(data[0]) : j)));
         }
-    };
+    }, [mapToSnakeCase, mapToCamelCase]);
 
-    const deleteJob = async (jobId) => {
+    const deleteJob = useCallback(async (jobId) => {
         const { error } = await supabase
             .from('jobs')
             .delete()
@@ -116,9 +115,17 @@ export const JobProvider = ({ children }) => {
         } else {
             setJobs(prev => prev.filter(j => j.id !== jobId));
         }
-    };
+    }, []);
 
-    const value = { jobs, addJob, updateJob, deleteJob, loading, error };
+    // Memoize the context value to prevent unnecessary re-renders
+    const value = useMemo(() => ({
+        jobs,
+        addJob,
+        updateJob,
+        deleteJob,
+        loading,
+        error
+    }), [jobs, addJob, updateJob, deleteJob, loading, error]);
 
     return <JobContext.Provider value={value}>{children}</JobContext.Provider>;
 };
