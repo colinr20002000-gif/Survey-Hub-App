@@ -805,7 +805,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     Error loading resource allocations from the database: {error}.
                 </div>
             )}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto max-h-[calc(100vh-300px)] overflow-y-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)] overflow-y-auto">
                 <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-10">
                         <tr>
