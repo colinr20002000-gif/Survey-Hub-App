@@ -59,6 +59,9 @@ export const PERMISSIONS = {
     CHANGE_PASSWORD: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     TOGGLE_THEME: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
 
+    // Feedback (all privileges can submit feedback)
+    SUBMIT_FEEDBACK: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
+
     // Viewer+ and above permissions
     COMPLETE_PROJECT_TASKS: [PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     ASSIGN_EQUIPMENT: [PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
@@ -102,7 +105,7 @@ export const PERMISSIONS = {
     ALLOCATE_RESOURCES: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     EDIT_RESOURCE_ALLOCATIONS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     DELETE_RESOURCE_ALLOCATIONS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
-    SET_AVAILABILITY_STATUS: [PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
+    SET_AVAILABILITY_STATUS: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
 
     UPLOAD_DOCUMENTS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     DELETE_DOCUMENTS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
@@ -169,10 +172,12 @@ export const canAccessAdminMode = (userPrivilege) => {
 export const PERMISSION_DESCRIPTIONS = {
     [PRIVILEGES.VIEWER]: {
         title: 'Viewer',
-        description: 'Read-only access. Can view all pages, use filters and sorting. Can change password and theme in settings.',
+        description: 'Read-only access. Can view all pages, use filters and sorting. Can set availability status and submit feedback.',
         capabilities: [
             '✓ View all pages (Projects, Equipment, Vehicles, Tasks, etc.)',
             '✓ Use all filters and sorting features',
+            '✓ Set availability status in resource calendar',
+            '✓ Submit bug reports and feature requests',
             '✓ Change own password',
             '✓ Toggle light/dark mode',
             '✗ Cannot modify any data',
@@ -181,7 +186,7 @@ export const PERMISSION_DESCRIPTIONS = {
     },
     [PRIVILEGES.VIEWER_PLUS]: {
         title: 'Viewer+',
-        description: 'View access plus limited actions. Can complete tasks, assign/return equipment & vehicles, download files.',
+        description: 'View access plus limited actions. Can complete tasks, assign/return equipment & vehicles, download files, set availability.',
         capabilities: [
             '✓ All Viewer permissions',
             '✓ Complete project tasks',
@@ -189,6 +194,7 @@ export const PERMISSION_DESCRIPTIONS = {
             '✓ Add comments to equipment',
             '✓ Assign/return vehicles',
             '✓ Add comments to vehicles',
+            '✓ Set availability status in resource calendar',
             '✓ Download files from Document Hub',
             '✓ Download files from Projects',
             '✗ Cannot create/edit/delete items',

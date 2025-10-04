@@ -14,8 +14,6 @@ import {
   Tag,
   Calendar,
   User,
-  CheckSquare,
-  Square,
   X,
   AlertTriangle,
   Folder
@@ -24,7 +22,6 @@ import {
   downloadFile,
   deleteFile,
   deleteFolder,
-  bulkDeleteFiles,
   updateFileMetadata,
   formatFileSize,
   getFileTypeIcon,
@@ -43,11 +40,9 @@ const FileListView = ({
   viewMode = 'list',
   className = ''
 }) => {
-  const [selectedFiles, setSelectedFiles] = useState(new Set());
   const [editingFile, setEditingFile] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
-  const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState(false);
   const { showSuccessModal, showErrorModal } = useToast();
 
   const handleFileDownload = async (file) => {
@@ -84,57 +79,6 @@ const FileListView = ({
     }
   };
 
-  const handleBulkDelete = async () => {
-    const itemsToDelete = files.filter(f => selectedFiles.has(f.id));
-    const filesToDelete = itemsToDelete.filter(f => !f.isFolder);
-    const foldersToDelete = itemsToDelete.filter(f => f.isFolder);
-
-    let allSuccessful = true;
-    let totalDeleted = 0;
-    let errors = [];
-
-    // Delete files first
-    if (filesToDelete.length > 0) {
-      const fileResult = await bulkDeleteFiles(filesToDelete);
-      if (fileResult.success) {
-        totalDeleted += fileResult.deletedCount;
-      } else {
-        allSuccessful = false;
-        errors.push(`File deletion: ${fileResult.error}`);
-      }
-    }
-
-    // Delete folders one by one
-    for (const folder of foldersToDelete) {
-      const folderResult = await deleteFolder(folder.id, folder.full_path);
-      if (folderResult.success) {
-        totalDeleted += 1;
-      } else {
-        allSuccessful = false;
-        errors.push(`Folder "${folder.display_name}": ${folderResult.error}`);
-      }
-    }
-
-    if (allSuccessful) {
-      const message = totalDeleted === 1 ? 'item deleted successfully' : `${totalDeleted} items deleted successfully`;
-      showSuccessModal(message);
-      setSelectedFiles(new Set());
-      setBulkDeleteConfirmation(false);
-      if (onFileDelete) {
-        itemsToDelete.forEach(f => onFileDelete(f));
-      }
-    } else {
-      const errorMessage = errors.length > 0 ? errors.join(', ') : 'Some items could not be deleted';
-      showErrorModal('Bulk delete partially failed', errorMessage);
-      // Still clear selection and refresh for any successful deletions
-      setSelectedFiles(new Set());
-      setBulkDeleteConfirmation(false);
-      if (onFileDelete && totalDeleted > 0) {
-        itemsToDelete.forEach(f => onFileDelete(f));
-      }
-    }
-  };
-
   const handleFileEdit = async (file, updates) => {
     const result = await updateFileMetadata(file.id, updates);
     if (result.success) {
@@ -145,26 +89,6 @@ const FileListView = ({
       }
     } else {
       showErrorModal('Update failed', result.error);
-    }
-  };
-
-  const toggleFileSelection = (fileId) => {
-    setSelectedFiles(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(fileId)) {
-        newSet.delete(fileId);
-      } else {
-        newSet.add(fileId);
-      }
-      return newSet;
-    });
-  };
-
-  const selectAllFiles = () => {
-    if (selectedFiles.size === files.length) {
-      setSelectedFiles(new Set());
-    } else {
-      setSelectedFiles(new Set(files.map(f => f.id)));
     }
   };
 
@@ -245,34 +169,6 @@ const FileListView = ({
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 ${className}`}>
-      {/* Header with bulk actions */}
-      {canManage && selectedFiles.size > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/10">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-              {selectedFiles.size} item{selectedFiles.size !== 1 ? 's' : ''} selected
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setBulkDeleteConfirmation(true)}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
-            <button
-              onClick={() => setSelectedFiles(new Set())}
-              className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title="Clear selection"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* File list */}
       {viewMode === 'list' ? (
         <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -280,8 +176,6 @@ const FileListView = ({
             <FileListItem
               key={file.id}
               file={file}
-              selected={selectedFiles.has(file.id)}
-              onSelect={() => toggleFileSelection(file.id)}
               onDownload={() => handleFileDownload(file)}
               onEdit={canManage ? () => setEditingFile(file) : null}
               onDelete={canManage ? () => setDeleteConfirmation(file) : null}
@@ -301,8 +195,6 @@ const FileListView = ({
             <FileCardItem
               key={file.id}
               file={file}
-              selected={selectedFiles.has(file.id)}
-              onSelect={() => toggleFileSelection(file.id)}
               onDownload={() => handleFileDownload(file)}
               onEdit={canManage ? () => setEditingFile(file) : null}
               onDelete={canManage ? () => setDeleteConfirmation(file) : null}
@@ -352,20 +244,6 @@ const FileListView = ({
           />
         )}
       </AnimatePresence>
-
-      {/* Bulk Delete Confirmation */}
-      <AnimatePresence>
-        {bulkDeleteConfirmation && (
-          <ConfirmationModal
-            title="Delete Files"
-            message={`Are you sure you want to delete ${selectedFiles.size} selected files? This action cannot be undone.`}
-            confirmLabel="Delete All"
-            confirmVariant="danger"
-            onConfirm={handleBulkDelete}
-            onCancel={() => setBulkDeleteConfirmation(false)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -373,8 +251,6 @@ const FileListView = ({
 // Individual file list item
 const FileListItem = ({
   file,
-  selected,
-  onSelect,
   onDownload,
   onEdit,
   onDelete,
@@ -396,29 +272,14 @@ const FileListItem = ({
     }
   };
 
+  // Check if there are any actions available
+  const hasActions = onDownload || onEdit || onDelete || onPreview;
+
   return (
     <div
-      className={`flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 group ${
-        selected ? 'bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500' : ''
-      } ${file.isFolder ? 'cursor-pointer' : ''}`}
+      className={`flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 group ${file.isFolder ? 'cursor-pointer' : ''}`}
       onClick={handleClick}
     >
-      {/* Checkbox */}
-      {canManage && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-          }}
-          className="flex-shrink-0 p-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
-        >
-          {selected ? (
-            <CheckSquare className="h-5 w-5 text-orange-500" />
-          ) : (
-            <Square className="h-5 w-5" />
-          )}
-        </button>
-      )}
 
       {/* File icon */}
       <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center">
@@ -502,16 +363,17 @@ const FileListItem = ({
       </div>
 
       {/* Actions */}
-      <div className="relative flex-shrink-0">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowActions(!showActions);
-          }}
-          className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors opacity-0 group-hover:opacity-100"
-        >
-          <MoreVertical className="h-4 w-4" />
-        </button>
+      {hasActions && (
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowActions(!showActions);
+            }}
+            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
 
         <AnimatePresence>
           {showActions && (
@@ -576,7 +438,8 @@ const FileListItem = ({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -584,8 +447,6 @@ const FileListItem = ({
 // Individual file card item for grid view
 const FileCardItem = ({
   file,
-  selected,
-  onSelect,
   onDownload,
   onEdit,
   onDelete,
@@ -607,43 +468,26 @@ const FileCardItem = ({
     return 'text-gray-600 bg-gray-50 dark:bg-gray-700 dark:text-gray-400';
   };
 
+  // Check if there are any actions available
+  const hasActions = onDownload || onEdit || onDelete || onPreview;
+
   return (
     <div
-      className={`relative bg-white dark:bg-gray-800 rounded-lg border transition-all duration-200 hover:shadow-sm group cursor-pointer ${
-        selected
-          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-      }`}
+      className="relative bg-white dark:bg-gray-800 rounded-lg border transition-all duration-200 hover:shadow-sm group cursor-pointer border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
       onClick={file.isFolder ? () => onFolderClick && onFolderClick(file.full_path) : onPreview}
     >
-      {/* Selection checkbox */}
-      {canManage && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-          }}
-          className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          {selected ? (
-            <CheckSquare className="h-4 w-4 text-blue-500" />
-          ) : (
-            <Square className="h-4 w-4 text-gray-400" />
-          )}
-        </button>
-      )}
-
       {/* Actions menu */}
-      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowActions(!showActions);
-          }}
-          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        >
-          <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-        </button>
+      {hasActions && (
+        <div className="absolute top-2 right-2 z-10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowActions(!showActions);
+            }}
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+          </button>
 
         <AnimatePresence>
           {showActions && (
@@ -697,7 +541,8 @@ const FileCardItem = ({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+        </div>
+      )}
 
       <div className="p-3">
         {/* File icon/preview */}

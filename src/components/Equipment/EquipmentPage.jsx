@@ -49,7 +49,7 @@ const EquipmentPage = () => {
     const [auditTrailData, setAuditTrailData] = useState([]);
     const [auditTrailError, setAuditTrailError] = useState(null);
     const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
-    const [showOnlyUsersWithEquipment, setShowOnlyUsersWithEquipment] = useState(false);
+    const [showOnlyUsersWithEquipment, setShowOnlyUsersWithEquipment] = useState(true);
 
     // Equipment form state
     const [equipmentForm, setEquipmentForm] = useState({

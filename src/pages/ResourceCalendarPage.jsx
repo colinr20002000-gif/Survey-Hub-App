@@ -906,7 +906,16 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                     }
 
                                     const isStatusAssignment = assignment && assignment.type === 'status';
-                                    const showContextMenuButton = canAllocateResources || canSetAvailabilityStatus;
+                                    const isLeaveAssignment = assignment && assignment.type === 'leave';
+                                    const hasProjectAssignmentInCell = assignment && (
+                                        (Array.isArray(assignment) && assignment.some(a => a.type === 'project' && a.projectNumber)) ||
+                                        (assignment.type === 'project' && assignment.projectNumber)
+                                    );
+                                    // Show button if: user can allocate resources, OR it's a status assignment and user can set status, OR it's a project and user wants to navigate, OR it's blank and user can set status
+                                    const showContextMenuButton = canAllocateResources ||
+                                                                  (isStatusAssignment && canSetAvailabilityStatus) ||
+                                                                  hasProjectAssignmentInCell ||
+                                                                  (!assignment && canSetAvailabilityStatus);
 
                                     return (
                                         <td key={date.toISOString()} className="p-1 align-top h-40 relative group">
@@ -970,6 +979,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
 const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate, canSetStatus }) => {
     const menuRef = useRef(null);
+    const [position, setPosition] = useState({ top: y, left: x });
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -980,6 +990,30 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [onClose]);
+
+    // Adjust position to prevent menu from going off screen
+    useEffect(() => {
+        if (menuRef.current) {
+            const menuRect = menuRef.current.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            let adjustedX = x;
+            let adjustedY = y;
+
+            // Check if menu overflows right edge
+            if (x + menuRect.width > viewportWidth) {
+                adjustedX = x - menuRect.width;
+            }
+
+            // Check if menu overflows bottom edge
+            if (y + menuRect.height > viewportHeight) {
+                adjustedY = viewportHeight - menuRect.height - 10;
+            }
+
+            setPosition({ top: adjustedY, left: adjustedX });
+        }
+    }, [x, y]);
 
     const hasAssignment = !!cellData.assignment;
     const isStatusAssignment = hasAssignment && cellData.assignment.type === 'status';
@@ -992,15 +1026,16 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
         (Array.isArray(cellData.assignment) && cellData.assignment.length === 1 && cellData.assignment[0].type === 'project')
     );
 
-    // Viewers can only view, no context menu actions
-    if (!canAllocate && !canSetStatus) {
+    // Show context menu for viewers if there's a project to navigate to
+    const canViewProject = hasProjectAssignment;
+    if (!canAllocate && !canSetStatus && !canViewProject) {
         return null;
     }
 
     return (
         <div
             ref={menuRef}
-            style={{ top: y, left: x }}
+            style={{ top: position.top, left: position.left }}
             className="absolute z-50 w-40 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 py-1"
         >
             {hasAssignment && (
@@ -1012,10 +1047,10 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                             {canAddSecondProject && (
                                 <button onClick={() => onAction('addSecondProject')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><PlusCircle size={14} className="mr-2"/>Add Second Project</button>
                             )}
-                            {hasProjectAssignment && (
-                                <button onClick={() => onAction('goToProject')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><FolderKanban size={14} className="mr-2"/>Go to Project</button>
-                            )}
                         </>
+                    )}
+                    {hasProjectAssignment && (
+                        <button onClick={() => onAction('goToProject')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><FolderKanban size={14} className="mr-2"/>Go to Project</button>
                     )}
                     {(canAllocate || (isStatusAssignment && canSetStatus)) && (
                         <button onClick={() => onAction('delete')} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={14} className="mr-2"/>Delete</button>

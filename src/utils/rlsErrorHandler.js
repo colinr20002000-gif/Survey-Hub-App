@@ -69,13 +69,15 @@ export const getSpecificRLSMessage = (tableName, operation, data = null) => {
       delete: 'You need Editor privileges or higher to delete delivery tasks.',
     },
     resource_allocations: {
-      insert: data?.assignment_type && !['Available', 'Not Available'].includes(data.assignment_type)
-        ? 'Viewer+ users can only add "Available" or "Not Available" status. You need Editor privileges to assign to projects or other activities.'
-        : 'You need Viewer+ privileges or higher to update availability.',
-      update: data?.assignment_type && !['Available', 'Not Available'].includes(data.assignment_type)
-        ? 'Viewer+ users can only modify "Available" or "Not Available" status. You need Editor privileges to modify project assignments.'
-        : 'You need Viewer+ privileges or higher to update availability.',
-      delete: 'You need Editor privileges or higher to delete resource allocations.',
+      insert: data?.assignment_type === 'project' || data?.assignment_type === 'leave'
+        ? 'You need Editor privileges to assign to projects or add leave types.'
+        : 'You need Viewer privileges or higher to update availability.',
+      update: data?.assignment_type === 'project' || data?.assignment_type === 'leave'
+        ? 'You need Editor privileges to modify project assignments or leave types.'
+        : 'You need Viewer privileges or higher to update availability.',
+      delete: data?.assignment_type === 'project' || data?.assignment_type === 'leave'
+        ? 'You need Editor privileges or higher to delete resource allocations.'
+        : 'You need Viewer privileges or higher to delete availability status.',
     },
     equipment: {
       insert: 'You need Editor privileges or higher to add equipment.',
@@ -120,6 +122,7 @@ export const getSpecificRLSMessage = (tableName, operation, data = null) => {
     },
     feedback: {
       select: 'You need Admin privileges to view feedback.',
+      insert: 'All users can submit feedback.',
       update: 'You need Admin privileges to manage feedback.',
       delete: 'You need Admin privileges to delete feedback.',
     },

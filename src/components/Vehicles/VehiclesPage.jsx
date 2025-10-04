@@ -50,7 +50,7 @@ const VehiclesPage = () => {
     const [auditTrailData, setAuditTrailData] = useState([]);
     const [auditTrailError, setAuditTrailError] = useState(null);
     const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
-    const [showOnlyUsersWithVehicles, setShowOnlyUsersWithVehicles] = useState(false);
+    const [showOnlyUsersWithVehicles, setShowOnlyUsersWithVehicles] = useState(true);
 
     // Vehicle form state
     const [vehicleForm, setVehicleForm] = useState({

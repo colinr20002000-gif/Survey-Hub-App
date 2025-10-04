@@ -1369,6 +1369,11 @@ const ProfileSettings = ({ user }) => {
                     disabled
                     placeholder={!user?.username ? 'Loading username...' : ''}
                 />
+                <Input
+                    label="Privilege"
+                    value={user?.privilege || ''}
+                    disabled
+                />
                 <div className="pt-2">
                     <Button type="submit" disabled={isLoading}>
                         {isLoading ? 'Saving...' : 'Save Changes'}

@@ -77,25 +77,6 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
                 throw error;
             }
 
-            // Create notification for super admin only
-            const { error: notificationError } = await supabase
-                .from('announcements')
-                .insert([
-                    {
-                        title: `New ${feedbackType === 'bug' ? 'Bug Report' : 'Feature Request'} from ${user.name}`,
-                        content: `${feedbackType === 'bug' ? 'Bug Report' : 'Feature Request'}: ${feedbackText.trim()}\n\nSubmitted by: ${user.name} (${user.email})\nStatus: Open`,
-                        category: 'Feedback',
-                        priority: feedbackType === 'bug' ? 'high' : 'medium',
-                        target_roles: ['SuperAdmin'],
-                        author_id: user.id
-                    }
-                ]);
-
-            if (notificationError) {
-                console.error('Error creating notification:', notificationError);
-                // Don't fail the whole operation if notification fails
-            }
-
             setIsSubmitted(true);
             setFeedbackText('');
             setTimeout(() => setIsSubmitted(false), 3000);

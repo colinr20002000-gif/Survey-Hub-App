@@ -123,6 +123,8 @@ export const usePermissions = () => {
             canAccessAuditTrail: can('ACCESS_AUDIT_TRAIL'),
             canAccessDropdownMenu: can('ACCESS_DROPDOWN_MENU'),
             canAccessDocumentManagement: can('ACCESS_DOCUMENT_MANAGEMENT'),
+
+            canSubmitFeedback: can('SUBMIT_FEEDBACK'),
         };
     }, [userPrivilege]);
 
