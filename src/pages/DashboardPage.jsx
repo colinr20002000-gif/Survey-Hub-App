@@ -60,7 +60,8 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
 
         try {
             // Save feedback to database
-            const { data, error } = await supabase
+            // Note: Don't use .select() because non-admin users can't read feedback
+            const { error } = await supabase
                 .from('feedback')
                 .insert([
                     {
@@ -69,9 +70,7 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
                         description: feedbackText.trim(),
                         title: feedbackType === 'bug' ? 'Bug Report' : 'Feature Request'
                     }
-                ])
-                .select()
-                .single();
+                ]);
 
             if (error) {
                 throw error;
@@ -81,7 +80,7 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
             setFeedbackText('');
             setTimeout(() => setIsSubmitted(false), 3000);
 
-            console.log('Feedback submitted successfully:', data);
+            console.log('Feedback submitted successfully');
         } catch (error) {
             console.error('Error submitting feedback:', error);
             alert('Failed to submit feedback. Please try again.');
