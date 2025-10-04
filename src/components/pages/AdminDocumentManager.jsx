@@ -14,43 +14,50 @@ const AdminDocumentManager = () => {
   const [useDbStorage, setUseDbStorage] = useState(true); // Default to database storage
 
   const fetchFiles = async () => {
+    console.log('📂 fetchFiles called, useDbStorage:', useDbStorage);
     setIsLoading(true);
     try {
       if (useDbStorage) {
         // Fetch from database
+        console.log('📊 Fetching from policy_documents_db...');
         const { data, error } = await supabase
           .from('policy_documents_db')
           .select('id, file_name, content_type, file_size, uploaded_at')
           .order('uploaded_at', { ascending: false });
 
+        console.log('📊 Database query result:', { data, error, count: data?.length });
+
         if (error) {
-          console.error('Error fetching files from database:', error);
+          console.error('❌ Error fetching files from database:', error);
           setFiles([]);
         } else {
           // Transform to match storage format
-          const transformedFiles = data.map(file => ({
+          const transformedFiles = (data || []).map(file => ({
             id: file.id,
             name: file.file_name,
             metadata: { size: file.file_size },
             content_type: file.content_type,
             uploaded_at: file.uploaded_at
           }));
+          console.log('✅ Transformed files:', transformedFiles);
           setFiles(transformedFiles);
         }
       } else {
         // Fetch from storage (legacy)
+        console.log('💾 Fetching from storage...');
         const { data, error } = await supabase.storage.from('policy-documents').list();
+        console.log('💾 Storage query result:', { data, error, count: data?.length });
         if (error) console.error('Error fetching files:', error);
         else setFiles(data || []);
       }
     } catch (error) {
-      console.error('Fetch files error:', error);
+      console.error('❌ Fetch files error:', error);
       setFiles([]);
     }
     setIsLoading(false);
   };
 
-  useEffect(() => { fetchFiles(); }, []);
+  useEffect(() => { fetchFiles(); }, [useDbStorage]);
 
   // Helper function to split file into chunks
   const uploadFileInChunks = async (file, fileName) => {
@@ -162,13 +169,16 @@ const AdminDocumentManager = () => {
 
               console.log('📥 Database storage response:', { data, error });
 
-              if (error) {
-                console.error('❌ Database storage error:', error);
-                setUploadError(`Database upload failed: ${error.message}`);
+              // Check for errors in both error field and data.error
+              if (error || data?.error) {
+                const errorMsg = error?.message || data?.error || 'Unknown error';
+                console.error('❌ Database storage error:', errorMsg);
+                setUploadError(`Database upload failed: ${errorMsg}`);
               } else {
                 setUploadProgress(100);
+                console.log('✅ Upload successful, refreshing file list...');
+                await fetchFiles();
                 alert('File uploaded successfully to database! It will be processed in the background.');
-                fetchFiles();
               }
             } catch (error) {
               console.error('❌ Database upload failed:', error);

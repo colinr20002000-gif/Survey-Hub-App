@@ -21,7 +21,7 @@ export const ALLOWED_FILE_TYPES = {
 };
 
 // Categories for file organization
-export const FILE_CATEGORIES = ['Standards & Specs', 'Procedures & Guides', 'Templates'];
+export const FILE_CATEGORIES = ['Standards & Specs', 'Procedures & Guides', 'Templates', 'AI Chatbot Documents'];
 
 // Test function to check if document_folders table exists
 export const testFoldersTable = async () => {

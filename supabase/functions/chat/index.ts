@@ -11,7 +11,7 @@ const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 Deno.serve({ timeout: 300000 }, async (req) => {
   const origin = req.headers.get('origin');
-  const allowedOrigins = ['https://www.survey-hub.xyz', 'http://localhost:5173', 'https://localhost:5173'];
+  const allowedOrigins = ['https://www.survey-hub.xyz', 'http://localhost:5173', 'https://localhost:5173', 'http://localhost:5175'];
   const corsOrigin = allowedOrigins.includes(origin || '') ? origin : 'https://www.survey-hub.xyz';
 
   const corsHeaders = {

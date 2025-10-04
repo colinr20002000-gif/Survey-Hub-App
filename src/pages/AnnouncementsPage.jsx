@@ -268,15 +268,24 @@ const AnnouncementsPage = () => {
         }
     };
 
-    const filteredAnnouncements = announcements.filter(announcement => {
-        const matchesSearch = announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            announcement.content.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = selectedCategory === 'All' || announcement.category === selectedCategory;
-        const matchesPriority = selectedPriority === 'All' || announcement.priority === selectedPriority.toLowerCase();
+    // Defensive: Ensure announcements is always an array
+    const filteredAnnouncements = (Array.isArray(announcements) ? announcements : []).filter(announcement => {
+        // Defensive: Check if announcement has required fields
+        if (!announcement || typeof announcement !== 'object') return false;
+
+        const title = announcement.title || '';
+        const content = announcement.content || '';
+        const category = announcement.category || '';
+        const priority = announcement.priority || 'medium';
+
+        const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            content.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = selectedCategory === 'All' || category === selectedCategory;
+        const matchesPriority = selectedPriority === 'All' || priority === selectedPriority.toLowerCase();
 
         // Hide feedback announcements from non-super admins
         const isSuperAdmin = user?.email === 'colin.rogers@inorail.co.uk';
-        const isFeedbackAnnouncement = announcement.category === 'Feedback';
+        const isFeedbackAnnouncement = category === 'Feedback';
         const showFeedback = !isFeedbackAnnouncement || isSuperAdmin;
 
         return matchesSearch && matchesCategory && matchesPriority && showFeedback;
@@ -322,7 +331,7 @@ const AnnouncementsPage = () => {
                     <div className="flex flex-col sm:flex-row gap-4">
                         <Select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
                             <option value="All">All Categories</option>
-                            {categories.map(cat => (
+                            {Array.isArray(categories) && categories.map(cat => (
                                 <option key={cat} value={cat}>{cat}</option>
                             ))}
                         </Select>
@@ -352,7 +361,10 @@ const AnnouncementsPage = () => {
                     </div>
                 ) : (
                     filteredAnnouncements.map(announcement => {
-                        const priority = ANNOUNCEMENT_PRIORITIES[announcement.priority];
+                        // Defensive: Ensure priority exists and is valid
+                        const priorityKey = announcement.priority || 'medium';
+                        const priority = ANNOUNCEMENT_PRIORITIES[priorityKey] || ANNOUNCEMENT_PRIORITIES.medium;
+
                         return (
                             <div
                                 key={announcement.id}
@@ -364,7 +376,7 @@ const AnnouncementsPage = () => {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                                             <h3 className="text-xl font-semibold text-gray-900 dark:text-white break-words">
-                                                {announcement.title}
+                                                {announcement.title || 'Untitled Announcement'}
                                             </h3>
                                             {!announcement.isRead && (
                                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-400 self-start">
@@ -378,7 +390,7 @@ const AnnouncementsPage = () => {
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <Calendar size={14} />
-                                                {new Date(announcement.created_at).toLocaleDateString()}
+                                                {announcement.created_at ? new Date(announcement.created_at).toLocaleDateString() : 'Unknown Date'}
                                             </span>
                                             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${priority.bg} ${priority.color}`}>
                                                 {priority.label}
@@ -429,7 +441,7 @@ const AnnouncementsPage = () => {
                                     </div>
                                 </div>
                                 <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words overflow-wrap-anywhere">
-                                    {announcement.content}
+                                    {announcement.content || 'No content available'}
                                 </div>
                                 {announcement.expires_at && (
                                     <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg flex items-center gap-2">
@@ -439,7 +451,7 @@ const AnnouncementsPage = () => {
                                         </span>
                                     </div>
                                 )}
-                                {announcement.target_roles && (
+                                {announcement.target_roles && Array.isArray(announcement.target_roles) && announcement.target_roles.length > 0 && (
                                     <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
                                         Target audience: {announcement.target_roles.join(', ')}
                                     </div>
@@ -779,7 +791,7 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                             value={formData.category}
                             onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                         >
-                            {categories.length > 0 ? (
+                            {Array.isArray(categories) && categories.length > 0 ? (
                                 categories.map(category => (
                                     <option key={category} value={category}>{category}</option>
                                 ))
@@ -820,7 +832,7 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                             Target Departments (optional - leave empty for all users)
                         </label>
                         <div className="flex flex-wrap gap-2">
-                            {departments.length > 0 ? (
+                            {Array.isArray(departments) && departments.length > 0 ? (
                                 departments.map(department => (
                                     <label key={department} className="flex items-center">
                                         <input
