@@ -2256,8 +2256,7 @@ const MainLayout = () => {
         const documentCategories = [
             { value: 'Standards & Specs', label: 'Standards & Specs', icon: FileText },
             { value: 'Procedures', label: 'Procedures & Guides', icon: ClipboardList },
-            { value: 'Templates', label: 'Templates', icon: File },
-            { value: 'AI Chatbot Documents', label: 'AI Chatbot Documents', icon: Bot }
+            { value: 'Templates', label: 'Templates', icon: File }
         ];
 
         return (
