@@ -18,23 +18,41 @@ import { supabase } from '../supabaseClient';
 export async function sendFCMNotification(notification, options = {}) {
   try {
     const { targetRoles, targetUserIds, excludeAuthorId } = options;
+    console.log('🔔 [FCM] sendFCMNotification called with:', { notification, options });
 
     // Get the current user's session for authorization
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError) {
-      console.error('Error getting session:', sessionError);
+      console.error('🔔 [FCM] Error getting session:', sessionError);
       throw sessionError;
     }
 
     if (!session) {
-      console.warn('No active session - cannot send FCM notifications');
+      console.warn('🔔 [FCM] No active session - cannot send FCM notifications');
       return { success: false, message: 'No active session' };
     }
 
     // Call the new FCM Supabase Edge Function
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const endpoint = `${supabaseUrl}/functions/v1/send-fcm-notification`;
+    console.log('🔔 [FCM] Calling Edge Function:', endpoint);
+
+    const payload = {
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        icon: notification.icon || '/android-chrome-192x192.png',
+        badge: notification.badge || '/favicon-32x32.png',
+        tag: notification.tag || `fcm-notification-${Date.now()}`,
+        priority: notification.priority || 'medium',
+        data: notification.data || {}
+      },
+      targetRoles,
+      targetUserIds,
+      excludeAuthorId
+    };
+    console.log('🔔 [FCM] Payload:', payload);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -43,29 +61,19 @@ export async function sendFCMNotification(notification, options = {}) {
         'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.icon || '/android-chrome-192x192.png',
-          badge: notification.badge || '/favicon-32x32.png',
-          tag: notification.tag || `fcm-notification-${Date.now()}`,
-          priority: notification.priority || 'medium',
-          data: notification.data || {}
-        },
-        targetRoles,
-        targetUserIds,
-        excludeAuthorId
-      }),
+      body: JSON.stringify(payload),
     });
+
+    console.log('🔔 [FCM] Response status:', response.status, response.statusText);
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('🔔 [FCM] Error response:', errorText);
       throw new Error(`Server responded with ${response.status}: ${errorText}`);
     }
 
     const result = await response.json();
-    console.log('FCM notification result:', result);
+    console.log('🔔 [FCM] Success response:', result);
 
     return {
       success: true,
@@ -128,11 +136,14 @@ export async function sendAnnouncementFCMNotification(announcementData, authorId
  */
 export async function sendDeliveryTaskAssignmentNotification(taskData, authorId) {
   try {
+    console.log('🔔 [DELIVERY] sendDeliveryTaskAssignmentNotification called with:', { taskData, authorId });
+
     // Get assigned user IDs from the task data
     const assignedUserIds = Array.isArray(taskData.assignedTo) ? taskData.assignedTo : [];
+    console.log('🔔 [DELIVERY] Extracted assignedUserIds:', assignedUserIds);
 
     if (assignedUserIds.length === 0) {
-      console.log('No users assigned to task, skipping notification');
+      console.log('🔔 [DELIVERY] No users assigned to task, skipping notification');
       return { success: true, message: 'No users assigned' };
     }
 
@@ -148,8 +159,10 @@ export async function sendDeliveryTaskAssignmentNotification(taskData, authorId)
     }
 
     const assignedNames = assignedUsers ? assignedUsers.map(user => user.name).join(', ') : 'team members';
+    console.log('🔔 [DELIVERY] Assigned users:', assignedNames);
 
     // Send FCM notification
+    console.log('🔔 [DELIVERY] Calling sendFCMNotification...');
     const fcmResult = await sendFCMNotification(
       {
         title: '📋 New Task Assigned',
@@ -171,7 +184,8 @@ export async function sendDeliveryTaskAssignmentNotification(taskData, authorId)
       }
     );
 
-    console.log(`Delivery task assignment notification sent to ${assignedUserIds.length} users:`, assignedNames);
+    console.log('🔔 [DELIVERY] sendFCMNotification result:', fcmResult);
+    console.log(`🔔 [DELIVERY] Notification sent to ${assignedUserIds.length} users:`, assignedNames);
     return {
       ...fcmResult,
       sent: assignedUserIds.length,
@@ -195,11 +209,14 @@ export async function sendDeliveryTaskAssignmentNotification(taskData, authorId)
  */
 export async function sendProjectTaskAssignmentNotification(taskData, authorId) {
   try {
+    console.log('🔔 [PROJECT] sendProjectTaskAssignmentNotification called with:', { taskData, authorId });
+
     // Get assigned user IDs from the task data
     const assignedUserIds = Array.isArray(taskData.assignedTo) ? taskData.assignedTo : [];
+    console.log('🔔 [PROJECT] Extracted assignedUserIds:', assignedUserIds);
 
     if (assignedUserIds.length === 0) {
-      console.log('No users assigned to project task, skipping notification');
+      console.log('🔔 [PROJECT] No users assigned to project task, skipping notification');
       return { success: true, message: 'No users assigned' };
     }
 
@@ -215,8 +232,10 @@ export async function sendProjectTaskAssignmentNotification(taskData, authorId) 
     }
 
     const assignedNames = assignedUsers ? assignedUsers.map(user => user.name).join(', ') : 'team members';
+    console.log('🔔 [PROJECT] Assigned users:', assignedNames);
 
     // Send FCM notification
+    console.log('🔔 [PROJECT] Calling sendFCMNotification...');
     const fcmResult = await sendFCMNotification(
       {
         title: '🎯 New Project Task Assigned',
@@ -238,7 +257,8 @@ export async function sendProjectTaskAssignmentNotification(taskData, authorId) 
       }
     );
 
-    console.log(`Project task assignment notification sent to ${assignedUserIds.length} users:`, assignedNames);
+    console.log('🔔 [PROJECT] sendFCMNotification result:', fcmResult);
+    console.log(`🔔 [PROJECT] Notification sent to ${assignedUserIds.length} users:`, assignedNames);
     return {
       ...fcmResult,
       sent: fcmResult.sent || assignedUserIds.length,
