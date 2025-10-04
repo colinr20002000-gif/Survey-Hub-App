@@ -2197,33 +2197,41 @@ const MainLayout = () => {
     // Check if user needs to change password
     useEffect(() => {
         if (user && !isLoading && !showPasswordPrompt) {
-            // FIRST: Check for password recovery (check URL parameters and hash fragments)
-            const urlParams = new URLSearchParams(window.location.search);
-            const hashParams = new URLSearchParams(window.location.hash.substring(1));
-            
-            const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
-            const type = urlParams.get('type') || hashParams.get('type');
-            
-            // Also check if this is a password recovery session by checking if user just signed in
-            // and has specific recovery indicators in the auth user metadata
-            const isRecoverySession = user.auth_user && 
-                (user.auth_user.recovery_sent_at || 
-                 (accessToken && (type === 'recovery' || type === 'magiclink')));
-            
-            if (isRecoverySession) {
-                setPasswordPromptReason('password_recovery');
-                setShowPasswordPrompt(true);
-                // Clear URL parameters (both query params and hash)
-                window.history.replaceState({}, document.title, window.location.pathname);
+            // Skip password check if user data is still temporary (instant login)
+            // Wait for full user data to load from database
+            if (user._isTemporary) {
                 return;
             }
 
-            // SECOND: Check for new user (no last_login)
+            // FIRST: Check for new user (no last_login) - this takes priority
+            // If they've already set password once (last_login exists), skip all prompts
             if (!user.last_login) {
+                // Check URL parameters for password recovery flow
+                const urlParams = new URLSearchParams(window.location.search);
+                const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+                const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
+                const type = urlParams.get('type') || hashParams.get('type');
+
+                // Check if this is a password recovery session
+                const isRecoverySession = user.auth_user &&
+                    (user.auth_user.recovery_sent_at ||
+                     (accessToken && (type === 'recovery' || type === 'magiclink')));
+
+                if (isRecoverySession) {
+                    setPasswordPromptReason('password_recovery');
+                    setShowPasswordPrompt(true);
+                    // Clear URL parameters (both query params and hash)
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    return;
+                }
+
+                // New user without recovery - normal password set
                 setPasswordPromptReason('new_user');
                 setShowPasswordPrompt(true);
                 return;
             }
+            // If user.last_login exists, they've already set their password - don't show prompt
         }
     }, [user, isLoading, showPasswordPrompt]);
 

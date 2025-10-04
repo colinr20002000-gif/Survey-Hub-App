@@ -38,33 +38,19 @@ const ProjectsPage = ({ onViewProject }) => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    if (loading) {
-        return <div className="p-8 text-2xl font-semibold text-center">Loading Projects...</div>;
-    }
-
-    if (error) {
-        return (
-            <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                <h2 className="font-bold text-xl mb-2">Error Loading Projects</h2>
-                <p>There was a problem fetching data from the database.</p>
-                <p className="mt-4 font-bold">Error Message:</p>
-                <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
-                <p className="mt-4">
-                    Please check the browser's developer console (F12) for more details. This could be due to an RLS policy, an incorrect API key in Vercel, or a network issue.
-                </p>
-            </div>
-        );
-    }
-
-    const filteredProjects = useMemo(() => projects.filter(p => {
-        const matchesSearch = p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.project_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.client.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesArchive = showArchived ? p.archived : !p.archived;
-        const matchesClient = clientFilter === '' || p.client === clientFilter;
-        const matchesYear = yearFilter === '' || p.year === yearFilter;
-        return matchesSearch && matchesArchive && matchesClient && matchesYear;
-    }), [projects, searchTerm, showArchived, clientFilter, yearFilter]);
+    // IMPORTANT: All hooks must be called before any conditional returns (React Rules of Hooks)
+    const filteredProjects = useMemo(() => {
+        if (!projects) return [];
+        return projects.filter(p => {
+            const matchesSearch = p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                p.project_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                p.client.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesArchive = showArchived ? p.archived : !p.archived;
+            const matchesClient = clientFilter === '' || p.client === clientFilter;
+            const matchesYear = yearFilter === '' || p.year === yearFilter;
+            return matchesSearch && matchesArchive && matchesClient && matchesYear;
+        });
+    }, [projects, searchTerm, showArchived, clientFilter, yearFilter]);
 
     const sortedProjects = useMemo(() => {
         let sortableItems = [...filteredProjects];
@@ -93,6 +79,25 @@ const ProjectsPage = ({ onViewProject }) => {
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, showArchived, clientFilter, yearFilter]);
+
+    // Now safe to do conditional returns after all hooks are called
+    if (loading) {
+        return <div className="p-8 text-2xl font-semibold text-center">Loading Projects...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                <h2 className="font-bold text-xl mb-2">Error Loading Projects</h2>
+                <p>There was a problem fetching data from the database.</p>
+                <p className="mt-4 font-bold">Error Message:</p>
+                <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
+                <p className="mt-4">
+                    Please check the browser's developer console (F12) for more details. This could be due to an RLS policy, an incorrect API key in Vercel, or a network issue.
+                </p>
+            </div>
+        );
+    }
 
     const requestSort = (key) => {
         let direction = 'ascending';

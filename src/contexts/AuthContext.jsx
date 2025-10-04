@@ -55,51 +55,23 @@ export const AuthProvider = ({ children }) => {
       
       console.log('🔐 Attempting user query...');
 
-      // Add timeout to prevent hanging, with retry logic
+      // Try to fetch user data without timeout first (fast path)
       let queryAttempt = 0;
       let userArray = null;
       let fetchError = null;
 
-      while (queryAttempt < 1 && !userArray) {
-        queryAttempt++;
-        console.log(`🔐 Query attempt ${queryAttempt}/1...`);
-
-        const queryPromise = supabase
+      // First attempt: no timeout, just try to fetch quickly
+      try {
+        const { data, error } = await supabase
           .from('users')
           .select('*')
           .eq('id', authUser.id);
 
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Query timeout')), 3000)
-        );
-
-        const result = await Promise.race([
-          queryPromise,
-          timeoutPromise
-        ]).catch(error => {
-          console.error(`🔐 Query attempt ${queryAttempt} failed:`, error);
-          return { data: null, error };
-        });
-
-        userArray = result.data;
-        fetchError = result.error;
-
-        // If we got data or a real database error (not timeout), break the loop
-        if (userArray || (fetchError && fetchError.message !== 'Query timeout')) {
-          break;
-        }
-
-        // Wait 500ms before retry if it was a timeout
-        if (queryAttempt < 1) {
-          console.log('🔐 Waiting 500ms before retry...');
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-
-      // If all retries failed, return null to trigger error handling
-      if (!userArray && fetchError?.message === 'Query timeout') {
-        console.error('🔐 All query attempts failed - returning null');
-        return null;
+        userArray = data;
+        fetchError = error;
+      } catch (error) {
+        console.error('🔐 Quick fetch failed:', error);
+        fetchError = error;
       }
 
       console.log('🔐 User query result:', { userArray, fetchError });
@@ -118,8 +90,22 @@ export const AuthProvider = ({ children }) => {
       
       // Only proceed with creation if error is "not found" (PGRST116)
       if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Database error:', fetchError);
-        return null;
+        console.error('Database error - creating temporary user to prevent logout:', fetchError);
+        // Return temporary user data to keep user logged in
+        const email = authUser.email;
+        const name = authUser.user_metadata?.name ||
+                     authUser.user_metadata?.full_name ||
+                     email.split('@')[0].replace(/[._]/g, ' ');
+
+        return {
+          id: authUser.id,
+          email: email,
+          name: name,
+          privilege: 'Viewer',
+          last_sign_in_at: authUser.last_sign_in_at,
+          auth_user: authUser,
+          _isTemporary: true
+        };
       }
       
       // User doesn't exist in users table, create a new entry
@@ -376,15 +362,8 @@ export const AuthProvider = ({ children }) => {
     console.log('🔐 AuthProvider mounted - initializing authentication');
     console.log('🔐 Supabase client:', supabase);
 
-    // Get initial session with timeout
-    const sessionTimeout = setTimeout(() => {
-      console.error('🔐 Session check timed out, proceeding without session');
-      setUser(null);
-      setIsLoading(false);
-    }, 5000);
-
+    // Get initial session - no timeout, let Supabase handle it
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      clearTimeout(sessionTimeout);
       console.log('🔐 Initial session check:', { session: !!session, error });
 
       if (error) {
@@ -396,33 +375,47 @@ export const AuthProvider = ({ children }) => {
 
       if (session?.user) {
         console.log('🔐 Found existing session for:', session.user.email);
-        try {
-          let userData = await fetchUserData(session.user);
-          console.log('🔐 User data loaded:', userData ? 'Success' : 'Failed');
 
-          if (!userData) {
-            console.error('🔐 Failed to load user data - keeping user logged out');
-            setUser(null);
-          } else {
-            // Privilege is now correctly set in database via migration
+        // INSTANT LOGIN: Set user immediately with session data
+        const email = session.user.email;
+        const name = session.user.user_metadata?.name ||
+                     session.user.user_metadata?.full_name ||
+                     email.split('@')[0].replace(/[._]/g, ' ');
+
+        setUser({
+          id: session.user.id,
+          email: email,
+          name: name,
+          privilege: 'Viewer', // Temporary - will be updated when DB loads
+          last_sign_in_at: session.user.last_sign_in_at,
+          auth_user: session.user,
+          _isTemporary: true
+        });
+
+        // Stop loading immediately - user can now use the app
+        setIsLoading(false);
+
+        // Fetch full user data in background (non-blocking)
+        fetchUserData(session.user).then(userData => {
+          if (userData && !userData._isTemporary) {
+            console.log('✅ Full user data loaded in background');
             setUser(userData);
-
-            // Auto-subscribe to push notifications after successful login
             autoSubscribePushNotifications(userData);
+          } else {
+            console.log('⚠️ Using temporary user data');
           }
-        } catch (err) {
-          console.error('🔐 Error loading user data:', err);
-          setUser(null);
-        }
+        }).catch(err => {
+          console.error('🔐 Background user data fetch failed:', err);
+          // User already set, so this doesn't block login
+        });
       } else {
         console.log('🔐 No existing session found');
         setUser(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }).catch(err => {
-      clearTimeout(sessionTimeout);
       console.error('🔐 Critical error in getSession:', err);
-      setUser(null);
+      // Don't set user to null on error - keep them logged in if session exists
       setIsLoading(false);
     });
 
@@ -434,29 +427,86 @@ export const AuthProvider = ({ children }) => {
 
       if (session?.user) {
         console.log('Auth change - loading user data for:', session.user.email);
-        let userData = await fetchUserData(session.user);
-        console.log('User data loaded:', userData ? 'Success' : 'Failed');
 
-        if (!userData) {
-          console.error('🔐 Failed to load user data during auth state change');
-          setUser(null);
-        } else {
-          // Privilege is now correctly set in database via migration
-          setUser(userData);
+        // INSTANT LOGIN: Set user immediately with session data
+        const email = session.user.email;
+        const name = session.user.user_metadata?.name ||
+                     session.user.user_metadata?.full_name ||
+                     email.split('@')[0].replace(/[._]/g, ' ');
 
-          // Auto-subscribe to push notifications after successful login
-          autoSubscribePushNotifications(userData);
-        }
+        setUser({
+          id: session.user.id,
+          email: email,
+          name: name,
+          privilege: 'Viewer', // Temporary - will be updated when DB loads
+          last_sign_in_at: session.user.last_sign_in_at,
+          auth_user: session.user,
+          _isTemporary: true
+        });
+
+        // Stop loading immediately
+        setIsLoading(false);
+
+        // Fetch full user data in background (non-blocking)
+        fetchUserData(session.user).then(userData => {
+          if (userData && !userData._isTemporary) {
+            console.log('✅ Full user data loaded in background');
+            setUser(userData);
+            autoSubscribePushNotifications(userData);
+          }
+        }).catch(err => {
+          console.error('🔐 Background user data fetch failed:', err);
+        });
       } else {
         console.log('Auth change - no session');
         setUser(null);
         setPushSubscriptionAttempted(false);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Background retry mechanism for temporary user data
+  useEffect(() => {
+    if (!user?._isTemporary) return;
+
+    console.log('🔄 User has temporary data - setting up background retry...');
+
+    const retryFetchUserData = async () => {
+      if (!user?.auth_user) return;
+
+      console.log('🔄 Attempting to fetch full user data in background...');
+      try {
+        const fullUserData = await fetchUserData(user.auth_user);
+        if (fullUserData && !fullUserData._isTemporary) {
+          console.log('✅ Successfully fetched full user data in background');
+          setUser(fullUserData);
+          autoSubscribePushNotifications(fullUserData);
+        }
+      } catch (err) {
+        console.error('🔄 Background retry failed:', err);
+      }
+    };
+
+    // Retry after 2 seconds, then every 10 seconds (max 5 retries)
+    const initialTimeout = setTimeout(retryFetchUserData, 2000);
+    let retryCount = 0;
+    const maxRetries = 5;
+
+    const intervalId = setInterval(() => {
+      if (retryCount < maxRetries) {
+        retryFetchUserData();
+        retryCount++;
+      }
+    }, 10000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(intervalId);
+    };
+  }, [user?._isTemporary, user?.auth_user]);
 
   // This function handles the login process using Supabase
   const login = async (email, password) => {
