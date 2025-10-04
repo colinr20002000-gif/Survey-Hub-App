@@ -25,6 +25,7 @@ import { handleSupabaseError, isRLSError } from './utils/rlsErrorHandler';
 import { useFcm } from './hooks/useFcm';
 import { useSubscription } from './hooks/useSubscription';
 import { usePermissions } from './hooks/usePermissions';
+import { useDebouncedValue } from './utils/debounce';
 import './utils/testRealtime'; // Load realtime test utilities
 import LoginPage from './components/pages/LoginPage';
 import UserAdmin from './components/pages/UserAdmin';
@@ -735,6 +736,7 @@ const DeliveryTrackerContent = () => {
     const [jobToEdit, setJobToEdit] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [sortConfig, setSortConfig] = useState({ key: 'plannedDeliveryDate', direction: 'ascending' });
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [filterDiscipline, setFilterDiscipline] = useState([]);
@@ -811,15 +813,15 @@ const DeliveryTrackerContent = () => {
     };
 
     const filteredJobs = useMemo(() => jobs.filter(j => {
-        const matchesSearch = (j.projectName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-            (j.projectNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-            (j.itemName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-            (j.client?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+        const matchesSearch = (j.projectName?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase()) ||
+            (j.projectNumber?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase()) ||
+            (j.itemName?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase()) ||
+            (j.client?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase());
         const matchesArchive = showArchived ? j.archived : !j.archived;
         const matchesDiscipline = filterDiscipline.length === 0 || filterDiscipline.includes(j.discipline);
         const matchesStatus = filterStatus.length === 0 || filterStatus.includes(j.status);
         return matchesSearch && matchesArchive && matchesDiscipline && matchesStatus;
-    }), [jobs, searchTerm, showArchived, filterDiscipline, filterStatus]);
+    }), [jobs, debouncedSearchTerm, showArchived, filterDiscipline, filterStatus]);
 
     const sortedJobs = useMemo(() => {
         let sortableItems = [...filteredJobs];
@@ -1021,6 +1023,7 @@ const UserAdminPage = () => {
     const { user: currentUser } = useAuth();
     const privileges = userPrivileges[currentUser.privilege];
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
 
     // MODIFICATION 2: Update save handler to use async context functions
@@ -1080,13 +1083,13 @@ const UserAdminPage = () => {
         return sortConfig.direction === 'ascending' ? '↑' : '↓';
     };
 
-    const filteredUsers = useMemo(() => users.filter(user => 
-        (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (user.role && user.role.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (user.team_role && user.team_role.toLowerCase().includes(searchTerm.toLowerCase()))
-    ), [users, searchTerm]);
+    const filteredUsers = useMemo(() => users.filter(user =>
+        (user.name && user.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+        (user.username && user.username.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+        (user.email && user.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+        (user.role && user.role.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+        (user.team_role && user.team_role.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
+    ), [users, debouncedSearchTerm]);
 
     const sortedUsers = useMemo(() => {
         let sortableItems = [...filteredUsers];

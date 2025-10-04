@@ -3,12 +3,14 @@ import { Search, Filter } from 'lucide-react';
 import { useUsers } from '../contexts/UserContext';
 import { supabase } from '../supabaseClient';
 import { Button } from '../components/ui';
+import { useDebouncedValue } from '../utils/debounce';
 
 const UserContactsPage = () => {
     const { users: realUsers, loading: usersLoading } = useUsers();
     const [dummyUsers, setDummyUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [competencies, setCompetencies] = useState([]);
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
     const [selectedDepartments, setSelectedDepartments] = useState([]);
@@ -130,12 +132,12 @@ const UserContactsPage = () => {
     const filteredUsers = useMemo(() => {
         let filtered = allUsers.filter(user => {
             // Search filter
-            const matchesSearch = !searchTerm ||
-                (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                (user.mobile_number && user.mobile_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                (user.department && user.department.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                (user.team_role && user.team_role.toLowerCase().includes(searchTerm.toLowerCase()));
+            const matchesSearch = !debouncedSearchTerm ||
+                (user.name && user.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+                (user.email && user.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+                (user.mobile_number && user.mobile_number.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+                (user.department && user.department.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+                (user.team_role && user.team_role.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
 
             // Department filter
             const matchesDepartment = selectedDepartments.length === 0 || selectedDepartments.includes(user.department);
@@ -161,7 +163,7 @@ const UserContactsPage = () => {
         });
 
         return filtered;
-    }, [allUsers, searchTerm, sortConfig, selectedDepartments, selectedUsers]);
+    }, [allUsers, debouncedSearchTerm, sortConfig, selectedDepartments, selectedUsers]);
 
     if (loading || usersLoading) {
         return <div className="p-8 text-2xl font-semibold text-center">Loading User Contacts...</div>;

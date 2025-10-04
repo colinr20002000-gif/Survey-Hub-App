@@ -12,6 +12,7 @@ import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { getDepartmentColor, getAvatarText } from '../../utils/avatarColors';
+import { useDebouncedValue } from '../../utils/debounce';
 
 
 // Vehicle Management Page Component
@@ -27,6 +28,7 @@ const VehiclesPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [selectedDepartments, setSelectedDepartments] = useState([]);
     const [selectedUsers, setSelectedUsers] = useState([]);
@@ -595,9 +597,9 @@ const VehiclesPage = () => {
 
     // Filter vehicles based on search and filters
     const filteredVehicles = vehicles.filter(item => {
-        const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             item.serial_number?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = item.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                             item.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                             item.serial_number?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
         const matchesCategory = selectedCategories.length === 0 || selectedCategories.length === categories.length || selectedCategories.includes(item.category);
 
         return matchesSearch && matchesCategory;

@@ -48,7 +48,9 @@
       "WebSearch",
       "WebFetch(domain:supabase.com)",
       "Bash(npx:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

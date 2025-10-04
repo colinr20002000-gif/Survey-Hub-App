@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useToast } from '../contexts/ToastContext';
 import { usePermissions } from '../hooks/usePermissions';
+import { useDebouncedValue } from '../utils/debounce';
 import { Button, Select, Input, Switch, Modal } from '../components/ui';
 import CustomConfirmationModal from '../components/ConfirmationModal';
 import { ANNOUNCEMENT_PRIORITIES } from '../constants';
@@ -17,6 +18,7 @@ const AnnouncementsPage = () => {
     const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedPriority, setSelectedPriority] = useState('All');
     const [announcementToDelete, setAnnouncementToDelete] = useState(null);
@@ -278,8 +280,8 @@ const AnnouncementsPage = () => {
         const category = announcement.category || '';
         const priority = announcement.priority || 'medium';
 
-        const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            content.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = title.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                            content.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
         const matchesCategory = selectedCategory === 'All' || category === selectedCategory;
         const matchesPriority = selectedPriority === 'All' || priority === selectedPriority.toLowerCase();
 

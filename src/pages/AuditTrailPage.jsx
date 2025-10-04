@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { useAuditTrail } from '../contexts/AuditTrailContext';
 import { getAvatarText } from '../utils/avatarColors';
 import { Button, Select, Input, Pagination } from '../components/ui';
+import { useDebouncedValue } from '../utils/debounce';
 
 // Mock users (to be replaced with actual user data from context)
 const mockUsers = {
@@ -18,6 +19,7 @@ const AuditTrailPage = () => {
     const { auditLogs, loading, error } = useAuditTrail();
     const [logs, setLogs] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [sortConfig, setSortConfig] = useState({ key: 'timestamp', direction: 'descending' });
     const [itemsPerPage, setItemsPerPage] = useState(20);
     const [currentPage, setCurrentPage] = useState(1);
@@ -73,10 +75,10 @@ const AuditTrailPage = () => {
         const user = log.userId ? mockUsers[log.userId] : { name: 'SYSTEM' };
         const logDate = new Date(log.timestamp).toISOString().split('T')[0];
 
-        const matchesSearch = (user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            log.entity.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (log.entityId && log.entityId.toString().includes(searchTerm)));
+        const matchesSearch = (user.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+            log.action.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+            log.entity.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+            (log.entityId && log.entityId.toString().includes(debouncedSearchTerm)));
 
         const matchesAction = actionFilter.length === 0 || actionFilter.includes(log.action);
         const matchesUser = userFilter === '' || log.userId === parseInt(userFilter);
@@ -86,7 +88,7 @@ const AuditTrailPage = () => {
         const matchesSeverity = severityFilter === '' || getSeverity(log.action, log.details) === severityFilter;
 
         return matchesSearch && matchesAction && matchesUser && matchesEntity && matchesDate && matchesSeverity;
-    }), [logs, searchTerm, actionFilter, userFilter, entityFilter, dateRange, severityFilter]);
+    }), [logs, debouncedSearchTerm, actionFilter, userFilter, entityFilter, dateRange, severityFilter]);
 
     const sortedLogs = useMemo(() => {
         let sortableItems = [...filteredLogs];

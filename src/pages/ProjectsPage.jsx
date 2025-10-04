@@ -4,11 +4,13 @@ import { useProjects } from '../contexts/ProjectContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Select, Button, Switch, Pagination, ConfirmationModal } from '../components/ui';
 import ProjectModal from '../components/modals/ProjectModal';
+import { useDebouncedValue } from '../utils/debounce';
 
 const ProjectsPage = ({ onViewProject }) => {
     const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
     const { canCreateProjects, canEditProjects, canDeleteProjects } = usePermissions();
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [sortConfig, setSortConfig] = useState({ key: 'project_number', direction: 'descending' });
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -42,15 +44,15 @@ const ProjectsPage = ({ onViewProject }) => {
     const filteredProjects = useMemo(() => {
         if (!projects) return [];
         return projects.filter(p => {
-            const matchesSearch = p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.project_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.client.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = p.project_name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                p.project_number.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                p.client.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
             const matchesArchive = showArchived ? p.archived : !p.archived;
             const matchesClient = clientFilter === '' || p.client === clientFilter;
             const matchesYear = yearFilter === '' || p.year === yearFilter;
             return matchesSearch && matchesArchive && matchesClient && matchesYear;
         });
-    }, [projects, searchTerm, showArchived, clientFilter, yearFilter]);
+    }, [projects, debouncedSearchTerm, showArchived, clientFilter, yearFilter]);
 
     const sortedProjects = useMemo(() => {
         let sortableItems = [...filteredProjects];

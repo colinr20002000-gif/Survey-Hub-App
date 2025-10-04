@@ -3,6 +3,7 @@ import { Search, PlusCircle, Edit, Trash2, X } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { supabase } from '../supabaseClient';
 import { Button } from '../components/ui';
+import { useDebouncedValue } from '../utils/debounce';
 
 const UsefulContactsPage = () => {
     const { showSuccessModal, showErrorModal } = useToast();
@@ -11,6 +12,7 @@ const UsefulContactsPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingContact, setEditingContact] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
 
     useEffect(() => {
@@ -93,12 +95,12 @@ const UsefulContactsPage = () => {
 
     const filteredContacts = useMemo(() => {
         let filtered = contacts.filter(contact =>
-            (contact.name && contact.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (contact.email && contact.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (contact.phone_number && contact.phone_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (contact.address && contact.address.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (contact.organisation && contact.organisation.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (contact.website && contact.website.toLowerCase().includes(searchTerm.toLowerCase()))
+            (contact.name && contact.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+            (contact.email && contact.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+            (contact.phone_number && contact.phone_number.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+            (contact.address && contact.address.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+            (contact.organisation && contact.organisation.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+            (contact.website && contact.website.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
         );
 
         // Sort the filtered contacts
@@ -116,7 +118,7 @@ const UsefulContactsPage = () => {
         });
 
         return filtered;
-    }, [contacts, searchTerm, sortConfig]);
+    }, [contacts, debouncedSearchTerm, sortConfig]);
 
     if (loading) {
         return <div className="p-8 text-2xl font-semibold text-center">Loading Useful Contacts...</div>;
