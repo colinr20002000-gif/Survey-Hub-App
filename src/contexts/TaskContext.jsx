@@ -78,7 +78,7 @@ export const TaskProvider = ({ children }) => {
             alert(`Error creating task: ${error.message}`);
             return;
         }
-        if (data) setTasks(prev => [data[0], ...prev]);
+        // Don't manually update state - realtime subscription handles it
     }, []);
 
     const updateTask = useCallback(async (updatedTask) => {
@@ -91,9 +91,8 @@ export const TaskProvider = ({ children }) => {
         if (error) {
             console.error('Error updating task:', error);
              alert(`Error updating task: ${error.message}`);
-        } else if (data) {
-            setTasks(prev => prev.map(t => t.id === updatedTask.id ? data[0] : t));
         }
+        // Don't manually update state - realtime subscription handles it
     }, []);
 
     const deleteTask = useCallback(async (taskId) => {
@@ -105,9 +104,8 @@ export const TaskProvider = ({ children }) => {
         if (error) {
             console.error('Error deleting task:', error);
             alert(`Error deleting task: ${error.message}`);
-        } else {
-            setTasks(prev => prev.filter(t => t.id !== taskId));
         }
+        // Don't manually update state - realtime subscription handles it
     }, []);
 
     // Memoize the context value to prevent unnecessary re-renders

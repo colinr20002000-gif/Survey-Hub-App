@@ -109,7 +109,7 @@ export const ProjectTaskProvider = ({ children }) => {
         }
         if (data) {
             const newTask = mapToCamelCase(data[0]);
-            setProjectTasks(prev => [newTask, ...prev]);
+            // Don't manually update state - realtime subscription handles it
 
             // Send notification to assigned users
             if (taskData.assignedTo && taskData.assignedTo.length > 0) {
@@ -149,7 +149,7 @@ export const ProjectTaskProvider = ({ children }) => {
         }
         if (data) {
             console.log('Successfully updated project task:', data[0]);
-            setProjectTasks(prev => prev.map(t => t.id === updatedTask.id ? mapToCamelCase(data[0]) : t));
+            // Don't manually update state - realtime subscription handles it
         }
     };
 
@@ -162,9 +162,8 @@ export const ProjectTaskProvider = ({ children }) => {
         if (error) {
             console.error('Error deleting project task:', error);
             alert(`Error deleting project task: ${error.message}`);
-        } else {
-            setProjectTasks(prev => prev.filter(t => t.id !== taskId));
         }
+        // Don't manually update state - realtime subscription handles it
     };
 
     const deleteAllArchivedProjectTasks = async () => {
@@ -183,7 +182,7 @@ export const ProjectTaskProvider = ({ children }) => {
             console.error('Error deleting archived project tasks:', error);
             alert(`Error deleting archived project tasks: ${error.message}`);
         } else {
-            setProjectTasks(prev => prev.filter(t => !archivedTaskIds.includes(t.id)));
+            // Don't manually update state - realtime subscription handles it
             showSuccessModal('All archived project tasks have been deleted');
         }
     };

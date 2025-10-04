@@ -124,7 +124,7 @@ export const DeliveryTaskProvider = ({ children }) => {
         }
         if (data && data[0]) {
             const newTask = mapToCamelCase(data[0]);
-            setDeliveryTasks(prev => [newTask, ...prev]);
+            // Don't manually update state - realtime subscription handles it
 
             // Send notification to assigned users
             if (taskData.assignedTo && taskData.assignedTo.length > 0) {
@@ -164,7 +164,7 @@ export const DeliveryTaskProvider = ({ children }) => {
                 showErrorModal(errorMessage, 'Error Updating Delivery Task');
             }
         } else if (data && data[0]) {
-            setDeliveryTasks(prev => prev.map(t => (t.id === updatedTask.id ? mapToCamelCase(data[0]) : t)));
+            // Don't manually update state - realtime subscription handles it
         } else {
             console.error('No data returned from delivery task update - possibly blocked by RLS');
             showPrivilegeError('You need Editor privileges or higher to modify delivery tasks.');
@@ -185,9 +185,8 @@ export const DeliveryTaskProvider = ({ children }) => {
             } else {
                 showErrorModal(errorMessage, 'Error Deleting Delivery Task');
             }
-        } else {
-            setDeliveryTasks(prev => prev.filter(t => t.id !== taskId));
         }
+        // Don't manually update state - realtime subscription handles it
     };
 
     const deleteAllArchivedDeliveryTasks = async () => {
@@ -206,7 +205,7 @@ export const DeliveryTaskProvider = ({ children }) => {
             console.error('Error deleting archived delivery tasks:', error);
             alert(`Error deleting archived delivery tasks: ${error.message}`);
         } else {
-            setDeliveryTasks(prev => prev.filter(t => !archivedTaskIds.includes(t.id)));
+            // Don't manually update state - realtime subscription handles it
             showSuccessModal('All archived delivery tasks have been deleted');
         }
     };

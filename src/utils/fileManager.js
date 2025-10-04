@@ -115,6 +115,12 @@ export const uploadFile = async (file, metadata) => {
       throw uploadError;
     }
 
+    // Get authenticated user ID
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
     // Save file metadata to database
     const { data: metadataData, error: metadataError } = await supabase
       .from('document_files')
@@ -127,7 +133,8 @@ export const uploadFile = async (file, metadata) => {
         tags,
         folder_path: folderPath,
         file_type: file.type,
-        file_size: file.size
+        file_size: file.size,
+        created_by: user.id
       })
       .select()
       .single();

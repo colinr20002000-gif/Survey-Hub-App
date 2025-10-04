@@ -354,53 +354,30 @@ const VehiclesPage = () => {
                     .filter(Boolean)
             ))];
 
-            // Batch load vehicle data
+            // Batch load vehicle data from local state only
+            // (Don't query DB for missing records - they're likely deleted and blocked by RLS)
             const vehicleMap = new Map();
             if (vehicleIds.length > 0) {
-                // First check local vehicle state
                 vehicleIds.forEach(vehicleId => {
                     const localVehicle = vehicles.find(v => v.id === vehicleId);
                     if (localVehicle) {
                         vehicleMap.set(vehicleId, localVehicle);
                     }
+                    // If not in local state, it's deleted - will show as "Unknown Vehicle"
                 });
-
-                // Then fetch any remaining vehicles from database
-                const unfoundVehicleIds = vehicleIds.filter(id => !vehicleMap.has(id));
-                if (unfoundVehicleIds.length > 0) {
-                    const { data: vehicleData } = await supabase
-                        .from('vehicles')
-                        .select('id, name, serial_number, vehicle_type, brand, model')
-                        .in('id', unfoundVehicleIds);
-
-                    vehicleData?.forEach(v => vehicleMap.set(v.id, v));
-                }
             }
 
-            // Batch load user data
+            // Batch load user data from local state only (includes dummy users)
+            // (Don't query DB for missing records - they're likely deleted and blocked by RLS)
             const userMap = new Map();
             if (userIds.length > 0) {
-                // First check local users state (includes dummy users)
                 userIds.forEach(userId => {
                     const localUser = users.find(u => u.id === userId);
                     if (localUser) {
                         userMap.set(userId, localUser);
                     }
+                    // If not in local state, it's deleted - will show as "Unknown User"
                 });
-
-                // Then fetch any remaining users from database
-                const unfoundUserIds = userIds.filter(id => !userMap.has(id));
-                if (unfoundUserIds.length > 0) {
-                    const { data: userData } = await supabase
-                        .from('users')
-                        .select('id, first_name, last_name, email')
-                        .in('id', unfoundUserIds);
-
-                    userData?.forEach(user => userMap.set(user.id, {
-                        ...user,
-                        name: `${user.first_name || ''} ${user.last_name || ''}`.trim()
-                    }));
-                }
             }
 
             // Enhance audit data with loaded information

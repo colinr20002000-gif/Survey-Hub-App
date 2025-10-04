@@ -89,7 +89,7 @@ export const ProjectProvider = ({ children }) => {
                 alert(`Error creating project: ${error.message}`);
                 return;
             }
-            if (data) setProjects(prev => [data[0], ...prev]);
+            // Don't manually update state - realtime subscription handles it
         } catch (timeoutError) {
             console.error('Database timeout:', timeoutError);
             alert('Database connection timeout. Please try again.');
@@ -107,7 +107,7 @@ export const ProjectProvider = ({ children }) => {
             
             const { data, error } = await updateQuery;
             if (error) console.error('Error updating project:', error);
-            else if (data) setProjects(prev => prev.map(p => p.id === updatedProject.id ? data[0] : p));
+            // Don't manually update state - realtime subscription handles it
         } catch (timeoutError) {
             console.error('Database timeout:', timeoutError);
             alert('Database connection timeout. Please try again.');
@@ -125,7 +125,7 @@ export const ProjectProvider = ({ children }) => {
             
             const { error } = await deleteQuery;
             if (error) console.error('Error deleting project:', error);
-            else setProjects(prev => prev.filter(p => p.id !== projectId));
+            // Don't manually update state - realtime subscription handles it
         } catch (timeoutError) {
             console.error('Database timeout:', timeoutError);
             alert('Database connection timeout. Please try again.');

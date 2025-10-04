@@ -162,7 +162,7 @@ const ProjectsPage = ({ onViewProject }) => {
         setYearFilter('');
     };
 
-    const uniqueClients = [...new Set(projects.map(p => p.client))].sort();
+    const uniqueClients = [...new Set(projects.map(p => p.client))].sort((a, b) => a.localeCompare(b));
     const uniqueYears = [...new Set(projects.map(p => p.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
 
     return (
@@ -214,18 +214,34 @@ const ProjectsPage = ({ onViewProject }) => {
                  <Switch id="show-archived" isChecked={showArchived} onToggle={() => setShowArchived(!showArchived)} />
              </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto inline-block">
+                <table className="text-sm text-left text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                         <tr>
-                            {['project_number', 'project_name', 'client', 'year'].map(key => (
-                                <th key={key} scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort(key)}>
-                                    <div className="flex items-center">
-                                        {key.replace('_', ' ')}
-                                        <span className="ml-2">{getSortIndicator(key)}</span>
-                                    </div>
-                                </th>
-                            ))}
+                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('project_number')}>
+                                <div className="flex items-center">
+                                    project number
+                                    <span className="ml-2">{getSortIndicator('project_number')}</span>
+                                </div>
+                            </th>
+                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('project_name')}>
+                                <div className="flex items-center">
+                                    project name
+                                    <span className="ml-2">{getSortIndicator('project_name')}</span>
+                                </div>
+                            </th>
+                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('client')}>
+                                <div className="flex items-center">
+                                    client
+                                    <span className="ml-2">{getSortIndicator('client')}</span>
+                                </div>
+                            </th>
+                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('year')}>
+                                <div className="flex items-center">
+                                    year
+                                    <span className="ml-2">{getSortIndicator('year')}</span>
+                                </div>
+                            </th>
                             <th scope="col" className="px-6 py-3">Actions</th>
                         </tr>
                     </thead>

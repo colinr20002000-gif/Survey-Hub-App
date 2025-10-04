@@ -357,53 +357,30 @@ const EquipmentPage = () => {
                     .filter(Boolean)
             ))];
 
-            // Batch load equipment data
+            // Batch load equipment data from local state only
+            // (Don't query DB for missing records - they're likely deleted and blocked by RLS)
             const equipmentMap = new Map();
             if (equipmentIds.length > 0) {
-                // First check local equipment state
                 equipmentIds.forEach(equipmentId => {
                     const localEquipment = equipment.find(eq => eq.id === equipmentId);
                     if (localEquipment) {
                         equipmentMap.set(equipmentId, localEquipment);
                     }
+                    // If not in local state, it's deleted - will show as "Unknown Equipment"
                 });
-
-                // Then fetch any remaining equipment from database
-                const unfoundEquipmentIds = equipmentIds.filter(id => !equipmentMap.has(id));
-                if (unfoundEquipmentIds.length > 0) {
-                    const { data: equipmentData } = await supabase
-                        .from('equipment')
-                        .select('id, name, serial_number, device_type, brand, model')
-                        .in('id', unfoundEquipmentIds);
-
-                    equipmentData?.forEach(eq => equipmentMap.set(eq.id, eq));
-                }
             }
 
-            // Batch load user data
+            // Batch load user data from local state only (includes dummy users)
+            // (Don't query DB for missing records - they're likely deleted and blocked by RLS)
             const userMap = new Map();
             if (userIds.length > 0) {
-                // First check local users state (includes dummy users)
                 userIds.forEach(userId => {
                     const localUser = users.find(u => u.id === userId);
                     if (localUser) {
                         userMap.set(userId, localUser);
                     }
+                    // If not in local state, it's deleted - will show as "Unknown User"
                 });
-
-                // Then fetch any remaining users from database
-                const unfoundUserIds = userIds.filter(id => !userMap.has(id));
-                if (unfoundUserIds.length > 0) {
-                    const { data: userData } = await supabase
-                        .from('users')
-                        .select('id, first_name, last_name, email')
-                        .in('id', unfoundUserIds);
-
-                    userData?.forEach(user => userMap.set(user.id, {
-                        ...user,
-                        name: `${user.first_name || ''} ${user.last_name || ''}`.trim()
-                    }));
-                }
             }
 
             // Enhance audit data with loaded information
