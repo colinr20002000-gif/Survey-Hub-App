@@ -116,7 +116,7 @@ export const ProjectTaskProvider = ({ children }) => {
                 try {
                     // Create in-app notifications for each assigned user
                     const notificationPromises = taskData.assignedTo.map(async (userId) => {
-                        return supabase
+                        const { data: notifData, error: notifError } = await supabase
                             .from('notifications')
                             .insert({
                                 user_id: userId,
@@ -131,6 +131,33 @@ export const ProjectTaskProvider = ({ children }) => {
                                     assigned_by_name: user?.name
                                 }
                             });
+
+                        if (notifError) {
+                            console.error('❌ Error creating in-app notification:', notifError);
+                            console.error('❌ Error details:', {
+                                message: notifError.message,
+                                code: notifError.code,
+                                details: notifError.details,
+                                hint: notifError.hint
+                            });
+                            console.error('❌ Failed for user_id:', userId);
+                            console.error('❌ Attempted insert data:', {
+                                user_id: userId,
+                                type: 'project_task',
+                                title: 'New Project Task Assigned',
+                                message: `You have been assigned to: "${newTask.text}"`,
+                                data: {
+                                    task_id: newTask.id,
+                                    task_text: newTask.text,
+                                    project: newTask.project,
+                                    assigned_by: user?.id,
+                                    assigned_by_name: user?.name
+                                }
+                            });
+                            throw notifError;
+                        }
+
+                        return notifData;
                     });
 
                     await Promise.all(notificationPromises);
