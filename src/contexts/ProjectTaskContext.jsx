@@ -114,6 +114,29 @@ export const ProjectTaskProvider = ({ children }) => {
             // Send notification to assigned users
             if (taskData.assignedTo && taskData.assignedTo.length > 0) {
                 try {
+                    // Create in-app notifications for each assigned user
+                    const notificationPromises = taskData.assignedTo.map(async (userId) => {
+                        return supabase
+                            .from('notifications')
+                            .insert({
+                                user_id: userId,
+                                type: 'project_task',
+                                title: 'New Project Task Assigned',
+                                message: `You have been assigned to: "${newTask.text}"`,
+                                data: {
+                                    task_id: newTask.id,
+                                    task_text: newTask.text,
+                                    project: newTask.project,
+                                    assigned_by: user?.id,
+                                    assigned_by_name: user?.name
+                                }
+                            });
+                    });
+
+                    await Promise.all(notificationPromises);
+                    console.log('✅ In-app notifications created for project task assignment');
+
+                    // Send FCM push notifications
                     const notificationResult = await sendProjectTaskAssignmentNotification(newTask, user?.id);
 
                     if (notificationResult.success) {
@@ -124,7 +147,7 @@ export const ProjectTaskProvider = ({ children }) => {
                     }
                 } catch (notificationError) {
                     console.error('Error sending project task assignment notification:', notificationError);
-                    showSuccessModal('Project task created successfully! (Note: Push notifications failed to send)', 'Success');
+                    showSuccessModal('Project task created successfully! (Note: Notifications may have failed to send)', 'Success');
                 }
             } else {
                 showSuccessModal('Project task created successfully!', 'Success');

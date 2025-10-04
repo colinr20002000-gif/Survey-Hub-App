@@ -20,7 +20,7 @@ export const NotificationProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [announcementRefreshTrigger, setAnnouncementRefreshTrigger] = useState(0);
 
-  // Fetch announcements with read status for current user
+  // Fetch both announcements and task notifications for current user
   const fetchNotifications = async () => {
     if (!user?.id) {
       setNotifications([]);
@@ -30,9 +30,22 @@ export const NotificationProvider = ({ children }) => {
 
     try {
       setIsLoading(true);
-      
+
+      // Fetch task/system notifications from notifications table
+      const { data: taskNotifications, error: taskError } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('read', false)
+        .eq('dismissed', false)
+        .order('created_at', { ascending: false });
+
+      if (taskError) {
+        console.error('Error fetching task notifications:', taskError);
+      }
+
       // Get announcements with left join to announcement_reads to check read status
-      const { data: announcements, error } = await supabase
+      const { data: announcements, error: announcementError } = await supabase
         .from('announcements')
         .select(`
           id,
@@ -55,66 +68,64 @@ export const NotificationProvider = ({ children }) => {
         .neq('author_id', user.id)  // Exclude announcements created by current user
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching announcements:', error);
-        console.error('Error details:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
+      if (announcementError) {
+        console.error('Error fetching announcements:', announcementError);
 
         // Check if it's a table not found error
-        if (error.code === 'PGRST116' || error.message?.includes('relation "announcements" does not exist')) {
-          console.warn('Announcements table does not exist. Please run the setup SQL script.');
-          console.warn('Providing sample notification to demonstrate functionality...');
-
-          // Provide a sample notification to show the system works
-          const sampleNotification = [{
-            id: 'sample-1',
-            type: 'system',
-            message: 'Database Setup Required',
-            content: 'The announcements table needs to be created. Please run the setup SQL script.',
-            time: 'Just now',
-            read: false,
-            priority: 'high',
-            created_at: new Date().toISOString()
-          }];
-
-          setNotifications(sampleNotification);
-          return;
+        if (announcementError.code === 'PGRST116' || announcementError.message?.includes('relation "announcements" does not exist')) {
+          console.warn('Announcements table does not exist.');
         }
-
-        setNotifications([]);
-        return;
       }
 
-      // Transform announcements to notification format, filtering out dismissed and read ones
-      const formattedNotifications = announcements
+      // Transform task notifications
+      const formattedTaskNotifications = (taskNotifications || []).map(notification => {
+        const timeAgo = getTimeAgo(notification.created_at);
+
+        return {
+          id: notification.id,
+          type: notification.type,
+          message: notification.title || notification.message,
+          content: notification.message,
+          time: timeAgo,
+          read: notification.read,
+          priority: 'medium',
+          created_at: notification.created_at,
+          data: notification.data,
+          source: 'notifications' // Mark source for different handling
+        };
+      });
+
+      // Transform announcements to notification format
+      const formattedAnnouncements = (announcements || [])
         .filter(announcement => {
           const userRead = announcement.announcement_reads?.find(read => read.user_id === user.id);
           const isDismissed = !!userRead?.dismissed_at;
           const isRead = !!userRead?.read_at;
-          
+
           // Don't include dismissed notifications OR read notifications
           return !isDismissed && !isRead;
         })
         .map(announcement => {
           const timeAgo = getTimeAgo(announcement.created_at);
-          
+
           return {
             id: announcement.id,
             type: announcement.category?.toLowerCase() || 'system',
             message: announcement.title,
             content: announcement.content,
             time: timeAgo,
-            read: false, // All notifications shown are unread by definition
+            read: false,
             priority: announcement.priority,
-            created_at: announcement.created_at
+            created_at: announcement.created_at,
+            source: 'announcements' // Mark source for different handling
           };
         });
 
-      setNotifications(formattedNotifications);
+      // Combine and sort all notifications by created_at
+      const allNotifications = [...formattedTaskNotifications, ...formattedAnnouncements]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      setNotifications(allNotifications);
     } catch (error) {
       console.error('Error in fetchNotifications:', error);
       setNotifications([]);
@@ -169,55 +180,77 @@ export const NotificationProvider = ({ children }) => {
     if (!user?.id) return;
 
     try {
-      // First check if the record already exists
-      const { data: existing, error: checkError } = await supabase
-        .from('announcement_reads')
-        .select('id, read_at')
-        .eq('announcement_id', notificationId)
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Find the notification to determine its source
+      const notification = notifications.find(n => n.id === notificationId);
 
-      if (checkError) {
-        console.error('Error checking existing read record:', checkError);
-        return;
-      }
+      if (!notification) return;
 
-      if (existing) {
-        // Record exists, update it if not already marked as read
-        if (!existing.read_at) {
-          const { error: updateError } = await supabase
-            .from('announcement_reads')
-            .update({ read_at: new Date().toISOString() })
-            .eq('announcement_id', notificationId)
-            .eq('user_id', user.id);
+      if (notification.source === 'notifications') {
+        // Update notification in notifications table
+        const { error: updateError } = await supabase
+          .from('notifications')
+          .update({
+            read: true,
+            read_at: new Date().toISOString()
+          })
+          .eq('id', notificationId)
+          .eq('user_id', user.id);
 
-          if (updateError) {
-            console.error('Error updating read status:', updateError);
-            return;
-          }
+        if (updateError) {
+          console.error('Error updating notification read status:', updateError);
+          return;
         }
       } else {
-        // Record doesn't exist, insert it
-        const { error: insertError } = await supabase
+        // Handle announcement (existing logic)
+        const { data: existing, error: checkError } = await supabase
           .from('announcement_reads')
-          .insert({
-            announcement_id: notificationId,
-            user_id: user.id,
-            read_at: new Date().toISOString()
-          });
+          .select('id, read_at')
+          .eq('announcement_id', notificationId)
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-        if (insertError) {
-          console.error('Error inserting read record:', insertError);
+        if (checkError) {
+          console.error('Error checking existing read record:', checkError);
           return;
+        }
+
+        if (existing) {
+          // Record exists, update it if not already marked as read
+          if (!existing.read_at) {
+            const { error: updateError } = await supabase
+              .from('announcement_reads')
+              .update({ read_at: new Date().toISOString() })
+              .eq('announcement_id', notificationId)
+              .eq('user_id', user.id);
+
+            if (updateError) {
+              console.error('Error updating read status:', updateError);
+              return;
+            }
+          }
+        } else {
+          // Record doesn't exist, insert it
+          const { error: insertError } = await supabase
+            .from('announcement_reads')
+            .insert({
+              announcement_id: notificationId,
+              user_id: user.id,
+              read_at: new Date().toISOString()
+            });
+
+          if (insertError) {
+            console.error('Error inserting read record:', insertError);
+            return;
+          }
         }
       }
 
       // Update local state immediately for better UX
       setNotifications(prev =>
-        prev.map(notification =>
-          notification.id === notificationId
-            ? { ...notification, read: true }
-            : notification
+        prev.map(n =>
+          n.id === notificationId
+            ? { ...n, read: true }
+            : n
         )
       );
 
@@ -259,56 +292,80 @@ export const NotificationProvider = ({ children }) => {
     if (!user?.id) return;
 
     try {
-      // First check if the record already exists
-      const { data: existing, error: checkError } = await supabase
-        .from('announcement_reads')
-        .select('id, dismissed_at')
-        .eq('announcement_id', notificationId)
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Find the notification to determine its source
+      const notification = notifications.find(n => n.id === notificationId);
 
-      if (checkError) {
-        console.error('Error checking existing read record:', checkError);
-        return;
-      }
+      if (!notification) return;
 
       const now = new Date().toISOString();
 
-      if (existing) {
-        // Record exists, update it
+      if (notification.source === 'notifications') {
+        // Update notification in notifications table
         const { error: updateError } = await supabase
-          .from('announcement_reads')
+          .from('notifications')
           .update({
+            read: true,
+            dismissed: true,
             read_at: now,
             dismissed_at: now
           })
-          .eq('announcement_id', notificationId)
+          .eq('id', notificationId)
           .eq('user_id', user.id);
 
         if (updateError) {
-          console.error('Error updating dismissal status:', updateError);
+          console.error('Error updating notification dismissal status:', updateError);
           return;
         }
       } else {
-        // Record doesn't exist, insert it
-        const { error: insertError } = await supabase
+        // Handle announcement (existing logic)
+        const { data: existing, error: checkError } = await supabase
           .from('announcement_reads')
-          .insert({
-            announcement_id: notificationId,
-            user_id: user.id,
-            read_at: now,
-            dismissed_at: now
-          });
+          .select('id, dismissed_at')
+          .eq('announcement_id', notificationId)
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-        if (insertError) {
-          console.error('Error inserting dismissal record:', insertError);
+        if (checkError) {
+          console.error('Error checking existing read record:', checkError);
           return;
+        }
+
+        if (existing) {
+          // Record exists, update it
+          const { error: updateError } = await supabase
+            .from('announcement_reads')
+            .update({
+              read_at: now,
+              dismissed_at: now
+            })
+            .eq('announcement_id', notificationId)
+            .eq('user_id', user.id);
+
+          if (updateError) {
+            console.error('Error updating dismissal status:', updateError);
+            return;
+          }
+        } else {
+          // Record doesn't exist, insert it
+          const { error: insertError } = await supabase
+            .from('announcement_reads')
+            .insert({
+              announcement_id: notificationId,
+              user_id: user.id,
+              read_at: now,
+              dismissed_at: now
+            });
+
+          if (insertError) {
+            console.error('Error inserting dismissal record:', insertError);
+            return;
+          }
         }
       }
 
       // Remove from local state immediately
       setNotifications(prev =>
-        prev.filter(notification => notification.id !== notificationId)
+        prev.filter(n => n.id !== notificationId)
       );
 
       console.log('Successfully dismissed notification:', notificationId);
