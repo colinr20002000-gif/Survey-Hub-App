@@ -264,21 +264,22 @@ Deno.serve(async (req) => {
     else if (targetRoles && targetRoles.length > 0) {
       console.log(`[DEBUG] Filtering by target roles: ${targetRoles.join(', ')}`);
 
-      // First, get user IDs from auth.users that match the privilege in their metadata
-      const { data: authUsers, error: authUsersError } = await supabaseClient.auth.admin.listUsers();
+      // Query the users table to get users whose department OR privilege matches targetRoles
+      const { data: matchingUsers, error: usersError } = await supabaseClient
+        .from('users')
+        .select('id, department, privilege')
+        .or(
+          targetRoles
+            .map(role => `department.eq.${role},privilege.eq.${role}`)
+            .join(',')
+        );
 
-      if (authUsersError) {
-        console.error('[DEBUG] Error fetching auth users:', authUsersError);
-        throw authUsersError;
+      if (usersError) {
+        console.error('[DEBUG] Error fetching users from users table:', usersError);
+        throw usersError;
       }
 
-      // Filter by users who have the target roles in their metadata
-      const targetUserIds = authUsers.users
-        .filter(user => {
-          const privilege = user.user_metadata?.privilege || user.raw_user_meta_data?.privilege;
-          return privilege && targetRoles.includes(privilege);
-        })
-        .map(user => user.id);
+      const targetUserIds = matchingUsers?.map(user => user.id) || [];
 
       if (targetUserIds.length > 0) {
         console.log(`[DEBUG] Found ${targetUserIds.length} users with target roles`);
