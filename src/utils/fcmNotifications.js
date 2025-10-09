@@ -96,6 +96,13 @@ export async function sendFCMNotification(notification, options = {}) {
  * @param {string} authorId - ID of the user who created the announcement
  */
 export async function sendAnnouncementFCMNotification(announcementData, authorId) {
+  console.log('📢 [FCM-ANNOUNCEMENT] sendAnnouncementFCMNotification called');
+  console.log('📢 [FCM-ANNOUNCEMENT] announcementData:', announcementData);
+  console.log('📢 [FCM-ANNOUNCEMENT] target_roles:', announcementData.target_roles);
+  console.log('📢 [FCM-ANNOUNCEMENT] target_roles type:', typeof announcementData.target_roles);
+  console.log('📢 [FCM-ANNOUNCEMENT] target_roles isArray:', Array.isArray(announcementData.target_roles));
+  console.log('📢 [FCM-ANNOUNCEMENT] authorId:', authorId);
+
   const priorityEmoji = {
     urgent: '🚨',
     high: '⚠️',
@@ -104,6 +111,13 @@ export async function sendAnnouncementFCMNotification(announcementData, authorId
   };
 
   const emoji = priorityEmoji[announcementData.priority] || '📢';
+
+  const options = {
+    targetRoles: announcementData.target_roles,
+    excludeAuthorId: authorId
+  };
+
+  console.log('📢 [FCM-ANNOUNCEMENT] Calling sendFCMNotification with options:', options);
 
   // Send FCM notification
   const fcmResult = await sendFCMNotification(
@@ -120,11 +134,10 @@ export async function sendAnnouncementFCMNotification(announcementData, authorId
         timestamp: new Date().toISOString()
       }
     },
-    {
-      targetRoles: announcementData.target_roles,
-      excludeAuthorId: authorId
-    }
+    options
   );
+
+  console.log('📢 [FCM-ANNOUNCEMENT] FCM result:', fcmResult);
 
   return fcmResult;
 }

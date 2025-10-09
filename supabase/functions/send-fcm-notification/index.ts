@@ -262,27 +262,38 @@ Deno.serve(async (req) => {
     }
     // Otherwise, if specific roles are targeted, filter by user roles
     else if (targetRoles && targetRoles.length > 0) {
-      console.log(`[DEBUG] Filtering by target roles: ${targetRoles.join(', ')}`);
+      console.log(`[DEBUG] ============================================`);
+      console.log(`[DEBUG] FILTERING BY TARGET DEPARTMENTS`);
+      console.log(`[DEBUG] Target departments received:`, targetRoles);
+      console.log(`[DEBUG] Target departments type:`, typeof targetRoles);
+      console.log(`[DEBUG] Target departments isArray:`, Array.isArray(targetRoles));
+      console.log(`[DEBUG] Target departments length:`, targetRoles.length);
+      console.log(`[DEBUG] ============================================`);
 
-      // Query the users table to get users whose department OR privilege matches targetRoles
+      // Query the users table to get users whose department matches targetRoles
+      // Note: targetRoles contains department names, not privilege levels
       const { data: matchingUsers, error: usersError } = await supabaseClient
         .from('users')
-        .select('id, department, privilege')
-        .or(
-          targetRoles
-            .map(role => `department.eq.${role},privilege.eq.${role}`)
-            .join(',')
-        );
+        .select('id, name, email, department, privilege')
+        .in('department', targetRoles);
 
       if (usersError) {
         console.error('[DEBUG] Error fetching users from users table:', usersError);
         throw usersError;
       }
 
+      console.log(`[DEBUG] Query returned ${matchingUsers?.length || 0} matching users`);
+      console.log(`[DEBUG] Matching users:`, matchingUsers?.map(u => ({
+        name: u.name,
+        email: u.email,
+        department: u.department,
+        privilege: u.privilege
+      })));
+
       const targetUserIds = matchingUsers?.map(user => user.id) || [];
 
       if (targetUserIds.length > 0) {
-        console.log(`[DEBUG] Found ${targetUserIds.length} users with target roles`);
+        console.log(`[DEBUG] Found ${targetUserIds.length} users with target roles - will send to these user IDs:`, targetUserIds);
         query = query.in('user_id', targetUserIds);
       } else {
         console.log('[DEBUG] No users found with target roles. Sending to no one.');

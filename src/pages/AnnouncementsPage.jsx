@@ -697,6 +697,11 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                 target_roles: formData.target_roles.length > 0 ? formData.target_roles : null
             };
 
+            console.log('📢 [ANNOUNCEMENT] Creating announcement with payload:', payload);
+            console.log('📢 [ANNOUNCEMENT] target_roles:', payload.target_roles);
+            console.log('📢 [ANNOUNCEMENT] target_roles is array:', Array.isArray(payload.target_roles));
+            console.log('📢 [ANNOUNCEMENT] target_roles length:', payload.target_roles?.length);
+
             let result;
             if (announcement) {
                 result = await supabase
@@ -706,19 +711,27 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
             } else {
                 result = await supabase
                     .from('announcements')
-                    .insert([payload]);
+                    .insert([payload])
+                    .select();  // Add select to get the inserted data back
             }
 
             if (result.error) throw result.error;
 
+            console.log('📢 [ANNOUNCEMENT] Database result:', result);
+            console.log('📢 [ANNOUNCEMENT] Saved announcement data:', result.data?.[0]);
+
             // Send FCM push notification for new announcements
             if (!announcement) {
                 try {
+                    const announcementData = {
+                        ...formData,
+                        id: result.data?.[0]?.id || 'new-announcement'
+                    };
+                    console.log('📢 [ANNOUNCEMENT] Sending FCM notification for:', announcementData);
+                    console.log('📢 [ANNOUNCEMENT] FCM target_roles:', announcementData.target_roles);
+
                     const fcmResult = await sendAnnouncementFCMNotification(
-                        {
-                            ...formData,
-                            id: result.data?.[0]?.id || 'new-announcement'
-                        },
+                        announcementData,
                         user.id
                     );
 

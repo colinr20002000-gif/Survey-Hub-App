@@ -51,7 +51,8 @@
       "Bash(npm uninstall:*)",
       "Bash(do echo \"=== $file ===\")",
       "Bash(grep:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
