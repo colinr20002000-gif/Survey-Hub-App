@@ -75,6 +75,27 @@ export async function sendFCMNotification(notification, options = {}) {
     const result = await response.json();
     console.log('🔔 [FCM] Success response:', result);
 
+    // Log detailed results if available
+    if (result.results && result.results.length > 0) {
+      console.log('🔔 [FCM] Detailed send results:', result.results);
+
+      // Log any failures with details
+      const failures = result.results.filter(r => r.status === 'failed');
+      if (failures.length > 0) {
+        console.error('❌ [FCM] Failed sends:', failures);
+        failures.forEach(failure => {
+          console.error(`  - Token: ${failure.token?.substring(0, 30)}...`);
+          console.error(`  - Error: ${failure.error}`);
+        });
+      }
+
+      // Log successes
+      const successes = result.results.filter(r => r.status === 'success');
+      if (successes.length > 0) {
+        console.log('✅ [FCM] Successful sends:', successes.length);
+      }
+    }
+
     return {
       success: true,
       ...result

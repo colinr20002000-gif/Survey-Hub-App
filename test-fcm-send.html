@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test FCM Notification Send</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px 0; font-size: 16px; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>FCM Notification Test</h1>
+
+    <h2>Step 1: Check Subscriptions</h2>
+    <button onclick="checkSubscriptions()">Check Active Subscriptions</button>
+    <pre id="subscriptions">Click button to check...</pre>
+
+    <h2>Step 2: Test Send Notification</h2>
+    <button onclick="testSend()">Send Test Notification (All Users)</button>
+    <pre id="sendResult">Click button to test...</pre>
+
+    <script>
+        const { createClient } = supabase;
+        const supabaseClient = createClient(
+            'https://okldykkmgmcjhgzysris.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbGR5a2ttZ21jamhnenlzcmlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxNjkyMzgsImV4cCI6MjA0OTc0NTIzOH0.xHEU9SvHkXxQfNrink99b46zogEf9QeZRUZyYMzNK38'
+        );
+
+        async function checkSubscriptions() {
+            const output = document.getElementById('subscriptions');
+            output.textContent = 'Loading...';
+
+            try {
+                const { data: subs, error } = await supabaseClient
+                    .from('push_subscriptions')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('last_used_at', { ascending: false });
+
+                if (error) throw error;
+
+                let result = `Found ${subs.length} active subscriptions:\n\n`;
+
+                if (subs.length === 0) {
+                    result += '❌ NO ACTIVE SUBSCRIPTIONS!\n';
+                    result += '\nPossible reasons:\n';
+                    result += '1. Users haven\'t enabled push notifications\n';
+                    result += '2. Subscriptions were deactivated\n';
+                    result += '3. Browser permission was denied\n';
+                } else {
+                    subs.forEach((sub, i) => {
+                        result += `${i + 1}. ${sub.user_email}\n`;
+                        result += `   User ID: ${sub.user_id}\n`;
+                        result += `   Token: ${sub.fcm_token.substring(0, 40)}...\n`;
+                        result += `   Device: ${sub.device_info?.platform || 'unknown'} - ${sub.device_info?.browserName || 'unknown'}\n`;
+                        result += `   Last used: ${new Date(sub.last_used_at).toLocaleString()}\n\n`;
+                    });
+                }
+
+                output.textContent = result;
+                output.className = subs.length > 0 ? 'success' : 'error';
+
+            } catch (error) {
+                output.textContent = '❌ Error: ' + error.message;
+                output.className = 'error';
+            }
+        }
+
+        async function testSend() {
+            const output = document.getElementById('sendResult');
+            output.textContent = 'Sending test notification...';
+
+            try {
+                // Get current session
+                const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+                if (sessionError) throw sessionError;
+                if (!session) throw new Error('No active session');
+
+                // Get current user
+                const { data: { user } } = await supabaseClient.auth.getUser();
+                const currentUserId = user?.id;
+
+                // Call edge function
+                const endpoint = 'https://okldykkmgmcjhgzysris.supabase.co/functions/v1/send-fcm-notification';
+
+                const payload = {
+                    notification: {
+                        title: 'Test Notification',
+                        body: 'This is a test notification to debug FCM',
+                        icon: '/android-chrome-192x192.png',
+                        badge: '/favicon-32x32.png',
+                        tag: 'test-notification',
+                        priority: 'medium',
+                        data: {
+                            type: 'announcement',
+                            url: '/announcements'
+                        }
+                    },
+                    targetRoles: [],  // Empty = send to all
+                    excludeAuthorId: currentUserId  // Exclude current user
+                };
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbGR5a2ttZ21jamhnenlzcmlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxNjkyMzgsImV4cCI6MjA0OTc0NTIzOH0.xHEU9SvHkXxQfNrink99b46zogEf9QeZRUZyYMzNK38',
+                        'Authorization': `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const result = await response.json();
+
+                let resultText = `Response Status: ${response.status}\n\n`;
+                resultText += `Sent to: ${result.sent} users\n`;
+                resultText += `Total subscriptions processed: ${result.totalSubscriptions}\n`;
+                resultText += `Notifications sent: ${result.notificationsSent}\n\n`;
+
+                if (result.results && result.results.length > 0) {
+                    resultText += '='.repeat(60) + '\n';
+                    resultText += 'DETAILED RESULTS:\n';
+                    resultText += '='.repeat(60) + '\n\n';
+
+                    result.results.forEach((r, i) => {
+                        resultText += `${i + 1}. Token: ${r.token?.substring(0, 30)}...\n`;
+                        resultText += `   Status: ${r.status}\n`;
+
+                        if (r.status === 'success') {
+                            resultText += `   ✅ Message ID: ${r.messageId}\n`;
+                        } else {
+                            resultText += `   ❌ Error: ${r.error}\n`;
+                        }
+                        resultText += '\n';
+                    });
+
+                    const successCount = result.results.filter(r => r.status === 'success').length;
+                    const failCount = result.results.filter(r => r.status === 'failed').length;
+
+                    resultText += '='.repeat(60) + '\n';
+                    resultText += `Summary: ${successCount} succeeded, ${failCount} failed\n`;
+
+                    if (failCount > 0) {
+                        resultText += '\n❌ FAILURES DETECTED!\n';
+                        resultText += 'Common causes:\n';
+                        resultText += '1. Invalid FCM token (expired or revoked)\n';
+                        resultText += '2. User denied notification permission\n';
+                        resultText += '3. Browser closed the service worker\n';
+                        resultText += '4. FCM service authentication error\n';
+                    }
+                } else {
+                    resultText += '⚠️  No results array in response\n';
+                }
+
+                output.textContent = resultText;
+                output.className = result.sent > 0 ? 'success' : 'error';
+
+            } catch (error) {
+                output.textContent = '❌ Error: ' + error.message + '\n\n' + error.stack;
+                output.className = 'error';
+            }
+        }
+    </script>
+</body>
+</html>

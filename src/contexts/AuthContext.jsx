@@ -534,79 +534,17 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     console.log('🔄 Logout process started');
 
-    // Try to clean up FCM tokens, but don't let failures block logout
-    try {
-      console.log('🧹 Starting FCM cleanup...');
+    // IMPORTANT: Do NOT deactivate FCM subscriptions on logout!
+    // Push notifications should continue working even when users are logged out.
+    // Subscriptions are automatically managed by:
+    // 1. manage_user_push_subscription() when a different user logs in on same device
+    // 2. Edge function cleanup when FCM tokens become invalid
+    // 3. Auto-cleanup of inactive subscriptions older than 7 days
 
-      // First, deactivate FCM subscriptions for current device if user exists
-      if (user?.id) {
-        try {
-          // Get stored browser ID for fingerprint generation during logout
-          const browserId = localStorage.getItem('browser_device_id');
+    console.log('ℹ️ Keeping FCM subscription active for push notifications after logout');
 
-          if (browserId) {
-            // Use a simplified fingerprinting approach during logout to avoid potential issues
-            const simpleFingerprint = [
-              navigator.userAgent,
-              navigator.language,
-              navigator.platform,
-              screen.width + 'x' + screen.height,
-              browserId
-            ].join('|');
-
-            let hash = 0;
-            for (let i = 0; i < simpleFingerprint.length; i++) {
-              const char = simpleFingerprint.charCodeAt(i);
-              hash = ((hash << 5) - hash) + char;
-              hash = hash & hash;
-            }
-
-            const deviceFingerprint = 'device_' + Math.abs(hash).toString(36);
-            console.log('📱 Device fingerprint for logout cleanup:', deviceFingerprint);
-
-            // Deactivate push subscriptions for this user on this device
-            const { error: deactivateError } = await Promise.race([
-              supabase
-                .from('push_subscriptions')
-                .update({
-                  is_active: false,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('user_id', user.id)
-                .eq('device_fingerprint', deviceFingerprint),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Database cleanup timeout')), 3000)
-              )
-            ]);
-
-            if (deactivateError) {
-              console.warn('⚠️ Error deactivating FCM subscriptions (non-blocking):', deactivateError);
-            } else {
-              console.log('✅ FCM subscriptions deactivated successfully');
-            }
-          }
-        } catch (dbError) {
-          console.warn('⚠️ Database cleanup error (non-blocking):', dbError);
-        }
-      }
-
-      // Try to delete Firebase token with timeout
-      try {
-        const messaging = getMessaging(firebaseApp);
-        await Promise.race([
-          deleteToken(messaging),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Token deletion timeout')), 3000)
-          )
-        ]);
-        console.log('🔥 FCM token deleted successfully');
-      } catch (tokenError) {
-        console.warn('⚠️ FCM token deletion failed (non-blocking):', tokenError);
-      }
-
-    } catch (error) {
-      console.warn('⚠️ FCM cleanup error (non-blocking):', error);
-    }
+    // Note: We do NOT delete the Firebase token anymore, as it should persist
+    // across logout/login to maintain push notification capability
 
     // Clear local state FIRST to prevent re-authentication
     setUser(null);

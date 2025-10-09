@@ -151,23 +151,53 @@ async function sendFCMMessage(accessToken: string, fcmTokens: string[], notifica
       const message = {
         message: {
           token: token,
-          // Remove the notification payload to prevent Firebase's automatic notification
+          // FCM API v1 notification payload - only title and body allowed here
+          notification: {
+            title: notification.title,
+            body: notification.body
+          },
+          // Data payload for service worker to access all notification details
           data: {
             ...data,
-            // Move notification details into data payload for our service worker to handle
             title: notification.title,
             body: notification.body,
             icon: notification.icon || '/android-chrome-192x192.png',
             badge: notification.badge || '/favicon-32x32.png',
             tag: notification.tag || 'survey-hub-notification',
-            click_action: data.url || '/',
+            url: data.url || '/',
+            type: data.type || 'announcement',
+            priority: data.priority || 'medium',
             sound: 'default'
           },
+          // WebPush-specific configuration with full notification customization
           webpush: {
             headers: {
-              TTL: '86400'
+              TTL: '86400',
+              Urgency: data.priority === 'urgent' ? 'high' : 'normal'
             },
-            // Remove webpush.notification to prevent duplicate notifications
+            notification: {
+              title: notification.title,
+              body: notification.body,
+              icon: notification.icon || '/android-chrome-192x192.png',
+              badge: notification.badge || '/favicon-32x32.png',
+              tag: notification.tag || 'survey-hub-notification',
+              requireInteraction: data.priority === 'urgent',
+              vibrate: [200, 100, 200],
+              actions: [
+                {
+                  action: 'view',
+                  title: 'View'
+                },
+                {
+                  action: 'dismiss',
+                  title: 'Dismiss'
+                }
+              ],
+              data: {
+                url: data.url || '/',
+                type: data.type || 'announcement'
+              }
+            },
             fcm_options: {
               link: data.url || '/'
             }
