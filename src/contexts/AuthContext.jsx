@@ -259,24 +259,11 @@ export const AuthProvider = ({ children }) => {
       // Check if user already has an active subscription for this device
       const deviceFingerprint = generateDeviceFingerprint();
 
-      const { data: existingSubscriptions, error: checkError } = await supabase
-        .from('push_subscriptions')
-        .select('id, is_active')
-        .eq('user_id', userData.id)
-        .eq('device_fingerprint', deviceFingerprint)
-        .eq('is_active', true)
-        .limit(1);
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.warn('📵 Error checking existing push subscriptions:', checkError);
-        return;
-      }
-
-      // If user already has active subscription for this device, no need to create another
-      if (existingSubscriptions && existingSubscriptions.length > 0) {
-        console.log('✅ User already has active push subscription for this device');
-        return;
-      }
+      // Note: We still need to register the Firebase service worker and get a token
+      // even if a subscription exists in the database, because:
+      // 1. The service worker might not be registered in the browser
+      // 2. The FCM token might have changed
+      // 3. Browser might have been cleared/reset
 
       // Check notification permission
       let permission = Notification.permission;

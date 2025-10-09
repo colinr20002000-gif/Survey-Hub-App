@@ -205,6 +205,11 @@ async function sendFCMMessage(accessToken: string, fcmTokens: string[], notifica
         }
       };
 
+      // Enhanced logging for debugging
+      console.log(`📤 [FCM API] Sending to: ${fcmUrl}`);
+      console.log(`📤 [FCM API] Token: ${token.substring(0, 30)}...${token.substring(token.length - 10)}`);
+      console.log(`📤 [FCM API] Message payload:`, JSON.stringify(message, null, 2));
+
       const response = await fetch(fcmUrl, {
         method: 'POST',
         headers: {
@@ -216,8 +221,12 @@ async function sendFCMMessage(accessToken: string, fcmTokens: string[], notifica
 
       const responseData = await response.json();
 
+      console.log(`📥 [FCM API] Response status: ${response.status} ${response.statusText}`);
+      console.log(`📥 [FCM API] Response data:`, JSON.stringify(responseData, null, 2));
+
       if (response.ok) {
         console.log(`✅ FCM message sent successfully to token: ${token.substring(0, 20)}...`);
+        console.log(`✅ FCM Message ID: ${responseData.name}`);
         results.push({ token, status: 'success', messageId: responseData.name });
       } else {
         console.error(`❌ FCM message failed for token ${token.substring(0, 20)}...:`, responseData);
