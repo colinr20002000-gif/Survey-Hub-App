@@ -3,7 +3,7 @@
 
 // Service Worker for Survey Hub PWA + Firebase Cloud Messaging
 // IMPORTANT: Increment version number when deploying updates to force cache refresh
-const CACHE_NAME = 'survey-hub-v3-2025-10-09';
+const CACHE_NAME = 'survey-hub-v4-2025-10-09-fcm';
 const OFFLINE_URL = '/offline.html';
 
 console.log('🔔 [SW] Survey Hub service worker loading...');
