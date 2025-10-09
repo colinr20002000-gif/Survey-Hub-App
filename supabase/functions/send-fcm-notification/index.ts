@@ -331,22 +331,24 @@ Deno.serve(async (req) => {
     console.log('[DEBUG] Step 3.5: Validating active user sessions.');
     const userIds = subscriptions.map(sub => sub.user_id);
 
-    // Skip active session validation for task assignments - users should get task notifications regardless of login status
+    // Skip active session validation for announcements AND task assignments
+    // Push notifications should go to all subscribed users regardless of recent login
     const notificationType = notification.data?.type || 'announcement';
     const isTaskNotification = notificationType === 'delivery_task_assignment' || notificationType === 'project_task_assignment';
+    const isAnnouncement = notificationType === 'announcement';
 
     console.log(`[DEBUG] Notification type: ${notificationType}`);
     console.log(`[DEBUG] Is task notification: ${isTaskNotification}`);
+    console.log(`[DEBUG] Is announcement: ${isAnnouncement}`);
     console.log(`[DEBUG] Full notification data:`, notification.data);
 
     let activeSubscriptions;
-    if (isTaskNotification) {
-      console.log('[DEBUG] Task notification detected - skipping active session validation');
+    if (isTaskNotification || isAnnouncement) {
+      console.log('[DEBUG] Task/Announcement notification - skipping active session validation');
       activeSubscriptions = subscriptions;
     } else {
-      console.log('[DEBUG] Non-task notification - applying active session validation');
+      console.log('[DEBUG] Other notification type - applying active session validation');
       const activeUserIds = await getActiveUserSessions(supabaseClient, userIds);
-      // Filter subscriptions to only include active users for announcements
       activeSubscriptions = subscriptions.filter(sub => activeUserIds.includes(sub.user_id));
     }
 
