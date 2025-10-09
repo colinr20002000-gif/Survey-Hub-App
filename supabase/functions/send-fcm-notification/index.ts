@@ -419,8 +419,14 @@ Deno.serve(async (req) => {
 
     // Clean up failed tokens that are invalid
     for (const failed of failedTokens) {
-      if (failed.error?.includes('INVALID_ARGUMENT') || failed.error?.includes('UNREGISTERED')) {
+      if (
+        failed.error?.includes('INVALID_ARGUMENT') ||
+        failed.error?.includes('UNREGISTERED') ||
+        failed.error?.includes('Requested entity was not found') ||
+        failed.error?.includes('NOT_FOUND')
+      ) {
         console.log(`[DEBUG] 🗑️ Removing invalid FCM token: ${failed.token.substring(0, 20)}...`);
+        console.log(`[DEBUG] Reason: ${failed.error}`);
         await supabaseClient
           .from('push_subscriptions')
           .delete()
