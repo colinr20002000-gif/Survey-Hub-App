@@ -308,3 +308,111 @@ export async function sendProjectTaskAssignmentNotification(taskData, authorId) 
     };
   }
 }
+
+/**
+ * Send FCM notification when a delivery task is completed
+ * @param {Object} taskData - Delivery task data
+ * @param {string} creatorId - ID of the user who created the task
+ * @param {string} completedByName - Name of the user who completed the task
+ */
+export async function sendDeliveryTaskCompletionNotification(taskData, creatorId, completedByName) {
+  try {
+    console.log('🔔 [DELIVERY-COMPLETE] sendDeliveryTaskCompletionNotification called with:', { taskData, creatorId, completedByName });
+
+    if (!creatorId) {
+      console.log('🔔 [DELIVERY-COMPLETE] No creator ID, skipping notification');
+      return { success: true, message: 'No creator' };
+    }
+
+    // Send FCM notification to the task creator
+    console.log('🔔 [DELIVERY-COMPLETE] Calling sendFCMNotification...');
+    const fcmResult = await sendFCMNotification(
+      {
+        title: '✅ Task Completed',
+        body: `"${taskData.text}" has been marked as complete by ${completedByName}`,
+        tag: `delivery-task-complete-${taskData.id || Date.now()}`,
+        priority: 'medium',
+        data: {
+          type: 'delivery_task_completed',
+          taskId: String(taskData.id),
+          taskText: taskData.text,
+          project: taskData.project || 'Delivery Team',
+          completedBy: completedByName,
+          url: '/delivery-tasks',
+          timestamp: new Date().toISOString()
+        }
+      },
+      {
+        targetUserIds: [creatorId]
+      }
+    );
+
+    console.log('🔔 [DELIVERY-COMPLETE] sendFCMNotification result:', fcmResult);
+    return {
+      ...fcmResult,
+      sent: 1
+    };
+
+  } catch (error) {
+    console.error('Error sending delivery task completion notification:', error);
+    return {
+      success: false,
+      message: error.message,
+      error: error
+    };
+  }
+}
+
+/**
+ * Send FCM notification when a project task is completed
+ * @param {Object} taskData - Project task data
+ * @param {string} creatorId - ID of the user who created the task
+ * @param {string} completedByName - Name of the user who completed the task
+ */
+export async function sendProjectTaskCompletionNotification(taskData, creatorId, completedByName) {
+  try {
+    console.log('🔔 [PROJECT-COMPLETE] sendProjectTaskCompletionNotification called with:', { taskData, creatorId, completedByName });
+
+    if (!creatorId) {
+      console.log('🔔 [PROJECT-COMPLETE] No creator ID, skipping notification');
+      return { success: true, message: 'No creator' };
+    }
+
+    // Send FCM notification to the task creator
+    console.log('🔔 [PROJECT-COMPLETE] Calling sendFCMNotification...');
+    const fcmResult = await sendFCMNotification(
+      {
+        title: '✅ Project Task Completed',
+        body: `"${taskData.text}" has been marked as complete by ${completedByName}`,
+        tag: `project-task-complete-${taskData.id || Date.now()}`,
+        priority: 'medium',
+        data: {
+          type: 'project_task_completed',
+          taskId: String(taskData.id),
+          taskText: taskData.text,
+          project: taskData.project || 'Project Team',
+          completedBy: completedByName,
+          url: '/project-tasks',
+          timestamp: new Date().toISOString()
+        }
+      },
+      {
+        targetUserIds: [creatorId]
+      }
+    );
+
+    console.log('🔔 [PROJECT-COMPLETE] sendFCMNotification result:', fcmResult);
+    return {
+      ...fcmResult,
+      sent: 1
+    };
+
+  } catch (error) {
+    console.error('Error sending project task completion notification:', error);
+    return {
+      success: false,
+      message: error.message,
+      error: error
+    };
+  }
+}

@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
-import { sendProjectTaskAssignmentNotification } from '../utils/fcmNotifications';
+import { sendProjectTaskAssignmentNotification, sendProjectTaskCompletionNotification } from '../utils/fcmNotifications';
 
 const ProjectTaskContext = createContext(null);
 
@@ -229,7 +229,20 @@ export const ProjectTaskProvider = ({ children }) => {
                     if (notifError) {
                         console.error('❌ Error creating task completion notification:', notifError);
                     } else {
-                        console.log('✅ Task completion notification sent to creator');
+                        console.log('✅ Task completion in-app notification sent to creator');
+                    }
+
+                    // Send FCM push notification
+                    const fcmResult = await sendProjectTaskCompletionNotification(
+                        updatedTask,
+                        oldTask.createdBy,
+                        user.name
+                    );
+
+                    if (fcmResult.success) {
+                        console.log('✅ Task completion push notification sent to creator');
+                    } else {
+                        console.error('❌ Failed to send task completion push notification:', fcmResult);
                     }
                 } catch (notificationError) {
                     console.error('Error sending task completion notification:', notificationError);
