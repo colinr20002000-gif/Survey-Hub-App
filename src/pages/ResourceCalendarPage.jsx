@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, MoreVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, MoreVertical, Download } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjects } from '../contexts/ProjectContext';
@@ -156,6 +157,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null });
     const filterRef = useRef(null);
     const scrollPositionRef = useRef(0);
+    const calendarRef = useRef(null);
+    const [isExporting, setIsExporting] = useState(false);
 
     // shiftColors and leaveColors imported from src/constants/index.js
 
@@ -683,6 +686,101 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const currentWeekAllocations = allocations[weekKey] || {};
     const selectedUser = selectedCell ? allUsers?.find(u => u.id === selectedCell.userId) : null;
 
+    const handleExportImage = async () => {
+        if (!calendarRef.current) return;
+
+        setIsExporting(true);
+
+        try {
+            // Create wrapper with fixed width for consistent export
+            const exportWrapper = document.createElement('div');
+            exportWrapper.style.position = 'fixed';
+            exportWrapper.style.top = '0';
+            exportWrapper.style.left = '0';
+            exportWrapper.style.width = '2560px';
+            exportWrapper.style.minHeight = '100vh';
+            exportWrapper.style.zIndex = '99999';
+            exportWrapper.style.backgroundColor = '#ffffff';
+            exportWrapper.style.padding = '40px';
+            exportWrapper.style.boxSizing = 'border-box';
+            document.body.appendChild(exportWrapper);
+
+            // Add title
+            const title = document.createElement('div');
+            title.style.marginBottom = '30px';
+            title.style.textAlign = 'center';
+            title.innerHTML = `
+                <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 12px; color: #1f2937;">
+                    Resource Allocation Calendar
+                </h1>
+                <h2 style="font-size: 24px; font-weight: 600; color: #4b5563;">
+                    Week ${fiscalWeek}: ${formatDateForDisplay(weekDates[0])} - ${formatDateForDisplay(weekDates[6])}, ${currentWeekStart.getFullYear()}
+                </h2>
+            `;
+            exportWrapper.appendChild(title);
+
+            // Clone calendar
+            const calendarClone = calendarRef.current.cloneNode(true);
+
+            // Remove interactive elements
+            const buttons = calendarClone.querySelectorAll('button');
+            buttons.forEach(btn => btn.remove());
+
+            // Remove scroll constraints and set to full display
+            calendarClone.style.maxHeight = 'none';
+            calendarClone.style.overflow = 'visible';
+            calendarClone.style.width = '100%';
+            calendarClone.style.height = 'auto';
+
+            // Remove all dark mode classes from clone
+            const allElements = calendarClone.querySelectorAll('*');
+            allElements.forEach(el => {
+                if (el.className && typeof el.className === 'string') {
+                    // Remove dark: prefixed classes
+                    el.className = el.className.split(' ').filter(cls => !cls.startsWith('dark:')).join(' ');
+                }
+            });
+
+            // Also remove from calendarClone itself
+            if (calendarClone.className && typeof calendarClone.className === 'string') {
+                calendarClone.className = calendarClone.className.split(' ').filter(cls => !cls.startsWith('dark:')).join(' ');
+            }
+
+            exportWrapper.appendChild(calendarClone);
+
+            // Wait for rendering
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Capture with html-to-image at full width
+            const dataUrl = await toPng(exportWrapper, {
+                quality: 1,
+                pixelRatio: 2,
+                backgroundColor: '#ffffff',
+                width: 2560,
+                cacheBust: true,
+                filter: (node) => {
+                    // Filter out any remaining buttons or interactive elements
+                    return node.tagName !== 'BUTTON';
+                }
+            });
+
+            // Cleanup
+            document.body.removeChild(exportWrapper);
+
+            // Download
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `Resource-Calendar-Week-${fiscalWeek}-${formatDateForKey(currentWeekStart)}.png`;
+            link.click();
+            setIsExporting(false);
+
+        } catch (error) {
+            console.error('Error exporting calendar:', error);
+            alert('Failed to export calendar image. Please try again.');
+            setIsExporting(false);
+        }
+    };
+
     if (loading || usersLoading) {
         return (
             <div className="p-4 md:p-6 flex items-center justify-center min-h-96">
@@ -713,6 +811,22 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     <Button variant="outline" onClick={() => changeWeek(-1)}><ChevronLeft size={16}/></Button>
                     <Button variant="outline" onClick={() => changeWeek(1)}><ChevronRight size={16}/></Button>
                     <Button onClick={() => setIsManageUsersModalOpen(true)}><Users size={16} className="mr-2"/>Show/Hide User</Button>
+                    <Button
+                        onClick={handleExportImage}
+                        disabled={isExporting}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                        {isExporting ? (
+                            <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                                Exporting...
+                            </>
+                        ) : (
+                            <>
+                                <Download size={16} className="mr-2"/>Export Image
+                            </>
+                        )}
+                    </Button>
                 </div>
             </div>
             <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
@@ -805,7 +919,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     Error loading resource allocations from the database: {error}.
                 </div>
             )}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)] overflow-y-auto">
+            <div ref={calendarRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)] overflow-y-auto">
                 <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-10">
                         <tr>

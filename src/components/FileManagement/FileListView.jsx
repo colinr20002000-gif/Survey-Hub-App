@@ -428,14 +428,14 @@ const FileListItem = ({
       {/* Actions */}
       {hasActions && (
         <div ref={actionsRef} className="relative flex-shrink-0 flex items-center gap-2">
-          {/* Quick delete button for better visibility */}
+          {/* Quick delete button for better visibility - Always visible on mobile, hover on desktop */}
           {onDelete && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();
               }}
-              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
               title="Delete"
             >
               <Trash2 className="h-4 w-4" />
@@ -595,14 +595,14 @@ const FileCardItem = ({
       {/* Actions menu */}
       {hasActions && (
         <div ref={actionsRef} className="absolute top-2 right-2 z-10 flex items-center gap-1">
-          {/* Quick delete button */}
+          {/* Quick delete button - Always visible on mobile, hover on desktop */}
           {onDelete && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();
               }}
-              className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+              className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
               title="Delete"
             >
               <Trash2 className="h-4 w-4" />

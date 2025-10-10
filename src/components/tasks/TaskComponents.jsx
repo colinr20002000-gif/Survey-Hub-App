@@ -15,29 +15,29 @@ export const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete, onArchive, 
     };
 
     return (
-        <li className={`flex items-center justify-between p-3 rounded-lg border ${task.completed ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'}`}>
-            <div className="flex items-center space-x-3 flex-grow">
+        <li className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg border ${task.completed ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'}`}>
+            <div className="flex items-start sm:items-center space-x-3 flex-grow min-w-0">
                 {canComplete && (
                     <input
                         type="checkbox"
                         checked={task.completed}
                         onChange={onToggle}
-                        className="h-5 w-5 rounded text-orange-500 focus:ring-orange-500 border-gray-300 dark:border-gray-500 bg-gray-100 dark:bg-gray-600"
+                        className="h-5 w-5 mt-0.5 sm:mt-0 flex-shrink-0 rounded text-orange-500 focus:ring-orange-500 border-gray-300 dark:border-gray-500 bg-gray-100 dark:bg-gray-600"
                     />
                 )}
-                <div className="flex-grow">
-                    <p className={`text-sm font-medium ${task.completed ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-800 dark:text-white'}`}>
+                <div className="flex-grow min-w-0">
+                    <p className={`text-sm font-medium break-words ${task.completed ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-800 dark:text-white'}`}>
                         {task.text}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Project: {task.project}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">Project: {task.project}</p>
 
-                    <div className="flex items-center space-x-1 mt-1">
+                    <div className="flex flex-wrap items-center gap-x-1 gap-y-1 mt-1">
                         <span className="text-xs text-gray-400">Created:</span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{formatDateTime(task.createdAt)}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 break-all">{formatDateTime(task.createdAt)}</span>
                         {createdByUser && (
                             <>
                                 <span className="text-xs text-gray-400">by</span>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 truncate max-w-[150px]">
                                     {createdByUser.name}
                                 </span>
                             </>
@@ -45,13 +45,13 @@ export const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete, onArchive, 
                     </div>
 
                     {task.completed && task.completedAt && (
-                        <div className="flex items-center space-x-1 mt-1">
+                        <div className="flex flex-wrap items-center gap-x-1 gap-y-1 mt-1">
                             <span className="text-xs text-gray-400">Completed:</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">{formatDateTime(task.completedAt)}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 break-all">{formatDateTime(task.completedAt)}</span>
                             {completedByUser && (
                                 <>
                                     <span className="text-xs text-gray-400">by</span>
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 truncate max-w-[150px]">
                                         {completedByUser.name}
                                     </span>
                                 </>
@@ -60,10 +60,10 @@ export const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete, onArchive, 
                     )}
 
                     {assignedUsers.length > 0 && (
-                        <div className="flex items-center space-x-1 mt-1">
-                            <span className="text-xs text-gray-400">Assigned to:</span>
+                        <div className="flex flex-wrap items-center gap-x-1 gap-y-1 mt-1">
+                            <span className="text-xs text-gray-400 flex-shrink-0">Assigned to:</span>
                             {assignedUsers.map(user => (
-                                <span key={user.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                                <span key={user.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 truncate max-w-[150px]">
                                     {user.name}
                                 </span>
                             ))}
@@ -71,7 +71,7 @@ export const DeliveryTaskItem = ({ task, onToggle, onEdit, onDelete, onArchive, 
                     )}
                 </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-shrink-0 self-end sm:self-center">
                 {canEdit && (
                     <button onClick={() => onEdit(task)} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600" title="Edit"><Edit size={16} /></button>
                 )}

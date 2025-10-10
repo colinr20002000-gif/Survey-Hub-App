@@ -22,7 +22,7 @@ const ProjectsPage = ({ onViewProject }) => {
     const [yearFilter, setYearFilter] = useState('');
     const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 25;
+    const [itemsPerPage, setItemsPerPage] = useState(25);
 
     const dropdownRef = useRef(null);
     const filterRef = useRef(null);
@@ -307,6 +307,7 @@ const ProjectsPage = ({ onViewProject }) => {
                         totalPages={totalPages}
                         totalItems={sortedProjects?.length || 0}
                         itemsPerPage={itemsPerPage}
+                        setItemsPerPage={setItemsPerPage}
                     />
                 </div>
             )}

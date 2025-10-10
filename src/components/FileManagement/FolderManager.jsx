@@ -345,8 +345,8 @@ const FolderItem = ({
           <span className="truncate">{folder.name}</span>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Action buttons - Always visible on mobile (md:opacity-0), visible on hover for desktop */}
+        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           {onCreateSubfolder && (
             <button
               onClick={(e) => {

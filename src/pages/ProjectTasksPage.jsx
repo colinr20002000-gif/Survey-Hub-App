@@ -159,7 +159,7 @@ const ProjectTasksPage = () => {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div className="p-4">
                     <h3 className="text-lg font-semibold mb-4">To Do ({incompleteTasks.length})</h3>
                     <ul className="space-y-2">
