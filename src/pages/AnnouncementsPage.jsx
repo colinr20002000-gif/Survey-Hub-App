@@ -511,67 +511,9 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
         expires_at: ''
     });
     const [loading, setLoading] = useState(false);
-    const [departments, setDepartments] = useState([]);
     const [categories, setCategories] = useState([]);
     const { user } = useAuth();
     const { showSuccessModal, showErrorModal } = useToast();
-
-    // Fetch departments from database
-    const fetchDepartments = async () => {
-        try {
-            console.log('📢 Fetching departments for announcements...');
-            const { data, error } = await supabase
-                .from('dropdown_items')
-                .select(`
-                    display_text,
-                    dropdown_categories!inner(name)
-                `)
-                .eq('dropdown_categories.name', 'department')
-                .eq('is_active', true)
-                .order('sort_order');
-
-            if (error) {
-                console.error('Error fetching departments:', error);
-                // Try with capitalized name as fallback
-                console.log('📢 Trying with capitalized "Department"...');
-                const { data: capitalData, error: capitalError } = await supabase
-                    .from('dropdown_items')
-                    .select(`
-                        display_text,
-                        dropdown_categories!inner(name)
-                    `)
-                    .eq('dropdown_categories.name', 'Department')
-                    .eq('is_active', true)
-                    .order('sort_order');
-
-                if (capitalError) {
-                    console.error('Error fetching departments with capital D:', capitalError);
-                    setDepartments([]);
-                    return;
-                }
-
-                if (capitalData && capitalData.length > 0) {
-                    console.log('📢 Found departments with capital D:', capitalData);
-                    setDepartments(capitalData.map(dept => dept.display_text));
-                } else {
-                    console.log('No departments found with capital D either');
-                    setDepartments([]);
-                }
-                return;
-            }
-
-            if (data && data.length > 0) {
-                console.log('📢 Found departments:', data);
-                setDepartments(data.map(dept => dept.display_text));
-            } else {
-                console.log('No departments found in database');
-                setDepartments([]);
-            }
-        } catch (error) {
-            console.error('Error fetching departments:', error);
-            setDepartments([]);
-        }
-    };
 
     // Fetch announcement categories from database
     const fetchCategories = async () => {
@@ -658,7 +600,6 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
 
     useEffect(() => {
         if (isOpen) {
-            fetchDepartments();
             fetchCategories();
         }
     }, [isOpen]);
@@ -765,14 +706,6 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
         }
     };
 
-    const handleTargetRoleChange = (role) => {
-        setFormData(prev => ({
-            ...prev,
-            target_roles: prev.target_roles.includes(role)
-                ? prev.target_roles.filter(r => r !== role)
-                : [...prev.target_roles, role]
-        }));
-    };
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={announcement ? 'Edit Announcement' : 'Create Announcement'}>
@@ -841,29 +774,6 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                         value={formData.expires_at}
                         onChange={(e) => setFormData(prev => ({ ...prev, expires_at: e.target.value }))}
                     />
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Target Departments (optional - leave empty for all users)
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                            {Array.isArray(departments) && departments.length > 0 ? (
-                                departments.map(department => (
-                                    <label key={department} className="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.target_roles.includes(department)}
-                                            onChange={() => handleTargetRoleChange(department)}
-                                            className="mr-2"
-                                        />
-                                        <span className="text-sm">{department}</span>
-                                    </label>
-                                ))
-                            ) : (
-                                <span className="text-sm text-gray-500">Loading departments...</span>
-                            )}
-                        </div>
-                    </div>
 
                     <div className="flex justify-end space-x-2 pt-4">
                         <Button type="button" variant="outline" onClick={onClose} disabled={loading}>

@@ -132,9 +132,16 @@ const DeliveryTasksPage = () => {
 
     return (
         <div className="p-4 md:p-6">
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-4">
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Delivery Tasks</h1>
+            <div className="flex flex-col gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">Delivery Tasks</h1>
+                    {canCreateTasks && (
+                        <Button onClick={openNewTaskModal} className="w-full sm:w-auto">
+                            <PlusCircle size={16} className="mr-2"/>Add Delivery Task
+                        </Button>
+                    )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                     <Button
                         variant="outline"
                         onClick={() => setShowArchived(!showArchived)}
@@ -148,13 +155,12 @@ const DeliveryTasksPage = () => {
                             onClick={handleDeleteAllArchived}
                             className="text-sm text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                         >
-                            <Trash2 size={16} className="mr-2"/>Delete All Archived
+                            <Trash2 size={16} className="mr-1 sm:mr-2"/>
+                            <span className="hidden xs:inline">Delete All Archived</span>
+                            <span className="xs:hidden">Delete All</span>
                         </Button>
                     )}
                 </div>
-                {canCreateTasks && (
-                    <Button onClick={openNewTaskModal}><PlusCircle size={16} className="mr-2"/>Add Delivery Task</Button>
-                )}
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
