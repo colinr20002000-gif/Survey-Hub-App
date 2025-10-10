@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Download,
@@ -16,7 +16,8 @@ import {
   User,
   X,
   AlertTriangle,
-  Folder
+  Folder,
+  ExternalLink
 } from 'lucide-react';
 import {
   downloadFile,
@@ -25,7 +26,8 @@ import {
   updateFileMetadata,
   formatFileSize,
   getFileTypeIcon,
-  getFilePreviewUrl
+  getFilePreviewUrl,
+  openFileInDefaultViewer
 } from '../../utils/fileManager';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -38,7 +40,8 @@ const FileListView = ({
   onFolderClick,
   canManage = false,
   viewMode = 'list',
-  className = ''
+  className = '',
+  isSearching = false
 }) => {
   const [editingFile, setEditingFile] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
@@ -52,29 +55,46 @@ const FileListView = ({
     }
   };
 
+  const handleFileOpen = async (file) => {
+    const result = await openFileInDefaultViewer(file.storage_path);
+    if (!result.success) {
+      showErrorModal('Failed to open file', result.error);
+    }
+  };
+
   const handleFileDelete = async (file) => {
+    console.log('🗑️ FileListView: Starting deletion for:', file);
     let result;
 
     if (file.isFolder) {
       // Handle folder deletion
+      console.log('🗑️ FileListView: Deleting folder with ID:', file.id, 'path:', file.full_path);
       result = await deleteFolder(file.id, file.full_path);
+      console.log('🗑️ FileListView: Folder deletion result:', result);
       if (result.success) {
         showSuccessModal('Folder deleted successfully');
       }
     } else {
       // Handle file deletion
+      console.log('🗑️ FileListView: Deleting file with ID:', file.id);
       result = await deleteFile(file.id, file.storage_path);
+      console.log('🗑️ FileListView: File deletion result:', result);
       if (result.success) {
         showSuccessModal('File deleted successfully');
       }
     }
 
     if (result.success) {
+      console.log('🗑️ FileListView: Deletion successful, closing modal and calling onFileDelete');
       setDeleteConfirmation(null);
       if (onFileDelete) {
+        console.log('🗑️ FileListView: Calling onFileDelete callback');
         onFileDelete(file);
+      } else {
+        console.warn('🗑️ FileListView: onFileDelete callback is not defined!');
       }
     } else {
+      console.error('🗑️ FileListView: Deletion failed with error:', result.error);
       showErrorModal('Delete failed', result.error);
     }
   };
@@ -176,8 +196,9 @@ const FileListView = ({
             <FileListItem
               key={file.id}
               file={file}
-              onDownload={() => handleFileDownload(file)}
-              onEdit={canManage ? () => setEditingFile(file) : null}
+              onDownload={!file.isFolder ? () => handleFileDownload(file) : null}
+              onOpen={!file.isFolder ? () => handleFileOpen(file) : null}
+              onEdit={canManage && !file.isFolder ? () => setEditingFile(file) : null}
               onDelete={canManage ? () => setDeleteConfirmation(file) : null}
               onPreview={canPreview(file.file_type) ? () => setPreviewFile(file) : null}
               onFolderClick={onFolderClick}
@@ -186,6 +207,7 @@ const FileListView = ({
               formatDate={formatDate}
               getUserName={getUserName}
               viewMode="list"
+              isSearching={isSearching}
             />
           ))}
         </div>
@@ -195,8 +217,9 @@ const FileListView = ({
             <FileCardItem
               key={file.id}
               file={file}
-              onDownload={() => handleFileDownload(file)}
-              onEdit={canManage ? () => setEditingFile(file) : null}
+              onDownload={!file.isFolder ? () => handleFileDownload(file) : null}
+              onOpen={!file.isFolder ? () => handleFileOpen(file) : null}
+              onEdit={canManage && !file.isFolder ? () => setEditingFile(file) : null}
               onDelete={canManage ? () => setDeleteConfirmation(file) : null}
               onPreview={canPreview(file.file_type) ? () => setPreviewFile(file) : null}
               onFolderClick={onFolderClick}
@@ -235,8 +258,10 @@ const FileListView = ({
       <AnimatePresence>
         {deleteConfirmation && (
           <ConfirmationModal
-            title="Delete File"
-            message={`Are you sure you want to delete "${deleteConfirmation.display_name}"? This action cannot be undone.`}
+            title={deleteConfirmation.isFolder ? "Delete Folder" : "Delete File"}
+            message={deleteConfirmation.isFolder
+              ? `Are you sure you want to delete the folder "${deleteConfirmation.display_name}" and all its contents? This action cannot be undone.`
+              : `Are you sure you want to delete "${deleteConfirmation.display_name}"? This action cannot be undone.`}
             confirmLabel="Delete"
             confirmVariant="danger"
             onConfirm={() => handleFileDelete(deleteConfirmation)}
@@ -252,6 +277,7 @@ const FileListView = ({
 const FileListItem = ({
   file,
   onDownload,
+  onOpen,
   onEdit,
   onDelete,
   onPreview,
@@ -260,20 +286,37 @@ const FileListItem = ({
   getFileIcon,
   formatDate,
   getUserName,
-  viewMode = 'list'
+  viewMode = 'list',
+  isSearching = false
 }) => {
   const [showActions, setShowActions] = useState(false);
+  const actionsRef = useRef(null);
 
   const handleClick = () => {
     if (file.isFolder && onFolderClick) {
       onFolderClick(file.full_path);
-    } else if (onPreview) {
-      onPreview();
     }
+    // Don't auto-preview files on click - let user choose download, preview, or open
   };
 
+  // Click outside to close actions menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (actionsRef.current && !actionsRef.current.contains(event.target)) {
+        setShowActions(false);
+      }
+    };
+
+    if (showActions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showActions]);
+
   // Check if there are any actions available
-  const hasActions = onDownload || onEdit || onDelete || onPreview;
+  const hasActions = onDownload || onOpen || onEdit || onDelete || onPreview;
 
   return (
     <div
@@ -313,7 +356,10 @@ const FileListItem = ({
           </h4>
           {onPreview && (
             <button
-              onClick={onPreview}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPreview();
+              }}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               title="Preview"
             >
@@ -321,6 +367,23 @@ const FileListItem = ({
             </button>
           )}
         </div>
+
+        {/* Show category and folder path when searching */}
+        {isSearching && (
+          <div className="flex items-center gap-2 text-xs mb-1">
+            {file.category && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-md font-medium">
+                📁 {file.category}
+              </span>
+            )}
+            {file.folder_path && (
+              <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                <Folder className="h-3 w-3" />
+                {file.folder_path}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
           <span className="flex items-center gap-1.5 min-w-0">
@@ -364,7 +427,21 @@ const FileListItem = ({
 
       {/* Actions */}
       {hasActions && (
-        <div className="relative flex-shrink-0">
+        <div ref={actionsRef} className="relative flex-shrink-0 flex items-center gap-2">
+          {/* Quick delete button for better visibility */}
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -382,19 +459,33 @@ const FileListItem = ({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10"
-              onBlur={() => setShowActions(false)}
             >
               <div className="py-1">
-                <button
-                  onClick={() => {
-                    onDownload();
-                    setShowActions(false);
-                  }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  <Download className="h-4 w-4" />
-                  Download
-                </button>
+                {onOpen && (
+                  <button
+                    onClick={() => {
+                      onOpen();
+                      setShowActions(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open
+                  </button>
+                )}
+
+                {onDownload && (
+                  <button
+                    onClick={() => {
+                      onDownload();
+                      setShowActions(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </button>
+                )}
 
                 {onPreview && (
                   <button
@@ -448,6 +539,7 @@ const FileListItem = ({
 const FileCardItem = ({
   file,
   onDownload,
+  onOpen,
   onEdit,
   onDelete,
   onPreview,
@@ -458,6 +550,7 @@ const FileCardItem = ({
   getUserName
 }) => {
   const [showActions, setShowActions] = useState(false);
+  const actionsRef = useRef(null);
 
   const getFileTypeColor = (fileType) => {
     if (fileType.startsWith('image/')) return 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400';
@@ -468,17 +561,54 @@ const FileCardItem = ({
     return 'text-gray-600 bg-gray-50 dark:bg-gray-700 dark:text-gray-400';
   };
 
+  const handleClick = () => {
+    if (file.isFolder && onFolderClick) {
+      onFolderClick(file.full_path);
+    }
+    // Don't auto-preview files on click - let user choose download, preview, or open
+  };
+
+  // Click outside to close actions menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (actionsRef.current && !actionsRef.current.contains(event.target)) {
+        setShowActions(false);
+      }
+    };
+
+    if (showActions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showActions]);
+
   // Check if there are any actions available
-  const hasActions = onDownload || onEdit || onDelete || onPreview;
+  const hasActions = onDownload || onOpen || onEdit || onDelete || onPreview;
 
   return (
     <div
       className="relative bg-white dark:bg-gray-800 rounded-lg border transition-all duration-200 hover:shadow-sm group cursor-pointer border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-      onClick={file.isFolder ? () => onFolderClick && onFolderClick(file.full_path) : onPreview}
+      onClick={handleClick}
     >
       {/* Actions menu */}
       {hasActions && (
-        <div className="absolute top-2 right-2 z-10">
+        <div ref={actionsRef} className="absolute top-2 right-2 z-10 flex items-center gap-1">
+          {/* Quick delete button */}
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -498,17 +628,33 @@ const FileCardItem = ({
               className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-30"
             >
               <div className="py-1">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDownload();
-                    setShowActions(false);
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  <Download className="h-4 w-4" />
-                  Download
-                </button>
+                {onOpen && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpen();
+                      setShowActions(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open
+                  </button>
+                )}
+
+                {onDownload && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDownload();
+                      setShowActions(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </button>
+                )}
 
                 {onEdit && (
                   <button

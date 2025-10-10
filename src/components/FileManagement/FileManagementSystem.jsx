@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Grid, List, Settings, ChevronRight, Home, FolderPlus } from 'lucide-react';
+import { RefreshCw, Grid, List, Settings, ChevronRight, Home, FolderPlus, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { getFiles, getFolders, createFolder, testFoldersTable } from '../../utils/fileManager';
+import { getFiles, getAllFiles, getFolders, createFolder, testFoldersTable } from '../../utils/fileManager';
 import FileUploadComponent from '../FileUpload/FileUploadComponent';
 import FolderManager from './FolderManager';
 import FileSearchFilter from './FileSearchFilter';
@@ -42,18 +42,36 @@ const FileManagementSystem = ({ category }) => {
   }, [category, showErrorModal]);
 
   const loadFiles = useCallback(async () => {
-    const options = {
-      folderPath: selectedFolderPath,
-      search: searchFilters.search,
-      tags: searchFilters.tags,
-      limit: 100
-    };
+    console.log('📂 loadFiles called with search:', searchFilters.search);
 
-    // Load both files and folders
-    const [filesResult, foldersResult] = await Promise.all([
-      getFiles(category, options),
-      getFolders(category)
-    ]);
+    let filesResult;
+    let foldersResult;
+
+    // When searching, search across ALL categories
+    if (searchFilters.search) {
+      const options = {
+        search: searchFilters.search,
+        tags: searchFilters.tags,
+        limit: 100
+      };
+      console.log('📂 Using global search across all categories');
+      [filesResult, foldersResult] = await Promise.all([
+        getAllFiles(options),
+        getFolders(category)
+      ]);
+    } else {
+      // When not searching, get files for current category and folder
+      const options = {
+        folderPath: selectedFolderPath,
+        tags: searchFilters.tags,
+        limit: 100
+      };
+      console.log('📂 Using category-specific search for:', category);
+      [filesResult, foldersResult] = await Promise.all([
+        getFiles(category, options),
+        getFolders(category)
+      ]);
+    }
 
     if (filesResult.success && foldersResult.success) {
       let filteredFiles = filesResult.data;
@@ -79,7 +97,8 @@ const FileManagementSystem = ({ category }) => {
       }
 
       // Filter folders that belong to the current directory
-      const currentFolders = foldersResult.data.filter(folder => {
+      // When searching, don't show folders - only show matching files
+      const currentFolders = searchFilters.search ? [] : foldersResult.data.filter(folder => {
         if (selectedFolderPath === '') {
           // Root level: show folders with no parent
           return !folder.parent_path;
@@ -110,18 +129,89 @@ const FileManagementSystem = ({ category }) => {
     }
   }, [category, selectedFolderPath, searchFilters.search, searchFilters.tags, searchFilters.fileTypes, searchFilters.dateFrom, searchFilters.dateTo, showErrorModal]);
 
-  // Initial load
+  // Reset folder path and reload data when category changes
   useEffect(() => {
-    const loadInitialData = async () => {
+    const loadCategoryData = async () => {
       setLoading(true);
-      await Promise.all([
-        loadFolders(),
-        loadFiles()
-      ]);
+      setSelectedFolderPath(''); // Reset to root folder
+
+      let filesResult;
+      let foldersResult;
+
+      // When searching, search across ALL categories
+      if (searchFilters.search) {
+        const options = {
+          search: searchFilters.search,
+          tags: searchFilters.tags,
+          limit: 100
+        };
+        [filesResult, foldersResult] = await Promise.all([
+          getAllFiles(options),
+          getFolders(category)
+        ]);
+      } else {
+        // When not searching, get files for current category (root level)
+        const options = {
+          folderPath: '',
+          tags: searchFilters.tags,
+          limit: 100
+        };
+        [filesResult, foldersResult] = await Promise.all([
+          getFiles(category, options),
+          getFolders(category)
+        ]);
+      }
+
+      if (filesResult.success && foldersResult.success) {
+        let filteredFiles = filesResult.data;
+
+        // Client-side filtering
+        if (searchFilters.fileTypes && searchFilters.fileTypes.length > 0) {
+          filteredFiles = filteredFiles.filter(file =>
+            searchFilters.fileTypes.includes(file.file_type)
+          );
+        }
+
+        if (searchFilters.dateFrom || searchFilters.dateTo) {
+          filteredFiles = filteredFiles.filter(file => {
+            const fileDate = new Date(file.created_at);
+            const fromDate = searchFilters.dateFrom ? new Date(searchFilters.dateFrom) : null;
+            const toDate = searchFilters.dateTo ? new Date(searchFilters.dateTo + 'T23:59:59') : null;
+
+            if (fromDate && fileDate < fromDate) return false;
+            if (toDate && fileDate > toDate) return false;
+            return true;
+          });
+        }
+
+        // Root level folders only
+        // When searching, don't show folders - only show matching files
+        const currentFolders = searchFilters.search ? [] : foldersResult.data.filter(folder => !folder.parent_path);
+
+        // Combine folders and files
+        const combinedItems = [
+          ...currentFolders.map(folder => ({
+            ...folder,
+            isFolder: true,
+            id: `folder-${folder.id}`,
+            display_name: folder.name,
+            created_at: folder.created_at,
+            full_path: folder.full_path
+          })),
+          ...filteredFiles
+        ];
+
+        setFiles(combinedItems);
+        setFolders(foldersResult.data);
+      } else {
+        showErrorModal('Error loading files', filesResult.error || foldersResult.error);
+        setFiles([]);
+      }
+
       setLoading(false);
     };
-    loadInitialData();
-  }, [category]);
+    loadCategoryData();
+  }, [category, searchFilters, showErrorModal]);
 
   // Reload files when dependencies change
   useEffect(() => {
@@ -159,10 +249,14 @@ const FileManagementSystem = ({ category }) => {
   };
 
   const handleFileDelete = async (deletedFile) => {
+    console.log('🗑️ UI: File delete called for:', deletedFile);
     if (deletedFile.isFolder) {
+      console.log('🗑️ UI: Folder detected, reloading all data...');
       // For folder deletion, reload all data to ensure consistency
       await Promise.all([loadFolders(), loadFiles()]);
+      console.log('🗑️ UI: Data reloaded after folder deletion');
     } else {
+      console.log('🗑️ UI: Regular file detected, updating local state');
       // For file deletion, just update local state
       setFiles(prev => prev.filter(f => f.id !== deletedFile.id));
     }
@@ -173,7 +267,20 @@ const FileManagementSystem = ({ category }) => {
   };
 
   const handleFolderClick = (folderPath) => {
+    console.log('📂 FileManagementSystem: Folder clicked, setting selectedFolderPath to:', folderPath);
     setSelectedFolderPath(folderPath);
+  };
+
+  const handleBackButton = () => {
+    if (!selectedFolderPath) return;
+
+    // Get parent folder path
+    const pathParts = selectedFolderPath.split('/');
+    pathParts.pop(); // Remove last folder
+    const parentPath = pathParts.join('/');
+
+    console.log('⬅️ Navigating back from:', selectedFolderPath, 'to:', parentPath);
+    setSelectedFolderPath(parentPath);
   };
 
   const handleFilterChange = useCallback((filters) => {
@@ -285,6 +392,17 @@ const FileManagementSystem = ({ category }) => {
       {/* Toolbar */}
       <div className="flex items-center justify-between py-3">
         <div className="flex items-center gap-2">
+          {/* Back button - only show when inside a folder */}
+          {selectedFolderPath && (
+            <button
+              onClick={handleBackButton}
+              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              title="Go back"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          )}
+
           {/* View mode toggle */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
             <button
@@ -336,13 +454,17 @@ const FileManagementSystem = ({ category }) => {
 
           {/* Upload button */}
           {canManage && (
-            <FileUploadComponent
-              category={category}
-              folderPath={selectedFolderPath}
-              folders={folders}
-              onUploadSuccess={handleUploadSuccess}
-              onUploadError={(error) => showErrorModal('Upload failed', error)}
-            />
+            <>
+              {/* Debug: Log current selectedFolderPath */}
+              {console.log('📂 FileManagementSystem: Rendering FileUploadComponent with folderPath:', selectedFolderPath, 'folders count:', folders.length)}
+              <FileUploadComponent
+                category={category}
+                folderPath={selectedFolderPath}
+                folders={folders}
+                onUploadSuccess={handleUploadSuccess}
+                onUploadError={(error) => showErrorModal('Upload failed', error)}
+              />
+            </>
           )}
         </div>
       </div>
@@ -354,6 +476,20 @@ const FileManagementSystem = ({ category }) => {
         onFilterChange={handleFilterChange}
         initialFilters={searchFilters}
       />
+
+      {/* Search Results Indicator */}
+      {searchFilters.search && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+          <div className="text-sm text-blue-800 dark:text-blue-300">
+            🔍 Searching across <strong>all categories</strong> for: <strong>"{searchFilters.search}"</strong>
+            {files.length > 0 ? (
+              <span className="ml-2">({files.length} {files.length === 1 ? 'result' : 'results'} found)</span>
+            ) : (
+              <span className="ml-2">(No results found)</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* New Folder Input */}
       <AnimatePresence>
@@ -418,6 +554,7 @@ const FileManagementSystem = ({ category }) => {
           onFolderClick={handleFolderClick}
           canManage={canManage}
           viewMode={viewMode}
+          isSearching={!!searchFilters.search}
         />
       </motion.div>
     </div>

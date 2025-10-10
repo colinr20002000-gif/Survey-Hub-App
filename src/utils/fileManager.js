@@ -17,7 +17,11 @@ export const ALLOWED_FILE_TYPES = {
   'image/gif': 'GIF',
   'image/webp': 'WEBP',
   'application/zip': 'ZIP',
-  'application/x-rar-compressed': 'RAR'
+  'application/x-zip-compressed': 'ZIP',
+  'application/x-compressed': 'ZIP',
+  'application/x-7z-compressed': '7Z',
+  'application/x-rar-compressed': 'RAR',
+  'application/vnd.rar': 'RAR'
 };
 
 // Categories for file organization
@@ -56,11 +60,21 @@ export const validateFile = (file) => {
     };
   }
 
-  if (!ALLOWED_FILE_TYPES[file.type]) {
+  // Check if file type is allowed, or if it's a ZIP file by extension
+  const fileExtension = file.name.split('.').pop().toLowerCase();
+  const isZipByExtension = ['zip', '7z', 'rar'].includes(fileExtension);
+
+  if (!ALLOWED_FILE_TYPES[file.type] && !isZipByExtension) {
+    console.warn(`File type not in allowed list: ${file.type} for file: ${file.name}`);
     return {
       isValid: false,
-      error: `File type not supported. Allowed types: ${Object.values(ALLOWED_FILE_TYPES).join(', ')}`
+      error: `File type "${file.type}" not supported. Allowed types: ${Object.values(ALLOWED_FILE_TYPES).join(', ')}`
     };
+  }
+
+  // Log successful validation for ZIP files
+  if (isZipByExtension) {
+    console.log(`ZIP file validated: ${file.name}, mime type: ${file.type}`);
   }
 
   return { isValid: true, error: null };
@@ -197,6 +211,33 @@ export const downloadFile = async (storagePath, fileName) => {
 };
 
 /**
+ * Opens a file in the default system viewer (new tab/window)
+ * @param {string} storagePath - Path in storage bucket
+ * @returns {Object} - Open result
+ */
+export const openFileInDefaultViewer = async (storagePath) => {
+  try {
+    const { data } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(storagePath, 3600); // 1 hour expiry
+
+    if (!data?.signedUrl) {
+      throw new Error('Failed to generate file URL');
+    }
+
+    // Open in new tab - browser/OS will handle with default app
+    window.open(data.signedUrl, '_blank');
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+/**
  * Deletes a file and its metadata
  * @param {string} fileId - File ID in database
  * @param {string} storagePath - Path in storage bucket
@@ -301,6 +342,68 @@ export const bulkDeleteFiles = async (files) => {
 };
 
 /**
+ * Gets files across all categories (for global search)
+ * @param {Object} options - Query options (search, tags, limit, offset)
+ * @returns {Object} - Query result
+ */
+export const getAllFiles = async (options = {}) => {
+  try {
+    const { search, tags, limit = 100, offset = 0 } = options;
+
+    console.log('🔍 getAllFiles called with:', { search, tags, limit, offset });
+
+    let query = supabase
+      .from('document_files')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    // Search in name, description, and original name
+    if (search) {
+      console.log('🔍 Applying global search filter for:', search);
+      query = query.or(`display_name.ilike.%${search}%,description.ilike.%${search}%,original_name.ilike.%${search}%`);
+    }
+
+    // Filter by tags
+    if (tags && tags.length > 0) {
+      console.log('🔍 Applying tag filter for:', tags);
+      query = query.overlaps('tags', tags);
+    }
+
+    // Apply pagination
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('🔍 Error fetching all files:', error);
+      throw error;
+    }
+
+    console.log('🔍 Found', data?.length || 0, 'files across all categories');
+    if (search && data) {
+      console.log('🔍 Global search results:', data.map(f => ({
+        category: f.category,
+        folder_path: f.folder_path,
+        display_name: f.display_name,
+        original_name: f.original_name
+      })));
+    }
+
+    return {
+      success: true,
+      data: data || []
+    };
+  } catch (error) {
+    console.error('🔍 getAllFiles failed:', error);
+    return {
+      success: false,
+      error: error.message,
+      data: []
+    };
+  }
+};
+
+/**
  * Gets files for a specific category
  * @param {string} category - File category
  * @param {Object} options - Query options (folderPath, search, tags, limit, offset)
@@ -309,6 +412,8 @@ export const bulkDeleteFiles = async (files) => {
 export const getFiles = async (category, options = {}) => {
   try {
     const { folderPath, search, tags, limit = 50, offset = 0 } = options;
+
+    console.log('🔍 getFiles called with:', { category, folderPath, search, tags, limit, offset });
 
     let query = supabase
       .from('document_files')
@@ -321,13 +426,16 @@ export const getFiles = async (category, options = {}) => {
       query = query.eq('folder_path', folderPath);
     }
 
-    // Search in name and description
+    // Search in name, description, and original name
     if (search) {
-      query = query.or(`display_name.ilike.%${search}%,description.ilike.%${search}%`);
+      console.log('🔍 Applying search filter for:', search);
+      // Search across display_name, description, and original_name
+      query = query.or(`display_name.ilike.%${search}%,description.ilike.%${search}%,original_name.ilike.%${search}%`);
     }
 
     // Filter by tags
     if (tags && tags.length > 0) {
+      console.log('🔍 Applying tag filter for:', tags);
       query = query.overlaps('tags', tags);
     }
 
@@ -337,7 +445,17 @@ export const getFiles = async (category, options = {}) => {
     const { data, error } = await query;
 
     if (error) {
+      console.error('🔍 Error fetching files:', error);
       throw error;
+    }
+
+    console.log('🔍 Found', data?.length || 0, 'files');
+    if (search && data) {
+      console.log('🔍 Search results:', data.map(f => ({
+        display_name: f.display_name,
+        original_name: f.original_name,
+        description: f.description
+      })));
     }
 
     return {
@@ -345,6 +463,7 @@ export const getFiles = async (category, options = {}) => {
       data: data || []
     };
   } catch (error) {
+    console.error('🔍 getFiles failed:', error);
     return {
       success: false,
       error: error.message,
@@ -631,7 +750,11 @@ export const getFileTypeIcon = (mimeType) => {
     'image/gif': 'image',
     'image/webp': 'image',
     'application/zip': 'archive',
-    'application/x-rar-compressed': 'archive'
+    'application/x-zip-compressed': 'archive',
+    'application/x-compressed': 'archive',
+    'application/x-7z-compressed': 'archive',
+    'application/x-rar-compressed': 'archive',
+    'application/vnd.rar': 'archive'
   };
 
   return iconMap[mimeType] || 'file';

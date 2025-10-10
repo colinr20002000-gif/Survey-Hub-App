@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
@@ -25,6 +25,37 @@ const FileUploadComponent = ({
   const [uploading, setUploading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Debug: Log when folderPath prop changes
+  useEffect(() => {
+    console.log('📂 FileUploadComponent: folderPath prop changed to:', folderPath, 'folders count:', folders.length);
+  }, [folderPath, folders]);
+
+  // Handle file processing - defined FIRST so other callbacks can reference it
+  const handleFiles = useCallback((newFiles) => {
+    console.log('📁 Upload: Current folderPath prop:', folderPath);
+    console.log('📁 Upload: Available folders:', folders);
+
+    const processedFiles = newFiles.map(file => {
+      const validation = validateFile(file);
+      const fileData = {
+        file,
+        id: Math.random().toString(36).substring(7),
+        displayName: file.name,
+        description: '',
+        tags: [],
+        selectedFolderPath: folderPath,
+        validation,
+        status: 'pending' // pending, uploading, success, error
+      };
+
+      console.log('📁 Upload: Processed file with selectedFolderPath:', fileData.selectedFolderPath);
+      return fileData;
+    });
+
+    setFiles(prev => [...prev, ...processedFiles]);
+    setIsModalOpen(true);
+  }, [folderPath, folders]);
 
   // Handle drag events
   const handleDrag = useCallback((e) => {
@@ -53,31 +84,12 @@ const FileUploadComponent = ({
 
     const droppedFiles = Array.from(e.dataTransfer.files);
     handleFiles(droppedFiles);
-  }, []);
+  }, [handleFiles]);
 
   const handleFileSelect = useCallback((e) => {
     const selectedFiles = Array.from(e.target.files);
     handleFiles(selectedFiles);
-  }, []);
-
-  const handleFiles = useCallback((newFiles) => {
-    const processedFiles = newFiles.map(file => {
-      const validation = validateFile(file);
-      return {
-        file,
-        id: Math.random().toString(36).substring(7),
-        displayName: file.name,
-        description: '',
-        tags: [],
-        selectedFolderPath: folderPath,
-        validation,
-        status: 'pending' // pending, uploading, success, error
-      };
-    });
-
-    setFiles(prev => [...prev, ...processedFiles]);
-    setIsModalOpen(true);
-  }, [folderPath]);
+  }, [handleFiles]);
 
   const updateFile = useCallback((fileId, updates) => {
     setFiles(prev => prev.map(f =>
@@ -166,7 +178,10 @@ const FileUploadComponent = ({
     <>
       {/* Upload Trigger Button */}
       <button
-        onClick={() => setIsModalOpen(true)}
+        onClick={() => {
+          console.log('📂 FileUploadComponent: Upload button clicked, current folderPath:', folderPath);
+          setIsModalOpen(true);
+        }}
         className={`flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors ${className}`}
       >
         <Upload className="h-4 w-4" />
@@ -201,9 +216,14 @@ const FileUploadComponent = ({
             >
               {/* Modal Header */}
               <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Upload Files to {category}
-                </h2>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Upload Files to {category}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Default location: {folderPath || 'Root folder'}
+                  </p>
+                </div>
                 {!uploading && (
                   <button
                     onClick={closeModal}
@@ -235,7 +255,7 @@ const FileUploadComponent = ({
                     Drop files here or click to browse
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    Supported formats: {Object.values(ALLOWED_FILE_TYPES).join(', ')}
+                    Supported formats: {[...new Set(Object.values(ALLOWED_FILE_TYPES))].join(', ')} (including ZIP archives)
                   </p>
                   <button
                     onClick={() => fileInputRef.current?.click()}
@@ -419,6 +439,12 @@ const FileUploadItem = ({
                   disabled={uploading}
                 >
                   <option value="">Root folder</option>
+                  {/* Show current folder first if it's not in the folders list */}
+                  {fileData.selectedFolderPath && !folders.find(f => f.full_path === fileData.selectedFolderPath) && (
+                    <option value={fileData.selectedFolderPath}>
+                      {fileData.selectedFolderPath} (current)
+                    </option>
+                  )}
                   {folders.map((folder) => (
                     <option key={folder.id} value={folder.full_path}>
                       {folder.full_path}

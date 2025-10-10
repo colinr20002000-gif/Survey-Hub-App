@@ -52,7 +52,8 @@
       "Bash(do echo \"=== $file ===\")",
       "Bash(grep:*)",
       "Bash(psql:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []
