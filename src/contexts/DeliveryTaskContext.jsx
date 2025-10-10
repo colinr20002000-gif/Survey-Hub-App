@@ -198,6 +198,10 @@ export const DeliveryTaskProvider = ({ children }) => {
     };
 
     const updateDeliveryTask = async (updatedTask) => {
+        // Get the old task to check if it's being marked as complete
+        const oldTask = deliveryTasks.find(t => t.id === updatedTask.id);
+        const isBeingCompleted = !oldTask?.completed && updatedTask.completed;
+
         const taskRecord = mapToSnakeCase(updatedTask);
         const { data, error } = await supabase
             .from('delivery_tasks')
@@ -215,6 +219,36 @@ export const DeliveryTaskProvider = ({ children }) => {
             }
         } else if (data && data[0]) {
             // Don't manually update state - realtime subscription handles it
+
+            // Send notification to task creator when task is marked complete (if they didn't complete it themselves)
+            if (isBeingCompleted && oldTask.createdBy && user?.id && oldTask.createdBy !== user.id) {
+                try {
+                    // Create in-app notification for the task creator
+                    const { error: notifError } = await supabase
+                        .from('notifications')
+                        .insert({
+                            user_id: oldTask.createdBy,
+                            type: 'delivery_task_completed',
+                            title: 'Delivery Task Completed',
+                            message: `"${updatedTask.text}" has been marked as complete by ${user.name}`,
+                            data: {
+                                task_id: updatedTask.id,
+                                task_text: updatedTask.text,
+                                project: updatedTask.project,
+                                completed_by: user.id,
+                                completed_by_name: user.name
+                            }
+                        });
+
+                    if (notifError) {
+                        console.error('❌ Error creating task completion notification:', notifError);
+                    } else {
+                        console.log('✅ Task completion notification sent to creator');
+                    }
+                } catch (notificationError) {
+                    console.error('Error sending task completion notification:', notificationError);
+                }
+            }
         } else {
             console.error('No data returned from delivery task update - possibly blocked by RLS');
             showPrivilegeError('You need Editor privileges or higher to modify delivery tasks.');

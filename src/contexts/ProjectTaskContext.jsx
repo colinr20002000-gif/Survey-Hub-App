@@ -184,6 +184,11 @@ export const ProjectTaskProvider = ({ children }) => {
 
     const updateProjectTask = async (updatedTask) => {
         console.log('updateProjectTask called with:', updatedTask);
+
+        // Get the old task to check if it's being marked as complete
+        const oldTask = projectTasks.find(t => t.id === updatedTask.id);
+        const isBeingCompleted = !oldTask?.completed && updatedTask.completed;
+
         const taskRecord = mapToSnakeCase(updatedTask);
         console.log('Task record to update (snake_case):', taskRecord);
         const { data, error } = await supabase
@@ -200,6 +205,36 @@ export const ProjectTaskProvider = ({ children }) => {
         if (data) {
             console.log('Successfully updated project task:', data[0]);
             // Don't manually update state - realtime subscription handles it
+
+            // Send notification to task creator when task is marked complete (if they didn't complete it themselves)
+            if (isBeingCompleted && oldTask.createdBy && user?.id && oldTask.createdBy !== user.id) {
+                try {
+                    // Create in-app notification for the task creator
+                    const { error: notifError } = await supabase
+                        .from('notifications')
+                        .insert({
+                            user_id: oldTask.createdBy,
+                            type: 'project_task_completed',
+                            title: 'Project Task Completed',
+                            message: `"${updatedTask.text}" has been marked as complete by ${user.name}`,
+                            data: {
+                                task_id: updatedTask.id,
+                                task_text: updatedTask.text,
+                                project: updatedTask.project,
+                                completed_by: user.id,
+                                completed_by_name: user.name
+                            }
+                        });
+
+                    if (notifError) {
+                        console.error('❌ Error creating task completion notification:', notifError);
+                    } else {
+                        console.log('✅ Task completion notification sent to creator');
+                    }
+                } catch (notificationError) {
+                    console.error('Error sending task completion notification:', notificationError);
+                }
+            }
         }
     };
 
