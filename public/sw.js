@@ -2,8 +2,8 @@
 /* global clients, firebase */
 
 // Service Worker for Survey Hub PWA + Firebase Cloud Messaging
-// IMPORTANT: Increment version number when deploying updates to force cache refresh
-const CACHE_NAME = 'survey-hub-v4-2025-10-09-fcm';
+// Cache name now includes build timestamp for automatic versioning
+const CACHE_NAME = `survey-hub-v4-fcm-${Date.now()}`;
 const OFFLINE_URL = '/offline.html';
 
 console.log('🔔 [SW] Survey Hub service worker loading...');
@@ -82,6 +82,14 @@ self.addEventListener('activate', (event) => {
   );
 
   self.clients.claim();
+});
+
+// Listen for SKIP_WAITING message from client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('Received SKIP_WAITING message, activating new service worker...');
+    self.skipWaiting();
+  }
 });
 
 // Fetch event - serve from cache when offline
