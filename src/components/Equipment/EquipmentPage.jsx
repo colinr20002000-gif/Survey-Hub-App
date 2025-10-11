@@ -52,6 +52,10 @@ const EquipmentPage = () => {
     const [auditTrailError, setAuditTrailError] = useState(null);
     const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
     const [showOnlyUsersWithEquipment, setShowOnlyUsersWithEquipment] = useState(true);
+    const [showDiscrepancies, setShowDiscrepancies] = useState(false);
+    const [discrepanciesData, setDiscrepanciesData] = useState([]);
+    const [loadingDiscrepancies, setLoadingDiscrepancies] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     // Equipment form state
     const [equipmentForm, setEquipmentForm] = useState({
@@ -1235,6 +1239,87 @@ CREATE TABLE equipment_audit_log (
         return null;
     };
 
+    // Check for discrepancies between calendar and assignments
+    const checkDiscrepancies = async () => {
+        setLoadingDiscrepancies(true);
+        try {
+            // Get all equipment calendar entries
+            const { data: calendarData, error: calendarError } = await supabase
+                .from('equipment_calendar')
+                .select('user_id, equipment_id, allocation_date');
+
+            if (calendarError) throw calendarError;
+
+            // Get all current equipment assignments (where returned_at is NULL)
+            const { data: assignmentsData, error: assignmentsError } = await supabase
+                .from('equipment_assignments')
+                .select('user_id, equipment_id')
+                .is('returned_at', null);
+
+            if (assignmentsError) throw assignmentsError;
+
+            // Find calendar entries where equipment is assigned but not in assignments table
+            const discrepancies = [];
+            const seenUserEquipment = new Set();
+
+            calendarData?.forEach(calEntry => {
+                if (!calEntry.equipment_id) return; // Skip entries without equipment
+
+                const key = `${calEntry.user_id}-${calEntry.equipment_id}`;
+                if (seenUserEquipment.has(key)) return; // Already processed this user-equipment combo
+                seenUserEquipment.add(key);
+
+                // Check if this assignment exists in equipment_assignments
+                const hasAssignment = assignmentsData?.some(
+                    assignment =>
+                        assignment.user_id === calEntry.user_id &&
+                        assignment.equipment_id === calEntry.equipment_id
+                );
+
+                if (!hasAssignment) {
+                    const user = getUserById(calEntry.user_id);
+                    const equipmentItem = equipment.find(e => e.id === calEntry.equipment_id);
+
+                    discrepancies.push({
+                        userId: calEntry.user_id,
+                        userName: user.name,
+                        equipmentId: calEntry.equipment_id,
+                        equipmentName: equipmentItem?.name || 'Unknown Equipment'
+                    });
+                }
+            });
+
+            setDiscrepanciesData(discrepancies);
+            setShowDiscrepancies(true);
+            setCopied(false); // Reset copied state when opening modal
+        } catch (err) {
+            console.error('Error checking discrepancies:', err);
+            setError('Failed to check discrepancies: ' + err.message);
+        } finally {
+            setLoadingDiscrepancies(false);
+        }
+    };
+
+    // Copy discrepancies to clipboard
+    const copyDiscrepanciesToClipboard = async () => {
+        try {
+            let text = 'Calendar vs Assignment Discrepancies\n';
+            text += '=====================================\n\n';
+            text += `Found ${discrepanciesData.length} discrepanc${discrepanciesData.length === 1 ? 'y' : 'ies'}:\n\n`;
+
+            discrepanciesData.forEach((item, index) => {
+                text += `${index + 1}. ${item.userName}\n`;
+                text += `   Equipment: ${item.equipmentName}\n`;
+                text += `   Status: In calendar but not in equipment assignments\n\n`;
+            });
+
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+        }
+    };
 
     // Get status badge color
     const getStatusColor = (status) => {
@@ -1278,16 +1363,34 @@ CREATE TABLE equipment_audit_log (
                         <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Equipment Management</h1>
                         <p className="text-gray-600 dark:text-gray-400">Manage equipment assignments and track usage</p>
                     </div>
-                    <button
-                        onClick={() => {
-                            setShowAuditTrail(true);
-                            loadAuditTrail();
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-                    >
-                        <History className="w-5 h-5" />
-                        Audit Trail
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={checkDiscrepancies}
+                            disabled={loadingDiscrepancies}
+                            className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {loadingDiscrepancies ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                </svg>
+                            )}
+                            Check Discrepancies
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowAuditTrail(true);
+                                loadAuditTrail();
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                        >
+                            <History className="w-5 h-5" />
+                            Audit Trail
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -2512,6 +2615,112 @@ ON equipment_audit_log(created_at DESC);`}
                                 className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
                             >
                                 Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Discrepancies Modal */}
+            {showDiscrepancies && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[80vh] flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-600 dark:text-yellow-400">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                </svg>
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Calendar vs Assignment Discrepancies</h2>
+                            </div>
+                            <button
+                                onClick={() => setShowDiscrepancies(false)}
+                                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-hidden">
+                            <div className="h-full overflow-y-auto p-6">
+                                {discrepanciesData.length === 0 ? (
+                                    <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                        <div className="text-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-green-500">
+                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                            </svg>
+                                            <h3 className="text-lg font-medium mb-2">No Discrepancies Found!</h3>
+                                            <p>All equipment in the calendar has matching assignments in the equipment register.</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                                            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                                                <strong>{discrepanciesData.length}</strong> user{discrepanciesData.length === 1 ? '' : 's'} {discrepanciesData.length === 1 ? 'has' : 'have'} equipment assigned in the calendar but not in the equipment register.
+                                            </p>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {discrepanciesData.map((item, index) => (
+                                                <div key={index} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="flex-shrink-0 mt-1">
+                                                            <Users className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
+                                                                {item.userName}
+                                                            </h4>
+                                                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                                Has <span className="font-medium text-gray-900 dark:text-white">{item.equipmentName}</span> in calendar but not in equipment assignments
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex justify-between gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+                            {discrepanciesData.length > 0 && (
+                                <button
+                                    onClick={copyDiscrepanciesToClipboard}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                >
+                                    {copied ? (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                            </svg>
+                                            Copied!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                            </svg>
+                                            Copy to Clipboard
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setShowDiscrepancies(false)}
+                                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                            >
+                                Close
                             </button>
                         </div>
                     </div>
