@@ -32,7 +32,7 @@ const RailComponentsPage = () => {
             const { data, error } = await supabase
                 .from('photo_albums')
                 .select('*')
-                .order('created_at', { ascending: false });
+                .order('name', { ascending: true });
 
             if (error) throw error;
             setAlbums(data || []);
@@ -438,7 +438,7 @@ const AlbumDetailView = ({ album, onBack, canEdit, searchQuery, setSearchQuery }
                 .from('photos')
                 .select('*')
                 .eq('album_id', album.id)
-                .order('created_at', { ascending: false });
+                .order('description', { ascending: true });
 
             if (error) throw error;
             setPhotos(data || []);
