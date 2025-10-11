@@ -50,6 +50,7 @@ import DeliveryTasksPage from './pages/DeliveryTasksPage';
 // Lazy-loaded pages for better performance
 const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
 const ResourceCalendarPage = lazy(() => import('./pages/ResourceCalendarPage'));
+const EquipmentCalendarPage = lazy(() => import('./pages/EquipmentCalendarPage'));
 const AuditTrailPage = lazy(() => import('./pages/AuditTrailPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 
@@ -525,6 +526,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Resource Calendar', parent: 'Project Team' },
+                { name: 'Equipment Calendar', parent: 'Project Team' },
                 { name: 'Project Tasks', parent: 'Project Team' },
                 { name: 'Equipment', parent: 'Project Team' },
                 { name: 'Vehicles', parent: 'Project Team' }
@@ -594,7 +596,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     };
 
     const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Tasks';
-    const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Project Tasks' || activeTab === 'Equipment' || activeTab === 'Vehicles';
+    const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Equipment Calendar' || activeTab === 'Project Tasks' || activeTab === 'Equipment' || activeTab === 'Vehicles';
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials';
     const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts';
 
@@ -2773,6 +2775,7 @@ const MainLayout = () => {
             case 'Announcements': return <Suspense fallback={<LoadingFallback />}><AnnouncementsPage /></Suspense>;
             case 'Feedback': return <FeedbackPage />;
             case 'Resource Calendar': return <Suspense fallback={<LoadingFallback />}><ResourceCalendarPage onViewProject={handleViewProject} /></Suspense>;
+            case 'Equipment Calendar': return <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense>;
             case 'Project Tasks': return <ProjectTasksPage />;
             case 'Equipment': return <EquipmentPage />;
             case 'Vehicles': return <VehiclesPage />;

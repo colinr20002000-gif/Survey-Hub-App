@@ -21,57 +21,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
     const { projects } = useProjects();
     const { showPrivilegeError, showErrorModal } = useToast();
-    const [teamRoles, setTeamRoles] = useState([]);
-    const [teamRolesLoading, setTeamRolesLoading] = useState(true);
-    const [teamRolesError, setTeamRolesError] = useState(null);
-
-    // Fetch team roles directly from dropdown_items table
-    useEffect(() => {
-        const fetchTeamRoles = async () => {
-            setTeamRolesLoading(true);
-            setTeamRolesError(null);
-            try {
-                // First get the team_role category ID
-                const { data: categoryData, error: categoryError } = await supabase
-                    .from('dropdown_categories')
-                    .select('id')
-                    .eq('name', 'team_role')
-                    .single();
-
-                if (categoryError) {
-                    console.error('Error fetching team role category:', categoryError);
-                    setTeamRolesError(categoryError.message);
-                    setTeamRoles([]);
-                    return;
-                }
-
-                // Then get the team role items
-                const { data: itemsData, error: itemsError } = await supabase
-                    .from('dropdown_items')
-                    .select('value, display_text, sort_order')
-                    .eq('category_id', categoryData.id)
-                    .eq('is_active', true)
-                    .order('sort_order');
-
-                if (itemsError) {
-                    console.error('Error fetching team role items:', itemsError);
-                    setTeamRolesError(itemsError.message);
-                    setTeamRoles([]);
-                } else {
-                    console.log('Successfully fetched team roles:', itemsData);
-                    setTeamRoles(itemsData || []);
-                }
-            } catch (error) {
-                console.error('Error in fetchTeamRoles:', error);
-                setTeamRolesError(error.message);
-                setTeamRoles([]);
-            } finally {
-                setTeamRolesLoading(false);
-            }
-        };
-
-        fetchTeamRoles();
-    }, []);
 
     // Fetch departments for filtering
     useEffect(() => {
@@ -122,24 +71,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         fetchDepartments();
     }, []);
 
-    const getTeamRoleDisplayText = (roleValue) => {
-        const role = teamRoles.find(r => r.value === roleValue);
-        return role ? role.display_text : roleValue;
-    };
-
-    // Get only team roles that are actually assigned to users
-    const activeTeamRoles = useMemo(() => {
-        if (!allUsers || allUsers.length === 0 || !teamRoles || teamRoles.length === 0) {
-            return [];
-        }
-
-        // Get unique team roles from all users
-        const userRoles = new Set(allUsers.map(user => user.team_role).filter(Boolean));
-
-        // Filter teamRoles to only include roles that have users assigned
-        return teamRoles.filter(role => userRoles.has(role.display_text));
-    }, [allUsers, teamRoles]);
-
     const [allocations, setAllocations] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -149,7 +80,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [selectedCell, setSelectedCell] = useState(null);
     const [visibleUserIds, setVisibleUserIds] = useState([]);
-    const [filterRoles, setFilterRoles] = useState([]);
     const [filterDepartments, setFilterDepartments] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [sortOrder, setSortOrder] = useState('department');
@@ -359,10 +289,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const displayedUsers = useMemo(() => {
         let usersToDisplay = allUsers;
 
-        if (filterRoles.length > 0) {
-            usersToDisplay = usersToDisplay.filter(user => filterRoles.includes(user.team_role));
-        }
-
         if (filterDepartments.length > 0) {
             usersToDisplay = usersToDisplay.filter(user => filterDepartments.includes(user.department));
         }
@@ -413,7 +339,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         }
 
         return usersToDisplay;
-    }, [allUsers, visibleUserIds, filterRoles, filterDepartments, sortOrder]);
+    }, [allUsers, visibleUserIds, filterDepartments, sortOrder]);
 
     const weekDates = useMemo(() => {
         return Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
@@ -649,22 +575,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         setCurrentWeekStart(prev => addDays(prev, offset * 7));
     };
 
-    const handleRoleFilterChange = (role) => {
-        setFilterRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
-    };
-
-    const handleSelectAllRoles = () => {
-        if (filterRoles.length === activeTeamRoles.length) {
-            // If all are selected, deselect all
-            setFilterRoles([]);
-        } else {
-            // Select all active team roles
-            setFilterRoles(activeTeamRoles.map(role => role.display_text));
-        }
-    };
-
-    const isAllRolesSelected = activeTeamRoles.length > 0 && filterRoles.length === activeTeamRoles.length;
-
     const handleDepartmentFilterChange = (department) => {
         setFilterDepartments(prev => prev.includes(department) ? prev.filter(d => d !== department) : [...prev, department]);
     };
@@ -679,6 +589,20 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         }
     };
 
+    const handleOnlyMe = () => {
+        // Check if already showing only current user
+        if (visibleUserIds.length === 1 && currentUser && visibleUserIds.includes(currentUser.id)) {
+            // Show all users
+            setVisibleUserIds(allUsers.map(u => u.id));
+        } else {
+            // Show only current user
+            if (currentUser) {
+                setVisibleUserIds([currentUser.id]);
+            }
+        }
+    };
+
+    const isShowingOnlyMe = visibleUserIds.length === 1 && currentUser && visibleUserIds.includes(currentUser.id);
     const isAllDepartmentsSelected = departments.length > 0 && filterDepartments.length === departments.length;
 
     const weekKey = formatDateForKey(currentWeekStart);
@@ -812,6 +736,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     <Button variant="outline" onClick={() => changeWeek(1)}><ChevronRight size={16}/></Button>
                     <Button onClick={() => setIsManageUsersModalOpen(true)}><Users size={16} className="mr-2"/>Show/Hide User</Button>
                     <Button
+                        variant={isShowingOnlyMe ? "primary" : "outline"}
+                        onClick={handleOnlyMe}
+                    >
+                        Only Me
+                    </Button>
+                    <Button
                         onClick={handleExportImage}
                         disabled={isExporting}
                         className="bg-green-600 hover:bg-green-700 text-white"
@@ -835,41 +765,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                          <Button variant="outline" onClick={() => setIsFilterOpen(!isFilterOpen)}><Filter size={16} className="mr-2"/>Filter</Button>
                          {isFilterOpen && (
                              <div className="absolute top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4 space-y-4">
-                                 {/* Roles Filter */}
-                                 <div>
-                                     <h4 className="font-semibold mb-2 text-sm">Roles</h4>
-                                     <div className="space-y-2 max-h-40 overflow-y-auto">
-                                         {teamRolesLoading || usersLoading ? (
-                                             <div className="text-sm text-gray-500">Loading team roles...</div>
-                                         ) : teamRolesError ? (
-                                             <div className="text-sm text-red-500">Error loading roles: {teamRolesError}</div>
-                                         ) : activeTeamRoles.length === 0 ? (
-                                             <div className="text-sm text-gray-500">No team roles assigned to users</div>
-                                         ) : (
-                                             <>
-                                                 <label className="flex items-center space-x-2 text-sm font-medium border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">
-                                                     <input
-                                                         type="checkbox"
-                                                         checked={isAllRolesSelected}
-                                                         onChange={handleSelectAllRoles}
-                                                         className="rounded text-orange-500 focus:ring-orange-500"
-                                                     />
-                                                     <span>All Roles</span>
-                                                 </label>
-                                                 {activeTeamRoles.map(role => (
-                                                     <label key={role.value} className="flex items-center space-x-2 text-sm">
-                                                         <input type="checkbox" checked={filterRoles.includes(role.display_text)} onChange={() => handleRoleFilterChange(role.display_text)} className="rounded text-orange-500 focus:ring-orange-500"/>
-                                                         <span>{role.display_text}</span>
-                                                     </label>
-                                                 ))}
-                                             </>
-                                         )}
-                                     </div>
-                                     <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setFilterRoles([])}>Clear Roles</Button>
-                                 </div>
-
                                  {/* Departments Filter */}
-                                 <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+                                 <div>
                                      <h4 className="font-semibold mb-2 text-sm">Departments</h4>
                                      <div className="space-y-2 max-h-40 overflow-y-auto">
                                          {departments.length === 0 ? (
