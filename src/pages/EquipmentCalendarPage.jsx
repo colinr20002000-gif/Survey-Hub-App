@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, MoreVertical, Download, Package, CheckCircle, XCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, MoreVertical, Download, Package, CheckCircle, XCircle, Zap } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
@@ -29,12 +29,14 @@ const EquipmentCalendarPage = () => {
     const [isManageUsersModalOpen, setIsManageUsersModalOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [selectedCell, setSelectedCell] = useState(null);
+    const [isAutoAssignModalOpen, setIsAutoAssignModalOpen] = useState(false);
+    const [isAutoAssigning, setIsAutoAssigning] = useState(false);
     const [visibleUserIds, setVisibleUserIds] = useState([]);
     const [filterDepartments, setFilterDepartments] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [sortOrder, setSortOrder] = useState('department');
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
-    const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null });
+    const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null, sourceIndex: null });
     const filterRef = useRef(null);
     const scrollPositionRef = useRef(0);
     const calendarRef = useRef(null);
@@ -614,10 +616,74 @@ const EquipmentCalendarPage = () => {
             } else if (action === 'delete') {
                 handleSaveAllocation(null, cellToUpdate);
             } else if (action === 'paste') {
-                handleSaveAllocation(clipboard.data, cellToUpdate);
+                // Check if we're pasting a single item that was cut/copied from an array
+                const isPastingSingleItem = !Array.isArray(clipboard.data);
+                const targetHasContent = cellData.assignment !== null;
+
+                if (isPastingSingleItem && targetHasContent) {
+                    // Add to existing content instead of replacing
+                    handleSaveAllocation(clipboard.data, cellToUpdate, true); // Use isSecondEquipment flag
+                } else {
+                    // Replace entire cell content
+                    handleSaveAllocation(clipboard.data, cellToUpdate);
+                }
+
                 if (clipboard.type === 'cut') {
-                    handleSaveAllocation(null, clipboard.sourceCell);
-                    setClipboard({ type: null, data: null, sourceCell: null });
+                    // If cut from an array with a specific index, remove only that item
+                    if (clipboard.sourceIndex !== null && clipboard.sourceIndex !== undefined) {
+                        const weekKey = formatDateForKey(getWeekStartDate(clipboard.sourceCell.date));
+                        const dayIndex = (clipboard.sourceCell.date.getDay() + 1) % 7;
+                        const sourceAssignment = allocations[weekKey]?.[clipboard.sourceCell.userId]?.assignments[dayIndex];
+
+                        if (Array.isArray(sourceAssignment)) {
+                            const newAssignment = sourceAssignment.filter((_, idx) => idx !== clipboard.sourceIndex);
+                            const finalAssignment = newAssignment.length === 1 ? newAssignment[0] : newAssignment.length === 0 ? null : newAssignment;
+
+                            // Update state
+                            setAllocations(prev => {
+                                const newAllocations = JSON.parse(JSON.stringify(prev));
+                                if (newAllocations[weekKey] && newAllocations[weekKey][clipboard.sourceCell.userId]) {
+                                    newAllocations[weekKey][clipboard.sourceCell.userId].assignments[dayIndex] = finalAssignment;
+                                }
+                                return newAllocations;
+                            });
+
+                            // Update database
+                            try {
+                                const allocationDateString = formatDateForKey(clipboard.sourceCell.date);
+
+                                // Delete all existing records for this date
+                                await supabase
+                                    .from('equipment_calendar')
+                                    .delete()
+                                    .eq('user_id', clipboard.sourceCell.userId)
+                                    .eq('allocation_date', allocationDateString);
+
+                                // Re-insert remaining items
+                                if (newAssignment.length > 0) {
+                                    const recordsToInsert = newAssignment.map(item => ({
+                                        user_id: clipboard.sourceCell.userId,
+                                        equipment_id: item.equipmentId || null,
+                                        allocation_date: allocationDateString,
+                                        comment: item.comment || null
+                                    }));
+
+                                    await supabase
+                                        .from('equipment_calendar')
+                                        .insert(recordsToInsert);
+                                }
+                            } catch (err) {
+                                console.error('Error removing cut item from source:', err);
+                            }
+                        } else {
+                            // Single item, delete entire cell
+                            handleSaveAllocation(null, clipboard.sourceCell);
+                        }
+                    } else {
+                        // Whole cell was cut, delete it
+                        handleSaveAllocation(null, clipboard.sourceCell);
+                    }
+                    setClipboard({ type: null, data: null, sourceCell: null, sourceIndex: null });
                 }
             } else if (action === 'allocate') {
                 setSelectedCell(cellToUpdate);
@@ -678,6 +744,85 @@ const EquipmentCalendarPage = () => {
         return equipmentAssignments.some(
             assignment => assignment.equipment_id === equipmentId && assignment.user_id === userId
         );
+    };
+
+    const handleAutoAssign = async () => {
+        setIsAutoAssigning(true);
+        setIsAutoAssignModalOpen(false);
+
+        try {
+            // Get all dates for the current week
+            const weekDates = Array.from({ length: 7 }).map((_, i) => {
+                const date = addDays(currentWeekStart, i);
+                return formatDateForKey(date);
+            });
+
+            // Step 1: Delete all equipment_calendar entries for the current week
+            console.log('🗑️ Clearing equipment calendar for week:', weekDates);
+
+            const { error: deleteError } = await supabase
+                .from('equipment_calendar')
+                .delete()
+                .in('allocation_date', weekDates);
+
+            if (deleteError) throw deleteError;
+
+            // Step 2: Get all current equipment assignments (where returned_at is NULL)
+            const { data: assignments, error: fetchError } = await supabase
+                .from('equipment_assignments')
+                .select('equipment_id, user_id')
+                .is('returned_at', null);
+
+            if (fetchError) throw fetchError;
+
+            if (!assignments || assignments.length === 0) {
+                console.log('ℹ️ No equipment assignments found');
+                setIsAutoAssigning(false);
+                return;
+            }
+
+            // Step 3: Create entries for all 7 days for each user with assigned equipment
+            const recordsToInsert = [];
+
+            assignments.forEach(assignment => {
+                weekDates.forEach(dateString => {
+                    recordsToInsert.push({
+                        user_id: assignment.user_id,
+                        equipment_id: assignment.equipment_id,
+                        allocation_date: dateString,
+                        comment: null
+                    });
+                });
+            });
+
+            console.log('✨ Auto-assigning equipment for', assignments.length, 'users across 7 days');
+            console.log('📝 Total records to insert:', recordsToInsert.length);
+
+            // Step 4: Insert all records
+            if (recordsToInsert.length > 0) {
+                const { error: insertError } = await supabase
+                    .from('equipment_calendar')
+                    .insert(recordsToInsert);
+
+                if (insertError) throw insertError;
+
+                console.log('✅ Auto-assign completed successfully');
+            }
+
+            // Refresh the allocations
+            await getEquipmentAllocations();
+
+        } catch (err) {
+            console.error('Error auto-assigning equipment:', err);
+            const errorMessage = handleSupabaseError(err, 'equipment_calendar', 'auto-assign', null);
+            if (isRLSError(err)) {
+                showPrivilegeError(errorMessage);
+            } else {
+                showErrorModal(errorMessage, 'Failed to Auto-Assign Equipment');
+            }
+        } finally {
+            setIsAutoAssigning(false);
+        }
     };
 
     const handleExportImage = async () => {
@@ -795,6 +940,24 @@ const EquipmentCalendarPage = () => {
                     >
                         Only Me
                     </Button>
+                    {canAllocateResources && (
+                        <Button
+                            onClick={() => setIsAutoAssignModalOpen(true)}
+                            disabled={isAutoAssigning}
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                            {isAutoAssigning ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                                    Auto-Assigning...
+                                </>
+                            ) : (
+                                <>
+                                    <Zap size={16} className="mr-2" />Auto Assign
+                                </>
+                            )}
+                        </Button>
+                    )}
                     <Button
                         onClick={handleExportImage}
                         disabled={isExporting}
@@ -1042,6 +1205,14 @@ const EquipmentCalendarPage = () => {
                 allUsers={allUsers}
                 visibleUserIds={visibleUserIds}
             />
+            <ConfirmAutoAssignModal
+                isOpen={isAutoAssignModalOpen}
+                onClose={() => setIsAutoAssignModalOpen(false)}
+                onConfirm={handleAutoAssign}
+                weekStart={currentWeekStart}
+                weekEnd={weekDates[6]}
+                fiscalWeek={fiscalWeek}
+            />
         </div>
     );
 };
@@ -1084,6 +1255,7 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
     const hasAssignment = !!cellData.assignment;
     const canAddMoreEquipment = hasAssignment;
     const isArrayItemOperation = cellData.equipmentIndex !== null && cellData.equipmentIndex !== undefined;
+    const isMultiItemTile = Array.isArray(cellData.assignment);
 
     if (!canAllocate && !hasAssignment) {
         return null;
@@ -1107,23 +1279,26 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                                     </svg>Edit
                                 </button>
                             )}
-                            <button onClick={() => onAction('copy')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2" />Copy</button>
-                            <button onClick={() => onAction('cut')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                                    <circle cx="6" cy="6" r="3"></circle>
-                                    <circle cx="6" cy="18" r="3"></circle>
-                                    <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
-                                    <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
-                                    <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
-                                </svg>Cut
-                            </button>
+                            {/* Only show copy/cut/delete for single items or individual array items, not for whole multi-item tiles */}
+                            {!isMultiItemTile || isArrayItemOperation ? (
+                                <>
+                                    <button onClick={() => onAction('copy')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2" />Copy</button>
+                                    <button onClick={() => onAction('cut')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                                            <circle cx="6" cy="6" r="3"></circle>
+                                            <circle cx="6" cy="18" r="3"></circle>
+                                            <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
+                                            <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
+                                            <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
+                                        </svg>Cut
+                                    </button>
+                                    <button onClick={() => onAction('delete')} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={14} className="mr-2" />Delete</button>
+                                </>
+                            ) : null}
                             {canAddMoreEquipment && !isArrayItemOperation && (
                                 <button onClick={() => onAction('addSecondEquipment')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><PlusCircle size={14} className="mr-2" />Add More Equipment</button>
                             )}
                         </>
-                    )}
-                    {canAllocate && (
-                        <button onClick={() => onAction('delete')} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={14} className="mr-2" />Delete</button>
                     )}
                 </>
             )}
@@ -1199,6 +1374,57 @@ const ShowHideUsersModal = ({ isOpen, onClose, onSave, allUsers, visibleUserIds 
                         <Button onClick={handleSave}>Save</Button>
                     </div>
                 </div>
+            </div>
+        </Modal>
+    );
+};
+
+const ConfirmAutoAssignModal = ({ isOpen, onClose, onConfirm, weekStart, weekEnd, fiscalWeek }) => {
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Confirm Auto-Assign">
+            <div className="p-6">
+                <div className="space-y-4">
+                    <div className="flex items-start gap-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13"></line>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                        <div className="flex-1">
+                            <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">Warning</h3>
+                            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                                This action will <strong>clear all equipment assignments</strong> for the entire week and replace them with assignments based on the current equipment assignments from the Equipment page.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                        <h4 className="font-semibold mb-2">Week Details:</h4>
+                        <ul className="text-sm space-y-1">
+                            <li><strong>Week:</strong> {fiscalWeek}</li>
+                            <li><strong>Date Range:</strong> {formatDateForDisplay(weekStart)} - {formatDateForDisplay(weekEnd)}, {weekStart.getFullYear()}</li>
+                        </ul>
+                    </div>
+
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <p>The auto-assign feature will:</p>
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                            <li>Delete all current equipment assignments for this week</li>
+                            <li>Assign equipment to users for all 7 days based on their current equipment assignments</li>
+                            <li>Only assign equipment to users who have active equipment assignments</li>
+                        </ul>
+                    </div>
+
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Are you sure you want to proceed?
+                    </p>
+                </div>
+            </div>
+            <div className="flex justify-end space-x-2 p-4 border-t border-gray-200 dark:border-gray-700">
+                <Button variant="outline" onClick={onClose}>Cancel</Button>
+                <Button onClick={onConfirm} className="bg-purple-600 hover:bg-purple-700 text-white">
+                    <Zap size={16} className="mr-2" />Confirm Auto-Assign
+                </Button>
             </div>
         </Modal>
     );
