@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Category Debug</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .color-box { width: 50px; height: 50px; display: inline-block; border: 1px solid #000; margin-left: 10px; }
+        pre { background: #f0f0f0; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Equipment Category Debug</h1>
+    <div id="output"></div>
+
+    <script type="module">
+        const supabaseUrl = 'https://okldykkmgmcjhgzysris.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbGR5a2ttZ21jamhnenlzcmlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjcyNjk3MjgsImV4cCI6MjA0Mjg0NTcyOH0.xHEU9SvHkXxQfNrink99b46zogEf9QeZRUZyYMzNK38';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function checkData() {
+            const output = document.getElementById('output');
+            output.innerHTML = '';
+
+            // Get all categories
+            const { data: categories, error: catError } = await supabase
+                .from('equipment_categories')
+                .select('*');
+
+            output.innerHTML += '<h2>All Equipment Categories:</h2>';
+            if (categories) {
+                categories.forEach(cat => {
+                    output.innerHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff; border: 1px solid #ccc;">
+                        <strong>Name:</strong> "${cat.name}" (length: ${cat.name.length})<br>
+                        <strong>Color:</strong> ${cat.color || 'NULL'} <div class="color-box" style="background-color: ${cat.color || '#fff'}"></div><br>
+                        <strong>Description:</strong> ${cat.description || 'N/A'}<br>
+                        <strong>Updated:</strong> ${cat.updated_at}
+                    </div>`;
+                });
+            } else {
+                output.innerHTML += `<p>Error: ${catError?.message}</p>`;
+            }
+
+            // Get Total Station equipment
+            const { data: equipment, error: eqError } = await supabase
+                .from('equipment')
+                .select('id, name, category')
+                .or('name.ilike.%total%,name.ilike.%station%');
+
+            output.innerHTML += '<h2>Total Station / Station Equipment:</h2>';
+            if (equipment) {
+                equipment.forEach(eq => {
+                    output.innerHTML += `<div style="margin: 10px 0; padding: 10px; background: #fff; border: 1px solid #ccc;">
+                        <strong>Name:</strong> ${eq.name}<br>
+                        <strong>Category:</strong> "${eq.category}" (length: ${eq.category?.length || 0})<br>
+                        <strong>Category is null:</strong> ${eq.category === null}<br>
+                        <strong>Category matches "Surveying Equipment":</strong> ${eq.category === 'Surveying Equipment'}
+                    </div>`;
+                });
+            } else {
+                output.innerHTML += `<p>Error: ${eqError?.message}</p>`;
+            }
+
+            // Get all unique categories from equipment
+            const { data: allEquipment, error: allEqError } = await supabase
+                .from('equipment')
+                .select('category');
+
+            if (allEquipment) {
+                const uniqueCategories = [...new Set(allEquipment.map(e => e.category))].filter(c => c);
+                output.innerHTML += '<h2>All Unique Categories in Equipment Table:</h2>';
+                output.innerHTML += '<pre>' + JSON.stringify(uniqueCategories, null, 2) + '</pre>';
+            }
+        }
+
+        checkData();
+    </script>
+</body>
+</html>

@@ -21,6 +21,7 @@ const EquipmentCalendarPage = () => {
     const [equipment, setEquipment] = useState([]);
     const [equipmentLoading, setEquipmentLoading] = useState(true);
     const [equipmentAssignments, setEquipmentAssignments] = useState([]);
+    const [equipmentCategories, setEquipmentCategories] = useState([]);
     const [allocations, setAllocations] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -84,6 +85,26 @@ const EquipmentCalendarPage = () => {
         } catch (err) {
             console.error('Unexpected error:', err);
             setEquipmentAssignments([]);
+        }
+    }, []);
+
+    // Fetch equipment categories
+    const getEquipmentCategories = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('equipment_categories')
+                .select('*');
+
+            if (error) {
+                console.error('Error fetching equipment categories:', error);
+                setEquipmentCategories([]);
+            } else {
+                console.log('✅ Equipment categories loaded:', data?.length || 0, 'categories');
+                setEquipmentCategories(data || []);
+            }
+        } catch (err) {
+            console.error('Unexpected error:', err);
+            setEquipmentCategories([]);
         }
     }, []);
 
@@ -206,6 +227,7 @@ const EquipmentCalendarPage = () => {
         getEquipment();
         getEquipmentAllocations();
         getEquipmentAssignments();
+        getEquipmentCategories();
 
         console.log('🔌 Setting up real-time subscriptions for equipment calendar...');
 
@@ -263,13 +285,32 @@ const EquipmentCalendarPage = () => {
                 console.log('📡 Equipment assignments subscription status:', status);
             });
 
+        const categoriesSubscription = supabase
+            .channel('equipment-categories-changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'equipment_categories'
+                },
+                (payload) => {
+                    console.log('🎨 Equipment categories changed:', payload.eventType);
+                    getEquipmentCategories();
+                }
+            )
+            .subscribe((status) => {
+                console.log('📡 Equipment categories subscription status:', status);
+            });
+
         return () => {
             console.log('🔌 Unsubscribing from equipment calendar...');
             equipmentSubscription.unsubscribe();
             calendarSubscription.unsubscribe();
             assignmentsSubscription.unsubscribe();
+            categoriesSubscription.unsubscribe();
         };
-    }, [getEquipment, getEquipmentAllocations, getEquipmentAssignments]);
+    }, [getEquipment, getEquipmentAllocations, getEquipmentAssignments, getEquipmentCategories]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -746,6 +787,64 @@ const EquipmentCalendarPage = () => {
         );
     };
 
+    // Color palette with high contrast colors for categories
+    const categoryColorPalette = [
+        '#3B82F6', // Blue
+        '#10B981', // Green
+        '#F59E0B', // Amber
+        '#EF4444', // Red
+        '#8B5CF6', // Purple
+        '#06B6D4', // Cyan
+        '#F97316', // Orange
+        '#EC4899', // Pink
+        '#14B8A6', // Teal
+        '#6366F1', // Indigo
+        '#84CC16', // Lime
+        '#F43F5E', // Rose
+        '#0EA5E9', // Sky
+        '#A855F7', // Violet
+        '#22C55E', // Green
+        '#EAB308', // Yellow
+    ];
+
+    // Get color for a category
+    const getCategoryColor = useCallback((categoryName) => {
+        if (!categoryName) return '#93C5FD'; // Light blue default
+
+        // Check if category exists in equipmentCategories
+        const category = equipmentCategories.find(cat => cat.name === categoryName);
+
+        if (category && category.color) {
+            return category.color;
+        }
+
+        // If no color, assign one based on category name hash
+        const hash = categoryName.split('').reduce((acc, char) => {
+            return char.charCodeAt(0) + ((acc << 5) - acc);
+        }, 0);
+        const colorIndex = Math.abs(hash) % categoryColorPalette.length;
+        return categoryColorPalette[colorIndex];
+    }, [equipmentCategories]);
+
+    // Get background and text color classes for a category
+    const getCategoryColorClasses = useCallback((categoryName) => {
+        const color = getCategoryColor(categoryName);
+
+        // Convert hex to RGB to determine if it's light or dark
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+        const isDark = luminance < 0.5;
+        const textColor = isDark ? 'text-white' : 'text-gray-900';
+
+        return {
+            backgroundColor: color,
+            textColor
+        };
+    }, [getCategoryColor]);
+
     const handleAutoAssign = async () => {
         setIsAutoAssigning(true);
         setIsAutoAssignModalOpen(false);
@@ -1072,9 +1171,10 @@ const EquipmentCalendarPage = () => {
                                                         const isNoEquipmentRequired = eq.comment === 'No Equipment Required' || eq.comment?.startsWith('No Equipment Required:');
                                                         const isAssignedToUser = eq.equipmentId && isEquipmentAssignedToUser(eq.equipmentId, user.id);
                                                         const hasEquipmentNotAssigned = eq.equipmentId && !isEquipmentAssignedToUser(eq.equipmentId, user.id);
+                                                        const categoryColors = equipmentItem ? getCategoryColorClasses(equipmentItem.category) : { backgroundColor: '#93C5FD', textColor: 'text-gray-900' };
 
                                                         return (
-                                                            <div key={index} className="p-2 rounded-md flex flex-col items-center justify-center text-center bg-blue-100 dark:bg-blue-900/40 flex-1 relative">
+                                                            <div key={index} className={`p-2 rounded-md flex flex-col items-center justify-center text-center flex-1 relative ${categoryColors.textColor}`} style={{ backgroundColor: categoryColors.backgroundColor }}>
                                                                 {isAssignedToUser && (
                                                                     <CheckCircle
                                                                         size={16}
@@ -1093,7 +1193,7 @@ const EquipmentCalendarPage = () => {
                                                                         <p className="font-bold text-sm truncate">{equipmentItem?.name || 'Unknown'}</p>
                                                                     </div>
                                                                 )}
-                                                                {eq.comment && <p className={`text-sm ${isNoEquipmentRequired ? 'font-semibold' : ''} ${eq.equipmentId ? 'truncate mt-1' : 'break-words'}`} title={eq.comment}>{eq.comment}</p>}
+                                                                {eq.comment && <p className={`text-sm font-bold ${eq.equipmentId ? 'truncate mt-1' : 'break-words'}`} title={eq.comment}>{eq.comment}</p>}
                                                                 {canAllocateResources && (
                                                                     <button
                                                                         onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment, index)}
@@ -1112,9 +1212,10 @@ const EquipmentCalendarPage = () => {
                                             const isNoEquipmentRequired = assignment.comment === 'No Equipment Required' || assignment.comment?.startsWith('No Equipment Required:');
                                             const isAssignedToUser = assignment.equipmentId && isEquipmentAssignedToUser(assignment.equipmentId, user.id);
                                             const hasEquipmentNotAssigned = assignment.equipmentId && !isEquipmentAssignedToUser(assignment.equipmentId, user.id);
+                                            const categoryColors = equipmentItem ? getCategoryColorClasses(equipmentItem.category) : { backgroundColor: '#93C5FD', textColor: 'text-gray-900' };
 
                                             cellContent = (
-                                                <div className="p-2 rounded-md h-full flex flex-col items-center justify-center text-center bg-blue-100 dark:bg-blue-900/40 relative">
+                                                <div className={`p-2 rounded-md h-full flex flex-col items-center justify-center text-center relative ${categoryColors.textColor}`} style={{ backgroundColor: categoryColors.backgroundColor }}>
                                                     {isAssignedToUser && (
                                                         <CheckCircle
                                                             size={18}
@@ -1134,7 +1235,7 @@ const EquipmentCalendarPage = () => {
                                                         </div>
                                                     )}
                                                     {assignment.comment && (
-                                                        <p className={`text-sm ${isNoEquipmentRequired ? 'font-semibold' : ''} ${assignment.equipmentId ? 'whitespace-nowrap overflow-ellipsis overflow-hidden' : 'break-words'}`} title={assignment.comment}>{assignment.comment}</p>
+                                                        <p className={`text-sm font-bold ${assignment.equipmentId ? 'whitespace-nowrap overflow-ellipsis overflow-hidden' : 'break-words'}`} title={assignment.comment}>{assignment.comment}</p>
                                                     )}
                                                 </div>
                                             );
