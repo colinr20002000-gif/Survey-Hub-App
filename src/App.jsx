@@ -46,6 +46,7 @@ import UserContactsPage from './pages/UserContactsPage';
 import UsefulContactsPage from './pages/UsefulContactsPage';
 import FeedbackPage from './pages/FeedbackPage';
 import DeliveryTasksPage from './pages/DeliveryTasksPage';
+import RailComponentsPage from './pages/RailComponentsPage';
 
 // Lazy-loaded pages for better performance
 const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
@@ -549,7 +550,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Document Hub', parent: 'Training Centre' },
-                { name: 'Video Tutorials', parent: 'Training Centre' }
+                { name: 'Video Tutorials', parent: 'Training Centre' },
+                { name: 'Rail Components', parent: 'Training Centre' }
             ]
         },
         {
@@ -597,7 +599,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
 
     const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Tasks';
     const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Equipment Calendar' || activeTab === 'Project Tasks' || activeTab === 'Equipment' || activeTab === 'Vehicles';
-    const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials';
+    const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
     const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts';
 
     // Close sidebar when clicking outside in mobile mode
@@ -2784,6 +2786,7 @@ const MainLayout = () => {
             case 'Analytics': return <Suspense fallback={<LoadingFallback />}><AnalyticsPage /></Suspense>;
             case 'Document Hub': return <DocumentHubPage />;
             case 'Video Tutorials': return <VideoTutorialsPage />;
+            case 'Rail Components': return <RailComponentsPage />;
             case 'User Contacts': return <UserContactsPage />;
             case 'Useful Contacts': return <UsefulContactsPage />;
             case 'User Admin': return <UserAdmin />;
