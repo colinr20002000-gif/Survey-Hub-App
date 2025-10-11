@@ -830,9 +830,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                             ))}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="divide-y-4 divide-gray-300 dark:divide-gray-600">
                         {displayedUsers.map(user => (
-                            <tr key={user.id}>
+                            <tr key={user.id} className="border-spacing-2">
                                 <td className="px-4 py-2 font-medium">
                                     <div className="flex items-center min-w-0">
                                         <div className={`w-8 h-8 rounded-full ${getDepartmentColor(user.department)} text-white flex items-center justify-center font-bold text-sm mr-3 flex-shrink-0`}>{getAvatarText(user)}</div>
