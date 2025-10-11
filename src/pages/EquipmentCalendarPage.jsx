@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, MoreVertical, Download, Package } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, MoreVertical, Download, Package, CheckCircle, XCircle } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
@@ -20,6 +20,7 @@ const EquipmentCalendarPage = () => {
 
     const [equipment, setEquipment] = useState([]);
     const [equipmentLoading, setEquipmentLoading] = useState(true);
+    const [equipmentAssignments, setEquipmentAssignments] = useState([]);
     const [allocations, setAllocations] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -60,6 +61,27 @@ const EquipmentCalendarPage = () => {
             setEquipment([]);
         } finally {
             setEquipmentLoading(false);
+        }
+    }, []);
+
+    // Fetch equipment assignments (current assignments where returned_at is NULL)
+    const getEquipmentAssignments = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('equipment_assignments')
+                .select('equipment_id, user_id')
+                .is('returned_at', null);
+
+            if (error) {
+                console.error('Error fetching equipment assignments:', error);
+                setEquipmentAssignments([]);
+            } else {
+                console.log('✅ Equipment assignments loaded:', data?.length || 0, 'assignments');
+                setEquipmentAssignments(data || []);
+            }
+        } catch (err) {
+            console.error('Unexpected error:', err);
+            setEquipmentAssignments([]);
         }
     }, []);
 
@@ -181,6 +203,7 @@ const EquipmentCalendarPage = () => {
     useEffect(() => {
         getEquipment();
         getEquipmentAllocations();
+        getEquipmentAssignments();
 
         console.log('🔌 Setting up real-time subscriptions for equipment calendar...');
 
@@ -220,12 +243,31 @@ const EquipmentCalendarPage = () => {
                 console.log('📡 Equipment calendar subscription status:', status);
             });
 
+        const assignmentsSubscription = supabase
+            .channel('equipment-assignments-changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'equipment_assignments'
+                },
+                (payload) => {
+                    console.log('📋 Equipment assignments changed:', payload.eventType);
+                    getEquipmentAssignments();
+                }
+            )
+            .subscribe((status) => {
+                console.log('📡 Equipment assignments subscription status:', status);
+            });
+
         return () => {
             console.log('🔌 Unsubscribing from equipment calendar...');
             equipmentSubscription.unsubscribe();
             calendarSubscription.unsubscribe();
+            assignmentsSubscription.unsubscribe();
         };
-    }, [getEquipment, getEquipmentAllocations]);
+    }, [getEquipment, getEquipmentAllocations, getEquipmentAssignments]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -300,14 +342,14 @@ const EquipmentCalendarPage = () => {
         setIsAllocationModalOpen(true);
     };
 
-    const handleActionClick = (e, userId, dayIndex, assignment) => {
+    const handleActionClick = (e, userId, dayIndex, assignment, equipmentIndex = null) => {
         e.stopPropagation();
         e.preventDefault();
         setContextMenu({
             visible: true,
             x: e.pageX,
             y: e.pageY,
-            cellData: { userId, dayIndex, assignment, date: weekDates[dayIndex] }
+            cellData: { userId, dayIndex, assignment, date: weekDates[dayIndex], equipmentIndex }
         });
     };
 
@@ -420,27 +462,170 @@ const EquipmentCalendarPage = () => {
         }
     };
 
-    const handleContextMenuAction = (action) => {
+    const handleEditArrayItem = async (allocationData, cellToUpdate) => {
+        const { userId, date, editingIndex } = cellToUpdate;
+        const weekKey = formatDateForKey(getWeekStartDate(date));
+        const dayIndex = (date.getDay() + 1) % 7;
+
+        // Get the current array
+        const currentAssignment = allocations[weekKey]?.[userId]?.assignments[dayIndex];
+        if (!Array.isArray(currentAssignment)) {
+            console.error('Cannot edit array item: assignment is not an array');
+            return;
+        }
+
+        // Create a new array with the updated item
+        const newAssignment = currentAssignment.map((item, idx) => {
+            if (idx === editingIndex) {
+                return {
+                    equipmentId: allocationData.equipmentId || null,
+                    comment: allocationData.comment || ''
+                };
+            }
+            return item;
+        });
+
+        // Update state
+        setAllocations(prev => {
+            const newAllocations = JSON.parse(JSON.stringify(prev));
+            if (!newAllocations[weekKey]) newAllocations[weekKey] = {};
+            if (!newAllocations[weekKey][userId]) newAllocations[weekKey][userId] = { assignments: Array(7).fill(null) };
+            newAllocations[weekKey][userId].assignments[dayIndex] = newAssignment;
+            return newAllocations;
+        });
+
+        setIsAllocationModalOpen(false);
+
+        // Update database
+        try {
+            const allocationDateString = formatDateForKey(date);
+
+            // Delete all existing records for this date
+            const { error: deleteError } = await supabase
+                .from('equipment_calendar')
+                .delete()
+                .eq('user_id', userId)
+                .eq('allocation_date', allocationDateString);
+
+            if (deleteError) throw deleteError;
+
+            // Re-insert all items with the updated one
+            const recordsToInsert = newAssignment.map(item => ({
+                user_id: userId,
+                equipment_id: item.equipmentId || null,
+                allocation_date: allocationDateString,
+                comment: item.comment || null
+            }));
+
+            const { error: insertError } = await supabase
+                .from('equipment_calendar')
+                .insert(recordsToInsert);
+
+            if (insertError) throw insertError;
+        } catch (err) {
+            console.error('Error updating array item:', err);
+            const errorMessage = handleSupabaseError(err, 'equipment_calendar', 'update', null);
+            if (isRLSError(err)) {
+                showPrivilegeError(errorMessage);
+            } else {
+                showErrorModal(errorMessage, 'Failed to Update Equipment');
+            }
+        }
+    };
+
+    const handleContextMenuAction = async (action) => {
         const { cellData } = contextMenu;
         if (!cellData) return;
         const cellToUpdate = { userId: cellData.userId, dayIndex: cellData.dayIndex, date: cellData.date };
 
-        if (action === 'copy' || action === 'cut') {
-            setClipboard({ type: action, data: cellData.assignment, sourceCell: cellToUpdate });
-        } else if (action === 'delete') {
-            handleSaveAllocation(null, cellToUpdate);
-        } else if (action === 'paste') {
-            handleSaveAllocation(clipboard.data, cellToUpdate);
-            if (clipboard.type === 'cut') {
-                handleSaveAllocation(null, clipboard.sourceCell);
-                setClipboard({ type: null, data: null, sourceCell: null });
+        // Check if we're operating on a specific equipment item within an array
+        const isArrayItemOperation = cellData.equipmentIndex !== null && cellData.equipmentIndex !== undefined;
+
+        if (isArrayItemOperation && Array.isArray(cellData.assignment)) {
+            const equipmentIndex = cellData.equipmentIndex;
+            const specificItem = cellData.assignment[equipmentIndex];
+
+            if (action === 'copy' || action === 'cut') {
+                // Copy/cut the specific item
+                setClipboard({ type: action, data: specificItem, sourceCell: cellToUpdate, sourceIndex: equipmentIndex });
+            } else if (action === 'delete') {
+                // Delete the specific item from the array
+                const newAssignment = cellData.assignment.filter((_, idx) => idx !== equipmentIndex);
+
+                // If only one item remains, convert back to single object; if none remain, set to null
+                const finalAssignment = newAssignment.length === 1 ? newAssignment[0] : newAssignment.length === 0 ? null : newAssignment;
+
+                // Update state immediately
+                const weekKey = formatDateForKey(getWeekStartDate(cellData.date));
+                setAllocations(prev => {
+                    const newAllocations = JSON.parse(JSON.stringify(prev));
+                    if (newAllocations[weekKey] && newAllocations[weekKey][cellData.userId]) {
+                        newAllocations[weekKey][cellData.userId].assignments[cellData.dayIndex] = finalAssignment;
+                    }
+                    return newAllocations;
+                });
+
+                // Update database
+                try {
+                    const allocationDateString = formatDateForKey(cellData.date);
+
+                    // Delete all existing records for this date
+                    const { error: deleteError } = await supabase
+                        .from('equipment_calendar')
+                        .delete()
+                        .eq('user_id', cellData.userId)
+                        .eq('allocation_date', allocationDateString);
+
+                    if (deleteError) throw deleteError;
+
+                    // Re-insert remaining items
+                    if (newAssignment.length > 0) {
+                        const recordsToInsert = newAssignment.map(item => ({
+                            user_id: cellData.userId,
+                            equipment_id: item.equipmentId || null,
+                            allocation_date: allocationDateString,
+                            comment: item.comment || null
+                        }));
+
+                        const { error: insertError } = await supabase
+                            .from('equipment_calendar')
+                            .insert(recordsToInsert);
+
+                        if (insertError) throw insertError;
+                    }
+                } catch (err) {
+                    console.error('Error deleting individual equipment:', err);
+                    const errorMessage = handleSupabaseError(err, 'equipment_calendar', 'delete', null);
+                    if (isRLSError(err)) {
+                        showPrivilegeError(errorMessage);
+                    } else {
+                        showErrorModal(errorMessage, 'Failed to Delete Equipment');
+                    }
+                }
+            } else if (action === 'edit') {
+                // Open modal to edit the specific item
+                setSelectedCell({ ...cellToUpdate, editingItem: specificItem, editingIndex: equipmentIndex });
+                setIsAllocationModalOpen(true);
             }
-        } else if (action === 'allocate') {
-            setSelectedCell(cellToUpdate);
-            setIsAllocationModalOpen(true);
-        } else if (action === 'addSecondEquipment') {
-            setSelectedCell({ ...cellToUpdate, isSecondEquipment: true });
-            setIsAllocationModalOpen(true);
+        } else {
+            // Original behavior for whole cell operations
+            if (action === 'copy' || action === 'cut') {
+                setClipboard({ type: action, data: cellData.assignment, sourceCell: cellToUpdate });
+            } else if (action === 'delete') {
+                handleSaveAllocation(null, cellToUpdate);
+            } else if (action === 'paste') {
+                handleSaveAllocation(clipboard.data, cellToUpdate);
+                if (clipboard.type === 'cut') {
+                    handleSaveAllocation(null, clipboard.sourceCell);
+                    setClipboard({ type: null, data: null, sourceCell: null });
+                }
+            } else if (action === 'allocate') {
+                setSelectedCell(cellToUpdate);
+                setIsAllocationModalOpen(true);
+            } else if (action === 'addSecondEquipment') {
+                setSelectedCell({ ...cellToUpdate, isSecondEquipment: true });
+                setIsAllocationModalOpen(true);
+            }
         }
         setContextMenu({ visible: false });
     };
@@ -486,6 +671,14 @@ const EquipmentCalendarPage = () => {
     const fiscalWeek = getFiscalWeek(currentWeekStart);
     const currentWeekAllocations = allocations[weekKey] || {};
     const selectedUser = selectedCell ? allUsers?.find(u => u.id === selectedCell.userId) : null;
+
+    // Helper function to check if equipment is assigned to user in equipment_assignments
+    const isEquipmentAssignedToUser = (equipmentId, userId) => {
+        if (!equipmentId || !userId) return false;
+        return equipmentAssignments.some(
+            assignment => assignment.equipment_id === equipmentId && assignment.user_id === userId
+        );
+    };
 
     const handleExportImage = async () => {
         if (!calendarRef.current) return;
@@ -714,8 +907,23 @@ const EquipmentCalendarPage = () => {
                                                     {assignment.map((eq, index) => {
                                                         const equipmentItem = equipment.find(e => e.id === eq.equipmentId);
                                                         const isNoEquipmentRequired = eq.comment === 'No Equipment Required' || eq.comment?.startsWith('No Equipment Required:');
+                                                        const isAssignedToUser = eq.equipmentId && isEquipmentAssignedToUser(eq.equipmentId, user.id);
+                                                        const hasEquipmentNotAssigned = eq.equipmentId && !isEquipmentAssignedToUser(eq.equipmentId, user.id);
+
                                                         return (
-                                                            <div key={index} className="p-2 rounded-md flex flex-col items-center justify-center text-center bg-blue-100 dark:bg-blue-900/40 flex-1">
+                                                            <div key={index} className="p-2 rounded-md flex flex-col items-center justify-center text-center bg-blue-100 dark:bg-blue-900/40 flex-1 relative">
+                                                                {isAssignedToUser && (
+                                                                    <CheckCircle
+                                                                        size={16}
+                                                                        className="absolute top-1 left-1 text-green-600 dark:text-green-400 fill-white dark:fill-gray-800"
+                                                                    />
+                                                                )}
+                                                                {hasEquipmentNotAssigned && (
+                                                                    <XCircle
+                                                                        size={16}
+                                                                        className="absolute top-1 left-1 text-red-600 dark:text-red-400 fill-white dark:fill-gray-800"
+                                                                    />
+                                                                )}
                                                                 {eq.equipmentId && (
                                                                     <div className="flex items-center justify-center gap-1.5">
                                                                         <Package size={16} />
@@ -723,6 +931,14 @@ const EquipmentCalendarPage = () => {
                                                                     </div>
                                                                 )}
                                                                 {eq.comment && <p className={`text-sm ${isNoEquipmentRequired ? 'font-semibold' : ''} ${eq.equipmentId ? 'truncate mt-1' : 'break-words'}`} title={eq.comment}>{eq.comment}</p>}
+                                                                {canAllocateResources && (
+                                                                    <button
+                                                                        onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment, index)}
+                                                                        className="absolute top-1 right-1 p-0.5 rounded-full bg-gray-300/30 dark:bg-gray-900/30 hover:bg-gray-400/50 dark:hover:bg-gray-700/50"
+                                                                    >
+                                                                        <MoreVertical size={12} />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         );
                                                     })}
@@ -731,9 +947,23 @@ const EquipmentCalendarPage = () => {
                                         } else {
                                             const equipmentItem = equipment.find(e => e.id === assignment.equipmentId);
                                             const isNoEquipmentRequired = assignment.comment === 'No Equipment Required' || assignment.comment?.startsWith('No Equipment Required:');
+                                            const isAssignedToUser = assignment.equipmentId && isEquipmentAssignedToUser(assignment.equipmentId, user.id);
+                                            const hasEquipmentNotAssigned = assignment.equipmentId && !isEquipmentAssignedToUser(assignment.equipmentId, user.id);
 
                                             cellContent = (
-                                                <div className="p-2 rounded-md h-full flex flex-col items-center justify-center text-center bg-blue-100 dark:bg-blue-900/40">
+                                                <div className="p-2 rounded-md h-full flex flex-col items-center justify-center text-center bg-blue-100 dark:bg-blue-900/40 relative">
+                                                    {isAssignedToUser && (
+                                                        <CheckCircle
+                                                            size={18}
+                                                            className="absolute top-1 left-1 text-green-600 dark:text-green-400 fill-white dark:fill-gray-800"
+                                                        />
+                                                    )}
+                                                    {hasEquipmentNotAssigned && (
+                                                        <XCircle
+                                                            size={18}
+                                                            className="absolute top-1 left-1 text-red-600 dark:text-red-400 fill-white dark:fill-gray-800"
+                                                        />
+                                                    )}
                                                     {assignment.equipmentId && (
                                                         <div className="flex items-center justify-center gap-1.5 mb-1">
                                                             <Package size={18} />
@@ -789,12 +1019,20 @@ const EquipmentCalendarPage = () => {
                 <AllocationModal
                     isOpen={isAllocationModalOpen}
                     onClose={() => setIsAllocationModalOpen(false)}
-                    onSave={(allocationData) => handleSaveAllocation(allocationData, selectedCell, selectedCell.isSecondEquipment)}
+                    onSave={(allocationData) => {
+                        if (selectedCell.editingItem && selectedCell.editingIndex !== undefined) {
+                            // Handle editing a specific item in an array
+                            handleEditArrayItem(allocationData, selectedCell);
+                        } else {
+                            handleSaveAllocation(allocationData, selectedCell, selectedCell.isSecondEquipment);
+                        }
+                    }}
                     user={selectedUser}
                     date={selectedCell.date}
-                    currentAssignment={currentWeekAllocations[selectedCell.userId]?.assignments[selectedCell.dayIndex] || null}
+                    currentAssignment={selectedCell.editingItem || currentWeekAllocations[selectedCell.userId]?.assignments[selectedCell.dayIndex] || null}
                     equipment={equipment}
                     isSecondEquipment={selectedCell.isSecondEquipment}
+                    isEditingArrayItem={!!selectedCell.editingItem}
                 />
             )}
             <ShowHideUsersModal
@@ -845,6 +1083,7 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
 
     const hasAssignment = !!cellData.assignment;
     const canAddMoreEquipment = hasAssignment;
+    const isArrayItemOperation = cellData.equipmentIndex !== null && cellData.equipmentIndex !== undefined;
 
     if (!canAllocate && !hasAssignment) {
         return null;
@@ -860,6 +1099,14 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                 <>
                     {canAllocate && (
                         <>
+                            {isArrayItemOperation && (
+                                <button onClick={() => onAction('edit')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                    </svg>Edit
+                                </button>
+                            )}
                             <button onClick={() => onAction('copy')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2" />Copy</button>
                             <button onClick={() => onAction('cut')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
@@ -870,7 +1117,7 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                                     <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
                                 </svg>Cut
                             </button>
-                            {canAddMoreEquipment && (
+                            {canAddMoreEquipment && !isArrayItemOperation && (
                                 <button onClick={() => onAction('addSecondEquipment')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><PlusCircle size={14} className="mr-2" />Add More Equipment</button>
                             )}
                         </>
@@ -957,7 +1204,7 @@ const ShowHideUsersModal = ({ isOpen, onClose, onSave, allUsers, visibleUserIds 
     );
 };
 
-const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignment, equipment, isSecondEquipment = false }) => {
+const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignment, equipment, isSecondEquipment = false, isEditingArrayItem = false }) => {
     const [formData, setFormData] = useState({
         equipmentId: '', comment: ''
     });
@@ -1010,8 +1257,10 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
         onSave(null);
     };
 
+    const modalTitle = isEditingArrayItem ? "Edit Equipment" : (isSecondEquipment ? "Assign More Equipment" : "Assign Equipment");
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={isSecondEquipment ? "Assign More Equipment" : "Assign Equipment"}>
+        <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
             <div className="p-6 overflow-y-auto max-h-[80vh]">
                 <div className="space-y-4">
                     <div>
@@ -1034,7 +1283,10 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                 </div>
             </div>
             <div className="flex-shrink-0 flex justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700">
-                <Button variant="danger" onClick={handleClear}>Clear Assignment</Button>
+                {!isEditingArrayItem && (
+                    <Button variant="danger" onClick={handleClear}>Clear Assignment</Button>
+                )}
+                {isEditingArrayItem && <div></div>}
                 <div className="flex space-x-2">
                     <Button variant="outline" onClick={onClose}>Cancel</Button>
                     <Button onClick={handleSave}>Save</Button>
