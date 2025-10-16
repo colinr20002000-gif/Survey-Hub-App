@@ -1,0 +1,1 @@
+ALTER TABLE dummy_users ADD COLUMN IF NOT EXISTS privilege TEXT DEFAULT 'Viewer';

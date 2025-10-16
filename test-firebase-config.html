@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Configuration Test</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        .success {
+            color: #28a745;
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+        .warning {
+            color: #856404;
+            background: #fff3cd;
+            border-left-color: #ffc107;
+        }
+        h1 { color: #333; }
+        h2 {
+            color: #666;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+        .config-block {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .config-item {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        .config-label {
+            font-weight: bold;
+            color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔥 Firebase Configuration Validator</h1>
+
+    <h2>Current Configuration</h2>
+    <div class="config-block">
+        <div class="config-item">
+            <span class="config-label">API Key:</span> AIzaSyAL6kYLAXcTglnkDC3iR5skcRgeetsVQ84
+        </div>
+        <div class="config-item">
+            <span class="config-label">Project ID:</span> survey-hub-xyz
+        </div>
+        <div class="config-item">
+            <span class="config-label">Sender ID:</span> 825099555628
+        </div>
+        <div class="config-item">
+            <span class="config-label">App ID:</span> 1:825099555628:web:c061c4a41c68375e231289
+        </div>
+        <div class="config-item">
+            <span class="config-label">VAPID Key:</span> BBNKx2nNyydVZGU7UGCJvDiBPOucsz57KvQy5dDkmaR_acdfh-z6wrPs0k20-NSJEZ5UODEpi0-e6BPRAXqxRnM
+        </div>
+    </div>
+
+    <h2>Validation Tests</h2>
+
+    <button onclick="testFirebaseInit()">1. Test Firebase Initialization</button>
+    <button onclick="testAPIKey()">2. Test API Key</button>
+    <button onclick="testMessaging()">3. Test Messaging Setup</button>
+    <button onclick="testVAPIDKey()">4. Test VAPID Key & Get Token</button>
+    <button onclick="runAllTests()">▶ Run All Tests</button>
+
+    <pre id="output">Click a button to start testing...</pre>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAL6kYLAXcTglnkDC3iR5skcRgeetsVQ84",
+            authDomain: "survey-hub-xyz.firebaseapp.com",
+            projectId: "survey-hub-xyz",
+            storageBucket: "survey-hub-xyz.firebasestorage.app",
+            messagingSenderId: "825099555628",
+            appId: "1:825099555628:web:c061c4a41c68375e231289",
+            measurementId: "G-JK8KXZTETN"
+        };
+
+        const VAPID_KEY = "BBNKx2nNyydVZGU7UGCJvDiBPOucsz57KvQy5dDkmaR_acdfh-z6wrPs0k20-NSJEZ5UODEpi0-e6BPRAXqxRnM";
+
+        let app;
+        let messaging;
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+
+            if (type === 'error') {
+                output.className = 'error';
+            } else if (type === 'success') {
+                output.className = 'success';
+            } else if (type === 'warning') {
+                output.className = 'warning';
+            }
+        }
+
+        function clearLog() {
+            const output = document.getElementById('output');
+            output.textContent = '';
+            output.className = '';
+        }
+
+        async function testFirebaseInit() {
+            clearLog();
+            log('='.repeat(80));
+            log('TEST 1: Firebase Initialization');
+            log('='.repeat(80));
+
+            try {
+                // Check if already initialized
+                if (app) {
+                    log('⚠️  Firebase already initialized, using existing instance', 'warning');
+                } else {
+                    log('📦 Initializing Firebase with config...');
+                    app = firebase.initializeApp(firebaseConfig);
+                    log('✅ Firebase initialized successfully!', 'success');
+                }
+
+                log('\n📊 Firebase App Info:');
+                log(`  Name: ${app.name}`);
+                log(`  Options: ${JSON.stringify(app.options, null, 2)}`);
+
+                return true;
+            } catch (error) {
+                log(`\n❌ Firebase initialization FAILED!`, 'error');
+                log(`Error: ${error.message}`);
+                log(`\nPossible causes:`);
+                log(`  1. Invalid API key`);
+                log(`  2. Incorrect project configuration`);
+                log(`  3. Firebase app already initialized with different config`);
+                return false;
+            }
+        }
+
+        async function testAPIKey() {
+            clearLog();
+            log('='.repeat(80));
+            log('TEST 2: API Key Validation');
+            log('='.repeat(80));
+
+            try {
+                log('🔑 Testing API key by making a request to Firebase...');
+
+                // Try to validate API key by checking if it can access Firebase services
+                const apiKey = firebaseConfig.apiKey;
+                const projectId = firebaseConfig.projectId;
+
+                log(`\n📍 API Key: ${apiKey.substring(0, 20)}...`);
+                log(`📍 Project ID: ${projectId}`);
+
+                // Test the API key by trying to access Firebase Config API
+                const testUrl = `https://firebaseinstallations.googleapis.com/v1/projects/${projectId}/installations`;
+                const response = await fetch(testUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-goog-api-key': apiKey
+                    },
+                    body: JSON.stringify({
+                        fid: 'test-' + Date.now(),
+                        appId: firebaseConfig.appId,
+                        authVersion: 'FIS_v2',
+                        sdkVersion: 'w:10.7.1'
+                    })
+                });
+
+                log(`\n📡 Response status: ${response.status}`);
+
+                if (response.status === 200 || response.status === 201 || response.status === 400) {
+                    // 400 is OK - it means the API key is valid but request format might be off
+                    log('✅ API Key is VALID and working!', 'success');
+                    log('\nThe API key can successfully communicate with Firebase services.');
+                    return true;
+                } else if (response.status === 403) {
+                    log('❌ API Key is INVALID or RESTRICTED!', 'error');
+                    log('\nThe API key was rejected by Firebase.');
+                    log('Possible issues:');
+                    log('  1. API key is incorrect');
+                    log('  2. API key has been rotated/changed');
+                    log('  3. API key restrictions are too strict');
+                    return false;
+                } else {
+                    const responseText = await response.text();
+                    log(`⚠️  Unexpected response: ${response.status}`, 'warning');
+                    log(`Response: ${responseText}`);
+                    return false;
+                }
+            } catch (error) {
+                log(`\n❌ API Key test FAILED!`, 'error');
+                log(`Error: ${error.message}`);
+                return false;
+            }
+        }
+
+        async function testMessaging() {
+            clearLog();
+            log('='.repeat(80));
+            log('TEST 3: Firebase Messaging Setup');
+            log('='.repeat(80));
+
+            try {
+                if (!app) {
+                    log('⚠️  Initializing Firebase first...', 'warning');
+                    await testFirebaseInit();
+                }
+
+                log('\n🔔 Initializing Firebase Messaging...');
+                messaging = firebase.messaging(app);
+                log('✅ Firebase Messaging initialized successfully!', 'success');
+
+                log('\n🌐 Browser Support Check:');
+                log(`  Service Worker: ${'serviceWorker' in navigator ? '✅ Supported' : '❌ Not supported'}`);
+                log(`  Push Manager: ${'PushManager' in window ? '✅ Supported' : '❌ Not supported'}`);
+                log(`  Notifications: ${'Notification' in window ? '✅ Supported' : '❌ Not supported'}`);
+
+                log('\n🔐 Notification Permission:');
+                log(`  Current: ${Notification.permission}`);
+
+                if (Notification.permission === 'denied') {
+                    log('  ⚠️  WARNING: Notifications are BLOCKED!', 'warning');
+                    log('  You need to reset site permissions in browser settings.');
+                } else if (Notification.permission === 'default') {
+                    log('  ℹ️  Permission not yet requested');
+                } else {
+                    log('  ✅ Notifications are allowed!', 'success');
+                }
+
+                return true;
+            } catch (error) {
+                log(`\n❌ Messaging setup FAILED!`, 'error');
+                log(`Error: ${error.message}`);
+                return false;
+            }
+        }
+
+        async function testVAPIDKey() {
+            clearLog();
+            log('='.repeat(80));
+            log('TEST 4: VAPID Key & FCM Token');
+            log('='.repeat(80));
+
+            try {
+                if (!messaging) {
+                    log('⚠️  Setting up messaging first...', 'warning');
+                    await testMessaging();
+                    log('\n');
+                }
+
+                log('🔑 VAPID Key:');
+                log(`  ${VAPID_KEY.substring(0, 50)}...`);
+                log(`  Length: ${VAPID_KEY.length} characters`);
+
+                // Check permission
+                if (Notification.permission === 'denied') {
+                    log('\n❌ Cannot get token: Notifications are BLOCKED', 'error');
+                    log('Please reset site permissions in browser settings.');
+                    return false;
+                }
+
+                // Request permission if needed
+                if (Notification.permission === 'default') {
+                    log('\n📱 Requesting notification permission...');
+                    const permission = await Notification.requestPermission();
+                    log(`  Result: ${permission}`);
+
+                    if (permission !== 'granted') {
+                        log('❌ Permission denied by user', 'error');
+                        return false;
+                    }
+                }
+
+                log('\n🎫 Requesting FCM token...');
+                log('  (This validates both VAPID key and Firebase config)');
+
+                const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+
+                if (token) {
+                    log('\n✅ FCM Token obtained successfully!', 'success');
+                    log('\n🎉 ALL FIREBASE CREDENTIALS ARE VALID! 🎉', 'success');
+                    log('\n📋 Your FCM Token:');
+                    log(`  ${token.substring(0, 60)}...`);
+                    log(`  Length: ${token.length} characters`);
+                    log('\n✅ This means:');
+                    log('  • API Key is correct ✅');
+                    log('  • VAPID Key is correct ✅');
+                    log('  • Firebase project is properly configured ✅');
+                    log('  • Browser can receive push notifications ✅');
+                    return true;
+                } else {
+                    log('❌ No token received', 'error');
+                    return false;
+                }
+
+            } catch (error) {
+                log(`\n❌ VAPID/Token test FAILED!`, 'error');
+                log(`Error: ${error.message}`);
+                log(`\nError code: ${error.code || 'N/A'}`);
+
+                if (error.code === 'messaging/invalid-vapid-key') {
+                    log('\n🔥 VAPID KEY IS INVALID!', 'error');
+                    log('The VAPID key does not match your Firebase project.');
+                    log('\nTo fix:');
+                    log('1. Go to Firebase Console > Project Settings > Cloud Messaging');
+                    log('2. Copy the "Web Push certificates" key pair');
+                    log('3. Update the VAPID_KEY in your code');
+                } else if (error.code === 'messaging/permission-blocked') {
+                    log('\n🚫 Notifications are BLOCKED in browser settings', 'error');
+                } else {
+                    log('\nPossible causes:');
+                    log('  1. VAPID key is incorrect or expired');
+                    log('  2. Service worker registration failed');
+                    log('  3. Firebase project configuration mismatch');
+                }
+
+                return false;
+            }
+        }
+
+        async function runAllTests() {
+            clearLog();
+            log('🚀 Running All Firebase Configuration Tests\n');
+
+            const test1 = await testFirebaseInit();
+            log('\n' + '='.repeat(80) + '\n');
+
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const test2 = await testAPIKey();
+            log('\n' + '='.repeat(80) + '\n');
+
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const test3 = await testMessaging();
+            log('\n' + '='.repeat(80) + '\n');
+
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const test4 = await testVAPIDKey();
+
+            log('\n' + '='.repeat(80));
+            log('FINAL RESULTS');
+            log('='.repeat(80));
+            log(`Test 1 - Firebase Init: ${test1 ? '✅ PASS' : '❌ FAIL'}`);
+            log(`Test 2 - API Key: ${test2 ? '✅ PASS' : '❌ FAIL'}`);
+            log(`Test 3 - Messaging: ${test3 ? '✅ PASS' : '❌ FAIL'}`);
+            log(`Test 4 - VAPID/Token: ${test4 ? '✅ PASS' : '❌ FAIL'}`);
+
+            if (test1 && test2 && test3 && test4) {
+                log('\n🎉 ALL TESTS PASSED! Firebase is properly configured! 🎉', 'success');
+            } else {
+                log('\n⚠️  Some tests failed. Check the details above.', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

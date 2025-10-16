@@ -1,0 +1,103 @@
+-- ============================================================================
+-- Useful Contacts - Editor+ Can Manage Via App (Clean Version)
+-- ============================================================================
+-- GOAL: Allow Editor, Editor+, Admin, Super Admin to manage useful_contacts
+--       Prevent Viewer and Viewer+ from editing
+--       Avoid circular dependency using SECURITY DEFINER function
+-- ============================================================================
+
+-- ============================================================================
+-- HELPER FUNCTION: Check if current user is Editor or higher (RLS-SAFE)
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.current_user_is_editor_or_higher()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER  -- Bypass RLS when querying users table
+STABLE            -- Cache result within transaction
+SET search_path = public
+AS $$
+DECLARE
+  user_privilege TEXT;
+BEGIN
+  -- Query users table with RLS BYPASSED (because of SECURITY DEFINER)
+  -- This prevents circular dependency!
+  SELECT privilege INTO user_privilege
+  FROM public.users
+  WHERE id = auth.uid()
+  LIMIT 1;
+
+  -- Check if user is Editor or higher
+  RETURN user_privilege IN ('Editor', 'Editor+', 'Admin', 'Super Admin');
+END;
+$$;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION public.current_user_is_editor_or_higher() TO authenticated;
+
+-- Add comment explaining the function
+COMMENT ON FUNCTION public.current_user_is_editor_or_higher() IS
+'Checks if the current authenticated user has Editor, Editor+, Admin, or Super Admin privileges.
+Uses SECURITY DEFINER to bypass RLS and avoid circular dependency when called from useful_contacts policies.';
+
+-- ============================================================================
+-- UPDATE USEFUL CONTACTS POLICIES
+-- ============================================================================
+
+-- Drop ALL existing policies (clean slate)
+DROP POLICY IF EXISTS "useful_contacts_select_all" ON public.useful_contacts;
+DROP POLICY IF EXISTS "useful_contacts_manage_editor" ON public.useful_contacts;
+DROP POLICY IF EXISTS "useful_contacts_insert_editor" ON public.useful_contacts;
+DROP POLICY IF EXISTS "useful_contacts_update_editor" ON public.useful_contacts;
+DROP POLICY IF EXISTS "useful_contacts_delete_editor" ON public.useful_contacts;
+DROP POLICY IF EXISTS "Allow authenticated users to read useful contacts" ON public.useful_contacts;
+DROP POLICY IF EXISTS "Allow authenticated users to insert useful contacts" ON public.useful_contacts;
+DROP POLICY IF EXISTS "Allow authenticated users to update useful contacts" ON public.useful_contacts;
+DROP POLICY IF EXISTS "Allow authenticated users to delete useful contacts" ON public.useful_contacts;
+
+-- SELECT: Everyone can view
+CREATE POLICY "useful_contacts_select_all" ON public.useful_contacts
+  FOR SELECT
+  USING (true);
+
+-- INSERT: Editor+ can create
+CREATE POLICY "useful_contacts_insert_editor" ON public.useful_contacts
+  FOR INSERT
+  WITH CHECK (current_user_is_editor_or_higher());
+
+-- UPDATE: Editor+ can edit
+CREATE POLICY "useful_contacts_update_editor" ON public.useful_contacts
+  FOR UPDATE
+  USING (current_user_is_editor_or_higher());
+
+-- DELETE: Editor+ can delete
+CREATE POLICY "useful_contacts_delete_editor" ON public.useful_contacts
+  FOR DELETE
+  USING (current_user_is_editor_or_higher());
+
+-- ============================================================================
+-- EXPLANATION:
+-- ============================================================================
+-- How it works:
+-- 1. current_user_is_editor_or_higher() uses SECURITY DEFINER
+-- 2. When called, it queries users table with RLS BYPASSED
+-- 3. No circular dependency because RLS is not evaluated in the function
+-- 4. Returns true/false based on privilege level
+-- 5. Policies use this function to check permissions
+--
+-- Who can do what:
+-- - Viewer: View only
+-- - Viewer+: View only
+-- - Editor: View, Insert, Update, Delete
+-- - Editor+: View, Insert, Update, Delete
+-- - Admin: View, Insert, Update, Delete
+-- - Super Admin: View, Insert, Update, Delete
+-- ============================================================================
+
+DO $$
+BEGIN
+  RAISE NOTICE '========== Useful Contacts - Editor+ Access Enabled ==========';
+  RAISE NOTICE 'Editor, Editor+, Admin, Super Admin can manage via app';
+  RAISE NOTICE 'Viewer and Viewer+ can only view';
+  RAISE NOTICE 'No circular dependency - uses SECURITY DEFINER function';
+END $$;

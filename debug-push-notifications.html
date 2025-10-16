@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Push Notifications</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
+</head>
+<body>
+    <h1>Push Notification Diagnostics</h1>
+    <button onclick="runDiagnostics()">Run Diagnostics</button>
+    <button onclick="testFCMToken()">Test FCM Token</button>
+    <pre id="output">Click "Run Diagnostics" to start...</pre>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAL6kYLAXcTglnkDC3iR5skcRgeetsVQ84",
+            authDomain: "survey-hub-xyz.firebaseapp.com",
+            projectId: "survey-hub-xyz",
+            storageBucket: "survey-hub-xyz.firebasestorage.app",
+            messagingSenderId: "825099555628",
+            appId: "1:825099555628:web:c061c4a41c68375e231289",
+            measurementId: "G-JK8KXZTETN"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+
+        async function runDiagnostics() {
+            const output = document.getElementById('output');
+            let result = '';
+
+            result += '='.repeat(80) + '\n';
+            result += 'PUSH NOTIFICATION DIAGNOSTICS\n';
+            result += '='.repeat(80) + '\n\n';
+
+            // 1. Check notification permission
+            result += '1. NOTIFICATION PERMISSION\n';
+            result += '-'.repeat(80) + '\n';
+            result += `Permission status: ${Notification.permission}\n`;
+            if (Notification.permission !== 'granted') {
+                result += '❌ Notifications not granted! Request permission first.\n';
+            } else {
+                result += '✅ Notifications granted\n';
+            }
+            result += '\n';
+
+            // 2. Check service worker registration
+            result += '2. SERVICE WORKER STATUS\n';
+            result += '-'.repeat(80) + '\n';
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    result += `✅ Service Worker API available\n`;
+                    result += `Found ${registrations.length} registrations:\n`;
+                    registrations.forEach((reg, i) => {
+                        result += `\n  Registration ${i + 1}:\n`;
+                        result += `    Scope: ${reg.scope}\n`;
+                        result += `    Active: ${reg.active ? '✅' : '❌'}\n`;
+                        if (reg.active) {
+                            result += `    State: ${reg.active.state}\n`;
+                            result += `    Script URL: ${reg.active.scriptURL}\n`;
+                        }
+                        result += `    Installing: ${reg.installing ? '⏳' : 'None'}\n`;
+                        result += `    Waiting: ${reg.waiting ? '⏳' : 'None'}\n`;
+                    });
+                } catch (e) {
+                    result += `❌ Error getting service workers: ${e.message}\n`;
+                }
+            } else {
+                result += '❌ Service Worker API not available\n';
+            }
+            result += '\n';
+
+            // 3. Check FCM messaging
+            result += '3. FIREBASE CLOUD MESSAGING\n';
+            result += '-'.repeat(80) + '\n';
+            try {
+                const messaging = firebase.messaging();
+                result += '✅ Firebase Messaging initialized\n';
+
+                // Try to get current token
+                try {
+                    const currentToken = await messaging.getToken({
+                        vapidKey: 'BHrhL2vP0c8qlzIpUGR7xEa9jGQXgp-L0Pj3Vf-7M1X_klEJ7Spm3yVU0h2aQ4LmU5L0MmGJ8nSKp0XE4nq2sEM'
+                    });
+                    if (currentToken) {
+                        result += `✅ FCM Token obtained:\n`;
+                        result += `   ${currentToken.substring(0, 50)}...\n`;
+                        result += `   Length: ${currentToken.length} characters\n`;
+
+                        // Store token for later testing
+                        window.testToken = currentToken;
+                    } else {
+                        result += '❌ No FCM token available. May need to request permission.\n';
+                    }
+                } catch (tokenError) {
+                    result += `❌ Error getting FCM token: ${tokenError.message}\n`;
+                }
+            } catch (e) {
+                result += `❌ Error initializing Firebase Messaging: ${e.message}\n`;
+            }
+            result += '\n';
+
+            // 4. Check push subscriptions in Supabase
+            result += '4. SUPABASE PUSH SUBSCRIPTIONS\n';
+            result += '-'.repeat(80) + '\n';
+            const { createClient } = supabase;
+            const supabaseClient = createClient(
+                'https://okldykkmgmcjhgzysris.supabase.co',
+                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbGR5a2ttZ21jamhnenlzcmlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxNjkyMzgsImV4cCI6MjA0OTc0NTIzOH0.xHEU9SvHkXxQfNrink99b46zogEf9QeZRUZyYMzNK38'
+            );
+
+            const { data: subs, error } = await supabaseClient
+                .from('push_subscriptions')
+                .select('*')
+                .eq('is_active', true)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                result += `❌ Error fetching subscriptions: ${error.message}\n`;
+            } else {
+                result += `Found ${subs.length} active subscriptions:\n\n`;
+                subs.forEach((sub, i) => {
+                    result += `  Subscription ${i + 1}:\n`;
+                    result += `    User: ${sub.user_email}\n`;
+                    result += `    Token: ${sub.fcm_token.substring(0, 30)}...\n`;
+                    result += `    Device: ${sub.device_info?.platform || 'unknown'} ${sub.device_info?.browserName || ''}\n`;
+                    result += `    Last used: ${new Date(sub.last_used_at).toLocaleString()}\n`;
+                    result += `    Created: ${new Date(sub.created_at).toLocaleString()}\n`;
+
+                    // Check if token matches current token
+                    if (window.testToken && sub.fcm_token === window.testToken) {
+                        result += `    🔍 THIS IS YOUR CURRENT TOKEN\n`;
+                    }
+                    result += '\n';
+                });
+            }
+
+            // 5. Browser/Platform info
+            result += '5. BROWSER & PLATFORM INFO\n';
+            result += '-'.repeat(80) + '\n';
+            result += `User Agent: ${navigator.userAgent}\n`;
+            result += `Platform: ${navigator.platform}\n`;
+            result += `Online: ${navigator.onLine ? '✅' : '❌'}\n`;
+            result += `HTTPS: ${window.location.protocol === 'https:' ? '✅' : '❌'}\n`;
+            result += '\n';
+
+            result += '='.repeat(80) + '\n';
+            result += 'DIAGNOSTICS COMPLETE\n';
+            result += '='.repeat(80) + '\n';
+
+            output.textContent = result;
+        }
+
+        async function testFCMToken() {
+            const output = document.getElementById('output');
+            if (!window.testToken) {
+                output.textContent = '❌ No FCM token available. Run diagnostics first.';
+                return;
+            }
+
+            let result = 'Testing FCM token...\n\n';
+            result += `Token: ${window.testToken}\n\n`;
+
+            // Try to send a test message via the edge function
+            result += 'Attempting to send test notification via edge function...\n';
+            result += '(This would require authentication - manual test needed)\n';
+
+            output.textContent = result;
+        }
+
+        // Listen for incoming messages
+        try {
+            const messaging = firebase.messaging();
+            messaging.onMessage((payload) => {
+                console.log('🔔 Foreground message received:', payload);
+                alert('Received push notification while page is open:\n\n' +
+                      (payload.notification?.title || 'No title') + '\n' +
+                      (payload.notification?.body || 'No body'));
+            });
+        } catch (e) {
+            console.error('Error setting up message listener:', e);
+        }
+    </script>
+</body>
+</html>

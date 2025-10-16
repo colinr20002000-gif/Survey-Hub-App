@@ -1,0 +1,290 @@
+@import "tailwindcss";
+
+/* Allow both portrait and landscape orientations */
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: manipulation;
+}
+
+/* Smooth transition when changing orientation */
+@media screen {
+  * {
+    transition-property: none !important;
+    transition-duration: 0s !important;
+  }
+}
+
+/* PWA Landscape Orientation Support */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  /* Optimize for mobile landscape mode */
+  .sidebar-collapsed {
+    transform: translateX(-100%);
+  }
+
+  /* Ensure proper spacing in landscape */
+  .landscape-optimized {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  /* Make tables more compact in landscape */
+  .landscape-table {
+    font-size: 0.875rem;
+  }
+
+  .landscape-table td, .landscape-table th {
+    padding: 0.375rem 0.75rem;
+  }
+
+  /* Reduce modal padding in landscape */
+  .landscape-modal {
+    padding: 1rem;
+    margin: 0.5rem;
+  }
+}
+
+@media screen and (orientation: landscape) and (min-width: 768px) {
+  /* For tablets and larger screens in landscape */
+  .landscape-wide {
+    max-width: none;
+  }
+
+  /* Make better use of horizontal space */
+  .landscape-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+
+/* PWA specific styles */
+@media (display-mode: standalone) {
+  /* Hide scrollbars in standalone mode for cleaner look */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.5);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(156, 163, 175, 0.8);
+  }
+
+  /* Ensure proper safe area handling */
+  .pwa-container {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Responsive improvements for both orientations */
+@media (max-width: 640px) {
+  /* Mobile-specific adjustments */
+  .mobile-stack {
+    flex-direction: column;
+  }
+
+  .mobile-full-width {
+    width: 100%;
+  }
+}
+
+/* Force light mode styles (default) */
+.light .bg-gray-100,
+:root:not(.dark) .bg-gray-100 { background-color: #f3f4f6 !important; }
+
+.light .bg-white,
+:root:not(.dark) .bg-white { background-color: #ffffff !important; }
+
+.light .bg-gray-50,
+:root:not(.dark) .bg-gray-50 { background-color: #f9fafb !important; }
+
+/* Text colors - ALL VERY DARK/BLACK for light mode readability */
+.light .text-gray-900,
+:root:not(.dark) .text-gray-900 { color: #000000 !important; }
+
+.light .text-gray-800,
+:root:not(.dark) .text-gray-800 { color: #000000 !important; }
+
+.light .text-gray-700,
+:root:not(.dark) .text-gray-700 { color: #111827 !important; }
+
+.light .text-gray-600,
+:root:not(.dark) .text-gray-600 { color: #111827 !important; }
+
+.light .text-gray-500,
+:root:not(.dark) .text-gray-500 { color: #1f2937 !important; }
+
+.light .text-gray-400,
+:root:not(.dark) .text-gray-400 { color: #1f2937 !important; }
+
+.light .text-gray-300,
+:root:not(.dark) .text-gray-300 { color: #374151 !important; }
+
+.light .text-gray-200,
+:root:not(.dark) .text-gray-200 { color: #374151 !important; }
+
+/* Specific overrides for common elements */
+.light .text-white,
+:root:not(.dark) .text-white { color: #111827 !important; }
+
+.light .border-gray-200,
+:root:not(.dark) .border-gray-200 { border-color: #e5e7eb !important; }
+
+.light .border-gray-700,
+:root:not(.dark) .border-gray-700 { border-color: #d1d5db !important; }
+
+/* Fix colored circles/badges for light mode */
+.light .bg-gray-200,
+:root:not(.dark) .bg-gray-200 { background-color: #e5e7eb !important; }
+
+.light .bg-gray-300,
+:root:not(.dark) .bg-gray-300 { background-color: #d1d5db !important; }
+
+.light .bg-gray-600,
+:root:not(.dark) .bg-gray-600 { background-color: #4b5563 !important; }
+
+.light .bg-gray-700,
+:root:not(.dark) .bg-gray-700 { background-color: #374151 !important; }
+
+/* Ensure text in colored circles remains white in light mode */
+.light .bg-gray-200 .text-gray-600,
+.light .bg-gray-300 .text-gray-600,
+.light .bg-gray-600 .text-gray-300,
+.light .bg-gray-700 .text-gray-200,
+:root:not(.dark) .bg-gray-200 .text-gray-600,
+:root:not(.dark) .bg-gray-300 .text-gray-600,
+:root:not(.dark) .bg-gray-600 .text-gray-300,
+:root:not(.dark) .bg-gray-700 .text-gray-200 { color: #ffffff !important; }
+
+/* Ensure blue circles always have white text in light mode */
+.light .bg-blue-900,
+:root:not(.dark) .bg-blue-900 { 
+  background-color: #1e3a8a !important; 
+  color: #ffffff !important; 
+}
+
+/* Improve contrast for light colored backgrounds with text */
+.light .bg-green-100,
+:root:not(.dark) .bg-green-100 { background-color: #dcfce7 !important; }
+
+.light .bg-blue-100,
+:root:not(.dark) .bg-blue-100 { background-color: #dbeafe !important; }
+
+.light .bg-yellow-100,
+:root:not(.dark) .bg-yellow-100 { background-color: #fef3c7 !important; }
+
+.light .bg-red-100,
+:root:not(.dark) .bg-red-100 { background-color: #fee2e2 !important; }
+
+.light .bg-orange-100,
+:root:not(.dark) .bg-orange-100 { background-color: #fed7aa !important; }
+
+.light .bg-purple-100,
+:root:not(.dark) .bg-purple-100 { background-color: #f3e8ff !important; }
+
+.light .bg-pink-100,
+:root:not(.dark) .bg-pink-100 { background-color: #fce7f3 !important; }
+
+.light .bg-teal-100,
+:root:not(.dark) .bg-teal-100 { background-color: #ccfbf1 !important; }
+
+.light .bg-indigo-100,
+:root:not(.dark) .bg-indigo-100 { background-color: #e0e7ff !important; }
+
+.light .bg-indigo-200,
+:root:not(.dark) .bg-indigo-200 { background-color: #c7d2fe !important; }
+
+/* Ensure darker text on light status badges for better contrast */
+.light .text-green-800,
+:root:not(.dark) .text-green-800 { color: #166534 !important; }
+
+.light .text-blue-800,
+:root:not(.dark) .text-blue-800 { color: #1e40af !important; }
+
+.light .text-yellow-800,
+:root:not(.dark) .text-yellow-800 { color: #a16207 !important; }
+
+.light .text-red-800,
+:root:not(.dark) .text-red-800 { color: #991b1b !important; }
+
+.light .text-orange-800,
+:root:not(.dark) .text-orange-800 { color: #9a3412 !important; }
+
+.light .text-purple-800,
+:root:not(.dark) .text-purple-800 { color: #6b21a8 !important; }
+
+.light .text-pink-800,
+:root:not(.dark) .text-pink-800 { color: #be185d !important; }
+
+.light .text-teal-800,
+:root:not(.dark) .text-teal-800 { color: #115e59 !important; }
+
+.light .text-indigo-800,
+:root:not(.dark) .text-indigo-800 { color: #3730a3 !important; }
+
+/* Improve form input contrast */
+.light input[type="text"],
+.light input[type="password"],
+.light textarea,
+:root:not(.dark) input[type="text"],
+:root:not(.dark) input[type="password"],
+:root:not(.dark) textarea {
+  color: #111827 !important;
+}
+
+.light .bg-gray-100 input,
+.light .bg-gray-100 textarea,
+:root:not(.dark) .bg-gray-100 input,
+:root:not(.dark) .bg-gray-100 textarea {
+  color: #111827 !important;
+}
+
+/* Force dark mode styles */
+.dark .bg-gray-100 { background-color: #111827 !important; }
+.dark .bg-white { background-color: #1f2937 !important; }
+.dark .bg-gray-50 { background-color: #374151 !important; }
+.dark .bg-gray-200 { background-color: #4b5563 !important; }
+.dark .bg-gray-300 { background-color: #6b7280 !important; }
+.dark .bg-gray-600 { background-color: #9ca3af !important; }
+.dark .bg-gray-700 { background-color: #d1d5db !important; }
+
+/* Dark mode text colors */
+.dark .text-gray-900 { color: #f9fafb !important; }
+.dark .text-gray-800 { color: #f3f4f6 !important; }
+.dark .text-gray-700 { color: #e5e7eb !important; }
+.dark .text-gray-600 { color: #d1d5db !important; }
+.dark .text-gray-500 { color: #9ca3af !important; }
+.dark .text-gray-400 { color: #6b7280 !important; }
+.dark .text-gray-300 { color: #4b5563 !important; }
+.dark .text-gray-200 { color: #374151 !important; }
+.dark .text-white { color: #f9fafb !important; }
+
+.dark .border-gray-200 { border-color: #374151 !important; }
+.dark .border-gray-700 { border-color: #4b5563 !important; }
+
+/* Update notification animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out forwards;
+}
