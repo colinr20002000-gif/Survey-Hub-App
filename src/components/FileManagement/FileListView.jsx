@@ -27,7 +27,9 @@ import {
   formatFileSize,
   getFileTypeIcon,
   getFilePreviewUrl,
-  openFileInDefaultViewer
+  openFileInDefaultViewer,
+  renameFolder,
+  downloadFolderAsZip
 } from '../../utils/fileManager';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -46,6 +48,7 @@ const FileListView = ({
   const [editingFile, setEditingFile] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+  const [renamingFolder, setRenamingFolder] = useState(null);
   const { showSuccessModal, showErrorModal } = useToast();
 
   const handleFileDownload = async (file) => {
@@ -109,6 +112,29 @@ const FileListView = ({
       }
     } else {
       showErrorModal('Update failed', result.error);
+    }
+  };
+
+  const handleFolderDownload = async (folder) => {
+    const result = await downloadFolderAsZip(folder.full_path, folder.display_name, folder.category);
+    if (result.success) {
+      showSuccessModal('Folder downloaded successfully');
+    } else {
+      showErrorModal('Download failed', result.error);
+    }
+  };
+
+  const handleFolderRename = async (folder, newName) => {
+    const result = await renameFolder(folder.id, folder.full_path, newName);
+    if (result.success) {
+      showSuccessModal('Folder renamed successfully');
+      setRenamingFolder(null);
+      if (onFileUpdate) {
+        // Trigger a refresh of the file list
+        onFileUpdate({ ...folder, display_name: newName });
+      }
+    } else {
+      showErrorModal('Rename failed', result.error);
     }
   };
 
@@ -202,6 +228,8 @@ const FileListView = ({
               onDelete={canManage ? () => setDeleteConfirmation(file) : null}
               onPreview={canPreview(file.file_type) ? () => setPreviewFile(file) : null}
               onFolderClick={onFolderClick}
+              onFolderDownload={canManage && file.isFolder ? () => handleFolderDownload(file) : null}
+              onFolderRename={canManage && file.isFolder ? () => setRenamingFolder(file) : null}
               canManage={canManage}
               getFileIcon={getFileIcon}
               formatDate={formatDate}
@@ -223,6 +251,8 @@ const FileListView = ({
               onDelete={canManage ? () => setDeleteConfirmation(file) : null}
               onPreview={canPreview(file.file_type) ? () => setPreviewFile(file) : null}
               onFolderClick={onFolderClick}
+              onFolderDownload={canManage && file.isFolder ? () => handleFolderDownload(file) : null}
+              onFolderRename={canManage && file.isFolder ? () => setRenamingFolder(file) : null}
               canManage={canManage}
               getFileIcon={getFileIcon}
               formatDate={formatDate}
@@ -269,6 +299,17 @@ const FileListView = ({
           />
         )}
       </AnimatePresence>
+
+      {/* Folder Rename Modal */}
+      <AnimatePresence>
+        {renamingFolder && (
+          <FolderRenameModal
+            folder={renamingFolder}
+            onSave={(newName) => handleFolderRename(renamingFolder, newName)}
+            onClose={() => setRenamingFolder(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -282,6 +323,8 @@ const FileListItem = ({
   onDelete,
   onPreview,
   onFolderClick,
+  onFolderDownload,
+  onFolderRename,
   canManage,
   getFileIcon,
   formatDate,
@@ -316,7 +359,7 @@ const FileListItem = ({
   }, [showActions]);
 
   // Check if there are any actions available
-  const hasActions = onDownload || onOpen || onEdit || onDelete || onPreview;
+  const hasActions = onDownload || onOpen || onEdit || onDelete || onPreview || onFolderDownload || onFolderRename;
 
   return (
     <div
@@ -461,9 +504,38 @@ const FileListItem = ({
               className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10"
             >
               <div className="py-1">
+                {onFolderDownload && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFolderDownload();
+                      setShowActions(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Folder
+                  </button>
+                )}
+
+                {onFolderRename && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFolderRename();
+                      setShowActions(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    Rename Folder
+                  </button>
+                )}
+
                 {onOpen && (
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onOpen();
                       setShowActions(false);
                     }}
@@ -476,7 +548,8 @@ const FileListItem = ({
 
                 {onDownload && (
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onDownload();
                       setShowActions(false);
                     }}
@@ -489,7 +562,8 @@ const FileListItem = ({
 
                 {onPreview && (
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onPreview();
                       setShowActions(false);
                     }}
@@ -502,7 +576,8 @@ const FileListItem = ({
 
                 {onEdit && (
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onEdit();
                       setShowActions(false);
                     }}
@@ -515,7 +590,8 @@ const FileListItem = ({
 
                 {onDelete && (
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onDelete();
                       setShowActions(false);
                     }}
@@ -544,6 +620,8 @@ const FileCardItem = ({
   onDelete,
   onPreview,
   onFolderClick,
+  onFolderDownload,
+  onFolderRename,
   canManage,
   getFileIcon,
   formatDate,
@@ -585,7 +663,7 @@ const FileCardItem = ({
   }, [showActions]);
 
   // Check if there are any actions available
-  const hasActions = onDownload || onOpen || onEdit || onDelete || onPreview;
+  const hasActions = onDownload || onOpen || onEdit || onDelete || onPreview || onFolderDownload || onFolderRename;
 
   return (
     <div
@@ -628,6 +706,34 @@ const FileCardItem = ({
               className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-30"
             >
               <div className="py-1">
+                {onFolderDownload && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFolderDownload();
+                      setShowActions(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Folder
+                  </button>
+                )}
+
+                {onFolderRename && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFolderRename();
+                      setShowActions(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    Rename Folder
+                  </button>
+                )}
+
                 {onOpen && (
                   <button
                     onClick={(e) => {
@@ -987,5 +1093,76 @@ const ConfirmationModal = ({ title, message, confirmLabel, confirmVariant, onCon
     </motion.div>
   </motion.div>
 );
+
+// Folder rename modal
+const FolderRenameModal = ({ folder, onSave, onClose }) => {
+  const [folderName, setFolderName] = useState(folder.display_name);
+
+  const handleSave = () => {
+    if (folderName.trim() && folderName.trim() !== folder.display_name) {
+      onSave(folderName.trim());
+    } else {
+      onClose();
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ scale: 0.95 }}
+        animate={{ scale: 1 }}
+        exit={{ scale: 0.95 }}
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+      >
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          Rename Folder
+        </h3>
+
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Folder Name
+          </label>
+          <input
+            type="text"
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            onKeyPress={handleKeyPress}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+            placeholder="Enter folder name"
+            autoFocus
+          />
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!folderName.trim() || folderName.trim() === folder.display_name}
+            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Rename
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 export default FileListView;

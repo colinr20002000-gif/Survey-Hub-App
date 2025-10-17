@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, Edit, X, Search, Image as ImageIcon, Upload, ChevronLeft, ZoomIn } from 'lucide-react';
+import { Plus, Trash2, Edit, X, Search, Image as ImageIcon, Upload, ChevronLeft, ZoomIn, LayoutGrid, List } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -431,6 +431,7 @@ const AlbumDetailView = ({ album, onBack, canEdit, searchQuery, setSearchQuery }
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
     const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
+    const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
     const fetchPhotos = useCallback(async () => {
         try {
@@ -629,15 +630,35 @@ const AlbumDetailView = ({ album, onBack, canEdit, searchQuery, setSearchQuery }
                     )}
                 </div>
 
-                <div className="relative max-w-md">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Search photos by description..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
+                <div className="flex gap-3 items-center">
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                        <input
+                            type="text"
+                            placeholder="Search photos by description..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                    </div>
+
+                    {/* View Toggle */}
+                    <div className="flex bg-gray-100 dark:bg-gray-700 rounded-md p-1">
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white dark:bg-gray-600 text-orange-500' : 'text-gray-600 dark:text-gray-400'}`}
+                            title="Grid View"
+                        >
+                            <LayoutGrid size={20} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={`p-2 rounded ${viewMode === 'list' ? 'bg-white dark:bg-gray-600 text-orange-500' : 'text-gray-600 dark:text-gray-400'}`}
+                            title="List View"
+                        >
+                            <List size={20} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -654,27 +675,71 @@ const AlbumDetailView = ({ album, onBack, canEdit, searchQuery, setSearchQuery }
                         </Button>
                     )}
                 </div>
-            ) : (
+            ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredPhotos.map(photo => (
                         <div key={photo.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-                            <img
-                                src={photo.image_url}
-                                alt={photo.description || 'Photo'}
-                                className="w-full h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => {
-                                    console.log('Clicking photo:', photo.image_url);
-                                    setFullscreenPhoto(photo);
-                                    setIsFullscreenOpen(true);
-                                }}
-                                onLoad={(e) => {
-                                    console.log('✅ Thumbnail loaded:', photo.image_url);
-                                }}
-                                onError={(e) => {
-                                    console.error('❌ Thumbnail failed:', photo.image_url);
-                                }}
-                            />
+                            <div className="w-full h-48 sm:h-64 bg-gray-100 dark:bg-gray-700">
+                                <img
+                                    src={photo.image_url}
+                                    alt={photo.description || 'Photo'}
+                                    className="w-full h-full object-cover sm:object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => {
+                                        console.log('Clicking photo:', photo.image_url);
+                                        setFullscreenPhoto(photo);
+                                        setIsFullscreenOpen(true);
+                                    }}
+                                    onLoad={(e) => {
+                                        console.log('✅ Thumbnail loaded:', photo.image_url);
+                                    }}
+                                    onError={(e) => {
+                                        console.error('❌ Thumbnail failed:', photo.image_url);
+                                    }}
+                                />
+                            </div>
                             <div className="p-4">
+                                {photo.description && (
+                                    <p className="text-gray-700 dark:text-gray-300 mb-3">{photo.description}</p>
+                                )}
+                                {canEdit && (
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" onClick={() => handleEditPhoto(photo)}>
+                                            <Edit size={14} className="mr-1" />
+                                            Edit
+                                        </Button>
+                                        <Button variant="danger" size="sm" onClick={() => handleDeletePhoto(photo.id)}>
+                                            <Trash2 size={14} className="mr-1" />
+                                            Delete
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {filteredPhotos.map(photo => (
+                        <div key={photo.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col sm:flex-row">
+                            <div className="w-full sm:w-64 h-48 sm:h-40 bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+                                <img
+                                    src={photo.image_url}
+                                    alt={photo.description || 'Photo'}
+                                    className="w-full h-full object-cover sm:object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => {
+                                        console.log('Clicking photo:', photo.image_url);
+                                        setFullscreenPhoto(photo);
+                                        setIsFullscreenOpen(true);
+                                    }}
+                                    onLoad={(e) => {
+                                        console.log('✅ Thumbnail loaded:', photo.image_url);
+                                    }}
+                                    onError={(e) => {
+                                        console.error('❌ Thumbnail failed:', photo.image_url);
+                                    }}
+                                />
+                            </div>
+                            <div className="p-4 flex-1 flex flex-col justify-between">
                                 {photo.description && (
                                     <p className="text-gray-700 dark:text-gray-300 mb-3">{photo.description}</p>
                                 )}

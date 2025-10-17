@@ -9,11 +9,26 @@ import FolderManager from './FolderManager';
 import FileSearchFilter from './FileSearchFilter';
 import FileListView from './FileListView';
 
-const FileManagementSystem = ({ category }) => {
+const FileManagementSystem = ({
+  category,
+  onCategoryChange = null,
+  isRestoringCategoryFromHistory = false
+}) => {
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFolderPath, setSelectedFolderPath] = useState('');
+
+  // Initialize selectedFolderPath from localStorage for this category
+  const getStoredFolderPath = () => {
+    try {
+      const stored = localStorage.getItem(`documentHub_folderPath_${category}`);
+      return stored || '';
+    } catch {
+      return '';
+    }
+  };
+
+  const [selectedFolderPath, setSelectedFolderPath] = useState(getStoredFolderPath());
   const [searchFilters, setSearchFilters] = useState({
     search: '',
     tags: [],
@@ -25,9 +40,84 @@ const FileManagementSystem = ({ category }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [previousCategory, setPreviousCategory] = useState(null); // Start as null to trigger initial path restoration
+  const [isRestoringFromHistory, setIsRestoringFromHistory] = useState(false);
 
   const { user } = useAuth();
   const { showErrorModal, showSuccessModal } = useToast();
+
+  // Persist folder path to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(`documentHub_folderPath_${category}`, selectedFolderPath);
+    } catch (error) {
+      console.error('Failed to save folder path to localStorage:', error);
+    }
+  }, [selectedFolderPath, category]);
+
+  // Push folder navigation to browser history
+  useEffect(() => {
+    // Don't push to history if we're currently restoring from history, on initial load, or if parent is restoring category
+    if (isRestoringFromHistory || previousCategory === null || isRestoringCategoryFromHistory) {
+      return;
+    }
+
+    // Create history state
+    const state = {
+      category,
+      folderPath: selectedFolderPath,
+      timestamp: Date.now()
+    };
+
+    // Check if this is a genuine navigation (not a duplicate)
+    const currentState = window.history.state;
+    if (currentState?.folderPath !== selectedFolderPath || currentState?.category !== category) {
+      // Push the new state to browser history
+      window.history.pushState(state, '', window.location.pathname + window.location.search);
+      console.log('📜 Pushed to history:', state);
+    }
+  }, [selectedFolderPath, category, isRestoringFromHistory, previousCategory, isRestoringCategoryFromHistory]);
+
+  // Handle browser back/forward buttons for folder navigation
+  useEffect(() => {
+    const handlePopState = (event) => {
+      console.log('⬅️ FileManagementSystem: Browser back/forward detected:', event.state);
+
+      if (event.state && event.state.folderPath !== undefined) {
+        setIsRestoringFromHistory(true);
+
+        // Check if category changed - if so, let parent handle it
+        if (event.state.category !== category && onCategoryChange) {
+          console.log('📂 Category changed in history, parent will handle:', event.state.category);
+          // Parent's popstate handler will handle the category change
+        } else if (event.state.category === category) {
+          // Same category, just update folder path
+          console.log('📂 Restoring folder path from history:', event.state.folderPath);
+          setSelectedFolderPath(event.state.folderPath);
+        }
+
+        // Reset the flag after a short delay to allow state updates
+        setTimeout(() => setIsRestoringFromHistory(false), 100);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    // Push initial state on mount
+    if (previousCategory === null) {
+      const initialState = {
+        category,
+        folderPath: selectedFolderPath,
+        timestamp: Date.now()
+      };
+      window.history.replaceState(initialState, '', window.location.pathname + window.location.search);
+      console.log('📜 Initialized history with:', initialState);
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [category, selectedFolderPath, previousCategory, onCategoryChange]);
 
   // Check if user can manage files (Admin or Super Admin)
   const canManage = user && ['Admin', 'Super Admin'].includes(user.privilege);
@@ -108,18 +198,23 @@ const FileManagementSystem = ({ category }) => {
         }
       });
 
-      // Combine folders and files, with folders first
-      const combinedItems = [
-        ...currentFolders.map(folder => ({
+      // Sort folders and files alphabetically
+      const sortedFolders = currentFolders
+        .map(folder => ({
           ...folder,
           isFolder: true,
           id: `folder-${folder.id}`,
           display_name: folder.name,
           created_at: folder.created_at,
           full_path: folder.full_path
-        })),
-        ...filteredFiles
-      ];
+        }))
+        .sort((a, b) => a.display_name.localeCompare(b.display_name));
+
+      const sortedFiles = filteredFiles
+        .sort((a, b) => (a.display_name || a.file_name || '').localeCompare(b.display_name || b.file_name || ''));
+
+      // Combine sorted folders and files, with folders first
+      const combinedItems = [...sortedFolders, ...sortedFiles];
 
       setFiles(combinedItems);
       setFolders(foldersResult.data);
@@ -129,11 +224,21 @@ const FileManagementSystem = ({ category }) => {
     }
   }, [category, selectedFolderPath, searchFilters.search, searchFilters.tags, searchFilters.fileTypes, searchFilters.dateFrom, searchFilters.dateTo, showErrorModal]);
 
-  // Reset folder path and reload data when category changes
+  // Reload data when category changes (but preserve folder path if staying in same category)
   useEffect(() => {
     const loadCategoryData = async () => {
       setLoading(true);
-      setSelectedFolderPath(''); // Reset to root folder
+
+      // Get the folder path to use
+      let pathToUse = selectedFolderPath;
+
+      // If category changed, restore the stored path for the new category
+      if (category !== previousCategory) {
+        const storedPath = getStoredFolderPath();
+        pathToUse = storedPath;
+        setSelectedFolderPath(storedPath);
+        setPreviousCategory(category);
+      }
 
       let filesResult;
       let foldersResult;
@@ -150,9 +255,9 @@ const FileManagementSystem = ({ category }) => {
           getFolders(category)
         ]);
       } else {
-        // When not searching, get files for current category (root level)
+        // When not searching, get files for current category using the current/stored folder path
         const options = {
-          folderPath: '',
+          folderPath: pathToUse,
           tags: searchFilters.tags,
           limit: 100
         };
@@ -184,22 +289,35 @@ const FileManagementSystem = ({ category }) => {
           });
         }
 
-        // Root level folders only
+        // Filter folders based on current path
         // When searching, don't show folders - only show matching files
-        const currentFolders = searchFilters.search ? [] : foldersResult.data.filter(folder => !folder.parent_path);
+        const currentFolders = searchFilters.search ? [] : foldersResult.data.filter(folder => {
+          if (pathToUse === '') {
+            // Root level: show folders with no parent
+            return !folder.parent_path;
+          } else {
+            // Sub level: show folders whose parent matches current path
+            return folder.parent_path === pathToUse;
+          }
+        });
 
-        // Combine folders and files
-        const combinedItems = [
-          ...currentFolders.map(folder => ({
+        // Sort folders and files alphabetically
+        const sortedFolders = currentFolders
+          .map(folder => ({
             ...folder,
             isFolder: true,
             id: `folder-${folder.id}`,
             display_name: folder.name,
             created_at: folder.created_at,
             full_path: folder.full_path
-          })),
-          ...filteredFiles
-        ];
+          }))
+          .sort((a, b) => a.display_name.localeCompare(b.display_name));
+
+        const sortedFiles = filteredFiles
+          .sort((a, b) => (a.display_name || a.file_name || '').localeCompare(b.display_name || b.file_name || ''));
+
+        // Combine sorted folders and files, with folders first
+        const combinedItems = [...sortedFolders, ...sortedFiles];
 
         setFiles(combinedItems);
         setFolders(foldersResult.data);

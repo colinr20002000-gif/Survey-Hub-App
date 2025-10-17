@@ -2157,13 +2157,25 @@ const ProjectFiles = ({ projectId }) => {
 const MainLayout = () => {
     const { user, isLoading } = useAuth();
 
-    // Initialize state from sessionStorage to persist across page refreshes
+    // Initialize state from browser history or sessionStorage to persist across page refreshes
     const getInitialActiveTab = () => {
+        // First check browser history state
+        const historyState = window.history.state;
+        if (historyState?.activeTab) {
+            return historyState.activeTab;
+        }
+        // Fall back to sessionStorage
         const saved = sessionStorage.getItem('activeTab');
         return saved || 'Dashboard';
     };
 
     const getInitialSelectedProject = () => {
+        // First check browser history state
+        const historyState = window.history.state;
+        if (historyState?.selectedProject) {
+            return historyState.selectedProject;
+        }
+        // Fall back to sessionStorage
         const saved = sessionStorage.getItem('selectedProject');
         return saved ? JSON.parse(saved) : null;
     };
@@ -2174,6 +2186,7 @@ const MainLayout = () => {
     const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
     const [passwordPromptReason, setPasswordPromptReason] = useState(null);
     const [isChatbotVisible, setIsChatbotVisible] = useState(false);
+    const [isRestoringFromHistory, setIsRestoringFromHistory] = useState(false);
 
     // Push notification support - using existing notification system
 
@@ -2213,6 +2226,76 @@ const MainLayout = () => {
             setHasInitialized(false);
         }
     }, [user, isLoading]);
+
+    // Push navigation state to browser history
+    useEffect(() => {
+        if (isRestoringFromHistory || !user) {
+            return; // Don't push during restoration or when logged out
+        }
+
+        const state = {
+            activeTab,
+            selectedProject: selectedProject ? {
+                id: selectedProject.id,
+                project_number: selectedProject.project_number,
+                project_name: selectedProject.project_name
+            } : null,
+            timestamp: Date.now()
+        };
+
+        const currentState = window.history.state;
+        // Only push if state actually changed
+        if (currentState?.activeTab !== activeTab ||
+            currentState?.selectedProject?.id !== selectedProject?.id) {
+            window.history.pushState(state, '', window.location.pathname + window.location.search);
+            console.log('📜 Main nav pushed to history:', state);
+        }
+    }, [activeTab, selectedProject, isRestoringFromHistory, user]);
+
+    // Handle browser back/forward buttons
+    useEffect(() => {
+        const handlePopState = (event) => {
+            console.log('⬅️ Main nav: Browser back/forward detected:', event.state);
+
+            if (event.state?.activeTab) {
+                setIsRestoringFromHistory(true);
+
+                setActiveTab(event.state.activeTab);
+
+                // Restore selected project if exists
+                if (event.state.selectedProject) {
+                    // Try to find the full project data
+                    const fullProject = projects?.find(p => p.id === event.state.selectedProject.id);
+                    setSelectedProject(fullProject || event.state.selectedProject);
+                } else {
+                    setSelectedProject(null);
+                }
+
+                setTimeout(() => setIsRestoringFromHistory(false), 100);
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+
+        // Initialize history state if not present
+        if (!window.history.state?.activeTab && user) {
+            const initialHistoryState = {
+                activeTab,
+                selectedProject: selectedProject ? {
+                    id: selectedProject.id,
+                    project_number: selectedProject.project_number,
+                    project_name: selectedProject.project_name
+                } : null,
+                timestamp: Date.now()
+            };
+            window.history.replaceState(initialHistoryState, '', window.location.pathname + window.location.search);
+            console.log('📜 Initialized main nav history with:', initialHistoryState);
+        }
+
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+        };
+    }, [activeTab, selectedProject, user, projects]);
 
     // Sync selectedProject with projects data when projects load or update
     // This handles both initial load from sessionStorage and live updates to project data
@@ -2294,119 +2377,6 @@ const MainLayout = () => {
         }
     }, [user, isLoading, showPasswordPrompt]);
 
-
-    // Browser history management for back button support
-    const [isRestoringFromHistory, setIsRestoringFromHistory] = useState(false);
-
-    // Initialize history state on mount with current state
-    useEffect(() => {
-        // Create a base entry that will always exist
-        window.history.replaceState(
-            {
-                activeTab: 'Dashboard',
-                selectedProject: null,
-                isBaseEntry: true
-            },
-            '',
-            window.location.pathname
-        );
-
-        // If we're not on Dashboard, push the current state as well
-        if (activeTab !== 'Dashboard' || selectedProject) {
-            window.history.pushState(
-                {
-                    activeTab,
-                    selectedProject: selectedProject ? { id: selectedProject.id } : null
-                },
-                '',
-                window.location.pathname
-            );
-        }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Update browser history when navigation state changes
-    useEffect(() => {
-        if (isRestoringFromHistory) {
-            setIsRestoringFromHistory(false);
-            return;
-        }
-
-        const state = {
-            activeTab,
-            selectedProject: selectedProject ? { id: selectedProject.id } : null
-        };
-
-        // Push new history entry
-        window.history.pushState(state, '', window.location.pathname);
-    }, [activeTab, selectedProject, isRestoringFromHistory]);
-
-    // Listen for back/forward button clicks
-    useEffect(() => {
-        const handlePopState = (event) => {
-            if (event.state) {
-                setIsRestoringFromHistory(true);
-
-                // Check if this is the base entry
-                if (event.state.isBaseEntry) {
-                    // At the base entry (Dashboard), push it forward again
-                    // so the next back press won't close the app
-                    setSelectedProject(null);
-                    setActiveTab('Dashboard');
-
-                    // Re-push the base entry to maintain the history stack
-                    window.history.pushState(
-                        {
-                            activeTab: 'Dashboard',
-                            selectedProject: null,
-                            isBaseEntry: true
-                        },
-                        '',
-                        window.location.pathname
-                    );
-                    return;
-                }
-
-                // Restore the previous state
-                const { activeTab: prevTab, selectedProject: prevProject } = event.state;
-
-                if (prevProject && projects) {
-                    // Find and restore the selected project
-                    const project = projects.find(p => p.id === prevProject.id);
-                    if (project) {
-                        setSelectedProject(project);
-                        setActiveTab('ProjectDetail');
-                    } else {
-                        setSelectedProject(null);
-                        setActiveTab(prevTab || 'Dashboard');
-                    }
-                } else {
-                    setSelectedProject(null);
-                    setActiveTab(prevTab || 'Dashboard');
-                }
-            } else {
-                // No state means we've reached the beginning of the history stack
-                // Push a new entry to keep the user in the app and go to Dashboard
-                setIsRestoringFromHistory(true);
-                setSelectedProject(null);
-                setActiveTab('Dashboard');
-
-                // Push a new history entry to prevent the app from closing
-                window.history.pushState(
-                    {
-                        activeTab: 'Dashboard',
-                        selectedProject: null,
-                        isBaseEntry: true
-                    },
-                    '',
-                    window.location.pathname
-                );
-            }
-        };
-
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, [projects]);
-
     const handleViewProject = (project) => {
         setSelectedProject(project);
         setActiveTab('ProjectDetail');
@@ -2419,7 +2389,45 @@ const MainLayout = () => {
 
     // Training Centre Components
     const DocumentHubPage = () => {
-        const [selectedCategory, setSelectedCategory] = useState('Standards & Specs');
+        // Initialize selected category from localStorage
+        const getStoredCategory = () => {
+            try {
+                const stored = localStorage.getItem('documentHub_selectedCategory');
+                return stored || 'Standards & Specs';
+            } catch {
+                return 'Standards & Specs';
+            }
+        };
+
+        const [selectedCategory, setSelectedCategory] = useState(getStoredCategory());
+        const [isRestoringFromHistory, setIsRestoringFromHistory] = useState(false);
+
+        // Persist selected category to localStorage
+        useEffect(() => {
+            try {
+                localStorage.setItem('documentHub_selectedCategory', selectedCategory);
+            } catch (error) {
+                console.error('Failed to save category to localStorage:', error);
+            }
+        }, [selectedCategory]);
+
+        // Handle browser back/forward for category changes
+        useEffect(() => {
+            const handlePopState = (event) => {
+                if (event.state && event.state.category && event.state.category !== selectedCategory) {
+                    console.log('📂 Restoring category from history:', event.state.category);
+                    setIsRestoringFromHistory(true);
+                    setSelectedCategory(event.state.category);
+                    setTimeout(() => setIsRestoringFromHistory(false), 100);
+                }
+            };
+
+            window.addEventListener('popstate', handlePopState);
+
+            return () => {
+                window.removeEventListener('popstate', handlePopState);
+            };
+        }, [selectedCategory]);
 
         const documentCategories = [
             { value: 'Standards & Specs', label: 'Standards & Specs', icon: FileText },
@@ -2451,7 +2459,11 @@ const MainLayout = () => {
                         })}
                     </div>
                 </div>
-                <FileManagementSystem category={selectedCategory} />
+                <FileManagementSystem
+                    category={selectedCategory}
+                    onCategoryChange={setSelectedCategory}
+                    isRestoringCategoryFromHistory={isRestoringFromHistory}
+                />
             </div>
         );
     };
@@ -3076,16 +3088,103 @@ const AppContent = () => {
 };
 
 const MainAppLayout = () => {
-  const [activeTab, setActiveTab] = useState('Dashboard');
+  // Initialize from browser history state if available
+  const getInitialState = () => {
+    const historyState = window.history.state;
+    if (historyState?.activeTab) {
+      return {
+        activeTab: historyState.activeTab,
+        settingsSection: historyState.settingsSection || 'profile',
+        selectedProject: historyState.selectedProject || null
+      };
+    }
+    return {
+      activeTab: 'Dashboard',
+      settingsSection: 'profile',
+      selectedProject: null
+    };
+  };
+
+  const initialState = getInitialState();
+  const [activeTab, setActiveTab] = useState(initialState.activeTab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [settingsSection, setSettingsSection] = useState('profile');
+  const [selectedProject, setSelectedProject] = useState(initialState.selectedProject);
+  const [settingsSection, setSettingsSection] = useState(initialState.settingsSection);
+  const [isRestoringFromHistory, setIsRestoringFromHistory] = useState(false);
+
+  // Push navigation state to browser history
+  useEffect(() => {
+    if (isRestoringFromHistory) {
+      return; // Don't push during restoration
+    }
+
+    const state = {
+      activeTab,
+      settingsSection,
+      selectedProject: selectedProject ? { id: selectedProject.id, project_number: selectedProject.project_number } : null,
+      timestamp: Date.now()
+    };
+
+    const currentState = window.history.state;
+    // Only push if state actually changed
+    if (currentState?.activeTab !== activeTab ||
+        currentState?.settingsSection !== settingsSection ||
+        currentState?.selectedProject?.id !== selectedProject?.id) {
+      window.history.pushState(state, '', window.location.pathname + window.location.search);
+      console.log('📜 Main nav pushed to history:', state);
+    }
+  }, [activeTab, settingsSection, selectedProject, isRestoringFromHistory]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = (event) => {
+      console.log('⬅️ Main nav: Browser back/forward detected:', event.state);
+
+      if (event.state?.activeTab) {
+        setIsRestoringFromHistory(true);
+
+        setActiveTab(event.state.activeTab);
+
+        if (event.state.settingsSection) {
+          setSettingsSection(event.state.settingsSection);
+        }
+
+        // Note: We're only storing minimal project info in history
+        // The full project data would need to be fetched if needed
+        setSelectedProject(event.state.selectedProject);
+
+        setTimeout(() => setIsRestoringFromHistory(false), 100);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    // Initialize history state if not present
+    if (!window.history.state?.activeTab) {
+      const initialHistoryState = {
+        activeTab,
+        settingsSection,
+        selectedProject: null,
+        timestamp: Date.now()
+      };
+      window.history.replaceState(initialHistoryState, '', window.location.pathname + window.location.search);
+      console.log('📜 Initialized main nav history with:', initialHistoryState);
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [activeTab, settingsSection]);
 
   // Enhanced setActiveTab to handle settings section
   const handleSetActiveTab = (tab, section = null) => {
     setActiveTab(tab);
     if (tab === 'Settings' && section) {
       setSettingsSection(section);
+    }
+    // Clear selected project when navigating away
+    if (tab !== activeTab) {
+      setSelectedProject(null);
     }
   };
 

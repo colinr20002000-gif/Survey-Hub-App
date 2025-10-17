@@ -543,6 +543,154 @@ export const createFolder = async (name, parentPath, category) => {
 };
 
 /**
+ * Renames a folder and updates all files/subfolders within it
+ * @param {string} folderId - Folder ID
+ * @param {string} oldPath - Old folder path
+ * @param {string} newName - New folder name
+ * @returns {Object} - Rename result
+ */
+export const renameFolder = async (folderId, oldPath, newName) => {
+  try {
+    const sanitizedName = newName.trim().replace(/[^a-zA-Z0-9\s-_]/g, '');
+    if (!sanitizedName) {
+      throw new Error('Invalid folder name');
+    }
+
+    // Extract the actual UUID from the folder ID
+    const actualId = folderId.startsWith('folder-') ? folderId.replace('folder-', '') : folderId;
+
+    // Calculate new path
+    const pathParts = oldPath.split('/');
+    pathParts[pathParts.length - 1] = sanitizedName;
+    const newPath = pathParts.join('/');
+
+    // Get parent path
+    const parentPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : null;
+
+    // Update the folder itself
+    const { error: folderError } = await supabase
+      .from('document_folders')
+      .update({
+        name: sanitizedName,
+        full_path: newPath,
+        parent_path: parentPath
+      })
+      .eq('id', actualId);
+
+    if (folderError) throw folderError;
+
+    // Update all subfolders' paths
+    const { data: subfolders, error: subfoldersQueryError } = await supabase
+      .from('document_folders')
+      .select('id, full_path')
+      .like('full_path', `${oldPath}/%`);
+
+    if (subfoldersQueryError) throw subfoldersQueryError;
+
+    if (subfolders && subfolders.length > 0) {
+      for (const subfolder of subfolders) {
+        const newSubfolderPath = subfolder.full_path.replace(oldPath, newPath);
+        const { error: updateError } = await supabase
+          .from('document_folders')
+          .update({ full_path: newSubfolderPath })
+          .eq('id', subfolder.id);
+
+        if (updateError) throw updateError;
+      }
+    }
+
+    // Update all files' folder_path
+    const { data: files, error: filesQueryError } = await supabase
+      .from('document_files')
+      .select('id, folder_path')
+      .like('folder_path', `${oldPath}%`);
+
+    if (filesQueryError) throw filesQueryError;
+
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const newFilePath = file.folder_path.replace(oldPath, newPath);
+        const { error: updateError } = await supabase
+          .from('document_files')
+          .update({ folder_path: newFilePath })
+          .eq('id', file.id);
+
+        if (updateError) throw updateError;
+      }
+    }
+
+    return { success: true, data: { newPath } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+/**
+ * Downloads all files in a folder as a zip
+ * @param {string} folderPath - Full folder path
+ * @param {string} folderName - Folder name for zip file
+ * @param {string} category - File category
+ * @returns {Object} - Download result
+ */
+export const downloadFolderAsZip = async (folderPath, folderName, category) => {
+  try {
+    // First, get all files in this folder (not subfolders for simplicity)
+    const { data: files, error: filesError } = await supabase
+      .from('document_files')
+      .select('id, storage_path, display_name')
+      .eq('category', category)
+      .eq('folder_path', folderPath);
+
+    if (filesError) throw filesError;
+
+    if (!files || files.length === 0) {
+      throw new Error('No files found in this folder');
+    }
+
+    // Dynamic import of JSZip
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+
+    // Download all files and add to zip
+    for (const file of files) {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .download(file.storage_path);
+
+      if (error) {
+        console.error(`Failed to download ${file.display_name}:`, error);
+        continue; // Skip failed files
+      }
+
+      zip.file(file.display_name, data);
+    }
+
+    // Generate zip file
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+    // Create download link
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${folderName}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+/**
  * Deletes a folder and all its contents
  * @param {string} folderId - Folder ID
  * @param {string} folderPath - Full folder path
