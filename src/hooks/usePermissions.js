@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useContext } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { PermissionContext } from '../contexts/PermissionContext';
 import {
     hasPermission,
     canAccessAdminMode,
@@ -22,6 +23,10 @@ export const usePermissions = () => {
     const { user } = useAuth();
     const userPrivilege = user?.privilege || PRIVILEGES.VIEWER;
 
+    // Get dynamic permissions from context (if available)
+    const permissionContext = useContext(PermissionContext);
+    const dynamicPermissions = permissionContext?.permissions;
+
     // Memoize permission checks
     const permissions = useMemo(() => {
         /**
@@ -30,7 +35,7 @@ export const usePermissions = () => {
          * @returns {boolean}
          */
         const can = (permission) => {
-            return hasPermission(userPrivilege, permission);
+            return hasPermission(userPrivilege, permission, dynamicPermissions);
         };
 
         /**
@@ -127,7 +132,7 @@ export const usePermissions = () => {
 
             canSubmitFeedback: can('SUBMIT_FEEDBACK'),
         };
-    }, [userPrivilege]);
+    }, [userPrivilege, dynamicPermissions]);
 
     return permissions;
 };
