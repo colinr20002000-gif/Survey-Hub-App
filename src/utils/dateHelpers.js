@@ -19,16 +19,37 @@ export const getWeekStartDate = (d) => {
 };
 
 /**
- * Get the fiscal week number for a given date
+ * Get the fiscal week number for a given date (April to April fiscal year)
  * @param {Date} d - The date to get the fiscal week for
- * @returns {number} - The fiscal week number
+ * @returns {number} - The fiscal week number (1-52/53)
  */
 export const getFiscalWeek = (d) => {
     const date = new Date(d);
     date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
-    const week1 = new Date(date.getFullYear(), 0, 4);
-    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+
+    // Determine fiscal year start (April 1st)
+    const currentYear = date.getFullYear();
+    const currentMonth = date.getMonth(); // 0-indexed (0 = Jan, 3 = April)
+
+    // If date is before April, fiscal year started previous year
+    // If date is April or later, fiscal year started this year
+    const fiscalYearStart = new Date(currentMonth < 3 ? currentYear - 1 : currentYear, 3, 1); // Month 3 = April
+    fiscalYearStart.setHours(0, 0, 0, 0);
+
+    // Find the Saturday of the week that CONTAINS April 1st (Week 1 start)
+    const firstSaturday = getWeekStartDate(fiscalYearStart);
+
+    // Get the Saturday of the current week
+    const currentWeekStart = getWeekStartDate(date);
+
+    // Calculate the difference in days - use exact milliseconds to avoid DST issues
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const daysDiff = Math.round((currentWeekStart.getTime() - firstSaturday.getTime()) / msPerDay);
+
+    // Divide by 7 to get weeks, add 1 because Week 1 starts at firstSaturday
+    const weekNumber = Math.floor(daysDiff / 7) + 1;
+
+    return weekNumber;
 };
 
 /**
@@ -40,6 +61,8 @@ export const getFiscalWeek = (d) => {
 export const addDays = (date, days) => {
     const result = new Date(date);
     result.setDate(result.getDate() + days);
+    // Ensure time is normalized to avoid DST issues
+    result.setHours(0, 0, 0, 0);
     return result;
 };
 

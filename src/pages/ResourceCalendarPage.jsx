@@ -31,7 +31,7 @@ const DraggableResourceItem = ({ id, children, disabled }) => {
     };
 
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="flex-1 min-h-0">
+        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="flex-1 flex flex-col">
             {children}
         </div>
     );
@@ -49,7 +49,7 @@ const DroppableCell = ({ id, children, disabled }) => {
     };
 
     return (
-        <div ref={setNodeRef} style={style} className="w-full h-full">
+        <div ref={setNodeRef} style={style} className="w-full h-[200px]">
             {children}
         </div>
     );
@@ -130,6 +130,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const calendarRef = useRef(null);
     const [isExporting, setIsExporting] = useState(false);
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
+    const [customShiftColors, setCustomShiftColors] = useState({});
+    const [customLeaveColors, setCustomLeaveColors] = useState({});
 
     // Detect desktop mode for drag and drop (768px is md breakpoint in Tailwind)
     useEffect(() => {
@@ -149,7 +151,79 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         })
     );
 
-    // shiftColors and leaveColors imported from src/constants/index.js
+    // Fetch custom colours for Resource Calendar
+    const fetchCalendarColours = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('calendar_colours')
+                .select('*')
+                .eq('calendar_type', 'resource');
+
+            if (error) {
+                console.error('Error fetching calendar colours:', error);
+                return;
+            }
+
+            const shifts = {};
+            const leaves = {};
+
+            (data || []).forEach(colour => {
+                if (colour.category_type === 'shift') {
+                    shifts[colour.category_value] = colour.colour;
+                } else if (colour.category_type === 'leave') {
+                    leaves[colour.category_value] = colour.colour;
+                }
+            });
+
+            setCustomShiftColors(shifts);
+            setCustomLeaveColors(leaves);
+        } catch (err) {
+            console.error('Error fetching calendar colours:', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchCalendarColours();
+
+        // Set up real-time subscription for colour changes
+        const colourSubscription = supabase
+            .channel('calendar-colours-changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'calendar_colours',
+                    filter: 'calendar_type=eq.resource'
+                },
+                () => {
+                    console.log('🎨 Calendar colours changed, reloading...');
+                    fetchCalendarColours();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            colourSubscription.unsubscribe();
+        };
+    }, [fetchCalendarColours]);
+
+    // Helper function to get colour with fallback
+    const getShiftColor = useCallback((shift) => {
+        if (customShiftColors[shift]) {
+            return { backgroundColor: customShiftColors[shift] };
+        }
+        // Fallback to constants if no custom colour
+        return shiftColors[shift] || '';
+    }, [customShiftColors]);
+
+    const getLeaveColor = useCallback((leaveType) => {
+        if (customLeaveColors[leaveType]) {
+            return { backgroundColor: customLeaveColors[leaveType] };
+        }
+        // Fallback to constants if no custom colour
+        return leaveColors[leaveType] || '';
+    }, [customLeaveColors]);
 
     const getResourceAllocations = useCallback(async (silent = false) => {
         // Save scroll position before updating if in silent mode
@@ -517,30 +591,17 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 }
             } else if (cellToUpdate.editItemIndex !== null && cellToUpdate.editItemIndex !== undefined && existingRecords && existingRecords.length > 1) {
                 // Editing a specific item in a multi-item cell
-                // Get the updated array from local state
-                const weekKey = formatDateForKey(getWeekStartDate(cellToUpdate.date));
-                const dayIndex = (cellToUpdate.date.getDay() + 1) % 7;
-                const updatedAssignment = allocations[weekKey]?.[userId]?.assignments[dayIndex];
-
-                if (Array.isArray(updatedAssignment)) {
-                    // Delete all existing records
-                    const { error: deleteError } = await supabase
-                        .from(tableName)
-                        .delete()
-                        .eq('user_id', userId)
-                        .eq('allocation_date', allocationDateString);
-
-                    if (deleteError) throw deleteError;
-
-                    // Re-insert all items with the updated one
-                    const recordsToInsert = updatedAssignment.map(item => {
-                        if (item.type === 'leave') {
+                // Build the updated array from existing records, replacing the edited item
+                const recordsToInsert = existingRecords.map((record, idx) => {
+                    // If this is the item being edited, use the new data
+                    if (idx === cellToUpdate.editItemIndex) {
+                        if (allocationData.type === 'leave') {
                             return {
                                 user_id: userId,
                                 allocation_date: allocationDateString,
                                 assignment_type: 'leave',
-                                leave_type: item.leaveType,
-                                comment: item.comment || null,
+                                leave_type: allocationData.leaveType,
+                                comment: allocationData.comment || null,
                                 project_id: null,
                                 project_number: null,
                                 project_name: null,
@@ -554,25 +615,51 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                 user_id: userId,
                                 allocation_date: allocationDateString,
                                 assignment_type: 'project',
-                                project_id: item.projectId || null,
-                                project_number: item.projectNumber || null,
-                                project_name: item.projectName || null,
-                                client: item.client || null,
-                                task: item.task || null,
-                                shift: item.shift || null,
-                                time: item.time || null,
-                                comment: item.comment || null,
+                                project_id: allocationData.projectId || null,
+                                project_number: allocationData.projectNumber || null,
+                                project_name: allocationData.projectName || null,
+                                client: allocationData.client || null,
+                                task: allocationData.task || null,
+                                shift: allocationData.shift || null,
+                                time: allocationData.time || null,
+                                comment: allocationData.comment || null,
                                 leave_type: null
                             };
                         }
-                    });
+                    } else {
+                        // Keep the existing record as is
+                        return {
+                            user_id: record.user_id,
+                            allocation_date: record.allocation_date,
+                            assignment_type: record.assignment_type,
+                            project_id: record.project_id,
+                            project_number: record.project_number,
+                            project_name: record.project_name,
+                            client: record.client,
+                            task: record.task,
+                            shift: record.shift,
+                            time: record.time,
+                            comment: record.comment,
+                            leave_type: record.leave_type
+                        };
+                    }
+                });
 
-                    const { error: insertError } = await supabase
-                        .from(tableName)
-                        .insert(recordsToInsert);
+                // Delete all existing records
+                const { error: deleteError } = await supabase
+                    .from(tableName)
+                    .delete()
+                    .eq('user_id', userId)
+                    .eq('allocation_date', allocationDateString);
 
-                    if (insertError) throw insertError;
-                }
+                if (deleteError) throw deleteError;
+
+                // Re-insert all items with the updated one
+                const { error: insertError } = await supabase
+                    .from(tableName)
+                    .insert(recordsToInsert);
+
+                if (insertError) throw insertError;
             } else if (isSecondProject) {
                 // Adding a second project - insert new record
                 recordData = {
@@ -1305,7 +1392,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                         <tr>
                             <th className="px-4 py-3 w-[250px] bg-gray-50 dark:bg-gray-700">Staff Member</th>
                             {weekDates.map(date => (
-                                <th key={date.toISOString()} className="px-4 py-3 text-center w-52 bg-gray-50 dark:bg-gray-700">
+                                <th key={date.toISOString()} className="px-4 py-3 text-center w-72 bg-gray-50 dark:bg-gray-700">
                                     {date.toLocaleDateString('en-US', { weekday: 'short' })}
                                     <br/>
                                     {formatDateForDisplay(date)}
@@ -1316,24 +1403,24 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     <tbody className="divide-y-4 divide-gray-300 dark:divide-gray-600">
                         {displayedUsers.map(user => (
                             <tr key={user.id} className="border-spacing-2">
-                                <td className="px-4 py-2 font-medium">
+                                <td className="px-4 py-3 font-medium">
                                     <div className="flex items-center min-w-0">
-                                        <div className={`w-8 h-8 rounded-full ${getDepartmentColor(user.department)} text-white flex items-center justify-center font-bold text-sm mr-3 flex-shrink-0`}>{getAvatarText(user)}</div>
+                                        <div className={`w-12 h-12 rounded-full ${getDepartmentColor(user.department)} text-white flex items-center justify-center font-bold text-base mr-3 flex-shrink-0`}>{getAvatarText(user)}</div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate font-semibold">{user.name}</p>
-                                            <p className="text-xs text-gray-500 truncate">{user.department || 'No Department'}</p>
+                                            <p className="truncate font-semibold text-base">{user.name}</p>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.department || 'No Department'}</p>
                                             {user.competencies && (
-                                                <p className="text-xs text-gray-600 dark:text-gray-400 truncate mt-0.5" title={user.competencies}>
+                                                <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5" title={user.competencies}>
                                                     {user.competencies}
                                                 </p>
                                             )}
                                             {user.pts_number && (
-                                                <p className="text-xs text-gray-600 dark:text-gray-400 truncate mt-0.5">
+                                                <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">
                                                     <span className="font-medium">PTS:</span> {user.pts_number}
                                                 </p>
                                             )}
                                             {user.mobile_number && (
-                                                <p className="text-xs text-gray-600 dark:text-gray-400 truncate mt-0.5">
+                                                <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">
                                                     <span className="font-medium">Mobile:</span> {user.mobile_number}
                                                 </p>
                                             )}
@@ -1347,11 +1434,14 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
                                     if (assignment) {
                                         if (Array.isArray(assignment)) {
-                                            // Multiple projects
+                                            // Multiple projects - backgrounds fill vertical space with no gaps
                                             cellContent = (
-                                                <div className="h-full flex flex-col gap-1">
+                                                <div className="flex-1 flex flex-col">
                                                     {assignment.map((proj, index) => {
-                                                        const projColor = shiftColors[proj.shift] || '';
+                                                        const projColorStyle = getShiftColor(proj.shift);
+                                                        const projColor = typeof projColorStyle === 'string' ? projColorStyle : '';
+                                                        const projInlineStyle = typeof projColorStyle === 'object' ? projColorStyle : {};
+
                                                         return (
                                                             <DraggableResourceItem
                                                                 key={index}
@@ -1359,15 +1449,16 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                 disabled={!isDesktop}
                                                             >
                                                                 <div
-                                                                    className={`p-1 rounded-md text-xs flex flex-col text-center ${projColor} h-full min-h-0 relative group`}
+                                                                    className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
                                                                     onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
                                                                     onClick={(e) => handleItemClick(e, user.id, date, dayIndex, assignment, index)}
-                                                                    style={{ cursor: canAllocateResources ? 'pointer' : 'default' }}
+                                                                    style={{ cursor: canAllocateResources ? 'pointer' : 'default', ...projInlineStyle }}
                                                                 >
-                                                                    <p className="font-bold text-[10px] truncate">{proj.projectNumber}</p>
-                                                                    <p className="text-[10px] truncate" title={proj.projectName}>{proj.projectName}</p>
-                                                                    <p className="text-[10px] truncate" title={proj.task}>{proj.task}</p>
-                                                                    <p className="font-semibold text-[10px]">{typeof proj.shift === 'string' ? proj.shift : String(proj.shift || '')}</p>
+                                                                    <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={proj.projectName}>{proj.projectName}</p>
+                                                                    <p className="font-semibold text-xs mb-0.5 truncate">{proj.projectNumber}</p>
+                                                                    {proj.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1" title={proj.task}>{proj.task}</p>}
+                                                                    <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof proj.shift === 'string' ? proj.shift : String(proj.shift || '')}</p>
+                                                                    {proj.time && <p className="text-xs leading-tight font-semibold truncate">{proj.time}</p>}
                                                                     {!isDesktop && (canAllocateResources || (proj.type === 'project' && proj.projectNumber)) && (
                                                                         <button
                                                                             onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment, index)}
@@ -1383,60 +1474,70 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                 </div>
                                             );
                                         } else if (assignment.type === 'leave') {
-                                            cellColor = leaveColors[assignment.leaveType] || '';
+                                            const leaveColorStyle = getLeaveColor(assignment.leaveType);
+                                            cellColor = typeof leaveColorStyle === 'string' ? leaveColorStyle : '';
+                                            const leaveInlineStyle = typeof leaveColorStyle === 'object' ? leaveColorStyle : {};
+
+                                            // Fixed text sizes for leave tiles
+                                            const hasComment = assignment.comment && assignment.comment.trim().length > 0;
+
                                             cellContent = (
-                                                <div className="h-full flex flex-col">
-                                                    <DraggableResourceItem
-                                                        id={`${user.id}::${dayIndex}::0`}
-                                                        disabled={!isDesktop}
+                                                <DraggableResourceItem
+                                                    id={`${user.id}::${dayIndex}::0`}
+                                                    disabled={!isDesktop}
+                                                >
+                                                    <div
+                                                        className={`p-2 rounded-md h-full flex flex-col justify-center font-bold ${cellColor}`}
+                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                        style={leaveInlineStyle}
                                                     >
-                                                        <div
-                                                            className={`p-1.5 rounded-md text-xs h-full flex flex-col justify-center font-semibold ${cellColor}`}
-                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                        >
-                                                            <div className="text-center">{assignment.leaveType}</div>
-                                                            {assignment.comment && (
-                                                                <div className="text-center text-[10px] font-normal mt-1 opacity-90" title={assignment.comment}>
-                                                                    {assignment.comment.length > 20 ? assignment.comment.substring(0, 20) + '...' : assignment.comment}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </DraggableResourceItem>
-                                                </div>
+                                                        <div className={`text-center ${hasComment ? 'mb-1' : ''} text-lg truncate`}>{assignment.leaveType}</div>
+                                                        {hasComment && (
+                                                            <div className="text-center text-sm font-bold opacity-90 leading-tight line-clamp-3" title={assignment.comment}>
+                                                                {assignment.comment}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </DraggableResourceItem>
                                             );
                                         } else if (assignment.type === 'status') {
                                             const statusColor = assignment.status === 'Available'
                                                 ? 'text-green-600 dark:text-green-400'
                                                 : 'text-red-600 dark:text-red-400';
+                                            // Fixed text size for status tiles
                                             cellContent = (
                                                 <div
-                                                    className={`p-1.5 rounded-md text-xs h-full flex items-center justify-center font-semibold ${statusColor}`}
+                                                    className={`flex-1 flex items-center justify-center text-xl font-semibold ${statusColor}`}
                                                     onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                 >
-                                                    <div className="text-center">{assignment.status}</div>
+                                                    {assignment.status}
                                                 </div>
                                             );
                                         } else if (assignment.type === 'project') {
-                                            cellColor = shiftColors[assignment.shift] || '';
+                                            const projectColorStyle = getShiftColor(assignment.shift);
+                                            cellColor = typeof projectColorStyle === 'string' ? projectColorStyle : '';
+                                            const projectInlineStyle = typeof projectColorStyle === 'object' ? projectColorStyle : {};
+
+                                            // Fixed text sizes for single project tiles - project name at top
                                             cellContent = (
-                                                <div className="h-full flex flex-col">
-                                                    <DraggableResourceItem
-                                                        id={`${user.id}::${dayIndex}::0`}
-                                                        disabled={!isDesktop}
+                                                <DraggableResourceItem
+                                                    id={`${user.id}::${dayIndex}::0`}
+                                                    disabled={!isDesktop}
+                                                >
+                                                    <div
+                                                        className={`p-2 rounded-md h-full flex flex-col justify-center text-center ${cellColor}`}
+                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                        style={projectInlineStyle}
                                                     >
-                                                        <div
-                                                            className={`p-1.5 rounded-md text-xs space-y-1 h-full flex flex-col overflow-hidden text-center ${cellColor}`}
-                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                        >
-                                                            <p className="font-bold whitespace-nowrap overflow-ellipsis overflow-hidden">{assignment.projectNumber}</p>
-                                                            <p className="flex-grow min-w-0 break-words" title={assignment.projectName}>{assignment.projectName}</p>
-                                                            <p className="whitespace-nowrap overflow-ellipsis overflow-hidden" title={assignment.client}>{assignment.client}</p>
-                                                            <p className="font-semibold">{assignment.task}</p>
-                                                            <p className="font-semibold">{assignment.shift}</p>
-                                                            <p className="text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-ellipsis overflow-hidden" title={assignment.comment}>{assignment.comment}</p>
-                                                        </div>
-                                                    </DraggableResourceItem>
-                                                </div>
+                                                        {assignment.projectName && <p className="text-lg mb-1 font-bold leading-tight line-clamp-2" title={assignment.projectName}>{assignment.projectName}</p>}
+                                                        <p className="font-semibold text-sm mb-1 truncate">{assignment.projectNumber}</p>
+                                                        {assignment.client && <p className="text-sm mb-1 leading-tight line-clamp-1" title={assignment.client}>{assignment.client}</p>}
+                                                        {assignment.task && <p className="text-sm mb-1 font-semibold truncate">{assignment.task}</p>}
+                                                        {assignment.shift && <p className="text-sm mb-1 font-semibold truncate">{assignment.shift}</p>}
+                                                        {assignment.time && <p className="text-sm mb-1 font-semibold truncate">{assignment.time}</p>}
+                                                        {assignment.comment && <p className="text-sm font-bold leading-tight line-clamp-2" title={assignment.comment}>{assignment.comment}</p>}
+                                                    </div>
+                                                </DraggableResourceItem>
                                             );
                                         }
                                     }
@@ -1454,12 +1555,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                   (!assignment && canSetAvailabilityStatus);
 
                                     return (
-                                        <td key={date.toISOString()} className="p-1 align-top h-40 relative group">
+                                        <td key={date.toISOString()} className="p-2 relative group">
                                             <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop}>
                                                 <div
                                                     onClick={() => handleCellClick(user.id, date, dayIndex)}
                                                     onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                    className={`w-full h-full text-left rounded-md ${canAllocateResources ? 'cursor-pointer' : 'cursor-default'}`}
+                                                    className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${canAllocateResources ? 'cursor-pointer' : 'cursor-default'}`}
                                                 >
                                                     {cellContent}
                                                 </div>

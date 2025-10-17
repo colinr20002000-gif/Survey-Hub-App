@@ -62,6 +62,7 @@ const EquipmentCalendarPage = () => {
     const [equipmentLoading, setEquipmentLoading] = useState(true);
     const [equipmentAssignments, setEquipmentAssignments] = useState([]);
     const [equipmentCategories, setEquipmentCategories] = useState([]);
+    const [customEquipmentColours, setCustomEquipmentColours] = useState({});
     const [allocations, setAllocations] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -153,23 +154,50 @@ const EquipmentCalendarPage = () => {
         }
     }, []);
 
-    // Fetch equipment categories
+    // Fetch unique equipment categories from equipment table
     const getEquipmentCategories = useCallback(async () => {
         try {
             const { data, error } = await supabase
-                .from('equipment_categories')
-                .select('*');
+                .from('equipment')
+                .select('category');
 
             if (error) {
                 console.error('Error fetching equipment categories:', error);
                 setEquipmentCategories([]);
             } else {
-                console.log('✅ Equipment categories loaded:', data?.length || 0, 'categories');
-                setEquipmentCategories(data || []);
+                // Get unique categories and map to objects with name property
+                const uniqueCategories = [...new Set((data || []).map(item => item.category).filter(Boolean))].sort();
+                console.log('✅ Equipment categories loaded:', uniqueCategories.length, 'categories');
+                setEquipmentCategories(uniqueCategories.map(cat => ({ name: cat })));
             }
         } catch (err) {
             console.error('Unexpected error:', err);
             setEquipmentCategories([]);
+        }
+    }, []);
+
+    // Fetch equipment category colours from calendar_colours table
+    const getEquipmentColours = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('calendar_colours')
+                .select('*')
+                .eq('calendar_type', 'equipment')
+                .eq('category_type', 'equipment');
+
+            if (error) {
+                console.error('Error fetching equipment colours:', error);
+            } else {
+                console.log('🎨 Equipment colours loaded:', data?.length || 0, 'colours');
+                // Map colours by category_value
+                const colourMap = {};
+                (data || []).forEach(item => {
+                    colourMap[item.category_value] = item.colour;
+                });
+                setCustomEquipmentColours(colourMap);
+            }
+        } catch (err) {
+            console.error('Unexpected error fetching equipment colours:', err);
         }
     }, []);
 
@@ -293,6 +321,7 @@ const EquipmentCalendarPage = () => {
         getEquipmentAllocations();
         getEquipmentAssignments();
         getEquipmentCategories();
+        getEquipmentColours();
 
         console.log('🔌 Setting up real-time subscriptions for equipment calendar...');
 
@@ -357,15 +386,35 @@ const EquipmentCalendarPage = () => {
                 {
                     event: '*',
                     schema: 'public',
-                    table: 'equipment_categories'
+                    table: 'equipment'
                 },
                 (payload) => {
-                    console.log('🎨 Equipment categories changed:', payload.eventType);
+                    console.log('🎨 Equipment changed:', payload.eventType);
+                    // Refetch equipment categories when equipment is added/updated/deleted
                     getEquipmentCategories();
                 }
             )
             .subscribe((status) => {
                 console.log('📡 Equipment categories subscription status:', status);
+            });
+
+        const coloursSubscription = supabase
+            .channel('equipment-colours-changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'calendar_colours',
+                    filter: 'calendar_type=eq.equipment'
+                },
+                (payload) => {
+                    console.log('🎨 Equipment colours changed:', payload.eventType);
+                    getEquipmentColours();
+                }
+            )
+            .subscribe((status) => {
+                console.log('📡 Equipment colours subscription status:', status);
             });
 
         return () => {
@@ -374,8 +423,9 @@ const EquipmentCalendarPage = () => {
             calendarSubscription.unsubscribe();
             assignmentsSubscription.unsubscribe();
             categoriesSubscription.unsubscribe();
+            coloursSubscription.unsubscribe();
         };
-    }, [getEquipment, getEquipmentAllocations, getEquipmentAssignments, getEquipmentCategories]);
+    }, [getEquipment, getEquipmentAllocations, getEquipmentAssignments, getEquipmentCategories, getEquipmentColours]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -871,7 +921,12 @@ const EquipmentCalendarPage = () => {
     const getCategoryColor = useCallback((categoryName) => {
         if (!categoryName) return '#93C5FD'; // Light blue default
 
-        // Check if category exists in equipmentCategories
+        // First, check if we have a custom colour from database
+        if (customEquipmentColours[categoryName]) {
+            return customEquipmentColours[categoryName];
+        }
+
+        // Check if category exists in equipmentCategories and has a color property
         const category = equipmentCategories.find(cat => cat.name === categoryName);
 
         if (category && category.color) {
@@ -884,7 +939,7 @@ const EquipmentCalendarPage = () => {
         }, 0);
         const colorIndex = Math.abs(hash) % categoryColorPalette.length;
         return categoryColorPalette[colorIndex];
-    }, [equipmentCategories]);
+    }, [customEquipmentColours, equipmentCategories]);
 
     // Get background and text color classes for a category
     const getCategoryColorClasses = useCallback((categoryName) => {

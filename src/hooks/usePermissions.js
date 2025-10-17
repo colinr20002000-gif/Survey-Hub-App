@@ -123,6 +123,7 @@ export const usePermissions = () => {
             canAccessAuditTrail: can('ACCESS_AUDIT_TRAIL'),
             canAccessDropdownMenu: can('ACCESS_DROPDOWN_MENU'),
             canAccessDocumentManagement: can('ACCESS_DOCUMENT_MANAGEMENT'),
+            canAccessCalendarColours: can('ACCESS_CALENDAR_COLOURS'),
 
             canSubmitFeedback: can('SUBMIT_FEEDBACK'),
         };

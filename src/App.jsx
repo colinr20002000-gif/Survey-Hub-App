@@ -54,6 +54,7 @@ const ResourceCalendarPage = lazy(() => import('./pages/ResourceCalendarPage'));
 const EquipmentCalendarPage = lazy(() => import('./pages/EquipmentCalendarPage'));
 const AuditTrailPage = lazy(() => import('./pages/AuditTrailPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const CalendarColoursPage = lazy(() => import('./pages/CalendarColoursPage'));
 
 import { DeliveryTaskItem, DeliveryTaskModal } from './components/tasks/TaskComponents';
 import ProjectModal from './components/modals/ProjectModal';
@@ -507,7 +508,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         canAccessUserAdmin,
         canAccessDocumentManagement,
         canAccessDropdownMenu,
-        canAccessAuditTrail
+        canAccessAuditTrail,
+        canAccessCalendarColours
     } = usePermissions();
     const [isAdminMode, setIsAdminMode] = useState(false);
     const sidebarRef = useRef(null);
@@ -574,6 +576,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         { name: 'User Admin', icon: Users, show: canAccessUserAdmin },
         { name: 'Document Management', icon: FileText, show: canAccessDocumentManagement },
         { name: 'Dropdown Menu', icon: List, show: canAccessDropdownMenu },
+        { name: 'Calendar Colours', icon: Palette, show: canAccessCalendarColours },
         { name: 'Audit Trail', icon: History, show: canAccessAuditTrail },
     ];
 
@@ -2952,6 +2955,7 @@ const MainLayout = () => {
             case 'Useful Contacts': return <UsefulContactsPage />;
             case 'User Admin': return <UserAdmin />;
             case 'Dropdown Menu': return <DropdownMenuPage />;
+            case 'Calendar Colours': return <Suspense fallback={<LoadingFallback />}><CalendarColoursPage /></Suspense>;
             case 'Audit Trail': return <Suspense fallback={<LoadingFallback />}><AuditTrailPage /></Suspense>;
             case 'Settings': return <SettingsPage />;
             case 'Document Management': return <AdminDocumentManager />;
