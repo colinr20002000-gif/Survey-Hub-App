@@ -8,7 +8,7 @@ import { useDebouncedValue } from '../utils/debounce';
 
 const ProjectsPage = ({ onViewProject }) => {
     const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
-    const { canCreateProjects, canEditProjects, canDeleteProjects } = usePermissions();
+    const { canCreateProjects, canEditProjects, canDeleteProjects, can } = usePermissions();
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [sortConfig, setSortConfig] = useState({ key: 'project_number', direction: 'descending' });
@@ -216,10 +216,12 @@ const ProjectsPage = ({ onViewProject }) => {
                     </div>
                 </div>
             </div>
-             <div className="flex items-center mb-4">
-                 <label htmlFor="show-archived" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Show Archived</label>
-                 <Switch id="show-archived" isChecked={showArchived} onToggle={() => setShowArchived(!showArchived)} />
-             </div>
+             {can('SHOW_ARCHIVED_PROJECTS_TOGGLE') && (
+                 <div className="flex items-center mb-4">
+                     <label htmlFor="show-archived" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Show Archived</label>
+                     <Switch id="show-archived" isChecked={showArchived} onToggle={() => setShowArchived(!showArchived)} />
+                 </div>
+             )}
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto w-full">
                 <table className="text-sm text-left text-gray-500 dark:text-gray-400 min-w-full">

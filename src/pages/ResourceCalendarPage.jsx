@@ -57,7 +57,7 @@ const DroppableCell = ({ id, children, disabled }) => {
 
 const ResourceCalendarPage = ({ onViewProject }) => {
     const { user: currentUser } = useAuth();
-    const { canAllocateResources, canSetAvailabilityStatus } = usePermissions();
+    const { canAllocateResources, canSetAvailabilityStatus, can } = usePermissions();
     const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
     const { projects } = useProjects();
     const { showPrivilegeError, showErrorModal } = useToast();
@@ -1306,22 +1306,24 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     >
                         Only Me
                     </Button>
-                    <Button
-                        onClick={handleExportImage}
-                        disabled={isExporting}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                        {isExporting ? (
-                            <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                                Exporting...
-                            </>
-                        ) : (
-                            <>
-                                <Download size={16} className="mr-2"/>Export Image
-                            </>
-                        )}
-                    </Button>
+                    {can('SHOW_EXPORT_RESOURCE_CALENDAR_IMAGE') && (
+                        <Button
+                            onClick={handleExportImage}
+                            disabled={isExporting}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                            {isExporting ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                                    Exporting...
+                                </>
+                            ) : (
+                                <>
+                                    <Download size={16} className="mr-2"/>Export Image
+                                </>
+                            )}
+                        </Button>
+                    )}
                 </div>
             </div>
             <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
