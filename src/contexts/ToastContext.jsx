@@ -250,7 +250,13 @@ export const ToastProvider = ({ children }) => {
     });
   }, [addModal]);
 
+  // Generic showToast function that accepts (message, type, title, requireAck)
+  const showToast = useCallback((message, type = 'info', title, requireAck = false) => {
+    return addToast({ type, message, title, requireAck });
+  }, [addToast]);
+
   const value = {
+    showToast, // Generic function
     showSuccess,
     showError,
     showWarning,

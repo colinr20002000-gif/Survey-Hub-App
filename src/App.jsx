@@ -505,6 +505,7 @@ const Header = ({ onMenuClick, setActiveTab, activeTab }) => {
 const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const { user } = useAuth();
     const {
+        can,
         canAccessAdmin,
         canAccessFeedback,
         canAccessUserAdmin,
@@ -522,19 +523,19 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     // Regular navigation items (visible to all users)
     const regularNavItems = [
         { name: 'Dashboard', icon: BarChartIcon, show: true },
-        { name: 'Projects', icon: FolderKanban, show: true },
-        { name: 'Announcements', icon: Megaphone, show: true },
+        { name: 'Projects', icon: FolderKanban, show: can('VIEW_PROJECTS') },
+        { name: 'Announcements', icon: Megaphone, show: can('VIEW_ANNOUNCEMENTS') },
         {
             name: 'Project Team',
             icon: FolderOpen,
             show: true,
             isGroup: true,
             subItems: [
-                { name: 'Resource Calendar', parent: 'Project Team' },
-                { name: 'Equipment Calendar', parent: 'Project Team' },
-                { name: 'Project Tasks', parent: 'Project Team' },
-                { name: 'Equipment', parent: 'Project Team' },
-                { name: 'Vehicles', parent: 'Project Team' }
+                { name: 'Resource Calendar', parent: 'Project Team', show: can('VIEW_RESOURCE_CALENDAR') },
+                { name: 'Equipment Calendar', parent: 'Project Team', show: can('VIEW_EQUIPMENT_CALENDAR') },
+                { name: 'Project Tasks', parent: 'Project Team', show: can('VIEW_TASKS') },
+                { name: 'Equipment', parent: 'Project Team', show: can('VIEW_EQUIPMENT') },
+                { name: 'Vehicles', parent: 'Project Team', show: can('VIEW_VEHICLES') }
             ]
         },
         {
@@ -553,7 +554,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             show: true,
             isGroup: true,
             subItems: [
-                { name: 'Document Hub', parent: 'Training Centre' },
+                { name: 'Document Hub', parent: 'Training Centre', show: can('VIEW_DOCUMENT_HUB') },
                 { name: 'Video Tutorials', parent: 'Training Centre' },
                 { name: 'Rail Components', parent: 'Training Centre' }
             ]
@@ -568,7 +569,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                 { name: 'Useful Contacts', parent: 'Contact Details' }
             ]
         },
-        { name: 'Analytics', icon: TrendingUp, show: true },
+        { name: 'Analytics', icon: TrendingUp, show: can('VIEW_ANALYTICS') },
         { name: 'Settings', icon: Settings, show: true },
     ];
 
@@ -694,7 +695,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                             )}
                             {item.isGroup && (
                                 <ul className="ml-4 mt-1 space-y-1">
-                                    {item.subItems.map(subItem => (
+                                    {item.subItems.filter(subItem => subItem.show !== false).map(subItem => (
                                         <li key={subItem.name}>
                                             <a
                                                 href="#"
@@ -2157,6 +2158,24 @@ const ProjectFiles = ({ projectId }) => {
 // - ProjectTaskProvider → ProjectTaskContext.jsx
 // - UserProvider → UserContext.jsx
 
+// Access Denied Component
+const AccessDenied = () => {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+            <div className="text-center">
+                <Shield className="h-24 w-24 text-red-500 mx-auto mb-6" />
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h1>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                    You don't have permission to view this page.
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-500">
+                    Please contact your administrator if you believe this is an error.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 // Privilege Page Component
 const PrivilegePage = () => {
     const { user } = useAuth();
@@ -2230,12 +2249,21 @@ const PrivilegePage = () => {
 
         setIsSaving(true);
         try {
+            console.log('💾 Starting permission save...', {
+                activeTab,
+                changes: permissionChanges,
+                user: user?.email,
+                userPrivilege: user?.privilege
+            });
+
             // Prepare bulk updates
             const updates = Object.entries(permissionChanges).map(([permissionKey, isGranted]) => ({
                 permission_key: permissionKey,
                 privilege_level: activeTab,
                 is_granted: isGranted
             }));
+
+            console.log('💾 Prepared updates:', updates);
 
             // Perform all updates
             const promises = updates.map(({ permission_key, privilege_level, is_granted }) =>
@@ -2247,11 +2275,13 @@ const PrivilegePage = () => {
             );
 
             const results = await Promise.all(promises);
+            console.log('💾 Update results:', results);
 
             // Check if any failed
             const failed = results.filter(r => r.error);
             if (failed.length > 0) {
-                throw new Error(`${failed.length} updates failed`);
+                console.error('❌ Some updates failed:', failed.map(f => f.error));
+                throw new Error(`${failed.length} updates failed: ${failed[0].error.message}`);
             }
 
             showToast('Permissions updated successfully', 'success');
@@ -2469,6 +2499,7 @@ const PrivilegePage = () => {
 
 const MainLayout = () => {
     const { user, isLoading } = useAuth();
+    const { can } = usePermissions();
 
     // Initialize state from browser history or sessionStorage to persist across page refreshes
     const getInitialActiveTab = () => {
@@ -3262,18 +3293,18 @@ const MainLayout = () => {
 
         switch (activeTab) {
             case 'Dashboard': return <DashboardPage onViewProject={handleViewProject} setActiveTab={setActiveTab} />;
-            case 'Projects': return <ProjectsPage onViewProject={handleViewProject} />;
-            case 'Announcements': return <Suspense fallback={<LoadingFallback />}><AnnouncementsPage /></Suspense>;
+            case 'Projects': return can('VIEW_PROJECTS') ? <ProjectsPage onViewProject={handleViewProject} /> : <AccessDenied />;
+            case 'Announcements': return can('VIEW_ANNOUNCEMENTS') ? <Suspense fallback={<LoadingFallback />}><AnnouncementsPage /></Suspense> : <AccessDenied />;
             case 'Feedback': return <FeedbackPage />;
-            case 'Resource Calendar': return <Suspense fallback={<LoadingFallback />}><ResourceCalendarPage onViewProject={handleViewProject} /></Suspense>;
-            case 'Equipment Calendar': return <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense>;
-            case 'Project Tasks': return <ProjectTasksPage />;
-            case 'Equipment': return <EquipmentPage />;
-            case 'Vehicles': return <VehiclesPage />;
+            case 'Resource Calendar': return can('VIEW_RESOURCE_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><ResourceCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
+            case 'Equipment Calendar': return can('VIEW_EQUIPMENT_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
+            case 'Project Tasks': return can('VIEW_TASKS') ? <ProjectTasksPage /> : <AccessDenied />;
+            case 'Equipment': return can('VIEW_EQUIPMENT') ? <EquipmentPage /> : <AccessDenied />;
+            case 'Vehicles': return can('VIEW_VEHICLES') ? <VehiclesPage /> : <AccessDenied />;
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
             case 'Delivery Tasks': return <DeliveryTasksPage />;
-            case 'Analytics': return <Suspense fallback={<LoadingFallback />}><AnalyticsPage /></Suspense>;
-            case 'Document Hub': return <DocumentHubPage />;
+            case 'Analytics': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><AnalyticsPage /></Suspense> : <AccessDenied />;
+            case 'Document Hub': return can('VIEW_DOCUMENT_HUB') ? <DocumentHubPage /> : <AccessDenied />;
             case 'Video Tutorials': return <VideoTutorialsPage />;
             case 'Rail Components': return <RailComponentsPage />;
             case 'User Contacts': return <UserContactsPage />;
