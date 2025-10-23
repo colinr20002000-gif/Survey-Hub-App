@@ -416,6 +416,38 @@ const ProjectLogsPage = () => {
         return days.map(day => grouped[day]);
     }, [filteredLogs]);
 
+    // CSV parsing helper - handles quoted fields with commas
+    const parseCSVLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+
+            if (char === '"') {
+                if (inQuotes && nextChar === '"') {
+                    // Escaped quote
+                    current += '"';
+                    i++;
+                } else {
+                    // Toggle quote state
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                // End of field
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        // Add last field
+        result.push(current.trim());
+        return result;
+    };
+
     // Handle CSV Import
     const handleCSVImport = async (event) => {
         const file = event.target.files[0];
@@ -425,11 +457,12 @@ const ProjectLogsPage = () => {
             setIsUploading(true);
             const text = await file.text();
             const rows = text.split('\n').filter(row => row.trim());
-            const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const headers = parseCSVLine(rows[0]);
 
             const records = [];
+
             for (let i = 1; i < rows.length; i++) {
-                const values = rows[i].split(',').map(v => v.trim().replace(/"/g, ''));
+                const values = parseCSVLine(rows[i]);
                 const record = {};
                 headers.forEach((header, index) => {
                     const value = values[index];
@@ -440,16 +473,24 @@ const ProjectLogsPage = () => {
                     if (value === 'TRUE' || value === 'true') record[header] = true;
                     if (value === 'FALSE' || value === 'false') record[header] = false;
 
-                    // Convert numeric strings
-                    if (header.includes('count') || header.includes('week') || header.includes('month') || header.includes('year') || header.includes('quarter')) {
+                    // Convert integer fields (smallint in database)
+                    const integerFields = [
+                        'week_no', 'fiscal_week', 'fiscal_month', 'fiscal_quarter', 'fiscal_year',
+                        'calendar_week', 'calendar_year', 'staff_attended_count', 'subcontractors_attended_count'
+                    ];
+                    if (integerFields.includes(header) && value) {
                         const num = parseInt(value);
                         if (!isNaN(num)) record[header] = num;
                     }
-                    if (header.includes('miles') || header.includes('yards') || header.includes('yardage')) {
+
+                    // Convert decimal/numeric fields
+                    const decimalFields = ['miles_from', 'yards_from', 'miles_to', 'yards_to', 'total_yardage'];
+                    if (decimalFields.includes(header) && value) {
                         const num = parseFloat(value);
                         if (!isNaN(num)) record[header] = num;
                     }
                 });
+
                 records.push(record);
             }
 
@@ -474,7 +515,13 @@ const ProjectLogsPage = () => {
 
             await fetchLogs();
             setIsImportModalOpen(false);
-            alert('CSV imported successfully!');
+
+            // Custom success message
+            const message = `✅ CSV Import Successful!\n\n` +
+                `📊 ${records.length} project log records have been imported.\n\n` +
+                `All previous data has been replaced with the new data.\n` +
+                `The dashboard and charts have been updated.`;
+            alert(message);
         } catch (err) {
             console.error('Error importing CSV:', err);
             alert('Error importing CSV: ' + err.message);
@@ -1146,6 +1193,7 @@ const ProjectLogsPage = () => {
                                 <th scope="col" className="px-6 py-3">Client</th>
                                 <th scope="col" className="px-6 py-3">Site</th>
                                 <th scope="col" className="px-6 py-3">Site Time</th>
+                                <th scope="col" className="px-6 py-3">Travel Time</th>
                                 <th scope="col" className="px-6 py-3">Time Lost</th>
                                 <th scope="col" className="px-6 py-3">Staff</th>
                                 <th scope="col" className="px-6 py-3">Cancelled</th>
@@ -1161,6 +1209,7 @@ const ProjectLogsPage = () => {
                                     <td className="px-6 py-4">{log.client || 'N/A'}</td>
                                     <td className="px-6 py-4">{log.site_name || 'N/A'}</td>
                                     <td className="px-6 py-4">{formatDuration(log.total_site_time)}</td>
+                                    <td className="px-6 py-4">{formatDuration(log.total_travel_time)}</td>
                                     <td className="px-6 py-4">
                                         {formatDuration(log.time_lost)}
                                         {(log.time_lost_2 || log.time_lost_3 || log.time_lost_4) && '+'}

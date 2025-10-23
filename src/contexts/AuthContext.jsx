@@ -5,6 +5,26 @@ import { getMessaging, deleteToken } from 'firebase/messaging';
 import firebaseApp from '../firebaseConfig';
 import { getFCMToken } from '../firebaseConfig';
 
+// Helper function to create audit log entries for authentication events
+const createAuditLog = async (user, action, details) => {
+  try {
+    const { error } = await supabase
+      .from('audit_logs')
+      .insert([{
+        user: user.name || user.email,
+        action: action,
+        details: details,
+        category: 'Authentication'
+      }]);
+
+    if (error) {
+      console.error('Failed to create audit log:', error.message);
+    }
+  } catch (error) {
+    console.error('Audit log error:', error);
+  }
+};
+
 // This context manages user authentication across the entire app
 // It keeps track of who's logged in and provides login/logout functions
 // Any component can access this info without passing props down multiple levels
@@ -388,6 +408,13 @@ export const AuthProvider = ({ children }) => {
             console.log('✅ Full user data loaded in background');
             setUser(userData);
             autoSubscribePushNotifications(userData);
+
+            // Create audit log for session restoration (page refresh/revisit)
+            createAuditLog(
+              userData,
+              'User Accessed Site',
+              `${userData.name || userData.email} accessed the system with existing session`
+            );
           } else {
             console.log('⚠️ Using temporary user data');
           }
@@ -440,6 +467,13 @@ export const AuthProvider = ({ children }) => {
             console.log('✅ Full user data loaded in background');
             setUser(userData);
             autoSubscribePushNotifications(userData);
+
+            // Create audit log for successful login
+            createAuditLog(
+              userData,
+              'User Logged In',
+              `${userData.name || userData.email} logged into the system`
+            );
           }
         }).catch(err => {
           console.error('🔐 Background user data fetch failed:', err);
@@ -532,6 +566,15 @@ export const AuthProvider = ({ children }) => {
 
     // Note: We do NOT delete the Firebase token anymore, as it should persist
     // across logout/login to maintain push notification capability
+
+    // Create audit log for logout BEFORE clearing user
+    if (user && !user._isTemporary) {
+      await createAuditLog(
+        user,
+        'User Logged Out',
+        `${user.name || user.email} logged out of the system`
+      );
+    }
 
     // Clear local state FIRST to prevent re-authentication
     setUser(null);

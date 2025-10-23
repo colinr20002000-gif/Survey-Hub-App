@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -319,6 +319,9 @@ const Header = ({ onMenuClick, setActiveTab, activeTab }) => {
                     </button>
                 </div>
                 <div className="flex items-center space-x-4">
+                    <button onClick={() => window.location.reload()} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400" title="Refresh page">
+                        <RefreshCw size={20} />
+                    </button>
                     <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
                         {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                     </button>

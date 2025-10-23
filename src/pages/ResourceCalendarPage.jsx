@@ -1388,8 +1388,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
             >
-            <div ref={calendarRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)] overflow-y-auto">
-                <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
+            <div className="md:w-auto w-full md:scale-100 scale-[0.65] md:origin-center origin-top-left">
+                <div ref={calendarRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)] overflow-y-auto md:w-auto w-[154%]">
+                    <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-10">
                         <tr>
                             <th className="px-4 py-3 w-[250px] bg-gray-50 dark:bg-gray-700">Staff Member</th>
@@ -1582,6 +1583,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
             </DndContext>
             {contextMenu.visible && (
