@@ -622,6 +622,65 @@ const ProjectLogsPage = () => {
         }
     };
 
+    // Handle CSV Export with filters
+    const handleCSVExport = () => {
+        try {
+            // Get all column headers from filteredLogs
+            const headers = filteredLogs.length > 0 ? Object.keys(filteredLogs[0]) : [];
+
+            // Create CSV content
+            const csvContent = [
+                // Header row
+                headers.join(','),
+                // Data rows
+                ...filteredLogs.map(log =>
+                    headers.map(header => {
+                        const value = log[header];
+                        // Handle null/undefined
+                        if (value === null || value === undefined) return '';
+                        // Escape commas and quotes in values
+                        const stringValue = String(value);
+                        if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                            return `"${stringValue.replace(/"/g, '""')}"`;
+                        }
+                        return stringValue;
+                    }).join(',')
+                )
+            ].join('\n');
+
+            // Create blob and download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', `project-logs-export-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Show custom success message
+            const activeFilters = [];
+            if (dateRange !== 'allTime') activeFilters.push('Date Range');
+            if (selectedProjects.length > 0) activeFilters.push('Projects');
+            if (selectedClients.length > 0) activeFilters.push('Clients');
+            if (selectedTypes.length > 0) activeFilters.push('Types');
+            if (shiftType !== 'all') activeFilters.push('Shift Type');
+            if (cancelledFilter !== 'all') activeFilters.push('Cancelled Status');
+            if (selectedDaysOfWeek.length > 0) activeFilters.push('Days of Week');
+
+            const filterMessage = activeFilters.length > 0
+                ? `\n\n🔍 Active Filters: ${activeFilters.join(', ')}`
+                : '\n\n🔍 No filters applied - exported all data';
+
+            alert(`✅ CSV Export Successful!\n\n📊 Exported Records: ${filteredLogs.length}\n📁 File Name: project-logs-export-${new Date().toISOString().split('T')[0]}.csv${filterMessage}\n\n💡 The exported data reflects your current filter settings.`);
+        } catch (error) {
+            console.error('Error exporting CSV:', error);
+            alert('❌ Error exporting CSV. Please try again.');
+        }
+    };
+
     // Handle opening in Excel
     const handleOpenInExcel = (url) => {
         // For SharePoint files, use ms-excel protocol to open directly in Excel desktop app
@@ -671,10 +730,16 @@ const ProjectLogsPage = () => {
                         Comprehensive insights into project shifts, time allocation, and performance
                     </p>
                 </div>
-                <Button onClick={() => setIsImportModalOpen(true)}>
-                    <Upload size={16} className="mr-2" />
-                    Import CSV
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleCSVExport}>
+                        <Download size={16} className="mr-2" />
+                        Export CSV
+                    </Button>
+                    <Button onClick={() => setIsImportModalOpen(true)}>
+                        <Upload size={16} className="mr-2" />
+                        Import CSV
+                    </Button>
+                </div>
             </div>
 
             {/* Filters */}
@@ -1130,7 +1195,7 @@ const ProjectLogsPage = () => {
                         <BarChart data={projectPerformanceData} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis type="number" />
-                            <YAxis dataKey="project" type="category" width={80} />
+                            <YAxis dataKey="project" type="category" width={120} interval={0} />
                             <Tooltip />
                             <Bar dataKey="shifts" fill="#fb923c" name="Shifts" />
                         </BarChart>
@@ -1162,7 +1227,7 @@ const ProjectLogsPage = () => {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="project" />
                         <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
-                        <Tooltip />
+                        <Tooltip formatter={(value) => `${Math.round(value)} hours`} />
                         <Legend />
                         <Bar dataKey="siteTime" stackId="a" fill="#10b981" name="Site Time" />
                         <Bar dataKey="travelTime" stackId="a" fill="#3b82f6" name="Travel Time" />
