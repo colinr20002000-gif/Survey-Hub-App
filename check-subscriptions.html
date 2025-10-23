@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Push Subscriptions Check</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Push Subscriptions Status</h1>
+    <button onclick="checkSubscriptions()">Check Subscriptions</button>
+    <pre id="output">Click button to check...</pre>
+
+    <script>
+        const { createClient } = supabase;
+        const supabaseClient = createClient(
+            'https://okldykkmgmcjhgzysris.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbGR5a2ttZ21jamhnenlzcmlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxNjkyMzgsImV4cCI6MjA0OTc0NTIzOH0.xHEU9SvHkXxQfNrink99b46zogEf9QeZRUZyYMzNK38'
+        );
+
+        async function checkSubscriptions() {
+            const output = document.getElementById('output');
+            let result = '';
+
+            result += '='.repeat(80) + '\n';
+            result += 'PUSH SUBSCRIPTIONS CHECK\n';
+            result += '='.repeat(80) + '\n\n';
+
+            // Get all push subscriptions
+            const { data: allSubs, error: allError } = await supabaseClient
+                .from('push_subscriptions')
+                .select(`
+                    id,
+                    user_id,
+                    user_email,
+                    is_active,
+                    fcm_token,
+                    device_fingerprint,
+                    created_at,
+                    last_used_at,
+                    device_info
+                `)
+                .order('last_used_at', { ascending: false });
+
+            if (allError) {
+                result += `❌ Error fetching subscriptions: ${allError.message}\n`;
+                output.textContent = result;
+                return;
+            }
+
+            result += `Total subscriptions in database: ${allSubs.length}\n\n`;
+
+            // Group by active status
+            const active = allSubs.filter(s => s.is_active);
+            const inactive = allSubs.filter(s => !s.is_active);
+
+            result += `✅ Active subscriptions: ${active.length}\n`;
+            result += `❌ Inactive subscriptions: ${inactive.length}\n\n`;
+
+            result += '='.repeat(80) + '\n';
+            result += 'ACTIVE SUBSCRIPTIONS:\n';
+            result += '='.repeat(80) + '\n\n';
+
+            if (active.length === 0) {
+                result += '⚠️  NO ACTIVE SUBSCRIPTIONS FOUND!\n\n';
+            } else {
+                active.forEach((sub, i) => {
+                    result += `Subscription ${i + 1}:\n`;
+                    result += `  Email: ${sub.user_email}\n`;
+                    result += `  User ID: ${sub.user_id}\n`;
+                    result += `  Token: ${sub.fcm_token.substring(0, 40)}...\n`;
+                    result += `  Device: ${sub.device_info?.platform || 'unknown'} - ${sub.device_info?.browserName || 'unknown'}\n`;
+                    result += `  Fingerprint: ${sub.device_fingerprint?.substring(0, 20)}...\n`;
+                    result += `  Last used: ${new Date(sub.last_used_at).toLocaleString()}\n`;
+                    result += `  Created: ${new Date(sub.created_at).toLocaleString()}\n`;
+                    result += '\n';
+                });
+            }
+
+            result += '='.repeat(80) + '\n';
+            result += 'INACTIVE SUBSCRIPTIONS:\n';
+            result += '='.repeat(80) + '\n\n';
+
+            if (inactive.length === 0) {
+                result += 'No inactive subscriptions.\n\n';
+            } else {
+                inactive.forEach((sub, i) => {
+                    result += `Inactive ${i + 1}:\n`;
+                    result += `  Email: ${sub.user_email}\n`;
+                    result += `  Last used: ${new Date(sub.last_used_at).toLocaleString()}\n`;
+                    result += `  Created: ${new Date(sub.created_at).toLocaleString()}\n`;
+                    result += '\n';
+                });
+            }
+
+            // Check specific users
+            result += '='.repeat(80) + '\n';
+            result += 'SPECIFIC USERS CHECK:\n';
+            result += '='.repeat(80) + '\n\n';
+
+            const targetEmails = ['colin.rogers@inorail.co.uk', 'jay.kinney@inorail.co.uk'];
+
+            for (const email of targetEmails) {
+                const userSubs = allSubs.filter(s => s.user_email === email);
+                const userActiveSubs = userSubs.filter(s => s.is_active);
+
+                result += `${email}:\n`;
+                result += `  Total subscriptions: ${userSubs.length}\n`;
+                result += `  Active: ${userActiveSubs.length}\n`;
+                result += `  Inactive: ${userSubs.length - userActiveSubs.length}\n`;
+
+                if (userActiveSubs.length > 0) {
+                    result += `  ✅ HAS ACTIVE SUBSCRIPTION\n`;
+                    userActiveSubs.forEach(sub => {
+                        result += `    - Token: ${sub.fcm_token.substring(0, 30)}...\n`;
+                        result += `    - Device: ${sub.device_info?.platform || 'unknown'} ${sub.device_info?.browserName || 'unknown'}\n`;
+                    });
+                } else {
+                    result += `  ❌ NO ACTIVE SUBSCRIPTION\n`;
+                }
+                result += '\n';
+            }
+
+            result += '='.repeat(80) + '\n';
+            result += 'DIAGNOSIS:\n';
+            result += '='.repeat(80) + '\n\n';
+
+            if (active.length === 0) {
+                result += '❌ PROBLEM: No active subscriptions in database!\n';
+                result += '   → Users need to enable push notifications in their browsers\n';
+            } else if (active.length === 1 && active[0].user_email === 'colin.rogers@inorail.co.uk') {
+                result += '❌ PROBLEM: Only colin.rogers has an active subscription!\n';
+                result += '   → Other users (like jay.kinney) need to:\n';
+                result += '      1. Enable notifications in browser settings\n';
+                result += '      2. Refresh the app to trigger subscription\n';
+                result += '      3. Accept the notification permission prompt\n';
+            } else {
+                result += `✅ Found ${active.length} active subscriptions\n`;
+                result += '   System is ready to send notifications!\n';
+            }
+
+            output.textContent = result;
+        }
+    </script>
+</body>
+</html>

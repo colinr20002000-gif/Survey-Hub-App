@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check User Departments</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>User Department Check</h1>
+    <pre id="output">Loading...</pre>
+
+    <script>
+        const { createClient } = supabase;
+        const supabaseClient = createClient(
+            'https://okldykkmgmcjhgzysris.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbGR5a2ttZ21jamhnenlzcmlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxNjkyMzgsImV4cCI6MjA0OTc0NTIzOH0.xHEU9SvHkXxQfNrink99b46zogEf9QeZRUZyYMzNK38'
+        );
+
+        async function checkDepartments() {
+            const output = document.getElementById('output');
+            let result = '';
+
+            // Get all users with departments
+            const { data: users, error } = await supabaseClient
+                .from('users')
+                .select('id, name, email, department')
+                .not('department', 'is', null);
+
+            if (error) {
+                result = 'Error: ' + JSON.stringify(error, null, 2);
+                output.textContent = result;
+                return;
+            }
+
+            result += `Found ${users.length} users with departments\n\n`;
+            result += '='.repeat(80) + '\n';
+
+            // Group by department
+            const byDept = {};
+            users.forEach(user => {
+                const dept = user.department || 'NULL';
+                if (!byDept[dept]) byDept[dept] = [];
+                byDept[dept].push(user);
+            });
+
+            result += 'USERS BY DEPARTMENT:\n';
+            result += '='.repeat(80) + '\n\n';
+
+            Object.entries(byDept).forEach(([dept, userList]) => {
+                result += `Department: "${dept}" (${userList.length} users)\n`;
+                userList.forEach(u => {
+                    result += `  - ${u.name} (${u.email})\n`;
+                });
+                result += '\n';
+            });
+
+            result += '='.repeat(80) + '\n';
+            result += 'UNIQUE DEPARTMENT VALUES:\n';
+            result += '='.repeat(80) + '\n';
+            Object.keys(byDept).forEach(dept => {
+                result += `"${dept}"\n`;
+            });
+
+            // Also get dropdown values
+            result += '\n' + '='.repeat(80) + '\n';
+            result += 'DROPDOWN DEPARTMENT VALUES:\n';
+            result += '='.repeat(80) + '\n';
+
+            const { data: dropdownItems } = await supabaseClient
+                .from('dropdown_items')
+                .select(`
+                    display_text,
+                    dropdown_categories!inner(name)
+                `)
+                .eq('dropdown_categories.name', 'department')
+                .eq('is_active', true)
+                .order('sort_order');
+
+            if (dropdownItems) {
+                dropdownItems.forEach(item => {
+                    result += `"${item.display_text}"\n`;
+                });
+            }
+
+            result += '\n' + '='.repeat(80) + '\n';
+            result += 'COMPARISON:\n';
+            result += '='.repeat(80) + '\n';
+
+            const userDepts = Object.keys(byDept);
+            const dropdownDepts = dropdownItems?.map(i => i.display_text) || [];
+
+            result += '\nIn Users Table but NOT in Dropdown:\n';
+            userDepts.forEach(dept => {
+                if (!dropdownDepts.includes(dept)) {
+                    result += `  ❌ "${dept}"\n`;
+                }
+            });
+
+            result += '\nIn Dropdown but NOT in Users Table:\n';
+            dropdownDepts.forEach(dept => {
+                if (!userDepts.includes(dept)) {
+                    result += `  ⚠️  "${dept}"\n`;
+                }
+            });
+
+            result += '\nMATCHING (✅ Good):\n';
+            userDepts.forEach(dept => {
+                if (dropdownDepts.includes(dept)) {
+                    const count = byDept[dept].length;
+                    result += `  ✅ "${dept}" (${count} users)\n`;
+                }
+            });
+
+            output.textContent = result;
+        }
+
+        checkDepartments();
+    </script>
+</body>
+</html>

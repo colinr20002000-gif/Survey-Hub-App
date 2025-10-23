@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reactivate Push Subscriptions</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px 0; font-size: 16px; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Reactivate Push Subscriptions</h1>
+    <p>This script reactivates all push subscriptions that were deactivated during logout.</p>
+
+    <button onclick="checkAndReactivate()">Check and Reactivate Subscriptions</button>
+    <pre id="output">Click button to start...</pre>
+
+    <script>
+        const { createClient } = supabase;
+        const supabaseClient = createClient(
+            'https://okldykkmgmcjhgzysris.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbGR5a2ttZ21jamhnenlzcmlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxNjkyMzgsImV4cCI6MjA0OTc0NTIzOH0.xHEU9SvHkXxQfNrink99b46zogEf9QeZRUZyYMzNK38'
+        );
+
+        async function checkAndReactivate() {
+            const output = document.getElementById('output');
+            output.textContent = 'Working...';
+
+            try {
+                let result = '';
+                result += '='.repeat(80) + '\n';
+                result += 'PUSH SUBSCRIPTION REACTIVATION\n';
+                result += '='.repeat(80) + '\n\n';
+
+                // Get all subscriptions
+                const { data: allSubs, error: fetchError } = await supabaseClient
+                    .from('push_subscriptions')
+                    .select('*')
+                    .order('updated_at', { ascending: false });
+
+                if (fetchError) throw fetchError;
+
+                const active = allSubs.filter(s => s.is_active);
+                const inactive = allSubs.filter(s => !s.is_active);
+
+                result += `Total subscriptions: ${allSubs.length}\n`;
+                result += `Active: ${active.length}\n`;
+                result += `Inactive: ${inactive.length}\n\n`;
+
+                if (inactive.length === 0) {
+                    result += '✅ All subscriptions are already active!\n';
+                    output.textContent = result;
+                    output.className = 'success';
+                    return;
+                }
+
+                result += '='.repeat(80) + '\n';
+                result += 'INACTIVE SUBSCRIPTIONS TO REACTIVATE:\n';
+                result += '='.repeat(80) + '\n\n';
+
+                // Show what will be reactivated
+                inactive.forEach((sub, i) => {
+                    result += `${i + 1}. ${sub.user_email}\n`;
+                    result += `   Last used: ${new Date(sub.last_used_at).toLocaleString()}\n`;
+                    result += `   Created: ${new Date(sub.created_at).toLocaleString()}\n`;
+                    result += `   Token: ${sub.fcm_token.substring(0, 30)}...\n\n`;
+                });
+
+                result += '='.repeat(80) + '\n';
+                result += 'REACTIVATING...\n';
+                result += '='.repeat(80) + '\n\n';
+
+                // Reactivate all inactive subscriptions
+                const { data: updated, error: updateError } = await supabaseClient
+                    .from('push_subscriptions')
+                    .update({
+                        is_active: true,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('is_active', false)
+                    .select();
+
+                if (updateError) throw updateError;
+
+                result += `✅ Successfully reactivated ${updated.length} subscriptions!\n\n`;
+
+                result += 'Reactivated subscriptions:\n';
+                updated.forEach((sub, i) => {
+                    result += `${i + 1}. ${sub.user_email}\n`;
+                });
+
+                result += '\n' + '='.repeat(80) + '\n';
+                result += 'DONE!\n';
+                result += '='.repeat(80) + '\n';
+                result += '\nPush notifications will now work for all users,\n';
+                result += 'even when they are logged out.\n';
+
+                output.textContent = result;
+                output.className = 'success';
+
+            } catch (error) {
+                output.textContent = '❌ Error: ' + error.message;
+                output.className = 'error';
+            }
+        }
+    </script>
+</body>
+</html>

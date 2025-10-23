@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Force Register Firebase SW</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Force Register Firebase Service Worker</h1>
+
+    <button onclick="registerFirebaseSW()">1. Register Firebase Messaging SW</button>
+    <button onclick="checkRegistrations()">2. Check All Service Workers</button>
+    <button onclick="requestNotificationPermission()">3. Request Notification Permission</button>
+    <button onclick="getToken()">4. Get FCM Token</button>
+    <button onclick="clearAll()">Clear Output</button>
+
+    <pre id="output">Click buttons above to register service worker...</pre>
+
+    <script type="module">
+        const output = document.getElementById('output');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        window.clearAll = function() {
+            output.innerHTML = '';
+        };
+
+        window.checkRegistrations = async function() {
+            log('='.repeat(80));
+            log('Checking all service worker registrations...');
+
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                log(`Found ${registrations.length} service worker(s)`, 'success');
+
+                registrations.forEach((reg, i) => {
+                    log(`\nService Worker ${i + 1}:`);
+                    log(`  Scope: ${reg.scope}`);
+                    log(`  Active: ${reg.active ? reg.active.scriptURL : 'None'}`);
+                    log(`  Installing: ${reg.installing ? reg.installing.scriptURL : 'None'}`);
+                    log(`  Waiting: ${reg.waiting ? reg.waiting.scriptURL : 'None'}`);
+                });
+
+                // Check for firebase-messaging-sw specifically
+                const firebaseSW = registrations.find(r =>
+                    r.active?.scriptURL.includes('firebase-messaging-sw')
+                );
+
+                if (firebaseSW) {
+                    log('\n✅ Firebase Messaging SW is registered!', 'success');
+                } else {
+                    log('\n❌ Firebase Messaging SW not found!', 'error');
+                }
+
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        };
+
+        window.registerFirebaseSW = async function() {
+            log('='.repeat(80));
+            log('Attempting to register Firebase Messaging service worker...');
+
+            if (!('serviceWorker' in navigator)) {
+                log('❌ Service Workers not supported in this browser', 'error');
+                return;
+            }
+
+            try {
+                // First check if already registered
+                const existing = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+                if (existing) {
+                    log('⚠️ Firebase SW already registered, unregistering first...');
+                    await existing.unregister();
+                    log('✅ Unregistered old Firebase SW', 'success');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
+                // Register new one
+                log('📝 Registering /firebase-messaging-sw.js...');
+                const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                    scope: '/',
+                    updateViaCache: 'none'
+                });
+
+                log('✅ Service worker registered successfully!', 'success');
+                log(`Scope: ${registration.scope}`);
+                log(`Installing: ${!!registration.installing}`);
+                log(`Waiting: ${!!registration.waiting}`);
+                log(`Active: ${!!registration.active}`);
+
+                // Wait for it to be ready
+                log('\n⏳ Waiting for service worker to be ready...');
+                await navigator.serviceWorker.ready;
+                log('✅ Service worker is now ready!', 'success');
+
+                // Show the active service worker details
+                const readyReg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+                if (readyReg && readyReg.active) {
+                    log(`\nActive service worker:`);
+                    log(`  Script: ${readyReg.active.scriptURL}`);
+                    log(`  State: ${readyReg.active.state}`);
+                }
+
+            } catch (error) {
+                log(`❌ Error registering service worker: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        };
+
+        window.requestNotificationPermission = async function() {
+            log('='.repeat(80));
+            log('Requesting notification permission...');
+
+            if (!('Notification' in window)) {
+                log('❌ Notifications not supported', 'error');
+                return;
+            }
+
+            const currentPermission = Notification.permission;
+            log(`Current permission: ${currentPermission}`);
+
+            if (currentPermission === 'granted') {
+                log('✅ Notification permission already granted!', 'success');
+                return;
+            }
+
+            if (currentPermission === 'denied') {
+                log('❌ Notification permission is DENIED', 'error');
+                log('You must reset site permissions in browser settings');
+                return;
+            }
+
+            try {
+                const permission = await Notification.requestPermission();
+                log(`Result: ${permission}`);
+
+                if (permission === 'granted') {
+                    log('✅ Notification permission granted!', 'success');
+                } else {
+                    log('❌ Notification permission denied', 'error');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        };
+
+        window.getToken = async function() {
+            log('='.repeat(80));
+            log('Getting FCM token...');
+
+            try {
+                // Import Firebase
+                const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+                const { getMessaging, getToken } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js');
+
+                const firebaseConfig = {
+                    apiKey: "AIzaSyAL6kYLAXcTglnkDC3iR5skcRgeetsVQ84",
+                    authDomain: "survey-hub-xyz.firebaseapp.com",
+                    projectId: "survey-hub-xyz",
+                    storageBucket: "survey-hub-xyz.firebasestorage.app",
+                    messagingSenderId: "825099555628",
+                    appId: "1:825099555628:web:c061c4a41c68375e231289",
+                    measurementId: "G-JK8KXZTETN"
+                };
+
+                const VAPID_KEY = "BBNKx2nNyydVZGU7UGCJvDiBPOucsz57KvQy5dDkmaR_acdfh-z6wrPs0k20-NSJEZ5UODEpi0-e6BPRAXqxRnM";
+
+                log('Initializing Firebase...');
+                const app = initializeApp(firebaseConfig);
+                const messaging = getMessaging(app);
+
+                log('Getting service worker registration...');
+                const registration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+
+                if (!registration) {
+                    log('❌ Firebase SW not registered! Register it first.', 'error');
+                    return;
+                }
+
+                log('Requesting FCM token...');
+                const token = await getToken(messaging, {
+                    vapidKey: VAPID_KEY,
+                    serviceWorkerRegistration: registration
+                });
+
+                if (token) {
+                    log('✅ FCM token obtained successfully!', 'success');
+                    log(`\nToken: ${token.substring(0, 50)}...${token.substring(token.length - 20)}`);
+                    log(`\nFull token (copy this):`);
+                    log(token);
+                } else {
+                    log('❌ Failed to get FCM token', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        };
+
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('Page loaded. Checking current state...\n');
+                checkRegistrations();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

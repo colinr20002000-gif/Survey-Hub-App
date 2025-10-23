@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FCM Test</title>
+</head>
+<body>
+    <h1>FCM Notification Test</h1>
+    <div id="status"></div>
+    <button onclick="testNotification()">Test Local Notification</button>
+    <button onclick="getToken()">Get FCM Token</button>
+    <button onclick="checkServiceWorker()">Check Service Worker</button>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAL6kYLAXcTglnkDC3iR5skcRgeetsVQ84",
+            authDomain: "survey-hub-xyz.firebaseapp.com",
+            projectId: "survey-hub-xyz",
+            storageBucket: "survey-hub-xyz.firebasestorage.app",
+            messagingSenderId: "825099555628",
+            appId: "1:825099555628:web:c061c4a41c68375e231289",
+            measurementId: "G-JK8KXZTETN"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const messaging = getMessaging(app);
+
+        // Setup message listener
+        onMessage(messaging, (payload) => {
+            console.log('🔔 [TEST] Foreground message received:', payload);
+            document.getElementById('status').innerHTML += '<br>Foreground message: ' + JSON.stringify(payload);
+        });
+
+        window.testNotification = () => {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Test Notification', {
+                    body: 'This is a test notification',
+                    icon: '/android-chrome-192x192.png'
+                });
+            } else {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        new Notification('Test Notification', {
+                            body: 'This is a test notification',
+                            icon: '/android-chrome-192x192.png'
+                        });
+                    }
+                });
+            }
+        };
+
+        window.getToken = async () => {
+            try {
+                const token = await getToken(messaging, {
+                    vapidKey: 'BBNKx2nNyydVZGU7UGCJvDiBPOucsz57KvQy5dDkmaR_acdfh-z6wrPs0k20-NSJEZ5UODEpi0-e6BPRAXqxRnM'
+                });
+                console.log('🔔 [TEST] FCM Token:', token);
+                document.getElementById('status').innerHTML = 'FCM Token: ' + token;
+            } catch (error) {
+                console.error('🔔 [TEST] Error getting token:', error);
+                document.getElementById('status').innerHTML = 'Error: ' + error.message;
+            }
+        };
+
+        window.checkServiceWorker = async () => {
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                console.log('🔔 [TEST] Service Worker registrations:', registrations);
+                document.getElementById('status').innerHTML = 'SW Registrations: ' + registrations.length;
+                registrations.forEach((reg, i) => {
+                    console.log(`🔔 [TEST] SW ${i}:`, reg.scope, reg.active?.scriptURL);
+                });
+            }
+        };
+    </script>
+</body>
+</html>

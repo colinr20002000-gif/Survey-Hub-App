@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Update Service Worker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+            font-size: 16px;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 16px;
+            font-weight: bold;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:active {
+            background: #0056b3;
+        }
+        button.danger {
+            background: #dc3545;
+        }
+        button.danger:active {
+            background: #c82333;
+        }
+        button.success {
+            background: #28a745;
+        }
+        button.success:active {
+            background: #218838;
+        }
+        .status {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status.success { border-left-color: #28a745; }
+        .status.error { border-left-color: #dc3545; background: #fff5f5; }
+        .status.warning { border-left-color: #ffc107; background: #fffbf0; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔄 Update Service Worker & FCM Token</h1>
+
+    <p style="margin-bottom: 20px;">Use this page to force-update your PWA service worker and refresh your FCM notification token.</p>
+
+    <button onclick="checkStatus()">1️⃣ Check Current Status</button>
+    <button onclick="unregisterAll()" class="danger">2️⃣ Unregister All Service Workers</button>
+    <button onclick="clearCaches()" class="danger">3️⃣ Clear All Caches</button>
+    <button onclick="reloadApp()" class="success">4️⃣ Reload App (Fresh Start)</button>
+
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+
+        function log(message, type = 'info') {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            statusDiv.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            output.appendChild(statusDiv);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clear() {
+            output.innerHTML = '';
+        }
+
+        async function checkStatus() {
+            clear();
+            log('Checking service worker and FCM status...', 'info');
+
+            // Check service workers
+            const regs = await navigator.serviceWorker.getRegistrations();
+            log(`<strong>Service Workers:</strong> Found ${regs.length}`, regs.length > 0 ? 'success' : 'warning');
+
+            regs.forEach((reg, i) => {
+                const script = reg.active?.scriptURL || 'None';
+                const state = reg.active?.state || 'N/A';
+                log(`<pre>SW ${i + 1}:\n  Script: ${script}\n  State: ${state}\n  Scope: ${reg.scope}</pre>`, 'info');
+            });
+
+            // Check notification permission
+            const permission = Notification.permission;
+            log(`<strong>Notification Permission:</strong> ${permission}`,
+                permission === 'granted' ? 'success' : permission === 'denied' ? 'error' : 'warning');
+
+            // Check if PWA
+            const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                         window.navigator.standalone ||
+                         document.referrer.includes('android-app://');
+
+            log(`<strong>Running as PWA:</strong> ${isPWA ? 'Yes ✅' : 'No (Browser)'}`,
+                isPWA ? 'success' : 'info');
+
+            // Check FCM token in localStorage
+            const storedToken = localStorage.getItem('fcm_token');
+            if (storedToken) {
+                log(`<strong>Stored FCM Token:</strong><pre>${storedToken.substring(0, 50)}...</pre>`, 'success');
+            } else {
+                log(`<strong>Stored FCM Token:</strong> None found`, 'warning');
+            }
+        }
+
+        async function unregisterAll() {
+            clear();
+            log('Unregistering all service workers...', 'warning');
+
+            try {
+                const regs = await navigator.serviceWorker.getRegistrations();
+
+                if (regs.length === 0) {
+                    log('No service workers to unregister', 'info');
+                    return;
+                }
+
+                for (const reg of regs) {
+                    await reg.unregister();
+                    log(`✅ Unregistered: ${reg.active?.scriptURL || 'Unknown'}`, 'success');
+                }
+
+                log(`✅ Successfully unregistered ${regs.length} service worker(s)`, 'success');
+                log('⚠️ Now click "4️⃣ Reload App" to register the new service worker', 'warning');
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function clearCaches() {
+            clear();
+            log('Clearing all caches...', 'warning');
+
+            try {
+                const cacheNames = await caches.keys();
+
+                if (cacheNames.length === 0) {
+                    log('No caches to clear', 'info');
+                    return;
+                }
+
+                for (const cacheName of cacheNames) {
+                    await caches.delete(cacheName);
+                    log(`✅ Deleted cache: ${cacheName}`, 'success');
+                }
+
+                log(`✅ Successfully cleared ${cacheNames.length} cache(s)`, 'success');
+
+                // Clear FCM token from localStorage
+                localStorage.removeItem('fcm_token');
+                log('✅ Cleared FCM token from localStorage', 'success');
+
+                log('⚠️ Now click "4️⃣ Reload App" to get a fresh start', 'warning');
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function reloadApp() {
+            clear();
+            log('Reloading app in 2 seconds...', 'success');
+            log('This will trigger service worker registration and FCM token generation', 'info');
+
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        }
+
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            setTimeout(checkStatus, 500);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Push Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            padding: 15px;
+            background: #f5f5f5;
+            font-size: 14px;
+        }
+        h1 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 16px;
+            font-weight: bold;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        button:active {
+            background: #0056b3;
+        }
+        .status {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #666;
+        }
+        .status p {
+            margin: 5px 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .success { border-left-color: #28a745; }
+        .error { border-left-color: #dc3545; background: #fff5f5; }
+        .warning { border-left-color: #ffc107; background: #fffbf0; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 11px;
+            margin: 10px 0;
+        }
+        .emoji {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📱 Mobile Push Notification Test</h1>
+
+    <button onclick="checkStatus()">1️⃣ Check Service Worker Status</button>
+    <button onclick="testNotification()">2️⃣ Test Local Notification</button>
+    <button onclick="checkPermissions()">3️⃣ Check Permissions</button>
+    <button onclick="viewLogs()">4️⃣ View Service Worker Logs</button>
+
+    <div id="output"></div>
+
+    <script>
+        let logs = [];
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+
+            const emoji = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️';
+            statusDiv.innerHTML = `<span class="emoji">${emoji}</span>${message}`;
+
+            output.appendChild(statusDiv);
+            logs.push(`[${new Date().toLocaleTimeString()}] ${message}`);
+
+            // Auto scroll to bottom
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+
+        function clear() {
+            document.getElementById('output').innerHTML = '';
+            logs = [];
+        }
+
+        async function checkStatus() {
+            clear();
+            log('<h3>Service Worker Status Check</h3>', 'info');
+
+            // Check browser support
+            if (!('serviceWorker' in navigator)) {
+                log('❌ Service Workers NOT supported in this browser', 'error');
+                return;
+            }
+            log('✅ Service Workers supported', 'success');
+
+            if (!('PushManager' in window)) {
+                log('❌ Push Manager NOT supported', 'error');
+                return;
+            }
+            log('✅ Push Manager supported', 'success');
+
+            // Check registrations
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                log(`<h3>Found ${registrations.length} service worker(s)</h3>`, 'info');
+
+                if (registrations.length === 0) {
+                    log('⚠️ No service workers registered!', 'warning');
+                    log('Try refreshing the page or visiting the main app.', 'warning');
+                    return;
+                }
+
+                registrations.forEach((reg, i) => {
+                    const active = reg.active ? '✅ Active' : '❌ Not active';
+                    const scope = reg.scope;
+                    const scriptURL = reg.active?.scriptURL || 'N/A';
+
+                    log(`<p><strong>SW ${i + 1}:</strong><br>
+                         Status: ${active}<br>
+                         Scope: ${scope}<br>
+                         Script: ${scriptURL}</p>`,
+                         reg.active ? 'success' : 'warning');
+                });
+
+                // Check for firebase-messaging-sw
+                const firebaseReg = registrations.find(r => r.active?.scriptURL.includes('firebase-messaging-sw'));
+                if (firebaseReg) {
+                    log('✅ Firebase Messaging service worker found!', 'success');
+                } else {
+                    log('⚠️ Firebase Messaging service worker NOT found', 'warning');
+                    log('This is needed for push notifications to work.', 'warning');
+                }
+
+            } catch (error) {
+                log(`❌ Error checking service workers: ${error.message}`, 'error');
+            }
+        }
+
+        async function testNotification() {
+            clear();
+            log('<h3>Testing Local Notification</h3>', 'info');
+
+            // Check permission
+            if (Notification.permission !== 'granted') {
+                log(`⚠️ Permission: ${Notification.permission}`, 'warning');
+                log('Requesting permission...', 'info');
+
+                const permission = await Notification.requestPermission();
+                log(`Result: ${permission}`, permission === 'granted' ? 'success' : 'error');
+
+                if (permission !== 'granted') {
+                    log('❌ Cannot show notifications without permission', 'error');
+                    return;
+                }
+            } else {
+                log('✅ Notification permission granted', 'success');
+            }
+
+            // Try to show a test notification
+            try {
+                const registration = await navigator.serviceWorker.ready;
+
+                log('Showing test notification via service worker...', 'info');
+
+                await registration.showNotification('🧪 Test Notification', {
+                    body: 'If you see this, notifications are working!',
+                    icon: '/android-chrome-192x192.png',
+                    badge: '/favicon-32x32.png',
+                    vibrate: [200, 100, 200],
+                    tag: 'test-notification',
+                    requireInteraction: false,
+                    data: {
+                        url: '/announcements',
+                        test: true
+                    }
+                });
+
+                log('✅ Test notification sent!', 'success');
+                log('Did you see a notification appear?', 'info');
+                log('If YES: Service worker notifications work! ✅', 'success');
+                log('If NO: Check browser notification settings ⚙️', 'warning');
+
+            } catch (error) {
+                log(`❌ Error showing notification: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkPermissions() {
+            clear();
+            log('<h3>Permission Status</h3>', 'info');
+
+            // Notification permission
+            const notifPerm = Notification.permission;
+            log(`<p><strong>Notifications:</strong> ${notifPerm}</p>`,
+                notifPerm === 'granted' ? 'success' : notifPerm === 'denied' ? 'error' : 'warning');
+
+            if (notifPerm === 'denied') {
+                log('⚠️ Notifications are BLOCKED!', 'error');
+                log('To fix: Go to browser settings → Site settings → survey-hub.xyz → Notifications → Allow', 'warning');
+            }
+
+            // Check push subscription
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.getSubscription();
+
+                if (subscription) {
+                    log('✅ Push subscription exists', 'success');
+                    log(`<pre>Endpoint: ${subscription.endpoint.substring(0, 80)}...</pre>`, 'info');
+                } else {
+                    log('⚠️ No push subscription found', 'warning');
+                    log('The app should create one automatically when you log in.', 'info');
+                }
+            } catch (error) {
+                log(`⚠️ Could not check push subscription: ${error.message}`, 'warning');
+            }
+
+            // Device info
+            log('<h3>Device Info</h3>', 'info');
+            log(`<p>
+                <strong>User Agent:</strong> ${navigator.userAgent}<br>
+                <strong>Platform:</strong> ${navigator.platform}<br>
+                <strong>Language:</strong> ${navigator.language}<br>
+                <strong>Online:</strong> ${navigator.onLine ? 'Yes' : 'No'}<br>
+                <strong>Viewport:</strong> ${window.innerWidth}x${window.innerHeight}
+            </p>`, 'info');
+        }
+
+        async function viewLogs() {
+            clear();
+            log('<h3>Service Worker Console Logs</h3>', 'info');
+            log('⚠️ Service worker logs are in the browser console', 'warning');
+            log('To view them:', 'info');
+            log('<p>1. Open DevTools (usually F12 or Settings → More Tools → Developer Tools)<br>2. Go to "Console" tab<br>3. Look for messages starting with 🔔 [SW]</p>', 'info');
+
+            log('<h3>Recent activity logs:</h3>', 'info');
+            if (logs.length > 0) {
+                log(`<pre>${logs.join('\n')}</pre>`, 'info');
+            } else {
+                log('No logs yet. Try using the test buttons above.', 'warning');
+            }
+        }
+
+        // Auto-run status check on load
+        window.addEventListener('load', () => {
+            setTimeout(checkStatus, 500);
+        });
+    </script>
+</body>
+</html>

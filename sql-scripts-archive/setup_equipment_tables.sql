@@ -1,0 +1,198 @@
+-- Equipment Management System Database Schema
+-- Run this directly in your Supabase SQL editor
+
+-- Drop existing tables if they exist (in correct order due to foreign keys)
+DROP TABLE IF EXISTS equipment_comments CASCADE;
+DROP TABLE IF EXISTS equipment_assignments CASCADE;
+DROP TABLE IF EXISTS equipment CASCADE;
+DROP TABLE IF EXISTS equipment_categories CASCADE;
+
+-- Equipment categories lookup table
+CREATE TABLE equipment_categories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    color VARCHAR(7), -- Hex color code
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Equipment table - stores all equipment items
+CREATE TABLE equipment (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    category VARCHAR(100),
+    serial_number VARCHAR(100) UNIQUE,
+    status VARCHAR(50) DEFAULT 'available' CHECK (status IN ('available', 'assigned', 'maintenance', 'retired')),
+    purchase_date DATE,
+    warranty_expiry DATE,
+    location VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    created_by UUID REFERENCES users(id),
+    updated_by UUID REFERENCES users(id)
+);
+
+-- Equipment assignments table - tracks current and historical assignments
+CREATE TABLE equipment_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    equipment_id UUID NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assigned_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    returned_at TIMESTAMP WITH TIME ZONE,
+    assigned_by UUID REFERENCES users(id),
+    return_notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Equipment comments table - for team communication about equipment
+CREATE TABLE equipment_comments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    equipment_id UUID NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    comment TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_equipment_status ON equipment(status);
+CREATE INDEX idx_equipment_category ON equipment(category);
+CREATE INDEX idx_equipment_serial_number ON equipment(serial_number);
+CREATE INDEX idx_equipment_assignments_equipment_id ON equipment_assignments(equipment_id);
+CREATE INDEX idx_equipment_assignments_user_id ON equipment_assignments(user_id);
+CREATE INDEX idx_equipment_assignments_assigned_at ON equipment_assignments(assigned_at);
+CREATE INDEX idx_equipment_comments_equipment_id ON equipment_comments(equipment_id);
+CREATE INDEX idx_equipment_comments_created_at ON equipment_comments(created_at);
+
+-- Create triggers for updated_at columns
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = TIMEZONE('utc'::text, NOW());
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_equipment_updated_at BEFORE UPDATE ON equipment
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_equipment_assignments_updated_at BEFORE UPDATE ON equipment_assignments
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_equipment_comments_updated_at BEFORE UPDATE ON equipment_comments
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert default equipment categories
+INSERT INTO equipment_categories (name, description, color) VALUES
+    ('Surveying Equipment', 'Total stations, levels, GPS units', '#3B82F6'),
+    ('Safety Equipment', 'Hard hats, high-vis vests, safety boots', '#EF4444'),
+    ('IT Equipment', 'Laptops, tablets, smartphones', '#10B981'),
+    ('Field Equipment', 'Measuring tapes, poles, prisms', '#F59E0B'),
+    ('Vehicles', 'Company cars, vans, trucks', '#8B5CF6')
+ON CONFLICT (name) DO NOTHING;
+
+-- Row Level Security (RLS) policies
+ALTER TABLE equipment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE equipment_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE equipment_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE equipment_categories ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist (safe approach)
+DROP POLICY IF EXISTS "Everyone can view equipment" ON equipment;
+DROP POLICY IF EXISTS "Authenticated users can insert equipment" ON equipment;
+DROP POLICY IF EXISTS "Users can update equipment" ON equipment;
+DROP POLICY IF EXISTS "Admin users can delete equipment" ON equipment;
+
+DROP POLICY IF EXISTS "Everyone can view equipment assignments" ON equipment_assignments;
+DROP POLICY IF EXISTS "Authenticated users can insert equipment assignments" ON equipment_assignments;
+DROP POLICY IF EXISTS "Users can update their equipment assignments" ON equipment_assignments;
+
+DROP POLICY IF EXISTS "Everyone can view equipment comments" ON equipment_comments;
+DROP POLICY IF EXISTS "Authenticated users can insert equipment comments" ON equipment_comments;
+DROP POLICY IF EXISTS "Users can update their own comments" ON equipment_comments;
+DROP POLICY IF EXISTS "Users can delete their own comments" ON equipment_comments;
+
+DROP POLICY IF EXISTS "Everyone can view equipment categories" ON equipment_categories;
+DROP POLICY IF EXISTS "Admin users can manage equipment categories" ON equipment_categories;
+
+-- Equipment policies
+CREATE POLICY "Everyone can view equipment" ON equipment
+    FOR SELECT USING (true);
+
+CREATE POLICY "Authenticated users can insert equipment" ON equipment
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Users can update equipment" ON equipment
+    FOR UPDATE USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admin users can delete equipment" ON equipment
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.privilege = 'Admin'
+        )
+    );
+
+-- Equipment assignments policies
+CREATE POLICY "Everyone can view equipment assignments" ON equipment_assignments
+    FOR SELECT USING (true);
+
+CREATE POLICY "Authenticated users can insert equipment assignments" ON equipment_assignments
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Users can update their equipment assignments" ON equipment_assignments
+    FOR UPDATE USING (
+        user_id = auth.uid() OR
+        assigned_by = auth.uid() OR
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.privilege IN ('Admin', 'Project Managers')
+        )
+    );
+
+-- Equipment comments policies
+CREATE POLICY "Everyone can view equipment comments" ON equipment_comments
+    FOR SELECT USING (true);
+
+CREATE POLICY "Authenticated users can insert equipment comments" ON equipment_comments
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Users can update their own comments" ON equipment_comments
+    FOR UPDATE USING (user_id = auth.uid());
+
+CREATE POLICY "Users can delete their own comments" ON equipment_comments
+    FOR DELETE USING (
+        user_id = auth.uid() OR
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.privilege = 'Admin'
+        )
+    );
+
+-- Equipment categories policies
+CREATE POLICY "Everyone can view equipment categories" ON equipment_categories
+    FOR SELECT USING (true);
+
+CREATE POLICY "Admin users can manage equipment categories" ON equipment_categories
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.privilege = 'Admin'
+        )
+    );
+
+-- Insert some sample equipment for testing
+INSERT INTO equipment (name, description, category, serial_number, status, location) VALUES
+    ('Total Station TS-1', 'Leica TS16 Total Station', 'Surveying Equipment', 'TS001', 'available', 'Main Office'),
+    ('GPS Unit Alpha', 'Trimble R10 GNSS Receiver', 'Surveying Equipment', 'GPS001', 'available', 'Main Office'),
+    ('Safety Vest #1', 'High-visibility safety vest size L', 'Safety Equipment', 'SV001', 'available', 'Store Room'),
+    ('Laptop Dell-01', 'Dell Latitude 7420 for field work', 'IT Equipment', 'LAP001', 'available', 'IT Office'),
+    ('Measuring Tape 30m', '30-meter steel measuring tape', 'Field Equipment', 'MT001', 'available', 'Tool Storage')
+ON CONFLICT (serial_number) DO NOTHING;
