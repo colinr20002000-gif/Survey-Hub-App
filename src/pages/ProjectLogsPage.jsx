@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Upload, Filter, X, Calendar, Search, ExternalLink, TrendingUp, Clock, AlertCircle, Users, XCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Upload, Filter, X, Calendar, ExternalLink, TrendingUp, Clock, AlertCircle, Users, XCircle, ChevronDown, Check, Download, Eye, FileSpreadsheet } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Button, Select, Input, Pagination, Modal } from '../components/ui';
 import {
@@ -17,16 +17,39 @@ const ProjectLogsPage = () => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
-    // Filter states
-    const [dateRange, setDateRange] = useState('last30');
-    const [customStartDate, setCustomStartDate] = useState('');
-    const [customEndDate, setCustomEndDate] = useState('');
-    const [selectedProjects, setSelectedProjects] = useState([]);
-    const [selectedTypes, setSelectedTypes] = useState([]);
-    const [selectedClients, setSelectedClients] = useState([]);
-    const [shiftType, setShiftType] = useState('all');
-    const [cancelledFilter, setCancelledFilter] = useState('all');
-    const [searchTerm, setSearchTerm] = useState('');
+    // Filter states with localStorage persistence
+    const [dateRange, setDateRange] = useState(() => {
+        const saved = localStorage.getItem('projectLogs_dateRange');
+        return saved || 'last30';
+    });
+    const [customStartDate, setCustomStartDate] = useState(() => {
+        return localStorage.getItem('projectLogs_customStartDate') || '';
+    });
+    const [customEndDate, setCustomEndDate] = useState(() => {
+        return localStorage.getItem('projectLogs_customEndDate') || '';
+    });
+    const [selectedProjects, setSelectedProjects] = useState(() => {
+        const saved = localStorage.getItem('projectLogs_selectedProjects');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [selectedTypes, setSelectedTypes] = useState(() => {
+        const saved = localStorage.getItem('projectLogs_selectedTypes');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [selectedClients, setSelectedClients] = useState(() => {
+        const saved = localStorage.getItem('projectLogs_selectedClients');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [shiftType, setShiftType] = useState(() => {
+        return localStorage.getItem('projectLogs_shiftType') || 'all';
+    });
+    const [cancelledFilter, setCancelledFilter] = useState(() => {
+        return localStorage.getItem('projectLogs_cancelledFilter') || 'all';
+    });
+    const [selectedDaysOfWeek, setSelectedDaysOfWeek] = useState(() => {
+        const saved = localStorage.getItem('projectLogs_selectedDaysOfWeek');
+        return saved ? JSON.parse(saved) : [];
+    });
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -34,6 +57,18 @@ const ProjectLogsPage = () => {
 
     // Sorting
     const [sortConfig, setSortConfig] = useState({ key: 'shift_start_date', direction: 'descending' });
+
+    // Dropdown states
+    const [projectsDropdownOpen, setProjectsDropdownOpen] = useState(false);
+    const [typesDropdownOpen, setTypesDropdownOpen] = useState(false);
+    const [clientsDropdownOpen, setClientsDropdownOpen] = useState(false);
+    const [daysOfWeekDropdownOpen, setDaysOfWeekDropdownOpen] = useState(false);
+
+    // Refs for click outside
+    const projectsRef = useRef(null);
+    const typesRef = useRef(null);
+    const clientsRef = useRef(null);
+    const daysOfWeekRef = useRef(null);
 
     // Fetch project logs from Supabase
     const fetchLogs = useCallback(async () => {
@@ -58,12 +93,97 @@ const ProjectLogsPage = () => {
         fetchLogs();
     }, [fetchLogs]);
 
+    // Close dropdowns when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (projectsRef.current && !projectsRef.current.contains(event.target)) {
+                setProjectsDropdownOpen(false);
+            }
+            if (typesRef.current && !typesRef.current.contains(event.target)) {
+                setTypesDropdownOpen(false);
+            }
+            if (clientsRef.current && !clientsRef.current.contains(event.target)) {
+                setClientsDropdownOpen(false);
+            }
+            if (daysOfWeekRef.current && !daysOfWeekRef.current.contains(event.target)) {
+                setDaysOfWeekDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Save filters to localStorage whenever they change
+    useEffect(() => {
+        localStorage.setItem('projectLogs_dateRange', dateRange);
+    }, [dateRange]);
+
+    useEffect(() => {
+        localStorage.setItem('projectLogs_customStartDate', customStartDate);
+    }, [customStartDate]);
+
+    useEffect(() => {
+        localStorage.setItem('projectLogs_customEndDate', customEndDate);
+    }, [customEndDate]);
+
+    useEffect(() => {
+        localStorage.setItem('projectLogs_selectedProjects', JSON.stringify(selectedProjects));
+    }, [selectedProjects]);
+
+    useEffect(() => {
+        localStorage.setItem('projectLogs_selectedTypes', JSON.stringify(selectedTypes));
+    }, [selectedTypes]);
+
+    useEffect(() => {
+        localStorage.setItem('projectLogs_selectedClients', JSON.stringify(selectedClients));
+    }, [selectedClients]);
+
+    useEffect(() => {
+        localStorage.setItem('projectLogs_shiftType', shiftType);
+    }, [shiftType]);
+
+    useEffect(() => {
+        localStorage.setItem('projectLogs_cancelledFilter', cancelledFilter);
+    }, [cancelledFilter]);
+
+    useEffect(() => {
+        localStorage.setItem('projectLogs_selectedDaysOfWeek', JSON.stringify(selectedDaysOfWeek));
+    }, [selectedDaysOfWeek]);
+
+    // Clean up selected filters when date range changes
+    useEffect(() => {
+        // Get the current unique values based on date range
+        const { startDate, endDate } = getDateRange();
+
+        if (!startDate && !endDate) return; // No date filter, keep all selections
+
+        const dateFiltered = logs.filter(log => {
+            const logDate = new Date(log.shift_start_date);
+            if (startDate && logDate < startDate) return false;
+            if (endDate && logDate > endDate) return false;
+            return true;
+        });
+
+        const currentProjects = [...new Set(dateFiltered.map(l => l.project_no).filter(Boolean))];
+        const currentTypes = [...new Set(dateFiltered.map(l => l.type).filter(Boolean))];
+        const currentClients = [...new Set(dateFiltered.map(l => l.client).filter(Boolean))];
+
+        // Remove selected items that are no longer in the date range
+        setSelectedProjects(prev => prev.filter(p => currentProjects.includes(p)));
+        setSelectedTypes(prev => prev.filter(t => currentTypes.includes(t)));
+        setSelectedClients(prev => prev.filter(c => currentClients.includes(c)));
+    }, [dateRange, customStartDate, customEndDate, logs]);
+
     // Get date range filter
     const getDateRange = () => {
         const today = new Date();
         let startDate, endDate = today;
 
         switch (dateRange) {
+            case 'allTime':
+                startDate = null;
+                endDate = null;
+                break;
             case 'last7':
                 startDate = new Date(today);
                 startDate.setDate(today.getDate() - 7);
@@ -125,25 +245,37 @@ const ProjectLogsPage = () => {
             if (cancelledFilter === 'yes' && !log.was_shift_cancelled) return false;
             if (cancelledFilter === 'no' && log.was_shift_cancelled) return false;
 
-            // Search filter
-            if (searchTerm) {
-                const search = searchTerm.toLowerCase();
-                return (
-                    log.project_no?.toLowerCase().includes(search) ||
-                    log.site_name?.toLowerCase().includes(search) ||
-                    log.client?.toLowerCase().includes(search) ||
-                    log.type?.toLowerCase().includes(search)
-                );
+            // Day of week filter
+            if (selectedDaysOfWeek.length > 0) {
+                const logDate = new Date(log.shift_start_date);
+                const dayOfWeek = logDate.toLocaleDateString('en-US', { weekday: 'long' });
+                if (!selectedDaysOfWeek.includes(dayOfWeek)) return false;
             }
 
             return true;
         });
-    }, [logs, selectedProjects, selectedTypes, selectedClients, shiftType, cancelledFilter, searchTerm, dateRange, customStartDate, customEndDate]);
+    }, [logs, selectedProjects, selectedTypes, selectedClients, shiftType, cancelledFilter, selectedDaysOfWeek, dateRange, customStartDate, customEndDate]);
 
-    // Get unique values for filters
-    const uniqueProjects = useMemo(() => [...new Set(logs.map(l => l.project_no).filter(Boolean))].sort(), [logs]);
-    const uniqueTypes = useMemo(() => [...new Set(logs.map(l => l.type).filter(Boolean))].sort(), [logs]);
-    const uniqueClients = useMemo(() => [...new Set(logs.map(l => l.client).filter(Boolean))].sort(), [logs]);
+    // Get date-filtered logs for dynamic filter options
+    const dateFilteredLogs = useMemo(() => {
+        const { startDate, endDate } = getDateRange();
+
+        if (!startDate && !endDate) {
+            return logs; // No date filtering, return all
+        }
+
+        return logs.filter(log => {
+            const logDate = new Date(log.shift_start_date);
+            if (startDate && logDate < startDate) return false;
+            if (endDate && logDate > endDate) return false;
+            return true;
+        });
+    }, [logs, dateRange, customStartDate, customEndDate]);
+
+    // Get unique values for filters (based on date-filtered logs)
+    const uniqueProjects = useMemo(() => [...new Set(dateFilteredLogs.map(l => l.project_no).filter(Boolean))].sort(), [dateFilteredLogs]);
+    const uniqueTypes = useMemo(() => [...new Set(dateFilteredLogs.map(l => l.type).filter(Boolean))].sort(), [dateFilteredLogs]);
+    const uniqueClients = useMemo(() => [...new Set(dateFilteredLogs.map(l => l.client).filter(Boolean))].sort(), [dateFilteredLogs]);
 
     // Convert interval to hours
     const intervalToHours = (intervalStr) => {
@@ -388,6 +520,75 @@ const ProjectLogsPage = () => {
         return sortConfig.direction === 'ascending' ? '↑' : '↓';
     };
 
+    // Handle file viewing (open in browser)
+    const handleView = (url) => {
+        // Check if it's a SharePoint link
+        if (url.includes('sharepoint.com') || url.includes('.sharepoint.')) {
+            // Remove download parameter if present
+            let viewUrl = url.replace(/[\?&]download=1/gi, '');
+
+            // For SharePoint, add web=1 parameter to force browser view
+            const separator = viewUrl.includes('?') ? '&' : '?';
+            viewUrl = `${viewUrl}${separator}web=1`;
+
+            window.open(viewUrl, '_blank', 'noopener,noreferrer');
+        }
+        // Check if it's a PDF
+        else if (url.toLowerCase().includes('.pdf') || url.toLowerCase().includes('pdf')) {
+            // Open PDF in browser viewer
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+        // Check if it's an Office file (Excel, Word, PowerPoint)
+        else if (url.toLowerCase().match(/\.(xlsx?m?|docx?m?|pptx?m?)$/i)) {
+            // Try to use Office Online viewer for Office files
+            const viewerUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`;
+            window.open(viewerUrl, '_blank', 'noopener,noreferrer');
+        }
+        else {
+            // For other files, just open directly
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+    };
+
+    // Handle file download
+    const handleDownload = async (url, projectNo) => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+
+            // Extract filename from URL or use project number
+            const urlParts = url.split('/');
+            const fileName = urlParts[urlParts.length - 1] || `project-log-${projectNo || 'file'}.pdf`;
+            link.download = fileName;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            console.error('Download failed:', error);
+            // Fallback: open in new tab
+            window.open(url, '_blank');
+        }
+    };
+
+    // Handle opening in Excel
+    const handleOpenInExcel = (url) => {
+        // For SharePoint files, use ms-excel protocol to open directly in Excel desktop app
+        if (url.includes('sharepoint.com') || url.includes('.sharepoint.')) {
+            // Use ms-excel:ofe|u| protocol for SharePoint
+            const excelUrl = `ms-excel:ofe|u|${url}`;
+            window.location.href = excelUrl;
+        } else {
+            // For non-SharePoint files, try the same protocol
+            const excelUrl = `ms-excel:ofe|u|${url}`;
+            window.location.href = excelUrl;
+        }
+    };
+
     // Format time duration
     const formatDuration = (intervalStr) => {
         const hours = intervalToHours(intervalStr);
@@ -443,6 +644,7 @@ const ProjectLogsPage = () => {
                             value={dateRange}
                             onChange={(e) => setDateRange(e.target.value)}
                         >
+                            <option value="allTime">All Time</option>
                             <option value="last7">Last 7 Days</option>
                             <option value="last30">Last 30 Days</option>
                             <option value="thisMonth">This Month</option>
@@ -471,48 +673,183 @@ const ProjectLogsPage = () => {
                     )}
 
                     {/* Project Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Projects</label>
-                        <select
-                            multiple
-                            value={selectedProjects}
-                            onChange={(e) => setSelectedProjects(Array.from(e.target.selectedOptions, option => option.value))}
-                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    <div className="relative" ref={projectsRef}>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Projects {selectedProjects.length > 0 && `(${selectedProjects.length})`}
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => setProjectsDropdownOpen(!projectsDropdownOpen)}
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 flex items-center justify-between"
                         >
-                            {uniqueProjects.map(project => (
-                                <option key={project} value={project}>{project}</option>
-                            ))}
-                        </select>
+                            <span className="truncate">
+                                {selectedProjects.length === 0 ? 'Select projects...' : `${selectedProjects.length} selected`}
+                            </span>
+                            <ChevronDown size={16} className={`transition-transform ${projectsDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {projectsDropdownOpen && (
+                            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedProjects(uniqueProjects)}
+                                        className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedProjects([])}
+                                        className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                                {uniqueProjects.map(project => (
+                                    <label
+                                        key={project}
+                                        className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedProjects.includes(project)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedProjects([...selectedProjects, project]);
+                                                } else {
+                                                    setSelectedProjects(selectedProjects.filter(p => p !== project));
+                                                }
+                                            }}
+                                            className="mr-2 rounded text-orange-500 focus:ring-orange-500"
+                                        />
+                                        <span className="text-sm">{project}</span>
+                                        {selectedProjects.includes(project) && (
+                                            <Check size={14} className="ml-auto text-orange-500" />
+                                        )}
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Type Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Task Types</label>
-                        <select
-                            multiple
-                            value={selectedTypes}
-                            onChange={(e) => setSelectedTypes(Array.from(e.target.selectedOptions, option => option.value))}
-                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    <div className="relative" ref={typesRef}>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Task Types {selectedTypes.length > 0 && `(${selectedTypes.length})`}
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => setTypesDropdownOpen(!typesDropdownOpen)}
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 flex items-center justify-between"
                         >
-                            {uniqueTypes.map(type => (
-                                <option key={type} value={type}>{type}</option>
-                            ))}
-                        </select>
+                            <span className="truncate">
+                                {selectedTypes.length === 0 ? 'Select types...' : `${selectedTypes.length} selected`}
+                            </span>
+                            <ChevronDown size={16} className={`transition-transform ${typesDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {typesDropdownOpen && (
+                            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedTypes(uniqueTypes)}
+                                        className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedTypes([])}
+                                        className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                                {uniqueTypes.map(type => (
+                                    <label
+                                        key={type}
+                                        className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedTypes.includes(type)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedTypes([...selectedTypes, type]);
+                                                } else {
+                                                    setSelectedTypes(selectedTypes.filter(t => t !== type));
+                                                }
+                                            }}
+                                            className="mr-2 rounded text-orange-500 focus:ring-orange-500"
+                                        />
+                                        <span className="text-sm">{type}</span>
+                                        {selectedTypes.includes(type) && (
+                                            <Check size={14} className="ml-auto text-orange-500" />
+                                        )}
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Client Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Clients</label>
-                        <select
-                            multiple
-                            value={selectedClients}
-                            onChange={(e) => setSelectedClients(Array.from(e.target.selectedOptions, option => option.value))}
-                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    <div className="relative" ref={clientsRef}>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Clients {selectedClients.length > 0 && `(${selectedClients.length})`}
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => setClientsDropdownOpen(!clientsDropdownOpen)}
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 flex items-center justify-between"
                         >
-                            {uniqueClients.map(client => (
-                                <option key={client} value={client}>{client}</option>
-                            ))}
-                        </select>
+                            <span className="truncate">
+                                {selectedClients.length === 0 ? 'Select clients...' : `${selectedClients.length} selected`}
+                            </span>
+                            <ChevronDown size={16} className={`transition-transform ${clientsDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {clientsDropdownOpen && (
+                            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedClients(uniqueClients)}
+                                        className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedClients([])}
+                                        className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                                {uniqueClients.map(client => (
+                                    <label
+                                        key={client}
+                                        className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedClients.includes(client)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedClients([...selectedClients, client]);
+                                                } else {
+                                                    setSelectedClients(selectedClients.filter(c => c !== client));
+                                                }
+                                            }}
+                                            className="mr-2 rounded text-orange-500 focus:ring-orange-500"
+                                        />
+                                        <span className="text-sm">{client}</span>
+                                        {selectedClients.includes(client) && (
+                                            <Check size={14} className="ml-auto text-orange-500" />
+                                        )}
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Shift Type */}
@@ -537,15 +874,64 @@ const ProjectLogsPage = () => {
                         <option value="no">No</option>
                     </Select>
 
-                    {/* Search */}
-                    <div className="lg:col-span-2">
-                        <Input
-                            label="Search"
-                            type="text"
-                            placeholder="Search projects, sites, clients..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                    {/* Day of Week Filter */}
+                    <div className="relative" ref={daysOfWeekRef}>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Day of Week {selectedDaysOfWeek.length > 0 && `(${selectedDaysOfWeek.length})`}
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => setDaysOfWeekDropdownOpen(!daysOfWeekDropdownOpen)}
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 flex items-center justify-between"
+                        >
+                            <span className="truncate">
+                                {selectedDaysOfWeek.length === 0 ? 'Select days...' : `${selectedDaysOfWeek.length} selected`}
+                            </span>
+                            <ChevronDown size={16} className={`transition-transform ${daysOfWeekDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {daysOfWeekDropdownOpen && (
+                            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedDaysOfWeek(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])}
+                                        className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedDaysOfWeek([])}
+                                        className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                                    <label
+                                        key={day}
+                                        className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedDaysOfWeek.includes(day)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedDaysOfWeek([...selectedDaysOfWeek, day]);
+                                                } else {
+                                                    setSelectedDaysOfWeek(selectedDaysOfWeek.filter(d => d !== day));
+                                                }
+                                            }}
+                                            className="mr-2 rounded text-orange-500 focus:ring-orange-500"
+                                        />
+                                        <span className="text-sm">{day}</span>
+                                        {selectedDaysOfWeek.includes(day) && (
+                                            <Check size={14} className="ml-auto text-orange-500" />
+                                        )}
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -555,13 +941,27 @@ const ProjectLogsPage = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => {
+                            // Reset all filter states
                             setDateRange('last30');
+                            setCustomStartDate('');
+                            setCustomEndDate('');
                             setSelectedProjects([]);
                             setSelectedTypes([]);
                             setSelectedClients([]);
                             setShiftType('all');
                             setCancelledFilter('all');
-                            setSearchTerm('');
+                            setSelectedDaysOfWeek([]);
+
+                            // Clear localStorage
+                            localStorage.removeItem('projectLogs_dateRange');
+                            localStorage.removeItem('projectLogs_customStartDate');
+                            localStorage.removeItem('projectLogs_customEndDate');
+                            localStorage.removeItem('projectLogs_selectedProjects');
+                            localStorage.removeItem('projectLogs_selectedTypes');
+                            localStorage.removeItem('projectLogs_selectedClients');
+                            localStorage.removeItem('projectLogs_shiftType');
+                            localStorage.removeItem('projectLogs_cancelledFilter');
+                            localStorage.removeItem('projectLogs_selectedDaysOfWeek');
                         }}
                     >
                         Clear All Filters
@@ -774,15 +1174,47 @@ const ProjectLogsPage = () => {
                                         )}
                                     </td>
                                     <td className="px-6 py-4">
-                                        {log.project_log_link && (
-                                            <a
-                                                href={log.project_log_link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-orange-500 hover:text-orange-600 flex items-center"
-                                            >
-                                                <ExternalLink size={16} />
-                                            </a>
+                                        {log.project_log_link ? (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleView(log.project_log_link);
+                                                    }}
+                                                    className="p-1.5 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                                    title="Open in browser viewer"
+                                                >
+                                                    <Eye size={16} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleDownload(log.project_log_link, log.project_no);
+                                                    }}
+                                                    className="p-1.5 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                                                    title="Download file"
+                                                >
+                                                    <Download size={16} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleOpenInExcel(log.project_log_link);
+                                                    }}
+                                                    className="p-1.5 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors"
+                                                    title="Open in Excel"
+                                                >
+                                                    <FileSpreadsheet size={16} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-400 text-xs">N/A</span>
                                         )}
                                     </td>
                                 </tr>
