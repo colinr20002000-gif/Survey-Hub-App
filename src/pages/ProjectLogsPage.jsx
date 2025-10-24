@@ -490,9 +490,39 @@ const ProjectLogsPage = () => {
                 const values = parseCSVLine(rows[i]);
                 const record = {};
                 headers.forEach((header, index) => {
-                    const value = values[index];
+                    let value = values[index];
+
+                    // Trim whitespace from value
+                    if (typeof value === 'string') {
+                        value = value.trim();
+                    }
+
                     // Convert empty strings to null
                     record[header] = value === '' || value === undefined ? null : value;
+
+                    // Convert was_shift_cancelled field (Yes/No/N/A to boolean)
+                    if (header === 'was_shift_cancelled') {
+                        const upperValue = (value || '').toString().trim().toUpperCase();
+
+                        // Debug logging for first 5 rows
+                        if (i <= 5) {
+                            console.log(`Row ${i} - was_shift_cancelled:`, {
+                                original: values[index],
+                                trimmed: value,
+                                upper: upperValue
+                            });
+                        }
+
+                        if (upperValue === 'YES' || upperValue === 'TRUE' || upperValue === 'Y') {
+                            record[header] = true;
+                        } else if (upperValue === 'NO' || upperValue === 'FALSE' || upperValue === 'N') {
+                            record[header] = false;
+                        } else {
+                            // N/A, blank, or any other value becomes null
+                            record[header] = null;
+                        }
+                        return; // Skip other conversions for this field
+                    }
 
                     // Convert boolean strings
                     if (value === 'TRUE' || value === 'true') record[header] = true;
@@ -660,7 +690,15 @@ const ProjectLogsPage = () => {
                 // Data rows
                 ...filteredLogs.map(log =>
                     headers.map(header => {
-                        const value = log[header];
+                        let value = log[header];
+
+                        // Convert boolean to Yes/No for was_shift_cancelled
+                        if (header === 'was_shift_cancelled') {
+                            if (value === true) return 'Yes';
+                            if (value === false) return 'No';
+                            return 'N/A';
+                        }
+
                         // Handle null/undefined
                         if (value === null || value === undefined) return '';
                         // Escape commas and quotes in values
