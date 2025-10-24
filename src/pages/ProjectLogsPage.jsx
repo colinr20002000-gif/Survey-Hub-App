@@ -26,6 +26,9 @@ const ProjectLogsPage = () => {
     // Ref for dashboard export
     const dashboardRef = useRef(null);
 
+    // Ref to track if data has been loaded (prevents refetch on tab switch)
+    const hasLoadedData = useRef(false);
+
     // Filter states with localStorage persistence
     const [dateRange, setDateRange] = useState(() => {
         const saved = localStorage.getItem('projectLogs_dateRange');
@@ -86,10 +89,12 @@ const ProjectLogsPage = () => {
             const { data, error } = await supabase
                 .from('project_logs')
                 .select('*')
-                .order('shift_start_date', { ascending: false });
+                .order('shift_start_date', { ascending: false })
+                .limit(3000);
 
             if (error) throw error;
             setLogs(data || []);
+            hasLoadedData.current = true; // Mark that data has been loaded
         } catch (err) {
             console.error('Error fetching project logs:', err);
             setError(err.message);
@@ -99,8 +104,37 @@ const ProjectLogsPage = () => {
     }, []);
 
     useEffect(() => {
-        fetchLogs();
+        // Only fetch logs once on mount - prevents refetching when switching browser tabs
+        if (!hasLoadedData.current) {
+            fetchLogs();
+        }
     }, [fetchLogs]);
+
+    // Save scroll position when leaving the page
+    useEffect(() => {
+        const saveScrollPosition = () => {
+            sessionStorage.setItem('projectLogsScrollPosition', window.scrollY.toString());
+        };
+
+        // Save scroll position periodically and on component unmount
+        const scrollInterval = setInterval(saveScrollPosition, 1000);
+
+        return () => {
+            clearInterval(scrollInterval);
+            saveScrollPosition();
+        };
+    }, []);
+
+    // Restore scroll position when returning to the page
+    useEffect(() => {
+        const savedScrollPosition = sessionStorage.getItem('projectLogsScrollPosition');
+        if (savedScrollPosition && !loading) {
+            // Wait for content to render before scrolling
+            setTimeout(() => {
+                window.scrollTo(0, parseInt(savedScrollPosition));
+            }, 100);
+        }
+    }, [loading]);
 
     // Close dropdowns when clicking outside
     useEffect(() => {
@@ -589,8 +623,29 @@ const ProjectLogsPage = () => {
     const sortedLogs = useMemo(() => {
         const sorted = [...filteredLogs];
         sorted.sort((a, b) => {
-            const aVal = a[sortConfig.key];
-            const bVal = b[sortConfig.key];
+            let aVal = a[sortConfig.key];
+            let bVal = b[sortConfig.key];
+
+            // Handle time interval fields - convert to hours for proper numerical sorting
+            if (['total_site_time', 'total_travel_time', 'time_lost'].includes(sortConfig.key)) {
+                aVal = intervalToHours(aVal);
+                bVal = intervalToHours(bVal);
+            }
+
+            // Handle project_no - convert to number for proper numerical sorting
+            if (sortConfig.key === 'project_no') {
+                aVal = aVal ? parseInt(aVal.toString().replace(/\D/g, '')) || 0 : 0;
+                bVal = bVal ? parseInt(bVal.toString().replace(/\D/g, '')) || 0 : 0;
+            }
+
+            // Handle null values - push them to the end
+            if (aVal === null || aVal === undefined) return 1;
+            if (bVal === null || bVal === undefined) return -1;
+
+            // For boolean values (was_shift_cancelled), convert to number
+            if (typeof aVal === 'boolean') aVal = aVal ? 1 : 0;
+            if (typeof bVal === 'boolean') bVal = bVal ? 1 : 0;
+
             if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
             if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
             return 0;
@@ -906,6 +961,15 @@ const ProjectLogsPage = () => {
         const h = Math.floor(hours);
         const m = Math.round((hours - h) * 60);
         return `${h}h ${m}m`;
+    };
+
+    // Format project number with leading zeros to 6 digits
+    const formatProjectNo = (projectNo) => {
+        if (!projectNo) return 'N/A';
+        // Convert to string and remove any non-numeric characters
+        const numericOnly = projectNo.toString().replace(/\D/g, '');
+        // Pad with leading zeros to 6 digits
+        return numericOnly.padStart(6, '0');
     };
 
     if (loading) {
@@ -1306,7 +1370,7 @@ const ProjectLogsPage = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600 dark:text-gray-400">Hours on Site</p>
-                            <p className="text-2xl font-bold text-gray-800 dark:text-white">{kpis.totalHoursOnSite.toFixed(1)}h</p>
+                            <p className="text-2xl font-bold text-gray-800 dark:text-white">{Math.round(kpis.totalHoursOnSite)}h</p>
                         </div>
                         <Clock className="text-blue-500" size={32} />
                     </div>
@@ -1316,7 +1380,7 @@ const ProjectLogsPage = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600 dark:text-gray-400">Travel Time</p>
-                            <p className="text-2xl font-bold text-gray-800 dark:text-white">{kpis.totalTravelTime.toFixed(1)}h</p>
+                            <p className="text-2xl font-bold text-gray-800 dark:text-white">{Math.round(kpis.totalTravelTime)}h</p>
                         </div>
                         <Clock className="text-green-500" size={32} />
                     </div>
@@ -1326,7 +1390,7 @@ const ProjectLogsPage = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600 dark:text-gray-400">Time Lost</p>
-                            <p className="text-2xl font-bold text-gray-800 dark:text-white">{kpis.totalTimeLost.toFixed(1)}h</p>
+                            <p className="text-2xl font-bold text-gray-800 dark:text-white">{Math.round(kpis.totalTimeLost)}h</p>
                         </div>
                         <AlertCircle className="text-red-500" size={32} />
                     </div>
@@ -1495,14 +1559,30 @@ const ProjectLogsPage = () => {
                                 <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('project_no')}>
                                     <div className="flex items-center">Project {getSortIndicator('project_no')}</div>
                                 </th>
-                                <th scope="col" className="px-6 py-3">Type</th>
-                                <th scope="col" className="px-6 py-3">Client</th>
-                                <th scope="col" className="px-6 py-3">Site</th>
-                                <th scope="col" className="px-6 py-3">Site Time</th>
-                                <th scope="col" className="px-6 py-3">Travel Time</th>
-                                <th scope="col" className="px-6 py-3">Time Lost</th>
-                                <th scope="col" className="px-6 py-3">Staff</th>
-                                <th scope="col" className="px-6 py-3">Cancelled</th>
+                                <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('type')}>
+                                    <div className="flex items-center">Type {getSortIndicator('type')}</div>
+                                </th>
+                                <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('client')}>
+                                    <div className="flex items-center">Client {getSortIndicator('client')}</div>
+                                </th>
+                                <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('site_name')}>
+                                    <div className="flex items-center">Site {getSortIndicator('site_name')}</div>
+                                </th>
+                                <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('total_site_time')}>
+                                    <div className="flex items-center">Site Time {getSortIndicator('total_site_time')}</div>
+                                </th>
+                                <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('total_travel_time')}>
+                                    <div className="flex items-center">Travel Time {getSortIndicator('total_travel_time')}</div>
+                                </th>
+                                <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('time_lost')}>
+                                    <div className="flex items-center">Time Lost {getSortIndicator('time_lost')}</div>
+                                </th>
+                                <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('staff_attended_count')}>
+                                    <div className="flex items-center">Staff {getSortIndicator('staff_attended_count')}</div>
+                                </th>
+                                <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('was_shift_cancelled')}>
+                                    <div className="flex items-center">Cancelled {getSortIndicator('was_shift_cancelled')}</div>
+                                </th>
                                 <th scope="col" className="px-6 py-3">Link</th>
                             </tr>
                         </thead>
@@ -1510,7 +1590,7 @@ const ProjectLogsPage = () => {
                             {paginatedLogs.map((log) => (
                                 <tr key={log.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
                                     <td className="px-6 py-4 whitespace-nowrap">{log.shift_start_date}</td>
-                                    <td className="px-6 py-4 font-mono">{log.project_no || 'N/A'}</td>
+                                    <td className="px-6 py-4 font-mono">{formatProjectNo(log.project_no)}</td>
                                     <td className="px-6 py-4">{log.type}</td>
                                     <td className="px-6 py-4">{log.client || 'N/A'}</td>
                                     <td className="px-6 py-4">{log.site_name || 'N/A'}</td>
