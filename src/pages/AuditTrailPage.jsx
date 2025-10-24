@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { History, Search, Filter, X, Download } from 'lucide-react';
+import { History, Search, Filter, X, Download, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuditTrail } from '../contexts/AuditTrailContext';
 import { getAvatarText } from '../utils/avatarColors';
@@ -72,16 +72,16 @@ const AuditTrailPage = () => {
     };
 
     const filteredLogs = useMemo(() => logs.filter(log => {
-        const user = log.userId ? mockUsers[log.userId] : { name: 'SYSTEM' };
+        const userName = log.user || 'SYSTEM';
         const logDate = new Date(log.timestamp).toISOString().split('T')[0];
 
-        const matchesSearch = (user.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        const matchesSearch = (userName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
             log.action.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-            log.entity.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+            (log.entity && log.entity.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
             (log.entityId && log.entityId.toString().includes(debouncedSearchTerm)));
 
         const matchesAction = actionFilter.length === 0 || actionFilter.includes(log.action);
-        const matchesUser = userFilter === '' || log.userId === parseInt(userFilter);
+        const matchesUser = userFilter === '' || log.user === userFilter;
         const matchesEntity = entityFilter === '' || log.entity === entityFilter;
         const matchesDate = (!dateRange.start || logDate >= dateRange.start) &&
                            (!dateRange.end || logDate <= dateRange.end);
@@ -145,12 +145,12 @@ const AuditTrailPage = () => {
     const handleExport = (format) => {
         const headers = ['Timestamp', 'User', 'Action', 'Entity', 'Entity ID', 'Severity', 'Details'];
         const rows = sortedLogs.map(log => {
-            const user = log.userId ? mockUsers[log.userId] : { name: 'SYSTEM' };
+            const userName = log.user || 'SYSTEM';
             return [
                 formatTimestamp(log.timestamp),
-                user.name,
+                userName,
                 log.action,
-                log.entity,
+                log.entity || '',
                 log.entityId || '',
                 getSeverity(log.action, log.details),
                 JSON.stringify(log.details)
@@ -170,6 +170,47 @@ const AuditTrailPage = () => {
             URL.revokeObjectURL(url);
         }
         // Add other export formats as needed
+    };
+
+    const handleClearAll = async () => {
+        const confirmed = window.confirm(
+            '⚠️ WARNING: Clear All Audit Logs?\n\n' +
+            'This will permanently delete ALL audit log entries from the database.\n\n' +
+            'This action cannot be undone!\n\n' +
+            'Are you sure you want to proceed?'
+        );
+
+        if (!confirmed) return;
+
+        // Double confirmation for safety
+        const doubleConfirm = window.confirm(
+            '🚨 FINAL CONFIRMATION\n\n' +
+            `You are about to delete ${logs.length} audit log entries.\n\n` +
+            'Type YES in the next prompt to confirm.'
+        );
+
+        if (!doubleConfirm) return;
+
+        const finalConfirm = window.prompt('Type YES to confirm deletion:');
+        if (finalConfirm !== 'YES') {
+            alert('❌ Deletion cancelled. You must type YES exactly to confirm.');
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('audit_logs')
+                .delete()
+                .not('id', 'is', null); // Delete all rows where id is not null (i.e., all rows)
+
+            if (error) throw error;
+
+            alert('✅ All audit log entries have been cleared successfully.');
+            setLogs([]);
+        } catch (error) {
+            console.error('Error clearing audit logs:', error);
+            alert('❌ Error clearing audit logs: ' + error.message);
+        }
     };
 
     const formatTimestamp = (timestamp) => {
@@ -200,8 +241,8 @@ const AuditTrailPage = () => {
     };
 
     const uniqueActions = [...new Set(logs.map(log => log.action))];
-    const uniqueEntities = [...new Set(logs.map(log => log.entity))];
-    const allUsers = Object.values(mockUsers);
+    const uniqueEntities = [...new Set(logs.map(log => log.entity))].filter(Boolean);
+    const uniqueUsers = [...new Set(logs.map(log => log.user))].filter(Boolean).sort();
 
     // Summary statistics
     const stats = {
@@ -340,28 +381,37 @@ const AuditTrailPage = () => {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Actions</label>
-                        <div className="flex gap-2">
-                            <Button
-                                onClick={() => {
-                                    setSearchTerm('');
-                                    setActionFilter([]);
-                                    setUserFilter('');
-                                    setEntityFilter('');
-                                    setSeverityFilter('');
-                                }}
-                                variant="outline"
-                                className="flex-1"
-                            >
-                                Clear
-                            </Button>
-                            <div className="relative group">
-                                <Button variant="outline" className="flex-1">
-                                    <Download size={16} className="mr-1"/>Export
+                        <div className="flex flex-col gap-2">
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={() => {
+                                        setSearchTerm('');
+                                        setActionFilter([]);
+                                        setUserFilter('');
+                                        setEntityFilter('');
+                                        setSeverityFilter('');
+                                    }}
+                                    variant="outline"
+                                    className="flex-1"
+                                >
+                                    Clear
                                 </Button>
-                                <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 z-20">
-                                    <button onClick={() => handleExport('CSV')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">CSV</button>
+                                <div className="relative group">
+                                    <Button variant="outline" className="flex-1">
+                                        <Download size={16} className="mr-1"/>Export
+                                    </Button>
+                                    <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-200 z-20">
+                                        <button onClick={() => handleExport('CSV')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">CSV</button>
+                                    </div>
                                 </div>
                             </div>
+                            <Button
+                                onClick={handleClearAll}
+                                variant="outline"
+                                className="w-full bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
+                            >
+                                <Trash2 size={16} className="mr-1"/>Clear All
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -395,7 +445,7 @@ const AuditTrailPage = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {paginatedLogs.map(log => {
-                                const user = log.userId ? mockUsers[log.userId] : { name: 'SYSTEM', avatar: 'SYS' };
+                                const userName = log.user || 'SYSTEM';
                                 const actionData = getActionIcon(log.action);
                                 const severity = getSeverity(log.action, log.details);
                                 const isExpanded = expandedRows.has(log.id);
@@ -413,12 +463,12 @@ const AuditTrailPage = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
-                                                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center font-bold text-xs mr-3">
-                                                        {getAvatarText(user)}
+                                                    <div className="w-8 h-8 rounded-full bg-orange-500 dark:bg-orange-600 flex items-center justify-center font-bold text-white text-xs mr-3">
+                                                        {getAvatarText({ name: userName })}
                                                     </div>
                                                     <div>
                                                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                            {user.name}
+                                                            {userName}
                                                         </div>
                                                         {log.details?.ip_address && (
                                                             <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
@@ -436,7 +486,7 @@ const AuditTrailPage = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm text-gray-900 dark:text-white">
-                                                    {log.entity}
+                                                    {log.entity || 'N/A'}
                                                     {log.entityId && (
                                                         <span className="ml-1 text-gray-500 dark:text-gray-400">#{log.entityId}</span>
                                                     )}

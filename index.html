@@ -16,8 +16,29 @@
     <meta name="apple-mobile-web-app-title" content="Survey Hub">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="screen-orientation" content="any">
-    
+
     <title>Survey Hub - Professional Survey Management</title>
+
+    <style>
+      /* Disable pull-to-refresh on mobile */
+      body {
+        overscroll-behavior-y: contain;
+      }
+
+      html, body {
+        overflow-x: hidden;
+        position: fixed;
+        width: 100%;
+        height: 100%;
+      }
+
+      #root {
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

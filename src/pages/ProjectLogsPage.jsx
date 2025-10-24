@@ -4,10 +4,14 @@ import { supabase } from '../supabaseClient';
 import { Button, Select, Input, Pagination, Modal } from '../components/ui';
 import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+    RadialBarChart, RadialBar
 } from 'recharts';
 
 const ProjectLogsPage = () => {
+    // Colors for charts
+    const COLORS = ['#fb923c', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+
     // Data state
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -346,7 +350,23 @@ const ProjectLogsPage = () => {
             grouped[type] = (grouped[type] || 0) + 1;
         });
 
-        return Object.entries(grouped).map(([name, value]) => ({ name, value }));
+        return Object.entries(grouped)
+            .map(([name, value]) => ({ name, value }))
+            .filter(item => item.value > 0 && item.name !== 'Unknown'); // Filter out Unknown and zero values
+    }, [filteredLogs]);
+
+    // Client Breakdown chart data - formatted for donut chart
+    const clientBreakdownData = useMemo(() => {
+        const grouped = {};
+        filteredLogs.forEach(log => {
+            const client = log.client || 'Unknown';
+            grouped[client] = (grouped[client] || 0) + 1;
+        });
+
+        return Object.entries(grouped)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 10); // Show top 10 clients
     }, [filteredLogs]);
 
     // Project Performance chart data
@@ -702,8 +722,6 @@ const ProjectLogsPage = () => {
         const m = Math.round((hours - h) * 60);
         return `${h}h ${m}m`;
     };
-
-    const COLORS = ['#fb923c', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
     if (loading) {
         return <div className="p-8 text-2xl font-semibold text-center">Loading Project Logs...</div>;
@@ -1161,28 +1179,58 @@ const ProjectLogsPage = () => {
                     </ResponsiveContainer>
                 </div>
 
-                {/* Work Breakdown */}
+                {/* Work Breakdown & Client Breakdown - Side by Side */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
-                    <h3 className="text-lg font-semibold mb-4">Shifts by Task Type</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie
-                                data={workBreakdownData}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={80}
-                                fill="#8884d8"
-                                dataKey="value"
-                            >
-                                {workBreakdownData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip />
-                        </PieChart>
-                    </ResponsiveContainer>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Task Type Pie Chart */}
+                        <div>
+                            <h3 className="text-lg font-semibold mb-4">Shifts by Task Type</h3>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                    <Pie
+                                        data={workBreakdownData}
+                                        cx="50%"
+                                        cy="50%"
+                                        labelLine={false}
+                                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                        outerRadius={80}
+                                        fill="#8884d8"
+                                        dataKey="value"
+                                    >
+                                        {workBreakdownData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        {/* Client Donut Chart */}
+                        <div>
+                            <h3 className="text-lg font-semibold mb-4">Shifts by Client (Top 10)</h3>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                    <Pie
+                                        data={clientBreakdownData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={100}
+                                        labelLine={false}
+                                        label={({ name }) => name}
+                                        fill="#8884d8"
+                                        dataKey="value"
+                                    >
+                                        {clientBreakdownData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
                 </div>
             </div>
 
