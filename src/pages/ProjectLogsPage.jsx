@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Upload, Filter, X, Calendar, ExternalLink, TrendingUp, Clock, AlertCircle, Users, XCircle, ChevronDown, Check, Download, Eye, FileSpreadsheet } from 'lucide-react';
+import { Upload, Filter, X, Calendar, ExternalLink, TrendingUp, Clock, AlertCircle, Users, XCircle, ChevronDown, Check, Download, Eye, FileSpreadsheet, Image } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Button, Select, Input, Pagination, Modal } from '../components/ui';
 import {
@@ -7,6 +7,7 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     RadialBarChart, RadialBar
 } from 'recharts';
+import { toPng } from 'html-to-image';
 
 const ProjectLogsPage = () => {
     // Colors for charts
@@ -20,6 +21,10 @@ const ProjectLogsPage = () => {
     // Modal states
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Ref for dashboard export
+    const dashboardRef = useRef(null);
 
     // Filter states with localStorage persistence
     const [dateRange, setDateRange] = useState(() => {
@@ -701,6 +706,148 @@ const ProjectLogsPage = () => {
         }
     };
 
+    // Handle Export Image
+    const handleExportImage = async () => {
+        if (!dashboardRef.current) return;
+
+        setIsExporting(true);
+
+        try {
+            // Get date range text for display and filename
+            const getDateRangeText = () => {
+                switch (dateRange) {
+                    case 'allTime':
+                        return { display: 'All Time', filename: 'All-Time' };
+                    case 'last7':
+                        return { display: 'Last 7 Days', filename: 'Last-7-Days' };
+                    case 'last30':
+                        return { display: 'Last 30 Days', filename: 'Last-30-Days' };
+                    case 'thisMonth':
+                        return { display: 'This Month', filename: 'This-Month' };
+                    case 'lastMonth':
+                        return { display: 'Last Month', filename: 'Last-Month' };
+                    case 'thisQuarter':
+                        return { display: 'This Quarter', filename: 'This-Quarter' };
+                    case 'thisYear':
+                        return { display: 'This Year', filename: 'This-Year' };
+                    case 'custom':
+                        if (customStartDate && customEndDate) {
+                            const start = new Date(customStartDate).toLocaleDateString('en-GB');
+                            const end = new Date(customEndDate).toLocaleDateString('en-GB');
+                            return {
+                                display: `${start} to ${end}`,
+                                filename: `${customStartDate}-to-${customEndDate}`
+                            };
+                        } else if (customStartDate) {
+                            const start = new Date(customStartDate).toLocaleDateString('en-GB');
+                            return {
+                                display: `From ${start}`,
+                                filename: `From-${customStartDate}`
+                            };
+                        } else if (customEndDate) {
+                            const end = new Date(customEndDate).toLocaleDateString('en-GB');
+                            return {
+                                display: `Up to ${end}`,
+                                filename: `Up-to-${customEndDate}`
+                            };
+                        }
+                        return { display: 'Custom Range', filename: 'Custom-Range' };
+                    default:
+                        return { display: 'All Time', filename: 'All-Time' };
+                }
+            };
+
+            const dateRangeInfo = getDateRangeText();
+
+            // Create wrapper with fixed width for consistent export
+            const exportWrapper = document.createElement('div');
+            exportWrapper.style.position = 'fixed';
+            exportWrapper.style.top = '0';
+            exportWrapper.style.left = '0';
+            exportWrapper.style.width = '2560px';
+            exportWrapper.style.minHeight = '100vh';
+            exportWrapper.style.zIndex = '99999';
+            exportWrapper.style.backgroundColor = '#ffffff';
+            exportWrapper.style.padding = '40px';
+            exportWrapper.style.boxSizing = 'border-box';
+            document.body.appendChild(exportWrapper);
+
+            // Add title
+            const title = document.createElement('div');
+            title.style.marginBottom = '30px';
+            title.style.textAlign = 'center';
+            title.innerHTML = `
+                <h1 style="font-size: 32px; font-weight: bold; margin-bottom: 12px; color: #1f2937;">
+                    Project Logs Analytics Dashboard
+                </h1>
+                <h2 style="font-size: 24px; font-weight: 600; color: #4b5563;">
+                    ${dateRangeInfo.display}
+                </h2>
+                <h3 style="font-size: 18px; font-weight: 500; color: #6b7280; margin-top: 8px;">
+                    Exported on ${new Date().toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}
+                </h3>
+            `;
+            exportWrapper.appendChild(title);
+
+            // Clone dashboard
+            const dashboardClone = dashboardRef.current.cloneNode(true);
+
+            // Remove interactive elements
+            const buttons = dashboardClone.querySelectorAll('button');
+            buttons.forEach(btn => btn.remove());
+
+            // Remove scroll constraints and set to full display
+            dashboardClone.style.maxHeight = 'none';
+            dashboardClone.style.overflow = 'visible';
+            dashboardClone.style.width = '100%';
+            dashboardClone.style.height = 'auto';
+
+            // Remove all dark mode classes from clone
+            const allElements = dashboardClone.querySelectorAll('*');
+            allElements.forEach(el => {
+                if (el.className && typeof el.className === 'string') {
+                    el.className = el.className.split(' ').filter(cls => !cls.startsWith('dark:')).join(' ');
+                }
+            });
+
+            if (dashboardClone.className && typeof dashboardClone.className === 'string') {
+                dashboardClone.className = dashboardClone.className.split(' ').filter(cls => !cls.startsWith('dark:')).join(' ');
+            }
+
+            exportWrapper.appendChild(dashboardClone);
+
+            // Wait for rendering
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            // Capture with html-to-image at full width
+            const dataUrl = await toPng(exportWrapper, {
+                quality: 1,
+                pixelRatio: 2,
+                backgroundColor: '#ffffff',
+                width: 2560,
+                cacheBust: true,
+                filter: (node) => {
+                    return node.tagName !== 'BUTTON';
+                }
+            });
+
+            // Cleanup
+            document.body.removeChild(exportWrapper);
+
+            // Download
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `Project-Logs-Analytics-${dateRangeInfo.filename}-${new Date().toISOString().split('T')[0]}.png`;
+            link.click();
+            setIsExporting(false);
+
+        } catch (error) {
+            console.error('Error exporting dashboard:', error);
+            alert('Failed to export dashboard image. Please try again.');
+            setIsExporting(false);
+        }
+    };
+
     // Handle opening in Excel
     const handleOpenInExcel = (url) => {
         // For SharePoint files, use ms-excel protocol to open directly in Excel desktop app
@@ -749,6 +896,10 @@ const ProjectLogsPage = () => {
                     </p>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleExportImage} disabled={isExporting}>
+                        <Image size={16} className="mr-2" />
+                        {isExporting ? 'Exporting...' : 'Export Image'}
+                    </Button>
                     <Button variant="outline" onClick={handleCSVExport}>
                         <Download size={16} className="mr-2" />
                         Export CSV
@@ -1099,8 +1250,10 @@ const ProjectLogsPage = () => {
                 </div>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+            {/* Dashboard Content - Wrapped for Export */}
+            <div ref={dashboardRef}>
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center justify-between">
                         <div>
@@ -1283,6 +1436,8 @@ const ProjectLogsPage = () => {
                     </BarChart>
                 </ResponsiveContainer>
             </div>
+            </div>
+            {/* End Dashboard Content */}
 
             {/* Raw Data Table */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
