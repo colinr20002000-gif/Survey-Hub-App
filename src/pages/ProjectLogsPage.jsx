@@ -62,6 +62,10 @@ const ProjectLogsPage = () => {
         const saved = localStorage.getItem('projectLogs_selectedDaysOfWeek');
         return saved ? JSON.parse(saved) : [];
     });
+    const [selectedMonths, setSelectedMonths] = useState(() => {
+        const saved = localStorage.getItem('projectLogs_selectedMonths');
+        return saved ? JSON.parse(saved) : [];
+    });
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -75,12 +79,14 @@ const ProjectLogsPage = () => {
     const [typesDropdownOpen, setTypesDropdownOpen] = useState(false);
     const [clientsDropdownOpen, setClientsDropdownOpen] = useState(false);
     const [daysOfWeekDropdownOpen, setDaysOfWeekDropdownOpen] = useState(false);
+    const [monthsDropdownOpen, setMonthsDropdownOpen] = useState(false);
 
     // Refs for click outside
     const projectsRef = useRef(null);
     const typesRef = useRef(null);
     const clientsRef = useRef(null);
     const daysOfWeekRef = useRef(null);
+    const monthsRef = useRef(null);
 
     // Fetch project logs from Supabase
     const fetchLogs = useCallback(async () => {
@@ -151,6 +157,9 @@ const ProjectLogsPage = () => {
             if (daysOfWeekRef.current && !daysOfWeekRef.current.contains(event.target)) {
                 setDaysOfWeekDropdownOpen(false);
             }
+            if (monthsRef.current && !monthsRef.current.contains(event.target)) {
+                setMonthsDropdownOpen(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -193,6 +202,10 @@ const ProjectLogsPage = () => {
         localStorage.setItem('projectLogs_selectedDaysOfWeek', JSON.stringify(selectedDaysOfWeek));
     }, [selectedDaysOfWeek]);
 
+    useEffect(() => {
+        localStorage.setItem('projectLogs_selectedMonths', JSON.stringify(selectedMonths));
+    }, [selectedMonths]);
+
     // Clean up selected filters when date range changes
     useEffect(() => {
         // Get the current unique values based on date range
@@ -210,11 +223,17 @@ const ProjectLogsPage = () => {
         const currentProjects = [...new Set(dateFiltered.map(l => l.project_no).filter(Boolean))];
         const currentTypes = [...new Set(dateFiltered.map(l => l.type).filter(Boolean))];
         const currentClients = [...new Set(dateFiltered.map(l => l.client).filter(Boolean))];
+        const currentMonths = [...new Set(dateFiltered.map(l => {
+            if (!l.shift_start_date) return null;
+            const date = new Date(l.shift_start_date);
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }).filter(Boolean))];
 
         // Remove selected items that are no longer in the date range
         setSelectedProjects(prev => prev.filter(p => currentProjects.includes(p)));
         setSelectedTypes(prev => prev.filter(t => currentTypes.includes(t)));
         setSelectedClients(prev => prev.filter(c => currentClients.includes(c)));
+        setSelectedMonths(prev => prev.filter(m => currentMonths.includes(m)));
     }, [dateRange, customStartDate, customEndDate, logs]);
 
     // Get date range filter
@@ -295,9 +314,16 @@ const ProjectLogsPage = () => {
                 if (!selectedDaysOfWeek.includes(dayOfWeek)) return false;
             }
 
+            // Month filter
+            if (selectedMonths.length > 0) {
+                const logDate = new Date(log.shift_start_date);
+                const monthKey = `${logDate.getFullYear()}-${String(logDate.getMonth() + 1).padStart(2, '0')}`;
+                if (!selectedMonths.includes(monthKey)) return false;
+            }
+
             return true;
         });
-    }, [logs, selectedProjects, selectedTypes, selectedClients, shiftType, cancelledFilter, selectedDaysOfWeek, dateRange, customStartDate, customEndDate]);
+    }, [logs, selectedProjects, selectedTypes, selectedClients, shiftType, cancelledFilter, selectedDaysOfWeek, selectedMonths, dateRange, customStartDate, customEndDate]);
 
     // Get date-filtered logs for dynamic filter options
     const dateFilteredLogs = useMemo(() => {
@@ -319,6 +345,25 @@ const ProjectLogsPage = () => {
     const uniqueProjects = useMemo(() => [...new Set(dateFilteredLogs.map(l => l.project_no).filter(Boolean))].sort(), [dateFilteredLogs]);
     const uniqueTypes = useMemo(() => [...new Set(dateFilteredLogs.map(l => l.type).filter(Boolean))].sort(), [dateFilteredLogs]);
     const uniqueClients = useMemo(() => [...new Set(dateFilteredLogs.map(l => l.client).filter(Boolean))].sort(), [dateFilteredLogs]);
+    const uniqueMonths = useMemo(() => {
+        const months = dateFilteredLogs.map(l => {
+            if (!l.shift_start_date) return null;
+            const date = new Date(l.shift_start_date);
+            return {
+                key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+                label: date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+            };
+        }).filter(Boolean);
+
+        // Remove duplicates based on key
+        const uniqueMap = new Map();
+        months.forEach(m => uniqueMap.set(m.key, m.label));
+
+        // Sort by key (year-month) in descending order
+        return Array.from(uniqueMap.entries())
+            .sort((a, b) => b[0].localeCompare(a[0]))
+            .map(([key, label]) => ({ key, label }));
+    }, [dateFilteredLogs]);
 
     // Convert interval to hours
     const intervalToHours = (intervalStr) => {
@@ -787,6 +832,7 @@ const ProjectLogsPage = () => {
             if (shiftType !== 'all') activeFilters.push('Shift Type');
             if (cancelledFilter !== 'all') activeFilters.push('Cancelled Status');
             if (selectedDaysOfWeek.length > 0) activeFilters.push('Days of Week');
+            if (selectedMonths.length > 0) activeFilters.push('Months');
 
             const filterMessage = activeFilters.length > 0
                 ? `\n\n🔍 Active Filters: ${activeFilters.join(', ')}`
@@ -1316,6 +1362,66 @@ const ProjectLogsPage = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* Month Filter */}
+                    <div className="relative" ref={monthsRef}>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Month {selectedMonths.length > 0 && `(${selectedMonths.length})`}
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => setMonthsDropdownOpen(!monthsDropdownOpen)}
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 flex items-center justify-between"
+                        >
+                            <span className="truncate">
+                                {selectedMonths.length === 0 ? 'Select months...' : `${selectedMonths.length} selected`}
+                            </span>
+                            <ChevronDown size={16} className={`transition-transform ${monthsDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {monthsDropdownOpen && (
+                            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedMonths(uniqueMonths.map(m => m.key))}
+                                        className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedMonths([])}
+                                        className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                                {uniqueMonths.map(month => (
+                                    <label
+                                        key={month.key}
+                                        className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedMonths.includes(month.key)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedMonths([...selectedMonths, month.key]);
+                                                } else {
+                                                    setSelectedMonths(selectedMonths.filter(m => m !== month.key));
+                                                }
+                                            }}
+                                            className="mr-2 rounded text-orange-500 focus:ring-orange-500"
+                                        />
+                                        <span className="text-sm">{month.label}</span>
+                                        {selectedMonths.includes(month.key) && (
+                                            <Check size={14} className="ml-auto text-orange-500" />
+                                        )}
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Clear Filters */}
@@ -1334,6 +1440,7 @@ const ProjectLogsPage = () => {
                             setShiftType('all');
                             setCancelledFilter('all');
                             setSelectedDaysOfWeek([]);
+                            setSelectedMonths([]);
 
                             // Clear localStorage
                             localStorage.removeItem('projectLogs_dateRange');
@@ -1345,6 +1452,7 @@ const ProjectLogsPage = () => {
                             localStorage.removeItem('projectLogs_shiftType');
                             localStorage.removeItem('projectLogs_cancelledFilter');
                             localStorage.removeItem('projectLogs_selectedDaysOfWeek');
+                            localStorage.removeItem('projectLogs_selectedMonths');
                         }}
                     >
                         Clear All Filters
@@ -1481,7 +1589,13 @@ const ProjectLogsPage = () => {
                                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
                                     </Pie>
-                                    <Tooltip />
+                                    <Tooltip
+                                        formatter={(value, name, props) => {
+                                            const total = clientBreakdownData.reduce((sum, item) => sum + item.value, 0);
+                                            const percentage = ((value / total) * 100).toFixed(1);
+                                            return [`${value} shifts (${percentage}%)`, name];
+                                        }}
+                                    />
                                 </PieChart>
                             </ResponsiveContainer>
                         </div>
