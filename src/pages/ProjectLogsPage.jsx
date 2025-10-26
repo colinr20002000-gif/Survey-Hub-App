@@ -1527,18 +1527,20 @@ const ProjectLogsPage = () => {
 
             {/* Charts Section 1 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                {/* Shifts Over Time */}
+                {/* Time Allocation Analysis */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
-                    <h3 className="text-lg font-semibold mb-4">Shifts Over Time</h3>
+                    <h3 className="text-lg font-semibold mb-4">Time Allocation by Project (Top 10)</h3>
                     <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={shiftsOverTimeData}>
+                        <BarChart data={timeAllocationData}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" />
-                            <YAxis />
-                            <Tooltip />
+                            <XAxis dataKey="project" />
+                            <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
+                            <Tooltip formatter={(value) => `${Math.round(value)} hours`} />
                             <Legend />
-                            <Line type="monotone" dataKey="total" stroke="#fb923c" strokeWidth={2} name="Total Shifts" />
-                        </LineChart>
+                            <Bar dataKey="siteTime" stackId="a" fill="#10b981" name="Site Time" />
+                            <Bar dataKey="travelTime" stackId="a" fill="#3b82f6" name="Travel Time" />
+                            <Bar dataKey="timeLost" stackId="a" fill="#ef4444" name="Time Lost" />
+                        </BarChart>
                     </ResponsiveContainer>
                 </div>
 
@@ -1636,20 +1638,18 @@ const ProjectLogsPage = () => {
                 </div>
             </div>
 
-            {/* Time Allocation Analysis */}
+            {/* Shifts Over Time */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-6">
-                <h3 className="text-lg font-semibold mb-4">Time Allocation by Project (Top 10)</h3>
-                <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={timeAllocationData}>
+                <h3 className="text-lg font-semibold mb-4">Shifts Over Time</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={shiftsOverTimeData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="project" />
-                        <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
-                        <Tooltip formatter={(value) => `${Math.round(value)} hours`} />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip />
                         <Legend />
-                        <Bar dataKey="siteTime" stackId="a" fill="#10b981" name="Site Time" />
-                        <Bar dataKey="travelTime" stackId="a" fill="#3b82f6" name="Travel Time" />
-                        <Bar dataKey="timeLost" stackId="a" fill="#ef4444" name="Time Lost" />
-                    </BarChart>
+                        <Line type="monotone" dataKey="total" stroke="#fb923c" strokeWidth={2} name="Total Shifts" />
+                    </LineChart>
                 </ResponsiveContainer>
             </div>
             </div>
