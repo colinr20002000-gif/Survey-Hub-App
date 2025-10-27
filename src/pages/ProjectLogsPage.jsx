@@ -415,6 +415,8 @@ const ProjectLogsPage = () => {
     // Shifts Over Time chart data
     const shiftsOverTimeData = useMemo(() => {
         const grouped = {};
+
+        // First, group existing shifts by date
         filteredLogs.forEach(log => {
             const date = log.shift_start_date;
             if (!grouped[date]) {
@@ -427,8 +429,45 @@ const ProjectLogsPage = () => {
             grouped[date][type] = (grouped[date][type] || 0) + 1;
         });
 
+        // Get the date range to fill in missing dates
+        const { startDate, endDate } = getDateRange();
+
+        // Fill in all dates in the range (except for "All Time" to avoid too many data points)
+        if (dateRange !== 'allTime') {
+            let rangeStart = startDate;
+            let rangeEnd = endDate || new Date();
+
+            // Ensure we have a valid start date
+            if (!rangeStart && Object.keys(grouped).length > 0) {
+                const sortedDates = Object.keys(grouped).sort();
+                rangeStart = new Date(sortedDates[0]);
+            } else if (!rangeStart) {
+                // If still no start date and no logs, use today
+                rangeStart = new Date();
+            }
+
+            // Normalize dates to start of day for proper comparison
+            const normalizeDate = (date) => {
+                const d = new Date(date);
+                d.setHours(0, 0, 0, 0);
+                return d;
+            };
+
+            const currentDate = normalizeDate(rangeStart);
+            const endDateNormalized = normalizeDate(rangeEnd);
+
+            // Fill in all dates in the range
+            while (currentDate <= endDateNormalized) {
+                const dateStr = currentDate.toISOString().split('T')[0];
+                if (!grouped[dateStr]) {
+                    grouped[dateStr] = { date: dateStr, total: 0 };
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+        }
+
         return Object.values(grouped).sort((a, b) => new Date(a.date) - new Date(b.date));
-    }, [filteredLogs]);
+    }, [filteredLogs, dateRange, customStartDate, customEndDate]);
 
     // Work Breakdown chart data
     const workBreakdownData = useMemo(() => {
@@ -1648,10 +1687,10 @@ const ProjectLogsPage = () => {
                     <LineChart data={shiftsOverTimeData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="date" />
-                        <YAxis />
+                        <YAxis domain={[0, 'auto']} allowDataOverflow={false} />
                         <Tooltip />
                         <Legend />
-                        <Line type="monotone" dataKey="total" stroke="#fb923c" strokeWidth={2} name="Total Shifts" />
+                        <Line type="monotone" dataKey="total" stroke="#fb923c" strokeWidth={2} name="Total Shifts" dot={{ r: 3 }} />
                     </LineChart>
                 </ResponsiveContainer>
             </div>
