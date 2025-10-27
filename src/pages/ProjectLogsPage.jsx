@@ -29,6 +29,9 @@ const ProjectLogsPage = () => {
     // Ref to track if data has been loaded (prevents refetch on tab switch)
     const hasLoadedData = useRef(false);
 
+    // Ref to track if this is the initial mount (prevents filter clearing on first load)
+    const isInitialMount = useRef(true);
+
     // Filter states with localStorage persistence
     const [dateRange, setDateRange] = useState(() => {
         const saved = localStorage.getItem('projectLogs_dateRange');
@@ -208,6 +211,12 @@ const ProjectLogsPage = () => {
 
     // Clean up selected filters when date range changes
     useEffect(() => {
+        // Skip on initial mount to preserve filters loaded from localStorage
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+
         // Get the current unique values based on date range
         const { startDate, endDate } = getDateRange();
 
