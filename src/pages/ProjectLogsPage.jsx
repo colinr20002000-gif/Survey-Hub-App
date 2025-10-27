@@ -387,13 +387,8 @@ const ProjectLogsPage = () => {
         const totalShifts = filteredLogs.length;
         const totalHoursOnSite = filteredLogs.reduce((sum, log) => sum + intervalToHours(log.total_site_time), 0);
         const totalTravelTime = filteredLogs.reduce((sum, log) => sum + intervalToHours(log.total_travel_time), 0);
-        const totalTimeLost = filteredLogs.reduce((sum, log) => {
-            return sum +
-                intervalToHours(log.time_lost) +
-                intervalToHours(log.time_lost_2) +
-                intervalToHours(log.time_lost_3) +
-                intervalToHours(log.time_lost_4);
-        }, 0);
+        const nightShifts = filteredLogs.filter(log => log.night_or_day_shift === 'Night').length;
+        const nightShiftPercentage = totalShifts > 0 ? (nightShifts / totalShifts * 100) : 0;
         const cancelledShifts = filteredLogs.filter(log => log.was_shift_cancelled).length;
         const cancellationRate = totalShifts > 0 ? (cancelledShifts / totalShifts * 100) : 0;
         const avgStaffPerShift = totalShifts > 0 ? filteredLogs.reduce((sum, log) => sum + (log.staff_attended_count || 0), 0) / totalShifts : 0;
@@ -402,7 +397,7 @@ const ProjectLogsPage = () => {
             totalShifts,
             totalHoursOnSite,
             totalTravelTime,
-            totalTimeLost,
+            nightShiftPercentage,
             cancellationRate,
             avgStaffPerShift
         };
@@ -496,7 +491,7 @@ const ProjectLogsPage = () => {
         });
 
         return Object.values(grouped)
-            .sort((a, b) => (b.siteTime + b.travelTime + b.timeLost) - (a.siteTime + a.travelTime + a.timeLost))
+            .sort((a, b) => (b.siteTime + b.travelTime) - (a.siteTime + a.travelTime))
             .slice(0, 10);
     }, [filteredLogs]);
 
@@ -1497,10 +1492,10 @@ const ProjectLogsPage = () => {
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Time Lost</p>
-                            <p className="text-2xl font-bold text-gray-800 dark:text-white">{Math.round(kpis.totalTimeLost)}h</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Night Shift %</p>
+                            <p className="text-2xl font-bold text-gray-800 dark:text-white">{kpis.nightShiftPercentage.toFixed(1)}%</p>
                         </div>
-                        <AlertCircle className="text-red-500" size={32} />
+                        <Clock className="text-indigo-500" size={32} />
                     </div>
                 </div>
 
@@ -1539,7 +1534,6 @@ const ProjectLogsPage = () => {
                             <Legend />
                             <Bar dataKey="siteTime" stackId="a" fill="#10b981" name="Site Time" />
                             <Bar dataKey="travelTime" stackId="a" fill="#3b82f6" name="Travel Time" />
-                            <Bar dataKey="timeLost" stackId="a" fill="#ef4444" name="Time Lost" />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
