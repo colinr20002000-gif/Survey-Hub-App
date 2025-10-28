@@ -595,6 +595,89 @@ const ProjectLogsPage = () => {
         return result;
     };
 
+    // Date parsing helper - converts various date formats to YYYY-MM-DD
+    const parseDate = (dateStr) => {
+        if (!dateStr || dateStr.trim() === '') return null;
+
+        // Trim whitespace
+        dateStr = dateStr.trim();
+
+        // Already in YYYY-MM-DD format
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            return dateStr;
+        }
+
+        // Try parsing various date formats
+        let date = null;
+
+        // Excel serial date number (e.g., 45123)
+        if (/^\d{5}$/.test(dateStr)) {
+            const excelDate = parseInt(dateStr);
+            // Excel dates start from 1900-01-01 (but with a bug treating 1900 as leap year)
+            const baseDate = new Date(1900, 0, 1);
+            date = new Date(baseDate.getTime() + (excelDate - 2) * 24 * 60 * 60 * 1000);
+        }
+        // MM/DD/YYYY or M/D/YYYY (US format)
+        else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+            const [month, day, year] = dateStr.split('/').map(Number);
+            date = new Date(year, month - 1, day);
+        }
+        // DD/MM/YYYY or D/M/YYYY (UK format) - try this if US format creates invalid date
+        else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+            const parts = dateStr.split('/').map(Number);
+            // Try US format first
+            let tempDate = new Date(parts[2], parts[0] - 1, parts[1]);
+            if (isNaN(tempDate.getTime()) || parts[0] > 12) {
+                // If invalid or month > 12, try UK format (DD/MM/YYYY)
+                date = new Date(parts[2], parts[1] - 1, parts[0]);
+            } else {
+                date = tempDate;
+            }
+        }
+        // YYYY/MM/DD or YYYY/M/D
+        else if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(dateStr)) {
+            const [year, month, day] = dateStr.split('/').map(Number);
+            date = new Date(year, month - 1, day);
+        }
+        // MM-DD-YYYY or M-D-YYYY
+        else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateStr)) {
+            const [month, day, year] = dateStr.split('-').map(Number);
+            date = new Date(year, month - 1, day);
+        }
+        // DD-MM-YYYY or D-M-YYYY
+        else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateStr)) {
+            const parts = dateStr.split('-').map(Number);
+            // Try US format first
+            let tempDate = new Date(parts[2], parts[0] - 1, parts[1]);
+            if (isNaN(tempDate.getTime()) || parts[0] > 12) {
+                // If invalid or month > 12, try UK format
+                date = new Date(parts[2], parts[1] - 1, parts[0]);
+            } else {
+                date = tempDate;
+            }
+        }
+        // ISO 8601 with time (YYYY-MM-DDTHH:mm:ss)
+        else if (/^\d{4}-\d{2}-\d{2}T/.test(dateStr)) {
+            date = new Date(dateStr);
+        }
+        // Try native Date parsing as last resort
+        else {
+            date = new Date(dateStr);
+        }
+
+        // Validate the date
+        if (!date || isNaN(date.getTime())) {
+            console.warn(`Unable to parse date: "${dateStr}"`);
+            return null;
+        }
+
+        // Format as YYYY-MM-DD
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     // Handle CSV Import
     const handleCSVImport = async (event) => {
         const file = event.target.files[0];
@@ -602,17 +685,49 @@ const ProjectLogsPage = () => {
 
         try {
             setIsUploading(true);
-            const text = await file.text();
-            const rows = text.split('\n').filter(row => row.trim());
-            const headers = parseCSVLine(rows[0]);
+            let text = await file.text();
+
+            // Remove BOM if present (common in CSV exports from Windows/Power Automate)
+            if (text.charCodeAt(0) === 0xFEFF) {
+                text = text.substring(1);
+            }
+
+            let rows = text.split('\n').filter(row => row.trim());
+
+            // Check if first line is a separator declaration (sep=,) - common in Power Automate/Excel exports
+            let headerRowIndex = 0;
+            if (rows[0] && rows[0].trim().toLowerCase().startsWith('sep=')) {
+                console.log('Detected separator declaration:', rows[0].trim());
+                headerRowIndex = 1; // Skip the sep= line
+            }
+
+            const rawHeaders = parseCSVLine(rows[headerRowIndex]);
+
+            // Clean headers and filter out empty ones
+            const headers = rawHeaders.map(h => h.trim()).filter(h => h !== '');
+
+            console.log('CSV Headers:', headers);
+            console.log('Total columns:', headers.length);
 
             const records = [];
 
-            for (let i = 1; i < rows.length; i++) {
-                const values = parseCSVLine(rows[i]);
+            // Start from the row after headers
+            for (let i = headerRowIndex + 1; i < rows.length; i++) {
+                const rawValues = parseCSVLine(rows[i]);
                 const record = {};
-                headers.forEach((header, index) => {
-                    let value = values[index];
+
+                // Create a mapping of cleaned headers to their values
+                // Skip empty headers by checking the rawHeaders array
+                let validColumnIndex = 0;
+                rawHeaders.forEach((rawHeader, index) => {
+                    const cleanHeader = rawHeader.trim();
+
+                    // Skip empty headers
+                    if (cleanHeader === '') return;
+
+                    const header = headers[validColumnIndex];
+                    let value = rawValues[index];
+                    validColumnIndex++;
 
                     // Trim whitespace from value
                     if (typeof value === 'string') {
@@ -622,6 +737,18 @@ const ProjectLogsPage = () => {
                     // Convert empty strings to null
                     record[header] = value === '' || value === undefined ? null : value;
 
+                    // Parse and normalize date fields
+                    if (header === 'shift_start_date' && value) {
+                        const parsedDate = parseDate(value);
+                        if (parsedDate) {
+                            record[header] = parsedDate;
+                            console.log(`Row ${i}: Parsed date "${value}" → "${parsedDate}"`);
+                        } else {
+                            console.error(`Row ${i}: Failed to parse date "${value}"`);
+                        }
+                        return; // Skip other conversions for this field
+                    }
+
                     // Convert was_shift_cancelled field (Yes/No/N/A to boolean)
                     if (header === 'was_shift_cancelled') {
                         const upperValue = (value || '').toString().trim().toUpperCase();
@@ -629,7 +756,7 @@ const ProjectLogsPage = () => {
                         // Debug logging for first 5 rows
                         if (i <= 5) {
                             console.log(`Row ${i} - was_shift_cancelled:`, {
-                                original: values[index],
+                                original: rawValues[index],
                                 trimmed: value,
                                 upper: upperValue
                             });
@@ -668,8 +795,19 @@ const ProjectLogsPage = () => {
                     }
                 });
 
-                records.push(record);
+                // Validate record - ensure no empty keys
+                const validRecord = {};
+                Object.keys(record).forEach(key => {
+                    if (key && key.trim() !== '') {
+                        validRecord[key] = record[key];
+                    }
+                });
+
+                records.push(validRecord);
             }
+
+            console.log('Sample record (first):', records[0]);
+            console.log('Total records to import:', records.length);
 
             // Truncate existing data
             const { error: deleteError } = await supabase
@@ -683,11 +821,18 @@ const ProjectLogsPage = () => {
             const batchSize = 100;
             for (let i = 0; i < records.length; i += batchSize) {
                 const batch = records.slice(i, i + batchSize);
+                console.log(`Inserting batch ${Math.floor(i / batchSize) + 1} (rows ${i + 1} to ${Math.min(i + batchSize, records.length)})`);
+
                 const { error: insertError } = await supabase
                     .from('project_logs')
                     .insert(batch);
 
-                if (insertError) throw insertError;
+                if (insertError) {
+                    console.error('Insert error details:', insertError);
+                    console.error('Problematic batch sample:', batch[0]);
+                    console.error('Batch column keys:', Object.keys(batch[0]));
+                    throw new Error(`Database insert failed at rows ${i + 1}-${Math.min(i + batchSize, records.length)}: ${insertError.message}`);
+                }
             }
 
             await fetchLogs();
