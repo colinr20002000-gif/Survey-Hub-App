@@ -8,8 +8,11 @@ import {
     RadialBarChart, RadialBar
 } from 'recharts';
 import { toPng } from 'html-to-image';
+import { usePermissions } from '../hooks/usePermissions';
 
 const ProjectLogsPage = () => {
+    // Permissions
+    const { can } = usePermissions();
     // Colors for charts
     const COLORS = ['#fb923c', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
@@ -1316,10 +1319,12 @@ const ProjectLogsPage = () => {
                         <Download size={16} className="mr-2" />
                         Export CSV
                     </Button>
-                    <Button onClick={() => setIsImportModalOpen(true)}>
-                        <Upload size={16} className="mr-2" />
-                        Import CSV
-                    </Button>
+                    {can('IMPORT_PROJECT_LOGS') && (
+                        <Button onClick={() => setIsImportModalOpen(true)}>
+                            <Upload size={16} className="mr-2" />
+                            Import CSV
+                        </Button>
+                    )}
                 </div>
             </div>
 

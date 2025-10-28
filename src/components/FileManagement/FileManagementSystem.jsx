@@ -232,11 +232,10 @@ const FileManagementSystem = ({
       // Get the folder path to use
       let pathToUse = selectedFolderPath;
 
-      // If category changed, restore the stored path for the new category
+      // If category changed, reset to root folder
       if (category !== previousCategory) {
-        const storedPath = getStoredFolderPath();
-        pathToUse = storedPath;
-        setSelectedFolderPath(storedPath);
+        pathToUse = '';  // Always reset to root when switching categories
+        setSelectedFolderPath('');
         setPreviousCategory(category);
       }
 
