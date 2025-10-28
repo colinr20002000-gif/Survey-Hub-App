@@ -17,6 +17,7 @@ const ProjectLogsPage = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [lastUpdated, setLastUpdated] = useState(null);
 
     // Modal states
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -103,6 +104,16 @@ const ProjectLogsPage = () => {
 
             if (error) throw error;
             setLogs(data || []);
+
+            // Get the most recent created_at timestamp to show when data was last imported
+            if (data && data.length > 0) {
+                const timestamps = data.map(log => new Date(log.created_at)).filter(d => !isNaN(d.getTime()));
+                if (timestamps.length > 0) {
+                    const mostRecent = new Date(Math.max(...timestamps));
+                    setLastUpdated(mostRecent);
+                }
+            }
+
             hasLoadedData.current = true; // Mark that data has been loaded
         } catch (err) {
             console.error('Error fetching project logs:', err);
@@ -262,6 +273,10 @@ const ProjectLogsPage = () => {
             case 'last30':
                 startDate = new Date(today);
                 startDate.setDate(today.getDate() - 30);
+                break;
+            case 'last90':
+                startDate = new Date(today);
+                startDate.setDate(today.getDate() - 90);
                 break;
             case 'thisMonth':
                 startDate = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -561,6 +576,29 @@ const ProjectLogsPage = () => {
         });
 
         return days.map(day => grouped[day]);
+    }, [filteredLogs]);
+
+    // Shift Pattern by Month data
+    const shiftPatternByMonthData = useMemo(() => {
+        const grouped = {};
+
+        filteredLogs.forEach(log => {
+            if (!log.shift_start_date) return;
+
+            const date = new Date(log.shift_start_date);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            const monthLabel = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+
+            if (!grouped[monthKey]) {
+                grouped[monthKey] = { month: monthLabel, monthKey, Day: 0, Night: 0 };
+            }
+
+            const shift = log.night_or_day_shift || 'Day';
+            grouped[monthKey][shift] += 1;
+        });
+
+        // Sort by month key (year-month) in ascending order
+        return Object.values(grouped).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
     }, [filteredLogs]);
 
     // CSV parsing helper - handles quoted fields with commas
@@ -1049,6 +1087,8 @@ const ProjectLogsPage = () => {
                         return { display: 'Last 7 Days', filename: 'Last-7-Days' };
                     case 'last30':
                         return { display: 'Last 30 Days', filename: 'Last-30-Days' };
+                    case 'last90':
+                        return { display: 'Last 3 Months', filename: 'Last-3-Months' };
                     case 'thisMonth':
                         return { display: 'This Month', filename: 'This-Month' };
                     case 'lastMonth':
@@ -1206,6 +1246,33 @@ const ProjectLogsPage = () => {
         return numericOnly.padStart(6, '0');
     };
 
+    // Custom tooltip for shift pattern charts
+    const ShiftPatternTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            const dayShifts = payload.find(p => p.dataKey === 'Day')?.value || 0;
+            const nightShifts = payload.find(p => p.dataKey === 'Night')?.value || 0;
+            const total = dayShifts + nightShifts;
+
+            return (
+                <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-3">
+                    <p className="font-semibold text-gray-900 dark:text-white mb-2">{label}</p>
+                    <div className="space-y-1">
+                        <p className="text-sm text-orange-600 dark:text-orange-400">
+                            Day Shifts: <span className="font-semibold">{dayShifts}</span>
+                        </p>
+                        <p className="text-sm text-blue-600 dark:text-blue-400">
+                            Night Shifts: <span className="font-semibold">{nightShifts}</span>
+                        </p>
+                        <p className="text-sm text-gray-900 dark:text-white border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
+                            Total Shifts: <span className="font-semibold">{total}</span>
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    };
+
     if (loading) {
         return <div className="p-8 text-2xl font-semibold text-center">Loading Project Logs...</div>;
     }
@@ -1230,6 +1297,15 @@ const ProjectLogsPage = () => {
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         Comprehensive insights into project shifts, time allocation, and performance
                     </p>
+                    {lastUpdated && (
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-2 flex items-center">
+                            <Clock size={12} className="mr-1" />
+                            Last updated: {lastUpdated.toLocaleString('en-GB', {
+                                dateStyle: 'medium',
+                                timeStyle: 'short'
+                            })}
+                        </p>
+                    )}
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={handleExportImage} disabled={isExporting}>
@@ -1261,13 +1337,14 @@ const ProjectLogsPage = () => {
                             value={dateRange}
                             onChange={(e) => setDateRange(e.target.value)}
                         >
-                            <option value="allTime">All Time</option>
                             <option value="last7">Last 7 Days</option>
                             <option value="last30">Last 30 Days</option>
+                            <option value="last90">Last 3 Months</option>
                             <option value="thisMonth">This Month</option>
                             <option value="lastMonth">Last Month</option>
                             <option value="thisQuarter">This Quarter</option>
                             <option value="thisYear">This Year</option>
+                            <option value="allTime">All Time</option>
                             <option value="custom">Custom Range</option>
                         </Select>
                     </div>
@@ -1816,13 +1893,29 @@ const ProjectLogsPage = () => {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="day" />
                             <YAxis />
-                            <Tooltip />
+                            <Tooltip content={<ShiftPatternTooltip />} />
                             <Legend />
                             <Bar dataKey="Day" fill="#fb923c" name="Day Shifts" />
                             <Bar dataKey="Night" fill="#3b82f6" name="Night Shifts" />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
+            </div>
+
+            {/* Shift Pattern by Month (Day vs Night) */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-6">
+                <h3 className="text-lg font-semibold mb-4">Shift Pattern by Month (Day vs Night)</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={shiftPatternByMonthData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" />
+                        <YAxis />
+                        <Tooltip content={<ShiftPatternTooltip />} />
+                        <Legend />
+                        <Bar dataKey="Day" fill="#fb923c" name="Day Shifts" />
+                        <Bar dataKey="Night" fill="#3b82f6" name="Night Shifts" />
+                    </BarChart>
+                </ResponsiveContainer>
             </div>
 
             {/* Shifts Over Time */}
