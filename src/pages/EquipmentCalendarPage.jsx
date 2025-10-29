@@ -764,6 +764,10 @@ const EquipmentCalendarPage = () => {
                 // Open modal to edit the specific item
                 setSelectedCell({ ...cellToUpdate, editingItem: specificItem, editingIndex: equipmentIndex });
                 setIsAllocationModalOpen(true);
+            } else if (action === 'addSecondEquipment') {
+                // Add more equipment from an individual item's context menu
+                setSelectedCell({ ...cellToUpdate, isSecondEquipment: true });
+                setIsAllocationModalOpen(true);
             }
         } else {
             // Original behavior for whole cell operations
@@ -1743,6 +1747,7 @@ const EquipmentCalendarPage = () => {
                                     }
 
                                     const showContextMenuButton = canAllocateResources || assignment;
+                                    const isArrayTile = Array.isArray(assignment);
 
                                     return (
                                         <td key={date.toISOString()} className="p-1 align-top h-32 relative group">
@@ -1755,7 +1760,7 @@ const EquipmentCalendarPage = () => {
                                                     {cellContent}
                                                 </DroppableCell>
                                             </div>
-                                            {!isDesktop && showContextMenuButton && (
+                                            {!isDesktop && showContextMenuButton && !isArrayTile && (
                                                 <button
                                                     onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment)}
                                                     className="absolute top-1 right-1 p-1 rounded-full bg-gray-300/20 dark:bg-gray-900/20 hover:bg-gray-400/50 dark:hover:bg-gray-700/50"
@@ -2020,7 +2025,7 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                             {clipboard.data && !isArrayItemOperation && (
                                 <button onClick={() => onAction('paste')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ClipboardCheck size={14} className="mr-2" />Paste</button>
                             )}
-                            {canAddMoreEquipment && !isArrayItemOperation && (
+                            {canAddMoreEquipment && (
                                 <button onClick={() => onAction('addSecondEquipment')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><PlusCircle size={14} className="mr-2" />Add More Equipment</button>
                             )}
                         </>
@@ -2210,8 +2215,10 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     const [formData, setFormData] = useState({
         equipmentId: '', comment: ''
     });
+    const [error, setError] = useState('');
 
     useEffect(() => {
+        setError(''); // Clear error when modal opens
         if (currentAssignment && !Array.isArray(currentAssignment)) {
             const comment = currentAssignment.comment || '';
             const isNoEquipmentRequired = comment === 'No Equipment Required' || comment.startsWith('No Equipment Required:');
@@ -2240,9 +2247,16 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        if (error) setError(''); // Clear error when user types
     };
 
     const handleSave = () => {
+        // Validate: If "Comment Only" is selected (equipmentId is empty string), comment is required
+        if (formData.equipmentId === '' && !formData.comment.trim()) {
+            setError('Comment is required when "Comment Only" is selected');
+            return;
+        }
+
         // Handle special "No Equipment Required" option
         if (formData.equipmentId === 'no-equipment-required') {
             const commentText = formData.comment.trim();
@@ -2260,6 +2274,8 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     };
 
     const modalTitle = isEditingArrayItem ? "Edit Equipment" : (isSecondEquipment ? "Assign More Equipment" : "Assign Equipment");
+    const isCommentOnly = formData.equipmentId === '';
+    const commentLabel = isCommentOnly ? "Comment (Required)" : "Comment (Optional)";
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
@@ -2269,6 +2285,12 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                         <p><span className="font-semibold">Staff:</span> {user?.name}</p>
                         <p><span className="font-semibold">Date:</span> {date?.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                     </div>
+
+                    {error && (
+                        <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+                            {error}
+                        </div>
+                    )}
 
                     <fieldset className="space-y-4">
                         <Select label="Equipment (Optional)" name="equipmentId" value={formData.equipmentId} onChange={handleInputChange}>
@@ -2280,7 +2302,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                                 </option>
                             ))}
                         </Select>
-                        <Input label="Comment (Optional)" name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..." />
+                        <Input label={commentLabel} name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..." />
                     </fieldset>
                 </div>
             </div>
