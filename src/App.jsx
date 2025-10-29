@@ -46,6 +46,7 @@ import AssignedTasksPage from './pages/AssignedTasksPage';
 import ProjectTasksPage from './pages/ProjectTasksPage';
 import UserContactsPage from './pages/UserContactsPage';
 import UsefulContactsPage from './pages/UsefulContactsPage';
+import OnCallContactsPage from './pages/OnCallContactsPage';
 import FeedbackPage from './pages/FeedbackPage';
 import DeliveryTasksPage from './pages/DeliveryTasksPage';
 import RailComponentsPage from './pages/RailComponentsPage';
@@ -570,7 +571,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'User Contacts', parent: 'Contact Details' },
-                { name: 'Useful Contacts', parent: 'Contact Details' }
+                { name: 'Useful Contacts', parent: 'Contact Details' },
+                { name: 'On-Call Contacts', parent: 'Contact Details' }
             ]
         },
         {
@@ -620,7 +622,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Tasks';
     const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Equipment Calendar' || activeTab === 'Project Tasks' || activeTab === 'Equipment' || activeTab === 'Vehicles';
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
-    const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts';
+    const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
 
     // Close sidebar when clicking outside in mobile mode
     useEffect(() => {
@@ -3323,6 +3325,7 @@ const MainLayout = () => {
             case 'Rail Components': return <RailComponentsPage />;
             case 'User Contacts': return <UserContactsPage />;
             case 'Useful Contacts': return <UsefulContactsPage />;
+            case 'On-Call Contacts': return <OnCallContactsPage />;
             case 'User Admin': return <UserAdmin />;
             case 'Privilege': return <PrivilegePage />;
             case 'Dropdown Menu': return <DropdownMenuPage />;
