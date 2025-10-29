@@ -1646,8 +1646,20 @@ const EquipmentCalendarPage = () => {
                                                         return (
                                                             <DraggableEquipmentItem key={index} id={`${user.id}::${dayIndex}::${index}`} disabled={!isDesktop || !canAllocateResources}>
                                                                 <div
-                                                                    className={`p-2 rounded-md flex flex-col items-center justify-center text-center flex-1 relative ${categoryColors.textColor}`}
+                                                                    className={`p-2 rounded-md flex flex-col items-center justify-center text-center flex-1 relative ${categoryColors.textColor} ${canAllocateResources ? 'cursor-pointer' : ''}`}
                                                                     style={{ backgroundColor: categoryColors.backgroundColor }}
+                                                                    onClick={(e) => {
+                                                                        if (!canAllocateResources) return;
+                                                                        e.stopPropagation();
+                                                                        setSelectedCell({
+                                                                            userId: user.id,
+                                                                            date,
+                                                                            dayIndex,
+                                                                            editingItem: eq,
+                                                                            editingIndex: index
+                                                                        });
+                                                                        setIsAllocationModalOpen(true);
+                                                                    }}
                                                                     onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
                                                                 >
                                                                     {isAssignedToUser && (
@@ -1693,8 +1705,14 @@ const EquipmentCalendarPage = () => {
                                             cellContent = (
                                                 <DraggableEquipmentItem id={`${user.id}::${dayIndex}::0`} disabled={!isDesktop || !canAllocateResources}>
                                                     <div
-                                                        className={`p-2 rounded-md h-full flex flex-col items-center justify-center text-center relative ${categoryColors.textColor}`}
+                                                        className={`p-2 rounded-md h-full flex flex-col items-center justify-center text-center relative ${categoryColors.textColor} ${canAllocateResources ? 'cursor-pointer' : ''}`}
                                                         style={{ backgroundColor: categoryColors.backgroundColor }}
+                                                        onClick={(e) => {
+                                                            if (!canAllocateResources) return;
+                                                            e.stopPropagation();
+                                                            setSelectedCell({ userId: user.id, date, dayIndex });
+                                                            setIsAllocationModalOpen(true);
+                                                        }}
                                                         onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                     >
                                                         {isAssignedToUser && (
@@ -1724,7 +1742,7 @@ const EquipmentCalendarPage = () => {
                                         }
                                     }
 
-                                    const showContextMenuButton = (canAllocateResources || assignment) && !Array.isArray(assignment);
+                                    const showContextMenuButton = canAllocateResources || assignment;
 
                                     return (
                                         <td key={date.toISOString()} className="p-1 align-top h-32 relative group">
@@ -2002,7 +2020,7 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                             {clipboard.data && !isArrayItemOperation && (
                                 <button onClick={() => onAction('paste')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ClipboardCheck size={14} className="mr-2" />Paste</button>
                             )}
-                            {canAddMoreEquipment && (
+                            {canAddMoreEquipment && !isArrayItemOperation && (
                                 <button onClick={() => onAction('addSecondEquipment')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><PlusCircle size={14} className="mr-2" />Add More Equipment</button>
                             )}
                         </>
