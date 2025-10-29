@@ -6,9 +6,7 @@ import { Button } from '../components/ui';
 import { useDebouncedValue } from '../utils/debounce';
 
 const UserContactsPage = () => {
-    const { users: realUsers, loading: usersLoading } = useUsers();
-    const [dummyUsers, setDummyUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const { users: allUsers, loading: usersLoading } = useUsers();
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [competencies, setCompetencies] = useState([]);
@@ -18,25 +16,8 @@ const UserContactsPage = () => {
     const [showFilters, setShowFilters] = useState(false);
 
     useEffect(() => {
-        fetchDummyUsers();
         fetchCompetencies();
     }, []);
-
-    const fetchDummyUsers = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('dummy_users')
-                .select('*')
-                .order('name');
-
-            if (error) throw error;
-            setDummyUsers(data || []);
-        } catch (error) {
-            console.error('Error fetching dummy users:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const fetchCompetencies = async () => {
         try {
@@ -83,9 +64,6 @@ const UserContactsPage = () => {
         if (sortConfig.key !== key) return '↕';
         return sortConfig.direction === 'ascending' ? '↑' : '↓';
     };
-
-    // Combine real and dummy users
-    const allUsers = [...realUsers.map(u => ({ ...u, isDummy: false })), ...dummyUsers.map(u => ({ ...u, isDummy: true }))];
 
     // Get unique departments and user names
     const departments = useMemo(() => {
@@ -165,7 +143,7 @@ const UserContactsPage = () => {
         return filtered;
     }, [allUsers, debouncedSearchTerm, sortConfig, selectedDepartments, selectedUsers]);
 
-    if (loading || usersLoading) {
+    if (usersLoading) {
         return <div className="p-8 text-2xl font-semibold text-center">Loading User Contacts...</div>;
     }
 

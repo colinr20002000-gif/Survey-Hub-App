@@ -583,25 +583,38 @@ const ProjectLogsPage = () => {
 
     // Shift Pattern by Month data
     const shiftPatternByMonthData = useMemo(() => {
-        const grouped = {};
+        // Generate the last 12 months
+        const months = [];
+        const today = new Date();
 
+        for (let i = 11; i >= 0; i--) {
+            const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            const monthLabel = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+
+            months.push({
+                month: monthLabel,
+                monthKey,
+                Day: 0,
+                Night: 0
+            });
+        }
+
+        // Fill in data from logs
         filteredLogs.forEach(log => {
             if (!log.shift_start_date) return;
 
             const date = new Date(log.shift_start_date);
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            const monthLabel = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
 
-            if (!grouped[monthKey]) {
-                grouped[monthKey] = { month: monthLabel, monthKey, Day: 0, Night: 0 };
+            const monthData = months.find(m => m.monthKey === monthKey);
+            if (monthData) {
+                const shift = log.night_or_day_shift || 'Day';
+                monthData[shift] += 1;
             }
-
-            const shift = log.night_or_day_shift || 'Day';
-            grouped[monthKey][shift] += 1;
         });
 
-        // Sort by month key (year-month) in ascending order
-        return Object.values(grouped).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+        return months;
     }, [filteredLogs]);
 
     // CSV parsing helper - handles quoted fields with commas
