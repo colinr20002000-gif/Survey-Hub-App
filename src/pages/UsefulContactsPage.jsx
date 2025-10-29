@@ -158,7 +158,7 @@ const UsefulContactsPage = () => {
                                     Organisation {getSortIndicator('organisation')}
                                 </th>
                                 <th onClick={() => handleSort('address')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    Address {getSortIndicator('address')}
+                                    Policy Number {getSortIndicator('address')}
                                 </th>
                                 <th onClick={() => handleSort('email')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
                                     Email {getSortIndicator('email')}
@@ -189,9 +189,14 @@ const UsefulContactsPage = () => {
                                     </td>
                                     <td className="px-4 py-3 text-sm">
                                         {contact.phone_number ? (
-                                            <a href={`tel:${contact.phone_number}`} className="md:pointer-events-none md:cursor-default text-blue-600 dark:text-blue-400 md:text-gray-900 md:dark:text-gray-100 hover:underline md:hover:no-underline">
-                                                {contact.phone_number}
-                                            </a>
+                                            <>
+                                                <a href={`tel:${contact.phone_number}`} className="md:hidden text-blue-600 dark:text-blue-400 hover:underline">
+                                                    {contact.phone_number}
+                                                </a>
+                                                <span className="hidden md:inline text-gray-900 dark:text-white">
+                                                    {contact.phone_number}
+                                                </span>
+                                            </>
                                         ) : (
                                             <span className="text-gray-500 dark:text-gray-400">-</span>
                                         )}
@@ -328,7 +333,7 @@ const UsefulContactModal = ({ isOpen, onClose, onSave, contact }) => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Address
+                                    Policy Number
                                 </label>
                                 <textarea
                                     value={formData.address}

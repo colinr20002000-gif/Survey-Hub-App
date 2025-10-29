@@ -305,9 +305,14 @@ const UserContactsPage = () => {
                                     </td>
                                     <td className="px-4 py-3 text-sm">
                                         {user.mobile_number ? (
-                                            <a href={`tel:${user.mobile_number}`} className="md:pointer-events-none md:cursor-default text-blue-600 dark:text-blue-400 md:text-gray-900 md:dark:text-gray-100 hover:underline md:hover:no-underline">
-                                                {user.mobile_number}
-                                            </a>
+                                            <>
+                                                <a href={`tel:${user.mobile_number}`} className="md:hidden text-blue-600 dark:text-blue-400 hover:underline">
+                                                    {user.mobile_number}
+                                                </a>
+                                                <span className="hidden md:inline text-gray-900 dark:text-white">
+                                                    {user.mobile_number}
+                                                </span>
+                                            </>
                                         ) : (
                                             <span className="text-gray-500 dark:text-gray-400">-</span>
                                         )}

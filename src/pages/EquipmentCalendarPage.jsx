@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, MoreVertical, Download, Package, CheckCircle, XCircle, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, MoreVertical, Download, Package, CheckCircle, XCircle, Zap } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
@@ -764,6 +764,59 @@ const EquipmentCalendarPage = () => {
                 // Open modal to edit the specific item
                 setSelectedCell({ ...cellToUpdate, editingItem: specificItem, editingIndex: equipmentIndex });
                 setIsAllocationModalOpen(true);
+            } else if (action === 'moveUp' || action === 'moveDown') {
+                // Reorder items in the array
+                const newAssignment = [...cellData.assignment];
+                const targetIndex = action === 'moveUp' ? equipmentIndex - 1 : equipmentIndex + 1;
+
+                // Swap items
+                [newAssignment[equipmentIndex], newAssignment[targetIndex]] = [newAssignment[targetIndex], newAssignment[equipmentIndex]];
+
+                // Update state immediately
+                const weekKey = formatDateForKey(getWeekStartDate(cellData.date));
+                setAllocations(prev => {
+                    const newAllocations = JSON.parse(JSON.stringify(prev));
+                    if (newAllocations[weekKey] && newAllocations[weekKey][cellData.userId]) {
+                        newAllocations[weekKey][cellData.userId].assignments[cellData.dayIndex] = newAssignment;
+                    }
+                    return newAllocations;
+                });
+
+                // Update database - delete and re-insert in new order
+                try {
+                    const allocationDateString = formatDateForKey(cellData.date);
+
+                    // Delete all existing records for this date
+                    const { error: deleteError } = await supabase
+                        .from('equipment_calendar')
+                        .delete()
+                        .eq('user_id', cellData.userId)
+                        .eq('allocation_date', allocationDateString);
+
+                    if (deleteError) throw deleteError;
+
+                    // Re-insert items in new order
+                    const recordsToInsert = newAssignment.map(item => ({
+                        user_id: cellData.userId,
+                        equipment_id: item.equipmentId || null,
+                        allocation_date: allocationDateString,
+                        comment: item.comment || null
+                    }));
+
+                    const { error: insertError } = await supabase
+                        .from('equipment_calendar')
+                        .insert(recordsToInsert);
+
+                    if (insertError) throw insertError;
+                } catch (err) {
+                    console.error('Error reordering equipment:', err);
+                    const errorMessage = handleSupabaseError(err, 'equipment_calendar', 'update', null);
+                    if (isRLSError(err)) {
+                        showPrivilegeError(errorMessage);
+                    } else {
+                        showErrorModal(errorMessage, 'Failed to Reorder Equipment');
+                    }
+                }
             } else if (action === 'addSecondEquipment') {
                 // Add more equipment from an individual item's context menu
                 setSelectedCell({ ...cellToUpdate, isSecondEquipment: true });
@@ -1983,6 +2036,8 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
     const canAddMoreEquipment = hasAssignment;
     const isArrayItemOperation = cellData.equipmentIndex !== null && cellData.equipmentIndex !== undefined;
     const isMultiItemTile = Array.isArray(cellData.assignment);
+    const canMoveUp = isArrayItemOperation && isMultiItemTile && cellData.equipmentIndex > 0;
+    const canMoveDown = isArrayItemOperation && isMultiItemTile && cellData.equipmentIndex < cellData.assignment.length - 1;
 
     if (!canAllocate && !hasAssignment) {
         return null;
@@ -2005,6 +2060,24 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                                     </svg>Edit
                                 </button>
+                            )}
+                            {isArrayItemOperation && isMultiItemTile && cellData.assignment.length > 1 && (
+                                <>
+                                    <button
+                                        onClick={() => onAction('moveUp')}
+                                        disabled={!canMoveUp}
+                                        className={`w-full text-left flex items-center px-4 py-2 text-sm ${canMoveUp ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
+                                    >
+                                        <ChevronUp size={14} className="mr-2" />Move Up
+                                    </button>
+                                    <button
+                                        onClick={() => onAction('moveDown')}
+                                        disabled={!canMoveDown}
+                                        className={`w-full text-left flex items-center px-4 py-2 text-sm ${canMoveDown ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
+                                    >
+                                        <ChevronDown size={14} className="mr-2" />Move Down
+                                    </button>
+                                </>
                             )}
                             {/* Only show copy/cut/delete for single items or individual array items, not for whole multi-item tiles */}
                             {!isMultiItemTile || isArrayItemOperation ? (
