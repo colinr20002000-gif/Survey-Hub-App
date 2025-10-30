@@ -58,6 +58,7 @@ const EquipmentCalendarPage = lazy(() => import('./pages/EquipmentCalendarPage')
 const AuditTrailPage = lazy(() => import('./pages/AuditTrailPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const ProjectLogsPage = lazy(() => import('./pages/ProjectLogsPage'));
+const AFVPage = lazy(() => import('./pages/AFVPage'));
 const CalendarColoursPage = lazy(() => import('./pages/CalendarColoursPage'));
 
 import { DeliveryTaskItem, DeliveryTaskModal } from './components/tasks/TaskComponents';
@@ -582,7 +583,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Webapp', parent: 'Analytics' },
-                { name: 'Project Logs', parent: 'Analytics' }
+                { name: 'Project Logs', parent: 'Analytics' },
+                { name: 'AFV', parent: 'Analytics' }
             ]
         },
         { name: 'Settings', icon: Settings, show: true },
@@ -3320,6 +3322,7 @@ const MainLayout = () => {
             case 'Delivery Tasks': return <DeliveryTasksPage />;
             case 'Webapp': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><AnalyticsPage /></Suspense> : <AccessDenied />;
             case 'Project Logs': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><ProjectLogsPage /></Suspense> : <AccessDenied />;
+            case 'AFV': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><AFVPage /></Suspense> : <AccessDenied />;
             case 'Document Hub': return can('VIEW_DOCUMENT_HUB') ? <DocumentHubPage /> : <AccessDenied />;
             case 'Video Tutorials': return <VideoTutorialsPage />;
             case 'Rail Components': return <RailComponentsPage />;
