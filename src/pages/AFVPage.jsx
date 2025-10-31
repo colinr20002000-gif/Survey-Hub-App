@@ -1320,78 +1320,7 @@ const AFVPage = () => {
 
                 {/* KPIs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Profit</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {formatCurrency(kpis.forecastGroupProfit)}
-                                </p>
-                            </div>
-                            <TrendingUp className="h-10 w-10 text-green-500" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Margin</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {kpis.forecastGroupMargin.toFixed(2)}%
-                                </p>
-                            </div>
-                            <Percent className="h-10 w-10 text-blue-500" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Anticipated Final Cost</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {formatCurrency(kpis.anticipatedFinalCost)}
-                                </p>
-                            </div>
-                            <Calculator className="h-10 w-10 text-cyan-500" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Total Cost to Date</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {formatCurrency(kpis.totalCostToDate)}
-                                </p>
-                            </div>
-                            <DollarSign className="h-10 w-10 text-red-500" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Cost to Date vs Anticipated</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {kpis.costToDateVsAnticipatedPercentage.toFixed(2)}%
-                                </p>
-                            </div>
-                            <Activity className="h-10 w-10 text-yellow-500" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Total Invoice Value</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {formatCurrency(kpis.totalInvoiceValue)}
-                                </p>
-                            </div>
-                            <BarChart2 className="h-10 w-10 text-indigo-500" />
-                        </div>
-                    </div>
-
+                    {/* 1. Total Order Value */}
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
                         <div className="flex items-center justify-between">
                             <div>
@@ -1404,6 +1333,20 @@ const AFVPage = () => {
                         </div>
                     </div>
 
+                    {/* 2. Total Invoice Value */}
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Total Invoice Value</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {formatCurrency(kpis.totalInvoiceValue)}
+                                </p>
+                            </div>
+                            <BarChart2 className="h-10 w-10 text-indigo-500" />
+                        </div>
+                    </div>
+
+                    {/* 3. Invoice vs Order Value */}
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
                         <div className="flex items-center justify-between">
                             <div>
@@ -1413,6 +1356,71 @@ const AFVPage = () => {
                                 </p>
                             </div>
                             <Percent className="h-10 w-10 text-pink-500" />
+                        </div>
+                    </div>
+
+                    {/* 4. Forecast Profit */}
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Profit</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {formatCurrency(kpis.forecastGroupProfit)}
+                                </p>
+                            </div>
+                            <TrendingUp className="h-10 w-10 text-green-500" />
+                        </div>
+                    </div>
+
+                    {/* 5. Forecast Margin */}
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Margin</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {kpis.forecastGroupMargin.toFixed(2)}%
+                                </p>
+                            </div>
+                            <Percent className="h-10 w-10 text-blue-500" />
+                        </div>
+                    </div>
+
+                    {/* 6. Anticipated Final Cost */}
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Anticipated Final Cost</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {formatCurrency(kpis.anticipatedFinalCost)}
+                                </p>
+                            </div>
+                            <Calculator className="h-10 w-10 text-cyan-500" />
+                        </div>
+                    </div>
+
+                    {/* 7. Total Cost to Date */}
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Total Cost to Date</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {formatCurrency(kpis.totalCostToDate)}
+                                </p>
+                            </div>
+                            <DollarSign className="h-10 w-10 text-red-500" />
+                        </div>
+                    </div>
+
+                    {/* 8. Cost to Date vs Anticipated */}
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Cost to Date vs Anticipated</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {kpis.costToDateVsAnticipatedPercentage.toFixed(2)}%
+                                </p>
+                            </div>
+                            <Activity className="h-10 w-10 text-yellow-500" />
                         </div>
                     </div>
                 </div>
@@ -1617,8 +1625,11 @@ const AFVPage = () => {
                         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                             <Pagination
                                 currentPage={currentPage}
+                                setCurrentPage={setCurrentPage}
                                 totalPages={totalPages}
-                                onPageChange={setCurrentPage}
+                                itemsPerPage={itemsPerPage}
+                                setItemsPerPage={setItemsPerPage}
+                                totalItems={sortedData.length}
                             />
                         </div>
                     )}
