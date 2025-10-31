@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Upload, Filter, X, Calendar, ExternalLink, TrendingUp, DollarSign, Percent, FileText, Download, Eye, FileSpreadsheet, Image } from 'lucide-react';
+import { Upload, Filter, X, Calendar, ExternalLink, TrendingUp, DollarSign, Percent, FileText, Download, Eye, FileSpreadsheet, Image, Calculator, Activity, BarChart2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Button, Select, Input, Pagination, Modal } from '../components/ui';
 import {
@@ -56,6 +56,10 @@ const AFVPage = () => {
     const [selectedWorkOrderTypes, setSelectedWorkOrderTypes] = useState(() => {
         const saved = localStorage.getItem('afv_selectedWorkOrderTypes');
         return saved ? JSON.parse(saved) : [];
+    });
+    const [filterExpiredProjects, setFilterExpiredProjects] = useState(() => {
+        const saved = localStorage.getItem('afv_filterExpiredProjects');
+        return saved ? JSON.parse(saved) : true; // Default to true (filter out expired)
     });
 
     // Pagination
@@ -187,6 +191,10 @@ const AFVPage = () => {
         localStorage.setItem('afv_selectedWorkOrderTypes', JSON.stringify(selectedWorkOrderTypes));
     }, [selectedWorkOrderTypes]);
 
+    useEffect(() => {
+        localStorage.setItem('afv_filterExpiredProjects', JSON.stringify(filterExpiredProjects));
+    }, [filterExpiredProjects]);
+
     // Get date range for filtering
     const getDateRange = useCallback(() => {
         const today = new Date();
@@ -289,18 +297,29 @@ const AFVPage = () => {
     const filteredData = useMemo(() => {
         let filtered = [...data];
 
-        // Date range filter (based on start_date and end_date)
+        // Filter out projects where the end_date has expired (is in the past) - only if toggle is enabled
+        if (filterExpiredProjects) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Reset time to start of day for fair comparison
+            filtered = filtered.filter(item => {
+                if (!item.end_date) return true; // Keep projects without end date
+                const itemEndDate = new Date(item.end_date);
+                itemEndDate.setHours(0, 0, 0, 0);
+                return itemEndDate >= today; // Keep only if end date is today or in the future
+            });
+        }
+
+        // Date range filter (based on start_date only)
         const { startDate, endDate } = getDateRange();
         if (startDate || endDate) {
             filtered = filtered.filter(item => {
-                if (!item.start_date && !item.end_date) return false;
+                if (!item.start_date) return false;
 
-                const itemStartDate = item.start_date ? new Date(item.start_date) : null;
-                const itemEndDate = item.end_date ? new Date(item.end_date) : null;
+                const itemStartDate = new Date(item.start_date);
 
-                // Include item if its date range overlaps with filter date range
-                if (startDate && itemEndDate && itemEndDate < startDate) return false;
-                if (endDate && itemStartDate && itemStartDate > endDate) return false;
+                // Include item if its start_date falls within the filter date range
+                if (startDate && itemStartDate < startDate) return false;
+                if (endDate && itemStartDate > endDate) return false;
 
                 return true;
             });
@@ -327,7 +346,7 @@ const AFVPage = () => {
         }
 
         return filtered;
-    }, [data, getDateRange, selectedProjects, selectedClients, selectedDisciplines, selectedWorkOrderTypes]);
+    }, [data, getDateRange, selectedProjects, selectedClients, selectedDisciplines, selectedWorkOrderTypes, filterExpiredProjects]);
 
     // Get unique values for dropdowns from filteredData
     const uniqueProjects = useMemo(() => {
@@ -355,27 +374,34 @@ const AFVPage = () => {
             : 0;
         const activeProjects = new Set(filteredData.map(item => item.project_number).filter(Boolean)).size;
 
+        // New KPIs
+        const anticipatedFinalCost = filteredData.reduce((sum, item) => sum + (parseFloat(item.anticipated_final_cost_ev) || 0), 0);
+        const totalCostToDate = filteredData.reduce((sum, item) =>
+            sum + (parseFloat(item.cost_to_date) || 0) + (parseFloat(item.manual_cost_adjustment) || 0), 0);
+        const costToDateVsAnticipatedPercentage = anticipatedFinalCost > 0
+            ? (totalCostToDate / anticipatedFinalCost) * 100
+            : 0;
+        const totalInvoiceValue = filteredData.reduce((sum, item) => sum + (parseFloat(item.cumulative_value) || 0), 0);
+        const totalOrderValue = filteredData.reduce((sum, item) => sum + (parseFloat(item.order_value) || 0), 0);
+        const invoiceVsOrderPercentage = totalOrderValue > 0
+            ? (totalInvoiceValue / totalOrderValue) * 100
+            : 0;
+
         return {
             totalRevenue,
             totalForecastProfit,
             avgProfitMargin: avgProfitMargin * 100, // Convert to percentage
-            activeProjects
+            activeProjects,
+            anticipatedFinalCost,
+            totalCostToDate,
+            costToDateVsAnticipatedPercentage,
+            totalInvoiceValue,
+            totalOrderValue,
+            invoiceVsOrderPercentage,
+            forecastGroupProfit: totalForecastProfit
         };
     }, [filteredData]);
 
-    // Revenue by Client chart data
-    const revenueByClientData = useMemo(() => {
-        const grouped = {};
-        filteredData.forEach(item => {
-            const client = item.client || 'Unknown';
-            grouped[client] = (grouped[client] || 0) + (parseFloat(item.order_value) || 0);
-        });
-
-        return Object.entries(grouped)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 10);
-    }, [filteredData]);
 
     // Revenue by Discipline chart data
     const revenueByDisciplineData = useMemo(() => {
@@ -390,31 +416,6 @@ const AFVPage = () => {
             .filter(item => item.value > 0);
     }, [filteredData]);
 
-    // Profit Margin by Project chart data
-    const profitMarginByProjectData = useMemo(() => {
-        const grouped = {};
-        filteredData.forEach(item => {
-            const project = item.project_number || 'Unknown';
-            if (!grouped[project]) {
-                grouped[project] = {
-                    totalRevenue: 0,
-                    totalProfit: 0,
-                    count: 0
-                };
-            }
-            grouped[project].totalRevenue += (parseFloat(item.order_value) || 0);
-            grouped[project].totalProfit += (parseFloat(item.forecast_profit) || 0);
-            grouped[project].count += 1;
-        });
-
-        return Object.entries(grouped)
-            .map(([name, data]) => ({
-                name,
-                profitMargin: data.totalRevenue > 0 ? (data.totalProfit / data.totalRevenue * 100) : 0
-            }))
-            .sort((a, b) => b.profitMargin - a.profitMargin)
-            .slice(0, 10);
-    }, [filteredData]);
 
     // Business Revenue Breakdown chart data
     const businessRevenueData = useMemo(() => {
@@ -429,38 +430,7 @@ const AFVPage = () => {
         ].filter(item => item.value > 0);
     }, [filteredData]);
 
-    // Work Order Type Distribution chart data
-    const workOrderTypeData = useMemo(() => {
-        const grouped = {};
-        filteredData.forEach(item => {
-            const type = item.work_order_type || 'Unknown';
-            grouped[type] = (grouped[type] || 0) + 1;
-        });
 
-        return Object.entries(grouped)
-            .map(([name, value]) => ({ name, value }))
-            .filter(item => item.value > 0);
-    }, [filteredData]);
-
-    // Revenue Timeline chart data
-    const revenueTimelineData = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(item => {
-            if (!item.start_date) return;
-
-            const date = new Date(item.start_date);
-            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-            if (!grouped[monthKey]) {
-                grouped[monthKey] = { date: monthKey, revenue: 0, profit: 0 };
-            }
-            grouped[monthKey].revenue += (parseFloat(item.order_value) || 0);
-            grouped[monthKey].profit += (parseFloat(item.forecast_profit) || 0);
-        });
-
-        return Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
-    }, [filteredData]);
 
     // Parse CSV line with proper comma and quote handling
     const parseCSVLine = (line) => {
@@ -495,12 +465,46 @@ const AFVPage = () => {
         if (!dateStr || dateStr.trim() === '') return null;
 
         try {
+            // DD/MM/YYYY format (e.g., 30/10/2025)
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+                const [day, month, year] = dateStr.split('/');
+
+                // Validate the date is actually valid (e.g., not 31/09/2025)
+                const testDate = new Date(year, parseInt(month) - 1, parseInt(day));
+                if (testDate.getFullYear() !== parseInt(year) ||
+                    testDate.getMonth() !== parseInt(month) - 1 ||
+                    testDate.getDate() !== parseInt(day)) {
+                    console.warn(`Invalid date detected: "${dateStr}" - setting to null`);
+                    return null;
+                }
+
+                return `${year}-${month}-${day}`;
+            }
             // ISO 8601 with time (YYYY-MM-DDTHH:mm:ss) - just extract date part
-            if (/^\d{4}-\d{2}-\d{2}T/.test(dateStr)) {
-                return dateStr.split('T')[0];
+            else if (/^\d{4}-\d{2}-\d{2}T/.test(dateStr)) {
+                const datePart = dateStr.split('T')[0];
+                // Validate the extracted date
+                const [year, month, day] = datePart.split('-');
+                const testDate = new Date(year, parseInt(month) - 1, parseInt(day));
+                if (testDate.getFullYear() !== parseInt(year) ||
+                    testDate.getMonth() !== parseInt(month) - 1 ||
+                    testDate.getDate() !== parseInt(day)) {
+                    console.warn(`Invalid date detected: "${dateStr}" - setting to null`);
+                    return null;
+                }
+                return datePart;
             }
             // YYYY-MM-DD
             else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                // Validate the date
+                const [year, month, day] = dateStr.split('-');
+                const testDate = new Date(year, parseInt(month) - 1, parseInt(day));
+                if (testDate.getFullYear() !== parseInt(year) ||
+                    testDate.getMonth() !== parseInt(month) - 1 ||
+                    testDate.getDate() !== parseInt(day)) {
+                    console.warn(`Invalid date detected: "${dateStr}" - setting to null`);
+                    return null;
+                }
                 return dateStr;
             }
             // Try native Date parsing as last resort
@@ -579,34 +583,48 @@ const AFVPage = () => {
                     let value = rawValues[index];
                     validColumnIndex++;
 
+                    // Trim string values
                     if (typeof value === 'string') {
                         value = value.trim();
                     }
 
-                    record[header] = value === '' || value === undefined ? null : value;
+                    // Convert empty values to null
+                    if (value === '' || value === undefined || value === null) {
+                        value = null;
+                    }
 
                     // Parse date fields
-                    if ((header === 'start_date' || header === 'end_date') && value) {
-                        const parsedDate = parseDate(value);
-                        if (parsedDate) {
+                    if ((header === 'start_date' || header === 'end_date')) {
+                        if (value) {
+                            const parsedDate = parseDate(value);
                             record[header] = parsedDate;
+                        } else {
+                            record[header] = null;
                         }
                         return;
                     }
 
                     // Convert probability and profit_margin to decimals
-                    if ((header === 'probability' || header === 'profit_margin') && value) {
-                        const num = parseFloat(value);
-                        if (!isNaN(num)) {
-                            record[header] = num;
+                    if ((header === 'probability' || header === 'profit_margin')) {
+                        if (value && value !== null) {
+                            const num = parseFloat(value);
+                            record[header] = !isNaN(num) ? num : null;
+                        } else {
+                            record[header] = null;
                         }
+                        return;
                     }
 
                     // Convert integer fields
                     const integerFields = ['business_code', 'discipline_code', 'next_sequence_number'];
-                    if (integerFields.includes(header) && value) {
-                        const num = parseInt(value);
-                        if (!isNaN(num)) record[header] = num;
+                    if (integerFields.includes(header)) {
+                        if (value && value !== null) {
+                            const num = parseInt(value);
+                            record[header] = !isNaN(num) ? num : null;
+                        } else {
+                            record[header] = null;
+                        }
+                        return;
                     }
 
                     // Convert numeric fields
@@ -616,10 +634,18 @@ const AFVPage = () => {
                         'value_to_complete', 'cost_to_date', 'manual_cost_adjustment',
                         'anticipated_final_cost_ev', 'forecast_profit', 'invoicing_%_complete'
                     ];
-                    if (numericFields.includes(header) && value) {
-                        const num = parseFloat(value);
-                        if (!isNaN(num)) record[header] = num;
+                    if (numericFields.includes(header)) {
+                        if (value && value !== null) {
+                            const num = parseFloat(value);
+                            record[header] = !isNaN(num) ? num : null;
+                        } else {
+                            record[header] = null;
+                        }
+                        return;
                     }
+
+                    // Default: set as-is for text fields
+                    record[header] = value;
                 });
 
                 if (Object.keys(record).length > 0) {
@@ -628,6 +654,27 @@ const AFVPage = () => {
             }
 
             console.log(`Parsed ${records.length} records from CSV`);
+
+            // Validate records before inserting
+            records.forEach((record, index) => {
+                // Check for any numeric fields that might be strings
+                const numericFields = [
+                    'probability', 'inoengineering_afv_revenue', 'inosurveying_afv_revenue',
+                    'initial_value', 'order_value', 'cumulative_value',
+                    'value_to_complete', 'cost_to_date', 'manual_cost_adjustment',
+                    'anticipated_final_cost_ev', 'forecast_profit', 'profit_margin', 'invoicing_%_complete'
+                ];
+
+                numericFields.forEach(field => {
+                    if (record[field] !== null && record[field] !== undefined) {
+                        if (typeof record[field] === 'string') {
+                            console.warn(`Record ${index}: ${field} is a string: "${record[field]}"`);
+                        } else if (isNaN(record[field])) {
+                            console.warn(`Record ${index}: ${field} is NaN`);
+                        }
+                    }
+                });
+            });
 
             // Delete existing data
             const { error: deleteError } = await supabase
@@ -641,11 +688,18 @@ const AFVPage = () => {
             const batchSize = 500;
             for (let i = 0; i < records.length; i += batchSize) {
                 const batch = records.slice(i, i + batchSize);
+                console.log(`Inserting batch ${Math.floor(i / batchSize) + 1}, records ${i} to ${i + batch.length}`);
+                console.log('Sample record from batch:', JSON.stringify(batch[0], null, 2));
+
                 const { error: insertError } = await supabase
                     .from('afv')
                     .insert(batch);
 
-                if (insertError) throw insertError;
+                if (insertError) {
+                    console.error('Insert error details:', insertError);
+                    console.error('Failed batch first record:', JSON.stringify(batch[0], null, 2));
+                    throw new Error(`Insert failed: ${insertError.message || JSON.stringify(insertError)}`);
+                }
             }
 
             // Refresh data
@@ -896,57 +950,6 @@ const AFVPage = () => {
 
             {/* Dashboard Content */}
             <div ref={dashboardRef} className="space-y-6">
-                {/* KPIs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Total Revenue</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {formatCurrency(kpis.totalRevenue)}
-                                </p>
-                            </div>
-                            <DollarSign className="h-10 w-10 text-orange-500" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Profit</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {formatCurrency(kpis.totalForecastProfit)}
-                                </p>
-                            </div>
-                            <TrendingUp className="h-10 w-10 text-green-500" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Avg Profit Margin</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {kpis.avgProfitMargin.toFixed(2)}%
-                                </p>
-                            </div>
-                            <Percent className="h-10 w-10 text-blue-500" />
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Active Projects</p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {kpis.activeProjects}
-                                </p>
-                            </div>
-                            <FileText className="h-10 w-10 text-purple-500" />
-                        </div>
-                    </div>
-                </div>
-
                 {/* Filters */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-2 mb-4">
@@ -1200,28 +1203,124 @@ const AFVPage = () => {
                             )}
                         </div>
                     </div>
+
+                    {/* Filter Expired Projects Toggle */}
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <label className="flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={filterExpiredProjects}
+                                onChange={(e) => setFilterExpiredProjects(e.target.checked)}
+                                className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-700"
+                            />
+                            <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Hide projects with expired end dates
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                {/* KPIs */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Group Profit</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {formatCurrency(kpis.forecastGroupProfit)}
+                                </p>
+                            </div>
+                            <TrendingUp className="h-10 w-10 text-green-500" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Active Projects</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {kpis.activeProjects}
+                                </p>
+                            </div>
+                            <FileText className="h-10 w-10 text-purple-500" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Anticipated Final Cost</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {formatCurrency(kpis.anticipatedFinalCost)}
+                                </p>
+                            </div>
+                            <Calculator className="h-10 w-10 text-cyan-500" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Total Cost to Date</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {formatCurrency(kpis.totalCostToDate)}
+                                </p>
+                            </div>
+                            <DollarSign className="h-10 w-10 text-red-500" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Cost to Date vs Anticipated</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {kpis.costToDateVsAnticipatedPercentage.toFixed(2)}%
+                                </p>
+                            </div>
+                            <Activity className="h-10 w-10 text-yellow-500" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Total Invoice Value</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {formatCurrency(kpis.totalInvoiceValue)}
+                                </p>
+                            </div>
+                            <BarChart2 className="h-10 w-10 text-indigo-500" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Total Order Value</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {formatCurrency(kpis.totalOrderValue)}
+                                </p>
+                            </div>
+                            <DollarSign className="h-10 w-10 text-teal-500" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Invoice vs Order Value</p>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                                    {kpis.invoiceVsOrderPercentage.toFixed(2)}%
+                                </p>
+                            </div>
+                            <Percent className="h-10 w-10 text-pink-500" />
+                        </div>
+                    </div>
                 </div>
 
                 {/* Charts */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Revenue by Client */}
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue by Client (Top 10)</h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <BarChart data={revenueByClientData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} angle={-45} textAnchor="end" height={100} />
-                                <YAxis tick={{ fill: '#9ca3af' }} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
-                                    labelStyle={{ color: '#f3f4f6' }}
-                                    formatter={(value) => formatCurrency(value)}
-                                />
-                                <Bar dataKey="value" fill="#fb923c" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-
                     {/* Revenue by Discipline */}
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue by Discipline</h3>
@@ -1246,24 +1345,6 @@ const AFVPage = () => {
                         </ResponsiveContainer>
                     </div>
 
-                    {/* Profit Margin by Project */}
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Profit Margin by Project (Top 10)</h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <BarChart data={profitMarginByProjectData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} angle={-45} textAnchor="end" height={100} />
-                                <YAxis tick={{ fill: '#9ca3af' }} label={{ value: '%', angle: -90, position: 'insideLeft' }} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
-                                    labelStyle={{ color: '#f3f4f6' }}
-                                    formatter={(value) => `${value.toFixed(2)}%`}
-                                />
-                                <Bar dataKey="profitMargin" fill="#10b981" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-
                     {/* Business Revenue Breakdown */}
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Business Revenue Breakdown</h3>
@@ -1285,43 +1366,6 @@ const AFVPage = () => {
                                 </Pie>
                                 <Tooltip formatter={(value) => formatCurrency(value)} />
                             </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    {/* Revenue Timeline */}
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 lg:col-span-2">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue Timeline</h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <LineChart data={revenueTimelineData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                <XAxis dataKey="date" tick={{ fill: '#9ca3af' }} />
-                                <YAxis tick={{ fill: '#9ca3af' }} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
-                                    labelStyle={{ color: '#f3f4f6' }}
-                                    formatter={(value) => formatCurrency(value)}
-                                />
-                                <Legend />
-                                <Line type="monotone" dataKey="revenue" stroke="#fb923c" name="Revenue" strokeWidth={2} />
-                                <Line type="monotone" dataKey="profit" stroke="#10b981" name="Profit" strokeWidth={2} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    {/* Work Order Type Distribution */}
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 lg:col-span-2">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Work Order Type Distribution</h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <BarChart data={workOrderTypeData} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                <XAxis type="number" tick={{ fill: '#9ca3af' }} />
-                                <YAxis dataKey="name" type="category" tick={{ fill: '#9ca3af', fontSize: 12 }} width={150} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
-                                    labelStyle={{ color: '#f3f4f6' }}
-                                />
-                                <Bar dataKey="value" fill="#3b82f6" />
-                            </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>

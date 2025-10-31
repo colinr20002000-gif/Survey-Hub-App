@@ -82,6 +82,17 @@ const ProjectsPage = ({ onViewProject }) => {
         setCurrentPage(1);
     }, [searchTerm, showArchived, clientFilter, yearFilter]);
 
+    // Calculate unique values for filters
+    const uniqueClients = useMemo(() => {
+        if (!projects) return [];
+        return [...new Set(projects.map(p => p.client))].sort((a, b) => a.localeCompare(b));
+    }, [projects]);
+
+    const uniqueYears = useMemo(() => {
+        if (!projects) return [];
+        return [...new Set(projects.map(p => p.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
+    }, [projects]);
+
     // Now safe to do conditional returns after all hooks are called
     if (loading) {
         return <div className="p-8 text-2xl font-semibold text-center">Loading Projects...</div>;
@@ -168,9 +179,6 @@ const ProjectsPage = ({ onViewProject }) => {
         setClientFilter('');
         setYearFilter('');
     };
-
-    const uniqueClients = [...new Set(projects.map(p => p.client))].sort((a, b) => a.localeCompare(b));
-    const uniqueYears = [...new Set(projects.map(p => p.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
 
     return (
         <div className="p-4 md:p-6">

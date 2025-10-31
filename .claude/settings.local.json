@@ -55,7 +55,9 @@
       "Bash(find:*)",
       "mcp__ide__getDiagnostics",
       "Bash(git fetch:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "mcp__Supabase__execute_sql",
+      "mcp__Supabase__apply_migration"
     ],
     "deny": [],
     "ask": []
