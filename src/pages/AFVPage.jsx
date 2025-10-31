@@ -57,6 +57,10 @@ const AFVPage = () => {
         const saved = localStorage.getItem('afv_selectedWorkOrderTypes');
         return saved ? JSON.parse(saved) : [];
     });
+    const [selectedBusinesses, setSelectedBusinesses] = useState(() => {
+        const saved = localStorage.getItem('afv_selectedBusinesses');
+        return saved ? JSON.parse(saved) : [];
+    });
     const [filterExpiredProjects, setFilterExpiredProjects] = useState(() => {
         const saved = localStorage.getItem('afv_filterExpiredProjects');
         return saved ? JSON.parse(saved) : true; // Default to true (filter out expired)
@@ -74,12 +78,14 @@ const AFVPage = () => {
     const [clientsDropdownOpen, setClientsDropdownOpen] = useState(false);
     const [disciplinesDropdownOpen, setDisciplinesDropdownOpen] = useState(false);
     const [workOrderTypesDropdownOpen, setWorkOrderTypesDropdownOpen] = useState(false);
+    const [businessesDropdownOpen, setBusinessesDropdownOpen] = useState(false);
 
     // Refs for click outside
     const projectsRef = useRef(null);
     const clientsRef = useRef(null);
     const disciplinesRef = useRef(null);
     const workOrderTypesRef = useRef(null);
+    const businessesRef = useRef(null);
 
     // Fetch AFV data from Supabase
     const fetchData = useCallback(async () => {
@@ -157,6 +163,9 @@ const AFVPage = () => {
             if (workOrderTypesRef.current && !workOrderTypesRef.current.contains(event.target)) {
                 setWorkOrderTypesDropdownOpen(false);
             }
+            if (businessesRef.current && !businessesRef.current.contains(event.target)) {
+                setBusinessesDropdownOpen(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -190,6 +199,10 @@ const AFVPage = () => {
     useEffect(() => {
         localStorage.setItem('afv_selectedWorkOrderTypes', JSON.stringify(selectedWorkOrderTypes));
     }, [selectedWorkOrderTypes]);
+
+    useEffect(() => {
+        localStorage.setItem('afv_selectedBusinesses', JSON.stringify(selectedBusinesses));
+    }, [selectedBusinesses]);
 
     useEffect(() => {
         localStorage.setItem('afv_filterExpiredProjects', JSON.stringify(filterExpiredProjects));
@@ -345,8 +358,13 @@ const AFVPage = () => {
             filtered = filtered.filter(item => selectedWorkOrderTypes.includes(item.work_order_type));
         }
 
+        // Business filter
+        if (selectedBusinesses.length > 0) {
+            filtered = filtered.filter(item => selectedBusinesses.includes(item.business));
+        }
+
         return filtered;
-    }, [data, getDateRange, selectedProjects, selectedClients, selectedDisciplines, selectedWorkOrderTypes, filterExpiredProjects]);
+    }, [data, getDateRange, selectedProjects, selectedClients, selectedDisciplines, selectedWorkOrderTypes, selectedBusinesses, filterExpiredProjects]);
 
     // Get unique values for dropdowns from filteredData
     const uniqueProjects = useMemo(() => {
@@ -363,6 +381,10 @@ const AFVPage = () => {
 
     const uniqueWorkOrderTypes = useMemo(() => {
         return [...new Set(data.map(item => item.work_order_type).filter(Boolean))].sort();
+    }, [data]);
+
+    const uniqueBusinesses = useMemo(() => {
+        return [...new Set(data.map(item => item.business).filter(Boolean))].sort();
     }, [data]);
 
     // Calculate KPIs
@@ -386,6 +408,9 @@ const AFVPage = () => {
         const invoiceVsOrderPercentage = totalOrderValue > 0
             ? (totalInvoiceValue / totalOrderValue) * 100
             : 0;
+        const forecastGroupMargin = totalOrderValue > 0
+            ? (totalForecastProfit / totalOrderValue) * 100
+            : 0;
 
         return {
             totalRevenue,
@@ -398,7 +423,8 @@ const AFVPage = () => {
             totalInvoiceValue,
             totalOrderValue,
             invoiceVsOrderPercentage,
-            forecastGroupProfit: totalForecastProfit
+            forecastGroupProfit: totalForecastProfit,
+            forecastGroupMargin
         };
     }, [filteredData]);
 
@@ -783,6 +809,23 @@ const AFVPage = () => {
         }
     };
 
+    // Handle opening file in Excel desktop application
+    const handleOpenInExcel = (url) => {
+        if (!url) return;
+
+        // For SharePoint/OneDrive links, use the ms-excel protocol to open in desktop app
+        if (url.includes('sharepoint.com') || url.includes('.sharepoint.')) {
+            // Use the ms-excel protocol handler to open in Excel desktop
+            window.location.href = `ms-excel:ofe|u|${url}`;
+        } else if (url.toLowerCase().match(/\.(xlsx?m?)$/i)) {
+            // For other Excel files, try the protocol handler
+            window.location.href = `ms-excel:ofe|u|${url}`;
+        } else {
+            // Fallback to regular view
+            handleView(url);
+        }
+    };
+
     // Handle file download
     const handleDownload = async (url, projectNo) => {
         if (!url) return;
@@ -952,9 +995,17 @@ const AFVPage = () => {
             <div ref={dashboardRef} className="space-y-6">
                 {/* Filters */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Filter size={20} className="text-orange-500" />
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Filters</h2>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <Filter size={20} className="text-orange-500" />
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Filters</h2>
+                        </div>
+                        <div className="flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                            <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                            <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                                {kpis.activeProjects} Active Project{kpis.activeProjects !== 1 ? 's' : ''}
+                            </span>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1202,6 +1253,53 @@ const AFVPage = () => {
                                 </div>
                             )}
                         </div>
+
+                        {/* Business Filter */}
+                        <div ref={businessesRef} className="relative">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Business
+                            </label>
+                            <div
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer flex justify-between items-center"
+                                onClick={() => setBusinessesDropdownOpen(!businessesDropdownOpen)}
+                            >
+                                <span className="truncate">
+                                    {selectedBusinesses.length === 0 ? 'All Businesses' : `${selectedBusinesses.length} selected`}
+                                </span>
+                                <span>▼</span>
+                            </div>
+                            {businessesDropdownOpen && (
+                                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                    <div className="p-2">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setSelectedBusinesses([])}
+                                            className="w-full mb-2"
+                                        >
+                                            Clear All
+                                        </Button>
+                                        {uniqueBusinesses.map(business => (
+                                            <label key={business} className="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedBusinesses.includes(business)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setSelectedBusinesses([...selectedBusinesses, business]);
+                                                        } else {
+                                                            setSelectedBusinesses(selectedBusinesses.filter(b => b !== business));
+                                                        }
+                                                    }}
+                                                    className="mr-2"
+                                                />
+                                                <span className="text-sm text-gray-900 dark:text-white">{business}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Filter Expired Projects Toggle */}
@@ -1225,7 +1323,7 @@ const AFVPage = () => {
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Group Profit</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Profit</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                                     {formatCurrency(kpis.forecastGroupProfit)}
                                 </p>
@@ -1237,12 +1335,12 @@ const AFVPage = () => {
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Active Projects</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Margin</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {kpis.activeProjects}
+                                    {kpis.forecastGroupMargin.toFixed(2)}%
                                 </p>
                             </div>
-                            <FileText className="h-10 w-10 text-purple-500" />
+                            <Percent className="h-10 w-10 text-blue-500" />
                         </div>
                     </div>
 
@@ -1500,7 +1598,7 @@ const AFVPage = () => {
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        onClick={() => handleView(item.link)}
+                                                        onClick={() => handleOpenInExcel(item.link)}
                                                         title="Open in Excel"
                                                     >
                                                         <FileSpreadsheet size={14} />
