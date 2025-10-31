@@ -26,6 +26,7 @@ const AFVPage = () => {
 
     // Ref for dashboard export
     const dashboardRef = useRef(null);
+    const exportRef = useRef(null);
 
     // Ref to track if data has been loaded
     const hasLoadedData = useRef(false);
@@ -454,6 +455,93 @@ const AFVPage = () => {
             { name: 'InoEngineering', value: engineeringRevenue },
             { name: 'InoSurveying', value: surveyingRevenue }
         ].filter(item => item.value > 0);
+    }, [filteredData]);
+
+    // Top 10 Clients by Order Value chart data
+    const topClientsByOrderValueData = useMemo(() => {
+        const grouped = {};
+        filteredData.forEach(item => {
+            const client = item.client || 'Unknown';
+            grouped[client] = (grouped[client] || 0) + (parseFloat(item.order_value) || 0);
+        });
+
+        return Object.entries(grouped)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 10);
+    }, [filteredData]);
+
+    // Total Order Value Over Time chart data
+    const orderValueOverTimeData = useMemo(() => {
+        const grouped = {};
+
+        filteredData.forEach(item => {
+            if (!item.start_date) return;
+
+            const date = new Date(item.start_date);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+            if (!grouped[monthKey]) {
+                grouped[monthKey] = { date: monthKey, orderValue: 0 };
+            }
+            grouped[monthKey].orderValue += (parseFloat(item.order_value) || 0);
+        });
+
+        return Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
+    }, [filteredData]);
+
+    // Project Profit Margin Distribution (Histogram) chart data
+    const profitMarginDistributionData = useMemo(() => {
+        const bins = [
+            { range: '<0%', min: -Infinity, max: 0, count: 0 },
+            { range: '0-10%', min: 0, max: 0.1, count: 0 },
+            { range: '10-20%', min: 0.1, max: 0.2, count: 0 },
+            { range: '20-30%', min: 0.2, max: 0.3, count: 0 },
+            { range: '30-40%', min: 0.3, max: 0.4, count: 0 },
+            { range: '40-50%', min: 0.4, max: 0.5, count: 0 },
+            { range: '>50%', min: 0.5, max: Infinity, count: 0 }
+        ];
+
+        filteredData.forEach(item => {
+            const margin = parseFloat(item.profit_margin);
+            if (isNaN(margin) || margin === null) return;
+
+            // Find the appropriate bin
+            for (let bin of bins) {
+                if (margin >= bin.min && margin < bin.max) {
+                    bin.count++;
+                    break;
+                }
+            }
+        });
+
+        return bins.map(bin => ({ range: bin.range, count: bin.count }));
+    }, [filteredData]);
+
+    // Work Scope Breakdown chart data
+    const workScopeBreakdownData = useMemo(() => {
+        const grouped = {};
+        filteredData.forEach(item => {
+            const scope = item.original_scope_change || 'Unknown';
+            grouped[scope] = (grouped[scope] || 0) + (parseFloat(item.order_value) || 0);
+        });
+
+        return Object.entries(grouped)
+            .map(([name, value]) => ({ name, value }))
+            .filter(item => item.value > 0);
+    }, [filteredData]);
+
+    // Project Count by Discipline chart data
+    const projectCountByDisciplineData = useMemo(() => {
+        const grouped = {};
+        filteredData.forEach(item => {
+            const discipline = item.discipline || 'Unknown';
+            grouped[discipline] = (grouped[discipline] || 0) + 1;
+        });
+
+        return Object.entries(grouped)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count);
     }, [filteredData]);
 
 
@@ -892,23 +980,24 @@ const AFVPage = () => {
 
     // Handle Export Image
     const handleExportImage = async () => {
-        if (!dashboardRef.current) return;
+        if (!exportRef.current) return;
 
         setIsExporting(true);
 
         try {
-            const dataUrl = await toPng(dashboardRef.current, {
+            const dataUrl = await toPng(exportRef.current, {
                 quality: 1,
                 pixelRatio: 2,
                 backgroundColor: '#ffffff'
             });
 
             const link = document.createElement('a');
-            link.download = `afv-dashboard-${new Date().toISOString().split('T')[0]}.png`;
+            const fileName = `afv-dashboard-${new Date().toISOString().split('T')[0]}.png`;
+            link.download = fileName;
             link.href = dataUrl;
             link.click();
 
-            alert('✅ Dashboard exported successfully!');
+            alert(`✅ Dashboard exported successfully!\n\nFile: ${fileName}\n\nNote: The exported image includes KPIs and charts only (filters are excluded).`);
         } catch (error) {
             console.error('Error exporting image:', error);
             alert('❌ Error exporting dashboard. Please try again.');
@@ -1318,6 +1407,8 @@ const AFVPage = () => {
                     </div>
                 </div>
 
+                {/* Exportable Content - KPIs and Charts */}
+                <div ref={exportRef}>
                 {/* KPIs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* 1. Total Order Value */}
@@ -1352,7 +1443,7 @@ const AFVPage = () => {
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Invoice vs Order Value</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {kpis.invoiceVsOrderPercentage.toFixed(2)}%
+                                    {kpis.invoiceVsOrderPercentage.toFixed(0)}%
                                 </p>
                             </div>
                             <Percent className="h-10 w-10 text-pink-500" />
@@ -1378,7 +1469,7 @@ const AFVPage = () => {
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Forecast Margin</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {kpis.forecastGroupMargin.toFixed(2)}%
+                                    {kpis.forecastGroupMargin.toFixed(0)}%
                                 </p>
                             </div>
                             <Percent className="h-10 w-10 text-blue-500" />
@@ -1417,7 +1508,7 @@ const AFVPage = () => {
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Cost to Date vs Anticipated</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                                    {kpis.costToDateVsAnticipatedPercentage.toFixed(2)}%
+                                    {kpis.costToDateVsAnticipatedPercentage.toFixed(0)}%
                                 </p>
                             </div>
                             <Activity className="h-10 w-10 text-yellow-500" />
@@ -1427,31 +1518,7 @@ const AFVPage = () => {
 
                 {/* Charts */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Revenue by Discipline */}
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue by Discipline</h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <PieChart>
-                                <Pie
-                                    data={revenueByDisciplineData}
-                                    cx="50%"
-                                    cy="50%"
-                                    labelLine={false}
-                                    label={(entry) => `${entry.name}: ${formatCurrency(entry.value)}`}
-                                    outerRadius={80}
-                                    fill="#8884d8"
-                                    dataKey="value"
-                                >
-                                    {revenueByDisciplineData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(value) => formatCurrency(value)} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    {/* Business Revenue Breakdown */}
+                    {/* Business Revenue Breakdown - Always show */}
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Business Revenue Breakdown</h3>
                         <ResponsiveContainer width="100%" height={300}>
@@ -1474,6 +1541,192 @@ const AFVPage = () => {
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
+
+                    {/* Revenue by Discipline - Only show for single project */}
+                    {selectedProjects.length === 1 && (
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue by Discipline</h3>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                    <Pie
+                                        data={revenueByDisciplineData}
+                                        cx="50%"
+                                        cy="50%"
+                                        labelLine={false}
+                                        label={(entry) => `${entry.name}: ${formatCurrency(entry.value)}`}
+                                        outerRadius={80}
+                                        fill="#8884d8"
+                                        dataKey="value"
+                                    >
+                                        {revenueByDisciplineData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+
+                    {/* Top 10 Clients by Order Value - Only show for multiple projects */}
+                    {selectedProjects.length !== 1 && (
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top 10 Clients by Order Value</h3>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <BarChart data={topClientsByOrderValueData} margin={{ top: 5, right: 30, left: 20, bottom: 20 }} layout="vertical">
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                    <XAxis
+                                        type="number"
+                                        tick={{ fill: '#9ca3af' }}
+                                    />
+                                    <YAxis
+                                        type="category"
+                                        dataKey="name"
+                                        tick={false}
+                                        width={10}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                                        labelStyle={{ color: '#f3f4f6' }}
+                                        formatter={(value) => formatCurrency(value)}
+                                    />
+                                    <Bar
+                                        dataKey="value"
+                                        fill="#fb923c"
+                                        label={{
+                                            position: 'insideLeft',
+                                            fill: '#ffffff',
+                                            fontSize: 12,
+                                            content: ({ x, y, width, height, value, index }) => {
+                                                const item = topClientsByOrderValueData[index];
+                                                return (
+                                                    <text
+                                                        x={x + 5}
+                                                        y={y + height / 2}
+                                                        fill="#ffffff"
+                                                        textAnchor="start"
+                                                        dominantBaseline="middle"
+                                                        fontSize={12}
+                                                    >
+                                                        {item?.name}
+                                                    </text>
+                                                );
+                                            }
+                                        }}
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+
+                    {/* Total Order Value Over Time - Only show for multiple projects */}
+                    {selectedProjects.length !== 1 && (
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Total Order Value Over Time</h3>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <LineChart data={orderValueOverTimeData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                    <XAxis
+                                        dataKey="date"
+                                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                                    />
+                                    <YAxis
+                                        tick={{ fill: '#9ca3af' }}
+                                        width={80}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                                        labelStyle={{ color: '#f3f4f6' }}
+                                        formatter={(value) => formatCurrency(value)}
+                                    />
+                                    <Legend />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="orderValue"
+                                        stroke="#fb923c"
+                                        name="Order Value"
+                                        strokeWidth={2}
+                                        dot={{ r: 4 }}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+
+                    {/* Project Profit Margin Distribution - Only show for multiple projects */}
+                    {selectedProjects.length !== 1 && (
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Project Profit Margin Distribution</h3>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <BarChart data={profitMarginDistributionData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                    <XAxis
+                                        dataKey="range"
+                                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                                    />
+                                    <YAxis
+                                        tick={{ fill: '#9ca3af' }}
+                                        width={60}
+                                        label={{ value: 'Count of Projects', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                                        labelStyle={{ color: '#f3f4f6' }}
+                                    />
+                                    <Bar dataKey="count" fill="#10b981" name="Projects" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+
+                    {/* Work Scope Breakdown - Always show */}
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Work Scope Breakdown (by Value)</h3>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                                <Pie
+                                    data={workScopeBreakdownData}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={(entry) => `${entry.name}: ${formatCurrency(entry.value)}`}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                >
+                                    {workScopeBreakdownData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(value) => formatCurrency(value)} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Project Count by Discipline - Always show */}
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Project Count by Discipline</h3>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={projectCountByDisciplineData} margin={{ top: 20, right: 30, left: 60, bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                <XAxis
+                                    dataKey="name"
+                                    tick={false}
+                                    axisLine={{ stroke: '#374151' }}
+                                />
+                                <YAxis
+                                    tick={{ fill: '#9ca3af' }}
+                                    width={50}
+                                />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                                    labelStyle={{ color: '#f3f4f6' }}
+                                />
+                                <Bar dataKey="count" fill="#8b5cf6" name="Projects" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
                 </div>
             </div>
 
