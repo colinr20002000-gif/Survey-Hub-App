@@ -8,8 +8,17 @@ import {
     RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
 import { toPng } from 'html-to-image';
+import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 
 const AFVPage = () => {
+    // Permissions
+    const { user } = useAuth();
+    const { can } = usePermissions();
+
+    // Check if user has permission to view AFV
+    const canViewAFV = can('VIEW_AFV');
+    const canImportCSV = can('IMPORT_AFV_CSV');
     // Colors for charts
     const COLORS = ['#fb923c', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
@@ -1039,15 +1048,35 @@ const AFVPage = () => {
         );
     }
 
+    // Check if user has permission to view AFV
+    if (!canViewAFV) {
+        return (
+            <div className="p-6">
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                        <div className="ml-3">
+                            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Access Denied</h3>
+                            <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                                You don't have permission to view the AFV Dashboard. Please contact an administrator if you need access.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="p-6 space-y-6">
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AFV Dashboard</h1>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Anticipated Final Value - Project Financial Forecasting
-                    </p>
                     {lastUpdated && (
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                             Last imported: {lastUpdated.toLocaleString()}
@@ -1070,13 +1099,15 @@ const AFVPage = () => {
                         <FileSpreadsheet size={16} className="mr-2" />
                         Export CSV
                     </Button>
-                    <Button
-                        onClick={() => setIsImportModalOpen(true)}
-                        className="bg-orange-500 hover:bg-orange-600 text-white"
-                    >
-                        <Upload size={16} className="mr-2" />
-                        Import CSV
-                    </Button>
+                    {canImportCSV && (
+                        <Button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="bg-orange-500 hover:bg-orange-600 text-white"
+                        >
+                            <Upload size={16} className="mr-2" />
+                            Import CSV
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -1408,7 +1439,7 @@ const AFVPage = () => {
                 </div>
 
                 {/* Exportable Content - KPIs and Charts */}
-                <div ref={exportRef}>
+                <div ref={exportRef} className="space-y-6">
                 {/* KPIs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* 1. Total Order Value */}
@@ -1778,8 +1809,9 @@ const AFVPage = () => {
                                         onClick={() => requestSort('discipline')}>
                                         Discipline {getSortIndicator('discipline')}
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                        Work Order Title
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => requestSort('work_order_title')}>
+                                        Work Order Title {getSortIndicator('work_order_title')}
                                     </th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
                                         onClick={() => requestSort('order_value')}>
@@ -1793,11 +1825,13 @@ const AFVPage = () => {
                                         onClick={() => requestSort('profit_margin')}>
                                         Profit Margin {getSortIndicator('profit_margin')}
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                        Start Date
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => requestSort('start_date')}>
+                                        Start Date {getSortIndicator('start_date')}
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                        End Date
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => requestSort('end_date')}>
+                                        End Date {getSortIndicator('end_date')}
                                     </th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                         Actions
