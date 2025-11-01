@@ -406,21 +406,40 @@ export const AuthProvider = ({ children }) => {
         console.log('🔐 Found existing session for:', session.user.email);
 
         // Quick check: verify user is not deleted before setting temporary user
+        // Add timeout to prevent hanging on mobile/slow connections
         try {
-          const { data: quickCheck, error: checkError } = await supabase
+          const deletionCheckPromise = supabase
             .from('users')
             .select('id, deleted_at')
             .eq('id', session.user.id)
             .maybeSingle();
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Deletion check timeout')), 3000)
+          );
+
+          const { data: quickCheck, error: checkError } = await Promise.race([
+            deletionCheckPromise,
+            timeoutPromise
+          ]);
 
           if (checkError) {
             console.warn('🔐 Could not check deletion status:', checkError.message);
             // Continue with login if check fails - will be caught by background fetch
           } else if (quickCheck && quickCheck.deleted_at !== null) {
             console.error('🚫 User account is deactivated, preventing login');
+            // Clear user state immediately
             setUser(null);
             setIsLoading(false);
-            await supabase.auth.signOut();
+            setPushSubscriptionAttempted(false);
+
+            // Sign out and show alert
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              console.error('Sign out error:', signOutError);
+            }
+
             alert('Your account has been deactivated. Please contact an administrator.');
             return;
           }
@@ -498,21 +517,40 @@ export const AuthProvider = ({ children }) => {
         console.log('Auth change - loading user data for:', session.user.email);
 
         // Quick check: verify user is not deleted before setting temporary user
+        // Add timeout to prevent hanging on mobile/slow connections
         try {
-          const { data: quickCheck, error: checkError } = await supabase
+          const deletionCheckPromise = supabase
             .from('users')
             .select('id, deleted_at')
             .eq('id', session.user.id)
             .maybeSingle();
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Deletion check timeout')), 3000)
+          );
+
+          const { data: quickCheck, error: checkError } = await Promise.race([
+            deletionCheckPromise,
+            timeoutPromise
+          ]);
 
           if (checkError) {
             console.warn('🔐 Could not check deletion status:', checkError.message);
             // Continue with login if check fails - will be caught by background fetch
           } else if (quickCheck && quickCheck.deleted_at !== null) {
             console.error('🚫 User account is deactivated, preventing login');
+            // Clear user state immediately
             setUser(null);
             setIsLoading(false);
-            await supabase.auth.signOut();
+            setPushSubscriptionAttempted(false);
+
+            // Sign out and show alert
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              console.error('Sign out error:', signOutError);
+            }
+
             alert('Your account has been deactivated. Please contact an administrator.');
             return;
           }
