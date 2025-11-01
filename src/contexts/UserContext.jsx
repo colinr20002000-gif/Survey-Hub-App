@@ -128,15 +128,17 @@ export const UserProvider = ({ children }) => {
     }, []);
 
     const deleteUser = useCallback(async (userId) => {
+        // Soft delete by setting deleted_at timestamp instead of hard delete
         const { error } = await supabase
             .from('users')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .eq('id', userId);
 
         if (error) {
             console.error('Error deleting user:', error);
             alert(`Error deleting user: ${error.message}`);
         } else {
+            // Remove from local state since getUsers filters by deleted_at IS NULL
             setUsers(prev => prev.filter(u => u.id !== userId));
         }
     }, []);

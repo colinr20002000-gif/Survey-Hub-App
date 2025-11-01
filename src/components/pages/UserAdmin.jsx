@@ -906,7 +906,7 @@ const UserAdmin = () => {
       }
 
       if (assignments.vehicleList.length > 0) {
-        confirmMessage += `\n\nVehicles to be returned:\n${assignments.vehicleList.map(v => `• ${v.name}${v.registration ? ` (${v.registration})` : ''}`).join('\n')}`;
+        confirmMessage += `\n\nVehicles to be returned:\n${assignments.vehicleList.map(v => `• ${v.name}${v.serialNumber ? ` (${v.serialNumber})` : ''}`).join('\n')}`;
       }
     }
 
@@ -930,8 +930,9 @@ const UserAdmin = () => {
           console.log(`Successfully returned ${returnResult.totalReturned} assignments before user deletion`);
         }
       }
+      // Soft delete by setting deleted_at timestamp instead of hard delete
       const deleteQuery = Promise.race([
-        supabase.from('users').delete().eq('id', userId),
+        supabase.from('users').update({ deleted_at: new Date().toISOString() }).eq('id', userId),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Database delete timeout')), 8000)
         )
@@ -1035,7 +1036,7 @@ const UserAdmin = () => {
         }
 
         if (assignments.vehicleList.length > 0) {
-          confirmMessage += `\n\nVehicles to be returned:\n${assignments.vehicleList.map(v => `• ${v.name}${v.registration ? ` (${v.registration})` : ''}`).join('\n')}`;
+          confirmMessage += `\n\nVehicles to be returned:\n${assignments.vehicleList.map(v => `• ${v.name}${v.serialNumber ? ` (${v.serialNumber})` : ''}`).join('\n')}`;
         }
 
         const confirmDeactivate = window.confirm(confirmMessage);
@@ -1101,7 +1102,7 @@ const UserAdmin = () => {
       }
 
       if (assignments.vehicleList.length > 0) {
-        confirmMessage += `\n\nVehicles to be returned:\n${assignments.vehicleList.map(v => `• ${v.name}${v.registration ? ` (${v.registration})` : ''}`).join('\n')}`;
+        confirmMessage += `\n\nVehicles to be returned:\n${assignments.vehicleList.map(v => `• ${v.name}${v.serialNumber ? ` (${v.serialNumber})` : ''}`).join('\n')}`;
       }
     }
 
@@ -1144,6 +1145,36 @@ const UserAdmin = () => {
     } catch (err) {
       console.error('Error deleting dummy user:', err);
       alert(`Error deleting dummy user: ${err.message}`);
+    }
+  };
+
+  const restoreRealUser = async (userId, userName) => {
+    if (!isAdmin) {
+      alert('Only administrators can restore users');
+      return;
+    }
+
+    const confirmRestore = window.confirm(`Are you sure you want to restore user ${userName}?`);
+
+    if (!confirmRestore) return;
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ deleted_at: null })
+        .eq('id', userId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Refresh both lists
+      fetchUsers(); // Refresh active users list
+      fetchDeletedUsers(); // Refresh deleted users list
+      alert('User restored successfully');
+    } catch (err) {
+      console.error('Error restoring user:', err);
+      alert(`Error restoring user: ${err.message}`);
     }
   };
 
@@ -2791,7 +2822,7 @@ const UserAdmin = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
                           className="text-green-600 hover:text-green-900 text-xs bg-green-50 px-2 py-1 rounded hover:bg-green-100"
-                          onClick={() => alert('Real user restoration not implemented yet')}
+                          onClick={() => restoreRealUser(deletedUser.id, deletedUser.username)}
                         >
                           Restore
                         </button>

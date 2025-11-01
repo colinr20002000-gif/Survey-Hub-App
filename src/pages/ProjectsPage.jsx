@@ -313,7 +313,7 @@ const ProjectsPage = ({ onViewProject }) => {
                 <Pagination
                     currentPage={currentPage}
                     setCurrentPage={setCurrentPage}
-                    totalPages={totalPages}
+                    totalPages={totalPages || 0}
                     totalItems={sortedProjects?.length || 0}
                     itemsPerPage={itemsPerPage}
                     setItemsPerPage={setItemsPerPage}

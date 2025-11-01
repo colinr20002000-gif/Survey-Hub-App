@@ -46,7 +46,7 @@ export const getUserActiveVehicleAssignments = async (userId) => {
                 vehicle:vehicle_id (
                     id,
                     name,
-                    registration
+                    serial_number
                 )
             `)
             .eq('user_id', userId)
@@ -203,7 +203,7 @@ export const returnAllUserVehicles = async (userId, performedByUserId, reason = 
             returned: assignments.length,
             vehicles: assignments.map(a => ({
                 name: a.vehicle?.name || 'Unknown Vehicle',
-                registration: a.vehicle?.registration
+                serialNumber: a.vehicle?.serial_number
             }))
         };
 
@@ -240,7 +240,7 @@ export const checkUserActiveAssignments = async (userId) => {
             })),
             vehicleList: vehicleAssignments.map(a => ({
                 name: a.vehicle?.name || 'Unknown Vehicle',
-                registration: a.vehicle?.registration
+                serialNumber: a.vehicle?.serial_number
             }))
         };
     } catch (error) {
