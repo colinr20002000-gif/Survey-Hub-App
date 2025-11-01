@@ -85,7 +85,8 @@ export const AuthProvider = ({ children }) => {
         const { data, error } = await supabase
           .from('users')
           .select('*')
-          .eq('id', authUser.id);
+          .eq('id', authUser.id)
+          .is('deleted_at', null); // Only allow non-deleted users to login
 
         userArray = data;
         fetchError = error;
@@ -95,17 +96,33 @@ export const AuthProvider = ({ children }) => {
       }
 
       console.log('🔐 User query result:', { userArray, fetchError });
-      
+
       const existingUser = userArray && userArray.length > 0 ? userArray[0] : null;
-      
+
       if (existingUser && !fetchError) {
-        // User exists in our users table, return combined data
+        // User exists in our users table and is not deleted, return combined data
         return {
           ...existingUser,
           email: authUser.email, // Always use auth email as source of truth
           last_sign_in_at: authUser.last_sign_in_at,
           auth_user: authUser
         };
+      }
+
+      // Check if user was found but is deleted
+      if (!existingUser && !fetchError) {
+        const { data: deletedUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.id)
+          .not('deleted_at', 'is', null)
+          .single();
+
+        if (deletedUser) {
+          // User is soft-deleted, prevent login
+          console.warn('🔐 User account has been deactivated:', authUser.email);
+          throw new Error('Your account has been deactivated. Please contact an administrator.');
+        }
       }
       
       // Only proceed with creation if error is "not found" (PGRST116)
@@ -420,7 +437,14 @@ export const AuthProvider = ({ children }) => {
           }
         }).catch(err => {
           console.error('🔐 Background user data fetch failed:', err);
-          // User already set, so this doesn't block login
+
+          // If user account is deactivated, log them out immediately
+          if (err.message && err.message.includes('deactivated')) {
+            alert(err.message);
+            supabase.auth.signOut();
+            setUser(null);
+            setIsLoading(false);
+          }
         });
       } else {
         console.log('🔐 No existing session found');
@@ -477,6 +501,14 @@ export const AuthProvider = ({ children }) => {
           }
         }).catch(err => {
           console.error('🔐 Background user data fetch failed:', err);
+
+          // If user account is deactivated, log them out immediately
+          if (err.message && err.message.includes('deactivated')) {
+            alert(err.message);
+            supabase.auth.signOut();
+            setUser(null);
+            setIsLoading(false);
+          }
         });
       } else {
         console.log('Auth change - no session');
@@ -508,6 +540,14 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (err) {
         console.error('🔄 Background retry failed:', err);
+
+        // If user account is deactivated, log them out immediately
+        if (err.message && err.message.includes('deactivated')) {
+          alert(err.message);
+          supabase.auth.signOut();
+          setUser(null);
+          setIsLoading(false);
+        }
       }
     };
 
