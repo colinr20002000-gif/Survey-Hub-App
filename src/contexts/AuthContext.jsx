@@ -585,12 +585,14 @@ export const AuthProvider = ({ children }) => {
             setUser(userData);
             autoSubscribePushNotifications(userData);
 
-            // Create audit log for successful login
-            createAuditLog(
-              userData,
-              'User Logged In',
-              `${userData.name || userData.email} logged into the system`
-            );
+            // Only log actual sign-ins, not page refreshes/session restorations
+            if (event === 'SIGNED_IN') {
+              createAuditLog(
+                userData,
+                'User Logged In',
+                `${userData.name || userData.email} logged into the system`
+              );
+            }
           }
         }).catch(err => {
           console.error('🔐 Background user data fetch failed:', err);

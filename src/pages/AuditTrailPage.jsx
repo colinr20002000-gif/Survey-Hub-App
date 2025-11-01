@@ -27,10 +27,9 @@ const AuditTrailPage = () => {
     const [actionFilter, setActionFilter] = useState([]);
     const [userFilter, setUserFilter] = useState('');
     const [entityFilter, setEntityFilter] = useState('');
-    const [dateRange, setDateRange] = useState({
-        start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        end: new Date().toISOString().split('T')[0]
-    });
+    const [dateRange, setDateRange] = useState('last7');
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
     const [severityFilter, setSeverityFilter] = useState('');
     const [expandedRows, setExpandedRows] = useState(new Set());
     const filterRef = useRef(null);
@@ -71,9 +70,57 @@ const AuditTrailPage = () => {
         return 'LOW';
     };
 
+    const getDateRange = () => {
+        const now = new Date();
+        let startDate, endDate;
+
+        switch (dateRange) {
+            case 'last7':
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                endDate = now;
+                break;
+            case 'last30':
+                startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                endDate = now;
+                break;
+            case 'last90':
+                startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+                endDate = now;
+                break;
+            case 'thisMonth':
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                endDate = now;
+                break;
+            case 'lastMonth':
+                startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+                break;
+            case 'thisYear':
+                startDate = new Date(now.getFullYear(), 0, 1);
+                endDate = now;
+                break;
+            case 'allTime':
+                return { startDate: null, endDate: null };
+            case 'custom':
+                if (customStartDate && customEndDate) {
+                    startDate = new Date(customStartDate);
+                    endDate = new Date(customEndDate);
+                    endDate.setHours(23, 59, 59, 999);
+                } else {
+                    return { startDate: null, endDate: null };
+                }
+                break;
+            default:
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                endDate = now;
+        }
+
+        return { startDate, endDate };
+    };
+
     const filteredLogs = useMemo(() => logs.filter(log => {
         const userName = log.user || 'SYSTEM';
-        const logDate = new Date(log.timestamp).toISOString().split('T')[0];
+        const logDate = new Date(log.timestamp);
 
         const matchesSearch = (userName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
             log.action.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
@@ -83,12 +130,15 @@ const AuditTrailPage = () => {
         const matchesAction = actionFilter.length === 0 || actionFilter.includes(log.action);
         const matchesUser = userFilter === '' || log.user === userFilter;
         const matchesEntity = entityFilter === '' || log.entity === entityFilter;
-        const matchesDate = (!dateRange.start || logDate >= dateRange.start) &&
-                           (!dateRange.end || logDate <= dateRange.end);
+
+        // Date filter
+        const { startDate, endDate } = getDateRange();
+        const matchesDate = (!startDate || logDate >= startDate) && (!endDate || logDate <= endDate);
+
         const matchesSeverity = severityFilter === '' || getSeverity(log.action, log.details) === severityFilter;
 
         return matchesSearch && matchesAction && matchesUser && matchesEntity && matchesDate && matchesSeverity;
-    }), [logs, debouncedSearchTerm, actionFilter, userFilter, entityFilter, dateRange, severityFilter]);
+    }), [logs, debouncedSearchTerm, actionFilter, userFilter, entityFilter, dateRange, customStartDate, customEndDate, severityFilter]);
 
     const sortedLogs = useMemo(() => {
         let sortableItems = [...filteredLogs];
@@ -331,24 +381,45 @@ const AuditTrailPage = () => {
 
                     {/* Date Range */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From</label>
-                        <input
-                            type="date"
-                            value={dateRange.start}
-                            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date Range</label>
+                        <select
+                            value={dateRange}
+                            onChange={(e) => setDateRange(e.target.value)}
                             className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
+                        >
+                            <option value="last7">Last 7 Days</option>
+                            <option value="last30">Last 30 Days</option>
+                            <option value="last90">Last 3 Months</option>
+                            <option value="thisMonth">This Month</option>
+                            <option value="lastMonth">Last Month</option>
+                            <option value="thisYear">This Year</option>
+                            <option value="allTime">All Time</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To</label>
-                        <input
-                            type="date"
-                            value={dateRange.end}
-                            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                    </div>
+                    {dateRange === 'custom' && (
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+                                <input
+                                    type="date"
+                                    value={customStartDate}
+                                    onChange={(e) => setCustomStartDate(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+                                <input
+                                    type="date"
+                                    value={customEndDate}
+                                    onChange={(e) => setCustomEndDate(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                />
+                            </div>
+                        </>
+                    )}
 
                     {/* User Filter */}
                     <div>
