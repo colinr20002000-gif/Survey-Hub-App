@@ -474,12 +474,12 @@ export const AuthProvider = ({ children }) => {
             setUser(userData);
             autoSubscribePushNotifications(userData);
 
-            // Create audit log for session restoration (page refresh/revisit)
-            createAuditLog(
-              userData,
-              'User Accessed Site',
-              `${userData.name || userData.email} accessed the system with existing session`
-            );
+            // DISABLED: Too many log entries on every page refresh
+            // createAuditLog(
+            //   userData,
+            //   'User Accessed Site',
+            //   `${userData.name || userData.email} accessed the system with existing session`
+            // );
           } else {
             console.log('⚠️ Using temporary user data');
           }
