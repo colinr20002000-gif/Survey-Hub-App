@@ -111,14 +111,13 @@ export const AuthProvider = ({ children }) => {
 
       // Check if user was found but is deleted
       if (!existingUser && !fetchError) {
-        const { data: deletedUser } = await supabase
+        const { data: allUserData } = await supabase
           .from('users')
-          .select('*')
+          .select('id, deleted_at')
           .eq('id', authUser.id)
-          .not('deleted_at', 'is', null)
-          .single();
+          .maybeSingle();
 
-        if (deletedUser) {
+        if (allUserData && allUserData.deleted_at !== null) {
           // User is soft-deleted, prevent login
           console.warn('🔐 User account has been deactivated:', authUser.email);
           throw new Error('Your account has been deactivated. Please contact an administrator.');
@@ -227,6 +226,12 @@ export const AuthProvider = ({ children }) => {
       
     } catch (err) {
       console.error('Error in fetchUserData:', err);
+
+      // Re-throw deactivation errors so they can be handled by the caller
+      if (err.message && err.message.includes('deactivated')) {
+        throw err;
+      }
+
       return null;
     }
   };
@@ -400,7 +405,31 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         console.log('🔐 Found existing session for:', session.user.email);
 
-        // INSTANT LOGIN: Set user immediately with session data
+        // Quick check: verify user is not deleted before setting temporary user
+        try {
+          const { data: quickCheck, error: checkError } = await supabase
+            .from('users')
+            .select('id, deleted_at')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (checkError) {
+            console.warn('🔐 Could not check deletion status:', checkError.message);
+            // Continue with login if check fails - will be caught by background fetch
+          } else if (quickCheck && quickCheck.deleted_at !== null) {
+            console.error('🚫 User account is deactivated, preventing login');
+            setUser(null);
+            setIsLoading(false);
+            await supabase.auth.signOut();
+            alert('Your account has been deactivated. Please contact an administrator.');
+            return;
+          }
+        } catch (err) {
+          console.warn('🔐 Deletion check failed:', err.message);
+          // Continue with login if check fails - will be caught by background fetch
+        }
+
+        // INSTANT LOGIN: Set user immediately with session data (only if not deleted)
         const email = session.user.email;
         const name = session.user.user_metadata?.name ||
                      session.user.user_metadata?.full_name ||
@@ -440,10 +469,12 @@ export const AuthProvider = ({ children }) => {
 
           // If user account is deactivated, log them out immediately
           if (err.message && err.message.includes('deactivated')) {
-            alert(err.message);
-            supabase.auth.signOut();
+            console.error('🚫 Logging out deactivated user from session check');
             setUser(null);
             setIsLoading(false);
+            supabase.auth.signOut().then(() => {
+              alert(err.message);
+            });
           }
         });
       } else {
@@ -466,7 +497,31 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         console.log('Auth change - loading user data for:', session.user.email);
 
-        // INSTANT LOGIN: Set user immediately with session data
+        // Quick check: verify user is not deleted before setting temporary user
+        try {
+          const { data: quickCheck, error: checkError } = await supabase
+            .from('users')
+            .select('id, deleted_at')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (checkError) {
+            console.warn('🔐 Could not check deletion status:', checkError.message);
+            // Continue with login if check fails - will be caught by background fetch
+          } else if (quickCheck && quickCheck.deleted_at !== null) {
+            console.error('🚫 User account is deactivated, preventing login');
+            setUser(null);
+            setIsLoading(false);
+            await supabase.auth.signOut();
+            alert('Your account has been deactivated. Please contact an administrator.');
+            return;
+          }
+        } catch (err) {
+          console.warn('🔐 Deletion check failed:', err.message);
+          // Continue with login if check fails - will be caught by background fetch
+        }
+
+        // INSTANT LOGIN: Set user immediately with session data (only if not deleted)
         const email = session.user.email;
         const name = session.user.user_metadata?.name ||
                      session.user.user_metadata?.full_name ||
@@ -504,10 +559,12 @@ export const AuthProvider = ({ children }) => {
 
           // If user account is deactivated, log them out immediately
           if (err.message && err.message.includes('deactivated')) {
-            alert(err.message);
-            supabase.auth.signOut();
+            console.error('🚫 Logging out deactivated user immediately');
             setUser(null);
             setIsLoading(false);
+            supabase.auth.signOut().then(() => {
+              alert(err.message);
+            });
           }
         });
       } else {
@@ -543,10 +600,12 @@ export const AuthProvider = ({ children }) => {
 
         // If user account is deactivated, log them out immediately
         if (err.message && err.message.includes('deactivated')) {
-          alert(err.message);
-          supabase.auth.signOut();
+          console.error('🚫 Logging out deactivated user from retry');
           setUser(null);
           setIsLoading(false);
+          supabase.auth.signOut().then(() => {
+            alert(err.message);
+          });
         }
       }
     };
