@@ -17,6 +17,8 @@ export const useLongPress = (
   const [longPressTriggered, setLongPressTriggered] = useState(false);
   const timeout = useRef();
   const target = useRef();
+  const startPos = useRef({ x: 0, y: 0 });
+  const hasMoved = useRef(false);
 
   const start = useCallback(
     (event) => {
@@ -27,12 +29,18 @@ export const useLongPress = (
         target.current = event.target;
       }
 
+      // Store initial touch position
+      const touch = event.touches ? event.touches[0] : event;
+      startPos.current = { x: touch.clientX, y: touch.clientY };
+      hasMoved.current = false;
+
       if (onStart) {
         onStart(event);
       }
 
       timeout.current = setTimeout(() => {
-        if (onLongPress) {
+        // Only trigger long press if user hasn't scrolled
+        if (onLongPress && !hasMoved.current) {
           onLongPress(event);
           setLongPressTriggered(true);
         }
@@ -74,20 +82,15 @@ export const useLongPress = (
     onMouseLeave: (e) => clear(e, false),
     onTouchEnd: (e) => clear(e),
     onTouchMove: (e) => {
-      // Cancel long press if finger moves too much
+      // Detect if user is scrolling (moved more than 10px)
       const touch = e.touches[0];
-      if (touch && target.current) {
-        const rect = target.current.getBoundingClientRect();
-        const x = touch.clientX;
-        const y = touch.clientY;
+      if (touch && startPos.current) {
+        const deltaX = Math.abs(touch.clientX - startPos.current.x);
+        const deltaY = Math.abs(touch.clientY - startPos.current.y);
 
-        // If finger moves outside the element, cancel
-        if (
-          x < rect.left ||
-          x > rect.right ||
-          y < rect.top ||
-          y > rect.bottom
-        ) {
+        // If moved more than 10px in any direction, consider it scrolling
+        if (deltaX > 10 || deltaY > 10) {
+          hasMoved.current = true;
           clear(e, false);
         }
       }

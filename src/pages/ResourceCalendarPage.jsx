@@ -9,7 +9,6 @@ import { useJobs } from '../contexts/JobContext';
 import { useUsers } from '../contexts/UserContext';
 import { useToast } from '../contexts/ToastContext';
 import { usePermissions } from '../hooks/usePermissions';
-import { useLongPress } from '../hooks/useLongPress';
 import { getWeekStartDate, getFiscalWeek, addDays, formatDateForDisplay, formatDateForKey } from '../utils/dateHelpers';
 import { getDepartmentColor, getAvatarText, getAvatarProps } from '../utils/avatarColors';
 import { handleSupabaseError, isRLSError } from '../utils/rlsErrorHandler';
@@ -53,83 +52,6 @@ const DroppableCell = ({ id, children, disabled }) => {
         <div ref={setNodeRef} style={style} className="w-full h-[200px]">
             {children}
         </div>
-    );
-};
-
-// Multi-project tile component with long press support
-const MultiProjectTile = ({ proj, projColor, projInlineStyle, isDesktop, canAllocateResources, onContextMenu, onClick }) => {
-    const longPressHandlers = useLongPress(
-        (e) => {
-            // On long press, show context menu
-            if (!isDesktop) {
-                onContextMenu(e);
-            }
-        },
-        {
-            threshold: 500, // 500ms for long press
-        }
-    );
-
-    return (
-        <div
-            className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
-            onContextMenu={isDesktop ? onContextMenu : undefined}
-            onClick={onClick}
-            style={{
-                cursor: canAllocateResources ? 'pointer' : 'default',
-                touchAction: !isDesktop ? 'none' : undefined,
-                ...projInlineStyle
-            }}
-            {...(!isDesktop ? longPressHandlers : {})}
-        >
-            <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={proj.projectName}>{proj.projectName}</p>
-            <p className="font-semibold text-xs mb-0.5 truncate">{proj.projectNumber}</p>
-            {proj.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1" title={proj.task}>{proj.task}</p>}
-            <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof proj.shift === 'string' ? proj.shift : String(proj.shift || '')}</p>
-            {proj.time && <p className="text-xs leading-tight font-semibold truncate">{proj.time}</p>}
-        </div>
-    );
-};
-
-// Calendar cell component with long press support
-const ResourceCalendarCell = ({
-    user,
-    date,
-    dayIndex,
-    assignment,
-    cellContent,
-    isDesktop,
-    canAllocateResources,
-    showContextMenuButton,
-    handleCellClick,
-    handleActionClick
-}) => {
-    const longPressHandlers = useLongPress(
-        (e) => {
-            // On long press, show context menu
-            if (!isDesktop && showContextMenuButton) {
-                handleActionClick(e, user.id, dayIndex, assignment);
-            }
-        },
-        {
-            threshold: 500, // 500ms for long press
-        }
-    );
-
-    return (
-        <td className="p-2 relative group">
-            <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop}>
-                <div
-                    onClick={() => handleCellClick(user.id, date, dayIndex)}
-                    onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                    className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${canAllocateResources ? 'cursor-pointer' : 'cursor-default'}`}
-                    style={!isDesktop && showContextMenuButton ? { touchAction: 'none' } : undefined}
-                    {...(!isDesktop && showContextMenuButton ? longPressHandlers : {})}
-                >
-                    {cellContent}
-                </div>
-            </DroppableCell>
-        </td>
     );
 };
 
@@ -1529,15 +1451,26 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                 id={`${user.id}::${dayIndex}::${index}`}
                                                                 disabled={!isDesktop}
                                                             >
-                                                                <MultiProjectTile
-                                                                    proj={proj}
-                                                                    projColor={projColor}
-                                                                    projInlineStyle={projInlineStyle}
-                                                                    isDesktop={isDesktop}
-                                                                    canAllocateResources={canAllocateResources}
-                                                                    onContextMenu={(e) => handleActionClick(e, user.id, dayIndex, assignment, index)}
+                                                                <div
+                                                                    className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
+                                                                    onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
                                                                     onClick={(e) => handleItemClick(e, user.id, date, dayIndex, assignment, index)}
-                                                                />
+                                                                    style={{ cursor: canAllocateResources ? 'pointer' : 'default', ...projInlineStyle }}
+                                                                >
+                                                                    <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={proj.projectName}>{proj.projectName}</p>
+                                                                    <p className="font-semibold text-xs mb-0.5 truncate">{proj.projectNumber}</p>
+                                                                    {proj.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1" title={proj.task}>{proj.task}</p>}
+                                                                    <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof proj.shift === 'string' ? proj.shift : String(proj.shift || '')}</p>
+                                                                    {proj.time && <p className="text-xs leading-tight font-semibold truncate">{proj.time}</p>}
+                                                                    {!isDesktop && (canAllocateResources || (proj.type === 'project' && proj.projectNumber)) && (
+                                                                        <button
+                                                                            onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment, index)}
+                                                                            className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-gray-300/20 dark:bg-gray-900/20 hover:bg-gray-400/50 dark:hover:bg-gray-700/50 transition-opacity"
+                                                                        >
+                                                                            <MoreVertical size={12} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             </DraggableResourceItem>
                                                         );
                                                     })}
@@ -1625,19 +1558,25 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                   (!assignment && canSetAvailabilityStatus);
 
                                     return (
-                                        <ResourceCalendarCell
-                                            key={date.toISOString()}
-                                            user={user}
-                                            date={date}
-                                            dayIndex={dayIndex}
-                                            assignment={assignment}
-                                            cellContent={cellContent}
-                                            isDesktop={isDesktop}
-                                            canAllocateResources={canAllocateResources}
-                                            showContextMenuButton={showContextMenuButton}
-                                            handleCellClick={handleCellClick}
-                                            handleActionClick={handleActionClick}
-                                        />
+                                        <td key={date.toISOString()} className="p-2 relative group">
+                                            <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop}>
+                                                <div
+                                                    onClick={() => handleCellClick(user.id, date, dayIndex)}
+                                                    onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                    className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${canAllocateResources ? 'cursor-pointer' : 'cursor-default'}`}
+                                                >
+                                                    {cellContent}
+                                                </div>
+                                            </DroppableCell>
+                                            {!isDesktop && showContextMenuButton && (
+                                                <button
+                                                    onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment)}
+                                                    className="absolute top-1 right-1 p-1 rounded-full bg-gray-300/20 dark:bg-gray-900/20 hover:bg-gray-400/50 dark:hover:bg-gray-700/50"
+                                                >
+                                                    <MoreVertical size={14} />
+                                                </button>
+                                            )}
+                                        </td>
                                     );
                                 })}
                             </tr>
