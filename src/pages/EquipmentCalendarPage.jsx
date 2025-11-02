@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUsers } from '../contexts/UserContext';
 import { useToast } from '../contexts/ToastContext';
 import { usePermissions } from '../hooks/usePermissions';
+import { useLongPress } from '../hooks/useLongPress';
 import { getWeekStartDate, addDays, formatDateForDisplay, formatDateForKey, getFiscalWeek } from '../utils/dateHelpers';
 import { getDepartmentColor, getAvatarText } from '../utils/avatarColors';
 import { handleSupabaseError, isRLSError } from '../utils/rlsErrorHandler';
@@ -48,6 +49,106 @@ const DroppableCell = ({ id, children, disabled }) => {
     return (
         <div ref={setNodeRef} style={style} className="w-full h-full">
             {children}
+        </div>
+    );
+};
+
+// Equipment calendar cell component with long press support
+const EquipmentCalendarCell = ({
+    user,
+    date,
+    dayIndex,
+    assignment,
+    cellContent,
+    isDesktop,
+    canAllocateResources,
+    showContextMenuButton,
+    handleCellClick,
+    handleActionClick,
+    isArrayTile
+}) => {
+    const longPressHandlers = useLongPress(
+        (e) => {
+            // On long press, show context menu
+            if (!isDesktop && showContextMenuButton && !isArrayTile) {
+                e.stopPropagation();
+                e.preventDefault();
+                handleActionClick(e, user.id, dayIndex, assignment);
+            }
+        },
+        {
+            threshold: 500, // 500ms for long press
+        }
+    );
+
+    return (
+        <td className="p-2 relative group">
+            <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop || !canAllocateResources}>
+                <div
+                    onClick={() => handleCellClick(user.id, date, dayIndex)}
+                    onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                    className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden h-[120px] ${canAllocateResources ? 'cursor-pointer' : 'cursor-default'}`}
+                    {...(!isDesktop && showContextMenuButton && !isArrayTile ? longPressHandlers : {})}
+                >
+                    {cellContent}
+                </div>
+            </DroppableCell>
+        </td>
+    );
+};
+
+// Multi-equipment tile component with long press support
+const MultiEquipmentTile = ({
+    eq,
+    index,
+    equipmentItem,
+    isAssignedToUser,
+    hasEquipmentNotAssigned,
+    categoryColors,
+    canAllocateResources,
+    isDesktop,
+    onContextMenu,
+    onClick
+}) => {
+    const longPressHandlers = useLongPress(
+        (e) => {
+            // On long press, show context menu
+            if (!isDesktop && canAllocateResources) {
+                onContextMenu(e);
+            }
+        },
+        {
+            threshold: 500, // 500ms for long press
+        }
+    );
+
+    return (
+        <div
+            className={`p-1.5 rounded text-center relative ${categoryColors.textColor} ${canAllocateResources ? 'cursor-pointer' : ''}`}
+            style={{ backgroundColor: categoryColors.backgroundColor }}
+            onClick={onClick}
+            onContextMenu={isDesktop ? onContextMenu : undefined}
+            {...(!isDesktop && canAllocateResources ? longPressHandlers : {})}
+        >
+            {isAssignedToUser && (
+                <CheckCircle
+                    size={16}
+                    className="absolute top-1 left-1 text-green-600 dark:text-green-400 fill-white dark:fill-gray-800"
+                />
+            )}
+            {hasEquipmentNotAssigned && (
+                <XCircle
+                    size={16}
+                    className="absolute top-1 left-1 text-red-600 dark:text-red-400 fill-white dark:fill-gray-800"
+                />
+            )}
+            {eq.equipmentId && (
+                <div className="flex items-center justify-center gap-1.5">
+                    <Package size={16} />
+                    <p className="font-bold text-sm truncate">{equipmentItem?.name || 'Unknown'}</p>
+                </div>
+            )}
+            {eq.comment && <p className={`text-sm font-bold ${eq.equipmentId ? 'truncate mt-1' : 'break-words'}`} title={eq.comment}>{eq.comment}</p>}
         </div>
     );
 };
