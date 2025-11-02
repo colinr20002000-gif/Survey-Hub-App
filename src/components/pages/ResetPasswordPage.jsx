@@ -1,20 +1,16 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
-import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../supabaseClient';
 import Button from '../common/Button';
 import Input from '../common/Input';
-import ForgotPasswordPage from './ForgotPasswordPage';
-import ResetPasswordPage from './ResetPasswordPage';
 
-// This creates a custom icon for our login page that looks like a survey target
-// It's an SVG with concentric circles and crosshairs, giving it a surveying theme
+// Icon component reused from LoginPage
 const RetroTargetIcon = ({ className }) => (
-  <svg 
-    className={className} 
-    viewBox="0 0 100 100" 
-    fill="none" 
+  <svg
+    className={className}
+    viewBox="0 0 100 100"
+    fill="none"
     xmlns="http://www.w3.org/2000/svg"
   >
     <circle cx="50" cy="50" r="45" stroke="currentColor" strokeWidth="5"/>
@@ -28,69 +24,63 @@ RetroTargetIcon.propTypes = {
   className: PropTypes.string
 };
 
-// This is the main login page that users see when they're not logged in
-// It shows a form where they can enter their username and password
-const LoginPage = () => {
-  // Get the login function from our authentication context
-  const { login } = useAuth();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
-  const [error, setError] = useState('');
+// Reset Password page where users create a new password after clicking email link
+const ResetPasswordPage = ({ onBack }) => {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState('login'); // 'login', 'forgot-password', or 'reset-password'
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  // Check if URL has a password reset token (Supabase redirects with hash)
-  React.useEffect(() => {
-    const hash = window.location.hash;
-    console.log('🔐 LoginPage: Checking URL hash:', hash);
-
-    if (hash && hash.includes('type=recovery')) {
-      console.log('🔐 LoginPage: Recovery token detected, showing reset page');
-      setCurrentPage('reset-password');
-    }
-  }, []);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setMessage('');
+
+    // Validate passwords match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate password strength (minimum 6 characters)
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      const result = await login(formData.email, formData.password);
-      if (!result.success) {
-        setError(result.error || 'Invalid email or password.');
+      // Update password using Supabase
+      const { error } = await supabase.auth.updateUser({
+        password: password
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setMessage('Your password has been successfully reset. You will be redirected to login...');
+
+        // Clear the hash from URL
+        window.history.replaceState(null, '', window.location.pathname);
+
+        // Redirect to login after 2 seconds
+        setTimeout(() => {
+          onBack();
+        }, 2000);
       }
-    } catch {
-      setError('An error occurred during login. Please try again.');
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Show forgot password page
-  if (currentPage === 'forgot-password') {
-    return <ForgotPasswordPage onBack={() => setCurrentPage('login')} />;
-  }
-
-  // Show reset password page
-  if (currentPage === 'reset-password') {
-    return <ResetPasswordPage onBack={() => setCurrentPage('login')} />;
-  }
-
-  // Show login page (default)
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 font-sans">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -104,35 +94,45 @@ const LoginPage = () => {
             </h1>
           </div>
           <p className="text-gray-500 dark:text-gray-400">
-            Railway Survey & Design Management
+            Create New Password
           </p>
         </div>
-        
-        <form className="space-y-6" onSubmit={handleLogin}>
+
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Enter your new password below.
+          </div>
+
           <Input
-            label="Email"
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleInputChange}
-            placeholder="e.g. colin.rogers@surveyhub.co.uk"
-            className="w-full px-4 py-2 mt-2 text-base text-gray-700 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600"
-            required
-          />
-          
-          <Input
-            label="Password"
+            label="New Password"
             type="password"
             name="password"
-            value={formData.password}
-            onChange={handleInputChange}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             className="w-full px-4 py-2 mt-2 text-base text-gray-700 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600"
             required
           />
-          
+
+          <Input
+            label="Confirm New Password"
+            type="password"
+            name="confirmPassword"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full px-4 py-2 mt-2 text-base text-gray-700 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600"
+            required
+          />
+
           {error && (
             <p className="text-sm text-red-500 text-center">{error}</p>
+          )}
+
+          {message && (
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-sm text-green-600 dark:text-green-400 text-center">{message}</p>
+            </div>
           )}
 
           <Button
@@ -140,16 +140,16 @@ const LoginPage = () => {
             disabled={isLoading}
             className="w-full py-3 font-semibold text-white bg-orange-500 rounded-lg hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors duration-300 disabled:bg-orange-300"
           >
-            {isLoading ? 'Signing In...' : 'Sign In'}
+            {isLoading ? 'Resetting...' : 'Reset Password'}
           </Button>
 
           <div className="text-center">
             <button
               type="button"
-              onClick={() => setCurrentPage('forgot-password')}
+              onClick={onBack}
               className="text-sm text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 transition-colors duration-200"
             >
-              Forgot your password?
+              Back to Login
             </button>
           </div>
         </form>
@@ -158,6 +158,10 @@ const LoginPage = () => {
   );
 };
 
-LoginPage.displayName = 'LoginPage';
+ResetPasswordPage.propTypes = {
+  onBack: PropTypes.func.isRequired
+};
 
-export default LoginPage;
+ResetPasswordPage.displayName = 'ResetPasswordPage';
+
+export default ResetPasswordPage;

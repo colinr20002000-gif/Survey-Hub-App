@@ -3422,9 +3422,48 @@ const LoadingScreen = () => {
 
 const AppContent = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const [isPasswordReset, setIsPasswordReset] = React.useState(false);
+
+  // Check if URL has a password reset token (Supabase redirects with hash)
+  React.useEffect(() => {
+    const checkPasswordReset = () => {
+      const hash = window.location.hash;
+      const href = window.location.href;
+
+      console.log('🔐 App: Checking for password reset...');
+      console.log('🔐 App: Full URL:', href);
+      console.log('🔐 App: Hash:', hash);
+      console.log('🔐 App: User:', user);
+      console.log('🔐 App: IsAuthenticated:', isAuthenticated);
+
+      const hasRecoveryToken = hash.includes('type=recovery') ||
+                              hash.includes('type%3Drecovery') ||
+                              href.includes('type=recovery') ||
+                              href.includes('type%3Drecovery');
+
+      if (hasRecoveryToken) {
+        console.log('🔐 App: Password reset flow detected!');
+        setIsPasswordReset(true);
+      } else {
+        setIsPasswordReset(false);
+      }
+    };
+
+    checkPasswordReset();
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', checkPasswordReset);
+    return () => window.removeEventListener('hashchange', checkPasswordReset);
+  }, [user, isAuthenticated]);
 
   if (isLoading && !user) {
     return <LoadingScreen />;
+  }
+
+  // Force show LoginPage if user is in password reset flow, even if temporarily authenticated
+  if (isPasswordReset) {
+    console.log('🔐 App: Showing LoginPage for password reset');
+    return <LoginPage />;
   }
 
   if (isAuthenticated && user) {
