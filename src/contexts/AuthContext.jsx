@@ -402,6 +402,18 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      // Check if this is a password recovery session
+      const hash = window.location.hash;
+      const isRecoverySession = hash && (hash.includes('type=recovery') || hash.includes('type%3Drecovery'));
+
+      if (isRecoverySession) {
+        console.log('🔐 Recovery session detected - NOT logging in user automatically');
+        console.log('🔐 Hash:', hash);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
       if (session?.user) {
         console.log('🔐 Found existing session for:', session.user.email);
 
@@ -512,6 +524,19 @@ export const AuthProvider = ({ children }) => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state change:', { event, session: !!session });
+
+      // Check if this is a password recovery session
+      const hash = window.location.hash;
+      const isRecoverySession = hash && (hash.includes('type=recovery') || hash.includes('type%3Drecovery'));
+
+      if (isRecoverySession) {
+        console.log('🔐 Recovery session in auth change - NOT logging in user');
+        console.log('🔐 Event:', event);
+        console.log('🔐 Hash:', hash);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
 
       if (session?.user) {
         console.log('Auth change - loading user data for:', session.user.email);
