@@ -39,14 +39,15 @@ const ForgotPasswordPage = ({ onBack }) => {
 
     try {
       // Send password reset email using Supabase
+      // Note: Supabase automatically appends the token hash to the URL
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/#type=recovery`,
+        redirectTo: `${window.location.origin}/`,
       });
 
       if (error) {
         setError(error.message);
       } else {
-        setMessage('Password reset instructions have been sent to your email.');
+        setMessage('Password reset instructions have been sent to your email. Please check your inbox.');
         setEmail('');
       }
     } catch (err) {

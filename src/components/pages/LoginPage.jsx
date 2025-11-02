@@ -46,6 +46,15 @@ const LoginPage = () => {
     const hash = window.location.hash;
     console.log('🔐 LoginPage: Checking URL hash:', hash);
 
+    // Check for errors (expired link, etc.)
+    if (hash && (hash.includes('error=access_denied') || hash.includes('otp_expired'))) {
+      console.log('🔐 LoginPage: Password reset link expired or invalid');
+      setError('The password reset link has expired or is invalid. Please request a new one.');
+      // Clear the hash from URL
+      window.history.replaceState(null, '', window.location.pathname);
+      return;
+    }
+
     if (hash && hash.includes('type=recovery')) {
       console.log('🔐 LoginPage: Recovery token detected, showing reset page');
       setCurrentPage('reset-password');
