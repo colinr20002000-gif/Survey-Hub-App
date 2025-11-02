@@ -4,6 +4,16 @@ import './index.css'
 import App from './App.jsx'
 import UpdateNotification from './components/UpdateNotification.jsx'
 
+// CRITICAL: Check for password recovery BEFORE Supabase processes the hash
+// This needs to happen before ANY other code runs
+const hash = window.location.hash;
+if (hash && (hash.includes('type=recovery') || hash.includes('type%3Drecovery'))) {
+  console.log('🔐 [main.jsx] Password recovery detected - storing flag');
+  sessionStorage.setItem('isPasswordRecovery', 'true');
+} else {
+  sessionStorage.removeItem('isPasswordRecovery');
+}
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')

@@ -44,18 +44,23 @@ const LoginPage = () => {
   // Check if URL has a password reset token (Supabase redirects with hash)
   React.useEffect(() => {
     const hash = window.location.hash;
+    const isRecoveryFromStorage = sessionStorage.getItem('isPasswordRecovery') === 'true';
+
     console.log('🔐 LoginPage: Checking URL hash:', hash);
+    console.log('🔐 LoginPage: Storage flag:', isRecoveryFromStorage);
 
     // Check for errors (expired link, etc.)
     if (hash && (hash.includes('error=access_denied') || hash.includes('otp_expired'))) {
       console.log('🔐 LoginPage: Password reset link expired or invalid');
       setError('The password reset link has expired or is invalid. Please request a new one.');
-      // Clear the hash from URL
+      // Clear the hash from URL and storage
+      sessionStorage.removeItem('isPasswordRecovery');
       window.history.replaceState(null, '', window.location.pathname);
       return;
     }
 
-    if (hash && hash.includes('type=recovery')) {
+    // Check both hash and sessionStorage for recovery token
+    if ((hash && hash.includes('type=recovery')) || isRecoveryFromStorage) {
       console.log('🔐 LoginPage: Recovery token detected, showing reset page');
       setCurrentPage('reset-password');
     }

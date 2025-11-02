@@ -3429,14 +3429,17 @@ const AppContent = () => {
     const checkPasswordReset = () => {
       const hash = window.location.hash;
       const href = window.location.href;
+      const isRecoveryFromStorage = sessionStorage.getItem('isPasswordRecovery') === 'true';
 
       console.log('🔐 App: Checking for password reset...');
       console.log('🔐 App: Full URL:', href);
       console.log('🔐 App: Hash:', hash);
+      console.log('🔐 App: Storage flag:', isRecoveryFromStorage);
       console.log('🔐 App: User:', user);
       console.log('🔐 App: IsAuthenticated:', isAuthenticated);
 
-      const hasRecoveryToken = hash.includes('type=recovery') ||
+      const hasRecoveryToken = isRecoveryFromStorage ||
+                              hash.includes('type=recovery') ||
                               hash.includes('type%3Drecovery') ||
                               href.includes('type=recovery') ||
                               href.includes('type%3Drecovery');

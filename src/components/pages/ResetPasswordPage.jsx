@@ -63,6 +63,9 @@ const ResetPasswordPage = ({ onBack }) => {
       } else {
         setMessage('Your password has been successfully reset. You will be redirected to login...');
 
+        // Clear the recovery flag from session storage
+        sessionStorage.removeItem('isPasswordRecovery');
+
         // Clear the hash from URL
         window.history.replaceState(null, '', window.location.pathname);
 

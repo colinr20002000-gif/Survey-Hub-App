@@ -403,12 +403,16 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Check if this is a password recovery session
+      // Check both the hash AND sessionStorage (set in main.jsx before Supabase processes hash)
       const hash = window.location.hash;
-      const isRecoverySession = hash && (hash.includes('type=recovery') || hash.includes('type%3Drecovery'));
+      const isRecoveryFromStorage = sessionStorage.getItem('isPasswordRecovery') === 'true';
+      const isRecoveryFromHash = hash && (hash.includes('type=recovery') || hash.includes('type%3Drecovery'));
+      const isRecoverySession = isRecoveryFromStorage || isRecoveryFromHash;
 
       if (isRecoverySession) {
         console.log('🔐 Recovery session detected - NOT logging in user automatically');
         console.log('🔐 Hash:', hash);
+        console.log('🔐 Storage flag:', isRecoveryFromStorage);
         setUser(null);
         setIsLoading(false);
         return;
@@ -526,13 +530,17 @@ export const AuthProvider = ({ children }) => {
       console.log('Auth state change:', { event, session: !!session });
 
       // Check if this is a password recovery session
+      // Check both the hash AND sessionStorage (set in main.jsx before Supabase processes hash)
       const hash = window.location.hash;
-      const isRecoverySession = hash && (hash.includes('type=recovery') || hash.includes('type%3Drecovery'));
+      const isRecoveryFromStorage = sessionStorage.getItem('isPasswordRecovery') === 'true';
+      const isRecoveryFromHash = hash && (hash.includes('type=recovery') || hash.includes('type%3Drecovery'));
+      const isRecoverySession = isRecoveryFromStorage || isRecoveryFromHash;
 
       if (isRecoverySession) {
         console.log('🔐 Recovery session in auth change - NOT logging in user');
         console.log('🔐 Event:', event);
         console.log('🔐 Hash:', hash);
+        console.log('🔐 Storage flag:', isRecoveryFromStorage);
         setUser(null);
         setIsLoading(false);
         return;
