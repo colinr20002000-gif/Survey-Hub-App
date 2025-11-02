@@ -20,7 +20,7 @@ export const useLongPress = (
 
   const start = useCallback(
     (event) => {
-      // Prevent default to avoid text selection on long press
+      // Store target for later cleanup
       if (event.target) {
         event.target.style.webkitUserSelect = 'none';
         event.target.style.userSelect = 'none';

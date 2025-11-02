@@ -75,7 +75,11 @@ const MultiProjectTile = ({ proj, projColor, projInlineStyle, isDesktop, canAllo
             className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
             onContextMenu={isDesktop ? onContextMenu : undefined}
             onClick={onClick}
-            style={{ cursor: canAllocateResources ? 'pointer' : 'default', ...projInlineStyle }}
+            style={{
+                cursor: canAllocateResources ? 'pointer' : 'default',
+                touchAction: !isDesktop ? 'none' : undefined,
+                ...projInlineStyle
+            }}
             {...(!isDesktop ? longPressHandlers : {})}
         >
             <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={proj.projectName}>{proj.projectName}</p>
@@ -104,8 +108,6 @@ const ResourceCalendarCell = ({
         (e) => {
             // On long press, show context menu
             if (!isDesktop && showContextMenuButton) {
-                e.stopPropagation();
-                e.preventDefault();
                 handleActionClick(e, user.id, dayIndex, assignment);
             }
         },
@@ -121,6 +123,7 @@ const ResourceCalendarCell = ({
                     onClick={() => handleCellClick(user.id, date, dayIndex)}
                     onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                     className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${canAllocateResources ? 'cursor-pointer' : 'cursor-default'}`}
+                    style={!isDesktop && showContextMenuButton ? { touchAction: 'none' } : undefined}
                     {...(!isDesktop && showContextMenuButton ? longPressHandlers : {})}
                 >
                     {cellContent}

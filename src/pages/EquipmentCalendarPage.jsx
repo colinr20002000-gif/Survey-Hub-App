@@ -71,8 +71,6 @@ const EquipmentCalendarCell = ({
         (e) => {
             // On long press, show context menu
             if (!isDesktop && showContextMenuButton && !isArrayTile) {
-                e.stopPropagation();
-                e.preventDefault();
                 handleActionClick(e, user.id, dayIndex, assignment);
             }
         },
@@ -88,6 +86,7 @@ const EquipmentCalendarCell = ({
                     onClick={() => handleCellClick(user.id, date, dayIndex)}
                     onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                     className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden h-[120px] ${canAllocateResources ? 'cursor-pointer' : 'cursor-default'}`}
+                    style={!isDesktop && showContextMenuButton && !isArrayTile ? { touchAction: 'none' } : undefined}
                     {...(!isDesktop && showContextMenuButton && !isArrayTile ? longPressHandlers : {})}
                 >
                     {cellContent}
@@ -125,7 +124,10 @@ const MultiEquipmentTile = ({
     return (
         <div
             className={`p-1.5 rounded text-center relative ${categoryColors.textColor} ${canAllocateResources ? 'cursor-pointer' : ''}`}
-            style={{ backgroundColor: categoryColors.backgroundColor }}
+            style={{
+                backgroundColor: categoryColors.backgroundColor,
+                touchAction: !isDesktop && canAllocateResources ? 'none' : undefined
+            }}
             onClick={onClick}
             onContextMenu={isDesktop ? onContextMenu : undefined}
             {...(!isDesktop && canAllocateResources ? longPressHandlers : {})}
