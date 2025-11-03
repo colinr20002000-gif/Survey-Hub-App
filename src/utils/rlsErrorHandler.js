@@ -69,13 +69,13 @@ export const getSpecificRLSMessage = (tableName, operation, data = null) => {
       delete: 'You need Editor privileges or higher to delete delivery tasks.',
     },
     resource_allocations: {
-      insert: data?.assignment_type === 'project' || data?.assignment_type === 'leave'
-        ? 'You need Editor privileges to assign to projects or add leave types.'
+      insert: (data?.assignment_type === 'project' || data?.assignment_type === 'leave' || data?.type === 'project' || data?.type === 'leave')
+        ? 'You need Editor privileges or higher to update resource assignments.'
         : 'You need Viewer privileges or higher to update availability.',
-      update: data?.assignment_type === 'project' || data?.assignment_type === 'leave'
-        ? 'You need Editor privileges to modify project assignments or leave types.'
+      update: (data?.assignment_type === 'project' || data?.assignment_type === 'leave' || data?.type === 'project' || data?.type === 'leave')
+        ? 'You need Editor privileges or higher to update resource assignments.'
         : 'You need Viewer privileges or higher to update availability.',
-      delete: data?.assignment_type === 'project' || data?.assignment_type === 'leave'
+      delete: (data?.assignment_type === 'project' || data?.assignment_type === 'leave' || data?.type === 'project' || data?.type === 'leave')
         ? 'You need Editor privileges or higher to delete resource allocations.'
         : 'You need Viewer privileges or higher to delete availability status.',
     },

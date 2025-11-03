@@ -605,6 +605,12 @@ const EquipmentCalendarPage = () => {
             return;
         }
 
+        // Check if menu would have any items before opening
+        // In Equipment Calendar, all menu items require canAllocateResources permission
+        if (!canAllocateResources) {
+            return; // Don't open empty menu
+        }
+
         setContextMenu({
             visible: true,
             x: e.pageX,

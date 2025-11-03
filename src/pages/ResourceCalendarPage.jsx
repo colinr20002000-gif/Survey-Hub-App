@@ -124,7 +124,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const [departments, setDepartments] = useState([]);
     const [sortOrder, setSortOrder] = useState('department');
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
-    const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null });
+    const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null, sourceItemIndex: null });
     const filterRef = useRef(null);
     const scrollPositionRef = useRef(0);
     const calendarRef = useRef(null);
@@ -589,6 +589,40 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             return;
         }
 
+        // Check if menu would have any items before opening
+        const hasAssignment = !!assignment;
+        const isStatusAssignment = hasAssignment && assignment.type === 'status';
+        const isLeaveAssignment = hasAssignment && assignment.type === 'leave';
+        const hasProjectAssignment = hasAssignment && (
+            (Array.isArray(assignment) && assignment.some(a => a.type === 'project' && a.projectNumber)) ||
+            (assignment.type === 'project' && assignment.projectNumber)
+        );
+
+        // Determine if there would be any menu items
+        let wouldHaveItems = false;
+
+        if (hasAssignment) {
+            // For assignments, check what actions would be available
+            if (!isStatusAssignment && canAllocateResources) {
+                wouldHaveItems = true; // Can edit/copy/cut/delete
+            } else if (hasProjectAssignment) {
+                wouldHaveItems = true; // Can view project
+            } else if (isStatusAssignment && canSetAvailabilityStatus) {
+                wouldHaveItems = true; // Can delete status
+            } else if (isLeaveAssignment && canAllocateResources) {
+                wouldHaveItems = true; // Can edit/delete leave
+            }
+        } else {
+            // For empty cells
+            if (canAllocateResources || canSetAvailabilityStatus) {
+                wouldHaveItems = true;
+            }
+        }
+
+        if (!wouldHaveItems) {
+            return; // Don't open empty menu
+        }
+
         setContextMenu({
             visible: true,
             x: e.pageX,
@@ -952,12 +986,14 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         } else if (action === 'copy' || action === 'cut') {
             // If itemIndex is provided, copy only that specific item
             let dataToCopy;
+            let sourceItemIndex = null;
             if (cellData.itemIndex !== null && cellData.itemIndex !== undefined && Array.isArray(cellData.assignment)) {
                 dataToCopy = cellData.assignment[cellData.itemIndex];
+                sourceItemIndex = cellData.itemIndex;
             } else {
                 dataToCopy = cellData.assignment;
             }
-            setClipboard({ type: action, data: dataToCopy, sourceCell: cellToUpdate });
+            setClipboard({ type: action, data: dataToCopy, sourceCell: cellToUpdate, sourceItemIndex });
         } else if (action === 'delete') {
             // If itemIndex is provided, delete only that specific item from multi-item array
             if (cellData.itemIndex !== null && cellData.itemIndex !== undefined) {
@@ -980,8 +1016,19 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
             handleSaveAllocation(clipboard.data, cellToUpdate, shouldAddAsSecondProject);
             if (clipboard.type === 'cut') {
-                handleSaveAllocation(null, clipboard.sourceCell);
-                setClipboard({ type: null, data: null, sourceCell: null });
+                // If cutting a specific item from a multi-item array, only remove that item
+                if (clipboard.sourceItemIndex !== null && clipboard.sourceItemIndex !== undefined) {
+                    handleDeleteIndividualItem(
+                        clipboard.sourceCell.userId,
+                        clipboard.sourceCell.dayIndex,
+                        clipboard.sourceItemIndex,
+                        clipboard.sourceCell.date
+                    );
+                } else {
+                    // Remove the entire cell
+                    handleSaveAllocation(null, clipboard.sourceCell);
+                }
+                setClipboard({ type: null, data: null, sourceCell: null, sourceItemIndex: null });
             }
         } else if (action === 'allocate') {
             setSelectedCell(cellToUpdate);
