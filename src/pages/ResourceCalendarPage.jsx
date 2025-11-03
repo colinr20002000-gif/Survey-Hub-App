@@ -125,6 +125,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const [sortOrder, setSortOrder] = useState('department');
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
     const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null, sourceItemIndex: null });
+    const [undoHistory, setUndoHistory] = useState([]);
     const filterRef = useRef(null);
     const scrollPositionRef = useRef(0);
     const calendarRef = useRef(null);
@@ -631,10 +632,160 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         });
     };
 
+    // Sync a single cell to database (used by undo)
+    const syncCellToDatabase = async (userId, dayIndex, assignment, date) => {
+        const user = allUsers.find(u => u.id === userId);
+        const isDummyUser = user?.isDummy === true;
+        const tableName = isDummyUser ? 'dummy_resource_allocations' : 'resource_allocations';
+        const allocationDateString = formatDateForKey(date);
+
+        try {
+            // Delete all existing records for this cell
+            await supabase
+                .from(tableName)
+                .delete()
+                .eq('user_id', userId)
+                .eq('allocation_date', allocationDateString);
+
+            // If assignment is not null, insert new record(s)
+            if (assignment) {
+                const assignmentsArray = Array.isArray(assignment) ? assignment : [assignment];
+                const recordsToInsert = assignmentsArray.map(item => {
+                    if (item.type === 'leave') {
+                        return {
+                            user_id: userId,
+                            allocation_date: allocationDateString,
+                            assignment_type: 'leave',
+                            leave_type: item.leaveType,
+                            comment: item.comment || null,
+                            project_id: null,
+                            project_number: null,
+                            project_name: null,
+                            client: null,
+                            task: null,
+                            shift: null,
+                            time: null
+                        };
+                    } else if (item.type === 'status') {
+                        return {
+                            user_id: userId,
+                            allocation_date: allocationDateString,
+                            assignment_type: 'status',
+                            comment: item.status,
+                            project_id: null,
+                            project_number: null,
+                            project_name: null,
+                            client: null,
+                            task: null,
+                            shift: null,
+                            time: null,
+                            leave_type: null
+                        };
+                    } else {
+                        return {
+                            user_id: userId,
+                            allocation_date: allocationDateString,
+                            assignment_type: 'project',
+                            project_id: item.projectId || null,
+                            project_number: item.projectNumber || null,
+                            project_name: item.projectName || null,
+                            client: item.client || null,
+                            task: item.task || null,
+                            shift: item.shift || null,
+                            time: item.time || null,
+                            comment: item.comment || null,
+                            leave_type: null
+                        };
+                    }
+                });
+
+                await supabase.from(tableName).insert(recordsToInsert);
+            }
+        } catch (error) {
+            console.error('Error syncing cell to database:', error);
+            throw error;
+        }
+    };
+
+    // Save current state to undo history (limit to last 20 actions)
+    const saveToHistory = useCallback(() => {
+        setUndoHistory(prev => {
+            const newHistory = [...prev, JSON.parse(JSON.stringify(allocations))];
+            // Keep only last 20 states
+            return newHistory.slice(-20);
+        });
+    }, [allocations]);
+
+    // Undo last action
+    const handleUndo = useCallback(async () => {
+        if (undoHistory.length === 0) return;
+
+        const previousState = undoHistory[undoHistory.length - 1];
+        setUndoHistory(prev => prev.slice(0, -1));
+
+        // Restore the previous state
+        setAllocations(previousState);
+
+        // Sync with database
+        try {
+            // Get all changes between current and previous state
+            const currentState = allocations;
+            const changedCells = [];
+
+            // Find all differences
+            Object.keys({...currentState, ...previousState}).forEach(weekKey => {
+                const currentWeek = currentState[weekKey] || {};
+                const previousWeek = previousState[weekKey] || {};
+
+                Object.keys({...currentWeek, ...previousWeek}).forEach(userId => {
+                    const currentUser = currentWeek[userId]?.assignments || Array(7).fill(null);
+                    const previousUser = previousWeek[userId]?.assignments || Array(7).fill(null);
+
+                    currentUser.forEach((currentAssignment, dayIndex) => {
+                        const previousAssignment = previousUser[dayIndex];
+                        if (JSON.stringify(currentAssignment) !== JSON.stringify(previousAssignment)) {
+                            changedCells.push({
+                                userId,
+                                weekKey,
+                                dayIndex,
+                                assignment: previousAssignment
+                            });
+                        }
+                    });
+                });
+            });
+
+            // Apply all changes to database
+            for (const cell of changedCells) {
+                const date = addDays(new Date(cell.weekKey), cell.dayIndex);
+                await syncCellToDatabase(cell.userId, cell.dayIndex, cell.assignment, date);
+            }
+        } catch (error) {
+            console.error('Error during undo:', error);
+            alert('Failed to undo changes. Please try again.');
+        }
+    }, [undoHistory, allocations]);
+
+    // Keyboard listener for Ctrl+Z / Cmd+Z
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                handleUndo();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleUndo]);
+
     const handleSaveAllocation = async (allocationData, cellToUpdate = selectedCell, isSecondProject = false) => {
         const { userId } = cellToUpdate;
         const weekKey = formatDateForKey(getWeekStartDate(cellToUpdate.date));
         const dayIndex = (cellToUpdate.date.getDay() + 1) % 7; // Saturday = 0, Sunday = 1, etc.
+
+        // Save current state to history before making changes
+        saveToHistory();
 
         setAllocations(prev => {
             const newAllocations = JSON.parse(JSON.stringify(prev));
@@ -1211,6 +1362,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             return;
         }
 
+        // Save current state to history before making changes
+        saveToHistory();
+
         const weekKey = formatDateForKey(currentWeekStart);
         const sourceDate = weekDates[sourceDayIndexNum];
         const targetDate = weekDates[targetDayIndexNum];
@@ -1478,7 +1632,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     <div className="relative" ref={filterRef}>
                          <Button variant="outline" onClick={() => setIsFilterOpen(!isFilterOpen)}><Filter size={16} className="mr-2"/>Filter</Button>
                          {isFilterOpen && (
-                             <div className="absolute top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4 space-y-4">
+                             <div className="absolute top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-30 p-4 space-y-4">
                                  {/* Departments Filter */}
                                  <div>
                                      <h4 className="font-semibold mb-2 text-sm">Departments</h4>
@@ -1535,15 +1689,14 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
             >
-            <div className="md:w-auto w-full md:scale-100 scale-[0.65] md:origin-center origin-top-left">
                 <div
                     ref={calendarRef}
-                    className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-auto min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-180px)] md:min-h-[calc(100vh-300px)] max-h-[calc(100vh-120px)] sm:max-h-[calc(100vh-180px)] md:max-h-[calc(100vh-300px)] md:w-auto w-[154%]"
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)]"
                     onMouseDown={handlePanStart}
                     style={{ cursor: isDesktop && !isPanning ? 'grab' : isPanning ? 'grabbing' : undefined }}
                 >
                     <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-10">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-20">
                         <tr>
                             <th className="px-4 py-3 w-[250px] bg-gray-50 dark:bg-gray-700">Staff Member</th>
                             {weekDates.map(date => (
@@ -1732,7 +1885,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     </tbody>
                 </table>
                 </div>
-            </div>
             </DndContext>
             {contextMenu.visible && (
                 <ContextMenu

@@ -81,6 +81,7 @@ const EquipmentCalendarPage = () => {
     const [sortOrder, setSortOrder] = useState('department');
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
     const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null, sourceIndex: null });
+    const [undoHistory, setUndoHistory] = useState([]);
     const filterRef = useRef(null);
     const scrollPositionRef = useRef(0);
     const calendarRef = useRef(null);
@@ -584,6 +585,111 @@ const EquipmentCalendarPage = () => {
         return Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
     }, [currentWeekStart]);
 
+    // Sync a single cell to database (used by undo)
+    const syncCellToDatabase = async (userId, dayIndex, assignment, date) => {
+        const user = allUsers.find(u => u.id === userId);
+        const isDummyUser = user?.isDummy === true;
+        const tableName = isDummyUser ? 'dummy_equipment_allocations' : 'equipment_allocations';
+        const allocationDateString = formatDateForKey(date);
+
+        try {
+            // Delete all existing records for this cell
+            await supabase
+                .from(tableName)
+                .delete()
+                .eq('user_id', userId)
+                .eq('allocation_date', allocationDateString);
+
+            // If assignment is not null, insert new record(s)
+            if (assignment) {
+                const assignmentsArray = Array.isArray(assignment) ? assignment : [assignment];
+                const recordsToInsert = assignmentsArray.map(item => ({
+                    user_id: userId,
+                    allocation_date: allocationDateString,
+                    equipment_id: item.equipmentId || null,
+                    comment: item.comment || null
+                }));
+
+                await supabase.from(tableName).insert(recordsToInsert);
+            }
+        } catch (error) {
+            console.error('Error syncing cell to database:', error);
+            throw error;
+        }
+    };
+
+    // Save current state to undo history (limit to last 20 actions)
+    const saveToHistory = useCallback(() => {
+        setUndoHistory(prev => {
+            const newHistory = [...prev, JSON.parse(JSON.stringify(allocations))];
+            // Keep only last 20 states
+            return newHistory.slice(-20);
+        });
+    }, [allocations]);
+
+    // Undo last action
+    const handleUndo = useCallback(async () => {
+        if (undoHistory.length === 0) return;
+
+        const previousState = undoHistory[undoHistory.length - 1];
+        setUndoHistory(prev => prev.slice(0, -1));
+
+        // Restore the previous state
+        setAllocations(previousState);
+
+        // Sync with database
+        try {
+            // Get all changes between current and previous state
+            const currentState = allocations;
+            const changedCells = [];
+
+            // Find all differences
+            Object.keys({...currentState, ...previousState}).forEach(weekKey => {
+                const currentWeek = currentState[weekKey] || {};
+                const previousWeek = previousState[weekKey] || {};
+
+                Object.keys({...currentWeek, ...previousWeek}).forEach(userId => {
+                    const currentUser = currentWeek[userId]?.assignments || Array(7).fill(null);
+                    const previousUser = previousWeek[userId]?.assignments || Array(7).fill(null);
+
+                    currentUser.forEach((currentAssignment, dayIndex) => {
+                        const previousAssignment = previousUser[dayIndex];
+                        if (JSON.stringify(currentAssignment) !== JSON.stringify(previousAssignment)) {
+                            changedCells.push({
+                                userId,
+                                weekKey,
+                                dayIndex,
+                                assignment: previousAssignment
+                            });
+                        }
+                    });
+                });
+            });
+
+            // Apply all changes to database
+            for (const cell of changedCells) {
+                const date = addDays(new Date(cell.weekKey), cell.dayIndex);
+                await syncCellToDatabase(cell.userId, cell.dayIndex, cell.assignment, date);
+            }
+        } catch (error) {
+            console.error('Error during undo:', error);
+            alert('Failed to undo changes. Please try again.');
+        }
+    }, [undoHistory, allocations]);
+
+    // Keyboard listener for Ctrl+Z / Cmd+Z
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                handleUndo();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleUndo]);
+
     const handleActionClick = (e, userId, dayIndex, assignment, equipmentIndex = null) => {
         e.stopPropagation();
         e.preventDefault();
@@ -623,6 +729,9 @@ const EquipmentCalendarPage = () => {
         const { userId } = cellToUpdate;
         const weekKey = formatDateForKey(getWeekStartDate(cellToUpdate.date));
         const dayIndex = (cellToUpdate.date.getDay() + 1) % 7;
+
+        // Save current state to history before making changes
+        saveToHistory();
 
         setAllocations(prev => {
             const newAllocations = JSON.parse(JSON.stringify(prev));
@@ -1340,6 +1449,9 @@ const EquipmentCalendarPage = () => {
             console.log('⏭️ Dropped on same cell, ignoring');
             return;
         }
+
+        // Save current state to history before making changes
+        saveToHistory();
 
         const weekKey = formatDateForKey(currentWeekStart);
         const sourceDate = weekDates[sourceDayIndexNum];
