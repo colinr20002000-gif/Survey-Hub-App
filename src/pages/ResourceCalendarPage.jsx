@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, MoreVertical, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, MoreVertical, Download, Edit } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
@@ -25,9 +25,9 @@ const DraggableResourceItem = ({ id, children, disabled }) => {
     const style = transform ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
         opacity: isDragging ? 0.5 : 1,
-        cursor: disabled ? 'default' : 'grab',
+        cursor: disabled ? 'default' : 'move',
     } : {
-        cursor: disabled ? 'default' : 'grab',
+        cursor: disabled ? 'default' : 'move',
     };
 
     return (
@@ -128,10 +128,16 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const filterRef = useRef(null);
     const scrollPositionRef = useRef(0);
     const calendarRef = useRef(null);
+    const justClosedMenuRef = useRef(false);
     const [isExporting, setIsExporting] = useState(false);
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
     const [customShiftColors, setCustomShiftColors] = useState({});
     const [customLeaveColors, setCustomLeaveColors] = useState({});
+
+    // Pan state for desktop left-click panning
+    const [isPanning, setIsPanning] = useState(false);
+    const [isPanReady, setIsPanReady] = useState(false);
+    const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
     // Detect desktop mode for drag and drop (768px is md breakpoint in Tailwind)
     useEffect(() => {
@@ -141,6 +147,90 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    // Pan handlers for desktop left-click panning
+    const handlePanStart = useCallback((e) => {
+        if (!isDesktop || !calendarRef.current) return;
+
+        const target = e.target;
+
+        // Don't pan if clicking on interactive elements
+        const isClickableElement = target.tagName === 'BUTTON' ||
+                                   target.tagName === 'INPUT' ||
+                                   target.tagName === 'A' ||
+                                   target.closest('button') ||
+                                   target.closest('input') ||
+                                   target.closest('a');
+        if (isClickableElement) return;
+
+        // Allow pan if clicking on empty cells (has data-empty attribute)
+        const isEmptyCell = target.closest('[data-empty="true"]');
+
+        // Don't pan if clicking on assignment content (has data-assignment attribute)
+        // BUT allow if it's an empty cell
+        if (!isEmptyCell && target.closest('[data-assignment]')) return;
+
+        // Set ready state and store initial position
+        // Actual panning will only start after 10px movement threshold
+        setIsPanReady(true);
+        panStartRef.current = {
+            x: e.clientX,
+            y: e.clientY,
+            scrollLeft: calendarRef.current.scrollLeft,
+            scrollTop: calendarRef.current.scrollTop
+        };
+    }, [isDesktop]);
+
+    const handlePanMove = useCallback((e) => {
+        if (!calendarRef.current) return;
+
+        // Check if we should activate panning (10px threshold)
+        if (isPanReady && !isPanning) {
+            const dx = Math.abs(e.clientX - panStartRef.current.x);
+            const dy = Math.abs(e.clientY - panStartRef.current.y);
+
+            // Activate panning only after moving 10px (higher than dnd-kit's 8px to give it priority)
+            if (dx > 10 || dy > 10) {
+                setIsPanning(true);
+                setIsPanReady(false);
+                calendarRef.current.style.cursor = 'grabbing';
+                calendarRef.current.style.userSelect = 'none';
+            }
+            return;
+        }
+
+        if (!isPanning) return;
+
+        e.preventDefault();
+
+        const dx = e.clientX - panStartRef.current.x;
+        const dy = e.clientY - panStartRef.current.y;
+
+        calendarRef.current.scrollLeft = panStartRef.current.scrollLeft - dx;
+        calendarRef.current.scrollTop = panStartRef.current.scrollTop - dy;
+    }, [isPanning, isPanReady]);
+
+    const handlePanEnd = useCallback(() => {
+        if (!calendarRef.current) return;
+
+        setIsPanning(false);
+        setIsPanReady(false);
+        calendarRef.current.style.cursor = '';
+        calendarRef.current.style.userSelect = '';
+    }, []);
+
+    // Add global mouse event listeners for panning
+    useEffect(() => {
+        if (isPanning || isPanReady) {
+            window.addEventListener('mousemove', handlePanMove);
+            window.addEventListener('mouseup', handlePanEnd);
+
+            return () => {
+                window.removeEventListener('mousemove', handlePanMove);
+                window.removeEventListener('mouseup', handlePanEnd);
+            };
+        }
+    }, [isPanning, isPanReady, handlePanMove, handlePanEnd]);
 
     // Set up drag and drop sensors (only PointerSensor, not TouchSensor, to exclude mobile)
     const sensors = useSensors(
@@ -478,30 +568,33 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         return Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
     }, [currentWeekStart]);
 
-    const handleCellClick = (userId, date, dayIndex) => {
-        if (!canAllocateResources) return;
-        setSelectedCell({ userId, date, dayIndex });
-        setIsAllocationModalOpen(true);
-    };
-
     const handleActionClick = (e, userId, dayIndex, assignment, itemIndex = null) => {
         e.stopPropagation();
         e.preventDefault();
+
+        // If we just closed the menu, don't immediately reopen it
+        if (justClosedMenuRef.current) {
+            justClosedMenuRef.current = false;
+            return;
+        }
+
+        // If context menu is already visible, close it instead of opening a new one
+        if (contextMenu.visible) {
+            setContextMenu({ visible: false, x: 0, y: 0, cellData: null });
+            justClosedMenuRef.current = true;
+            // Reset the flag after a short delay
+            setTimeout(() => {
+                justClosedMenuRef.current = false;
+            }, 100);
+            return;
+        }
+
         setContextMenu({
             visible: true,
             x: e.pageX,
             y: e.pageY,
             cellData: { userId, dayIndex, assignment, date: weekDates[dayIndex], itemIndex }
         });
-    };
-
-    const handleItemClick = (e, userId, date, dayIndex, assignment, itemIndex) => {
-        if (!canAllocateResources) return;
-        e.stopPropagation();
-        // Extract the specific item from the array
-        const specificItem = Array.isArray(assignment) ? assignment[itemIndex] : assignment;
-        setSelectedCell({ userId, date, dayIndex, editItemIndex: itemIndex, editingSpecificItem: specificItem });
-        setIsAllocationModalOpen(true);
     };
 
     const handleSaveAllocation = async (allocationData, cellToUpdate = selectedCell, isSecondProject = false) => {
@@ -849,7 +942,14 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             return;
         }
 
-        if (action === 'copy' || action === 'cut') {
+        if (action === 'edit') {
+            // Extract the specific item from the array if itemIndex is provided
+            const specificItem = (cellData.itemIndex !== null && cellData.itemIndex !== undefined && Array.isArray(cellData.assignment))
+                ? cellData.assignment[cellData.itemIndex]
+                : cellData.assignment;
+            setSelectedCell({ ...cellToUpdate, editItemIndex: cellData.itemIndex, editingSpecificItem: specificItem });
+            setIsAllocationModalOpen(true);
+        } else if (action === 'copy' || action === 'cut') {
             // If itemIndex is provided, copy only that specific item
             let dataToCopy;
             if (cellData.itemIndex !== null && cellData.itemIndex !== undefined && Array.isArray(cellData.assignment)) {
@@ -1389,7 +1489,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 onDragEnd={handleDragEnd}
             >
             <div className="md:w-auto w-full md:scale-100 scale-[0.65] md:origin-center origin-top-left">
-                <div ref={calendarRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-180px)] md:min-h-[calc(100vh-300px)] overflow-y-auto md:w-auto w-[154%]">
+                <div
+                    ref={calendarRef}
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-auto min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-180px)] md:min-h-[calc(100vh-300px)] max-h-[calc(100vh-120px)] sm:max-h-[calc(100vh-180px)] md:max-h-[calc(100vh-300px)] md:w-auto w-[154%]"
+                    onMouseDown={handlePanStart}
+                    style={{ cursor: isDesktop && !isPanning ? 'grab' : isPanning ? 'grabbing' : undefined }}
+                >
                     <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-10">
                         <tr>
@@ -1437,9 +1542,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
                                     if (assignment) {
                                         if (Array.isArray(assignment)) {
-                                            // Multiple projects - backgrounds fill vertical space with no gaps
+                                            // Multiple projects - backgrounds fill vertical space with small gap
                                             cellContent = (
-                                                <div className="flex-1 flex flex-col">
+                                                <div className="flex-1 flex flex-col gap-1">
                                                     {assignment.map((proj, index) => {
                                                         const projColorStyle = getShiftColor(proj.shift);
                                                         const projColor = typeof projColorStyle === 'string' ? projColorStyle : '';
@@ -1452,10 +1557,10 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                 disabled={!isDesktop}
                                                             >
                                                                 <div
+                                                                    data-assignment="true"
                                                                     className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
                                                                     onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
-                                                                    onClick={(e) => handleItemClick(e, user.id, date, dayIndex, assignment, index)}
-                                                                    style={{ cursor: canAllocateResources ? 'pointer' : 'default', ...projInlineStyle }}
+                                                                    style={projInlineStyle}
                                                                 >
                                                                     <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={proj.projectName}>{proj.projectName}</p>
                                                                     <p className="font-semibold text-xs mb-0.5 truncate">{proj.projectNumber}</p>
@@ -1490,6 +1595,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                     disabled={!isDesktop}
                                                 >
                                                     <div
+                                                        data-assignment="true"
                                                         className={`p-2 rounded-md h-full flex flex-col justify-center font-bold ${cellColor}`}
                                                         onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                         style={leaveInlineStyle}
@@ -1510,6 +1616,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                             // Fixed text size for status tiles
                                             cellContent = (
                                                 <div
+                                                    data-assignment="true"
                                                     className={`flex-1 flex items-center justify-center text-xl font-semibold ${statusColor}`}
                                                     onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                 >
@@ -1528,6 +1635,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                     disabled={!isDesktop}
                                                 >
                                                     <div
+                                                        data-assignment="true"
                                                         className={`p-2 rounded-md h-full flex flex-col justify-center text-center ${cellColor}`}
                                                         onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                         style={projectInlineStyle}
@@ -1561,21 +1669,14 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                         <td key={date.toISOString()} className="p-2 relative group">
                                             <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop}>
                                                 <div
-                                                    onClick={() => handleCellClick(user.id, date, dayIndex)}
+                                                    data-empty={!assignment ? "true" : undefined}
                                                     onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                    className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${canAllocateResources ? 'cursor-pointer' : 'cursor-default'}`}
+                                                    onClick={!isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                    className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${!assignment && isDesktop ? 'cursor-grab hover:cursor-grab' : ''}`}
                                                 >
                                                     {cellContent}
                                                 </div>
                                             </DroppableCell>
-                                            {!isDesktop && showContextMenuButton && (
-                                                <button
-                                                    onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment)}
-                                                    className="absolute top-1 right-1 p-1 rounded-full bg-gray-300/20 dark:bg-gray-900/20 hover:bg-gray-400/50 dark:hover:bg-gray-700/50"
-                                                >
-                                                    <MoreVertical size={14} />
-                                                </button>
-                                            )}
                                         </td>
                                     );
                                 })}
@@ -1593,7 +1694,13 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     cellData={contextMenu.cellData}
                     clipboard={clipboard}
                     onAction={handleContextMenuAction}
-                    onClose={() => setContextMenu({ visible: false })}
+                    onClose={() => {
+                        setContextMenu({ visible: false });
+                        justClosedMenuRef.current = true;
+                        setTimeout(() => {
+                            justClosedMenuRef.current = false;
+                        }, 100);
+                    }}
                     canAllocate={canAllocateResources}
                     canSetStatus={canSetAvailabilityStatus}
                 />
@@ -1635,7 +1742,11 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("touchstart", handleClickOutside);
+        };
     }, [onClose]);
 
     // Adjust position to prevent menu from going off screen
@@ -1689,6 +1800,7 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                 <>
                     {!isStatusAssignment && canAllocate && (
                         <>
+                            <button onClick={() => onAction('edit')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={14} className="mr-2"/>Edit</button>
                             <button onClick={() => onAction('copy')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2"/>Copy</button>
                             <button onClick={() => onAction('cut')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>Cut</button>
                             {canAddSecondProject && (
@@ -1795,11 +1907,17 @@ const ShowHideUsersModal = ({ isOpen, onClose, onSave, allUsers, visibleUserIds 
 const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignment, projects, isSecondProject = false, editingSpecificItem = null, editItemIndex = null }) => {
     const [isManual, setIsManual] = useState(false);
     const [leaveType, setLeaveType] = useState('');
+    const [projectSearch, setProjectSearch] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
     const [formData, setFormData] = useState({
         projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null
     });
 
     useEffect(() => {
+        // Clear search when modal opens
+        setProjectSearch('');
+
         // If editing a specific item from a multi-item cell, pre-fill with that item's data
         if (editingSpecificItem) {
             if (editingSpecificItem.type === 'leave') {
@@ -1887,6 +2005,30 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
 
     const projectFieldsDisabled = !!leaveType;
 
+    // Filter projects based on search term
+    const filteredProjects = (projects || []).filter(p =>
+        p.project_number.toLowerCase().includes(projectSearch.toLowerCase()) ||
+        p.project_name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+        (p.client && p.client.toLowerCase().includes(projectSearch.toLowerCase()))
+    );
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleProjectSelectFromDropdown = (project) => {
+        setFormData(prev => ({ ...prev, projectNumber: project.project_number, projectName: project.project_name, client: project.client, projectId: project.id }));
+        setIsDropdownOpen(false);
+        setProjectSearch('');
+    };
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={isSecondProject ? "Add Second Project" : "Allocate Resource"}>
              <div className="p-6 overflow-y-auto max-h-[80vh]">
@@ -1916,12 +2058,66 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                         </div>
 
                         {!isManual ? (
-                            <Select label="Project" value={formData.projectNumber} onChange={handleProjectSelect}>
-                                <option value="">Select Project</option>
-                                {(projects || []).map(p => (
-                                    <option key={p.id} value={p.project_number}>{p.project_number} - {p.project_name}</option>
-                                ))}
-                            </Select>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Project</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDropdownOpen(true)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-600"
+                                >
+                                    <span className={formData.projectNumber ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'}>
+                                        {formData.projectNumber ? `${formData.projectNumber} - ${formData.projectName}` : 'Select Project'}
+                                    </span>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+
+                                {isDropdownOpen && (
+                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" ref={dropdownRef}>
+                                            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                                                <h3 className="text-lg font-semibold mb-3">Select Project</h3>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search by project number or name..."
+                                                    value={projectSearch}
+                                                    onChange={(e) => setProjectSearch(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <div className="flex-1 overflow-y-auto p-2">
+                                                {filteredProjects.length === 0 ? (
+                                                    <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                                        {projectSearch ? 'No projects match your search' : 'No projects available'}
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-1">
+                                                        {filteredProjects.map(p => (
+                                                            <button
+                                                                key={p.id}
+                                                                type="button"
+                                                                onClick={() => handleProjectSelectFromDropdown(p)}
+                                                                className="w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                                            >
+                                                                <div className="text-sm text-gray-900 dark:text-gray-100">
+                                                                    {p.project_number} - {p.project_name}
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                                <Button variant="outline" onClick={() => { setIsDropdownOpen(false); setProjectSearch(''); }} className="w-full">
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         ) : (
                             <Input label="Project Number" name="projectNumber" value={formData.projectNumber} onChange={handleInputChange} />
                         )}

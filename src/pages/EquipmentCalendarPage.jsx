@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, MoreVertical, Download, Package, CheckCircle, XCircle, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, Download, Package, CheckCircle, XCircle, Zap } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
@@ -13,7 +13,7 @@ import { handleSupabaseError, isRLSError } from '../utils/rlsErrorHandler';
 import { Button, Select, Modal, Input } from '../components/ui';
 
 // Draggable wrapper component for equipment items
-const DraggableEquipmentItem = ({ id, children, disabled }) => {
+const DraggableEquipmentItem = ({ id, children, disabled, className = '' }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: id,
         disabled: disabled,
@@ -22,13 +22,13 @@ const DraggableEquipmentItem = ({ id, children, disabled }) => {
     const style = transform ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
         opacity: isDragging ? 0.5 : 1,
-        cursor: disabled ? 'default' : 'grab',
+        cursor: disabled ? 'default' : 'move',
     } : {
-        cursor: disabled ? 'default' : 'grab',
+        cursor: disabled ? 'default' : 'move',
     };
 
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={className}>
             {children}
         </div>
     );
@@ -84,12 +84,18 @@ const EquipmentCalendarPage = () => {
     const filterRef = useRef(null);
     const scrollPositionRef = useRef(0);
     const calendarRef = useRef(null);
+    const justClosedMenuRef = useRef(false);
     const [isExporting, setIsExporting] = useState(false);
     const [showDiscrepancies, setShowDiscrepancies] = useState(false);
     const [discrepanciesData, setDiscrepanciesData] = useState([]);
     const [loadingDiscrepancies, setLoadingDiscrepancies] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
+
+    // Pan state for desktop left-click panning
+    const [isPanning, setIsPanning] = useState(false);
+    const [isPanReady, setIsPanReady] = useState(false);
+    const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
     // Detect desktop mode for drag and drop (768px is md breakpoint in Tailwind)
     useEffect(() => {
@@ -99,6 +105,90 @@ const EquipmentCalendarPage = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    // Pan handlers for desktop left-click panning
+    const handlePanStart = useCallback((e) => {
+        if (!isDesktop || !calendarRef.current) return;
+
+        const target = e.target;
+
+        // Don't pan if clicking on interactive elements
+        const isClickableElement = target.tagName === 'BUTTON' ||
+                                   target.tagName === 'INPUT' ||
+                                   target.tagName === 'A' ||
+                                   target.closest('button') ||
+                                   target.closest('input') ||
+                                   target.closest('a');
+        if (isClickableElement) return;
+
+        // Allow pan if clicking on empty cells (has data-empty attribute)
+        const isEmptyCell = target.closest('[data-empty="true"]');
+
+        // Don't pan if clicking on equipment assignment content (has data-equipment attribute)
+        // BUT allow if it's an empty cell
+        if (!isEmptyCell && target.closest('[data-equipment]')) return;
+
+        // Set ready state and store initial position
+        // Actual panning will only start after 10px movement threshold
+        setIsPanReady(true);
+        panStartRef.current = {
+            x: e.clientX,
+            y: e.clientY,
+            scrollLeft: calendarRef.current.scrollLeft,
+            scrollTop: calendarRef.current.scrollTop
+        };
+    }, [isDesktop]);
+
+    const handlePanMove = useCallback((e) => {
+        if (!calendarRef.current) return;
+
+        // Check if we should activate panning (10px threshold)
+        if (isPanReady && !isPanning) {
+            const dx = Math.abs(e.clientX - panStartRef.current.x);
+            const dy = Math.abs(e.clientY - panStartRef.current.y);
+
+            // Activate panning only after moving 10px (higher than dnd-kit's 8px to give it priority)
+            if (dx > 10 || dy > 10) {
+                setIsPanning(true);
+                setIsPanReady(false);
+                calendarRef.current.style.cursor = 'grabbing';
+                calendarRef.current.style.userSelect = 'none';
+            }
+            return;
+        }
+
+        if (!isPanning) return;
+
+        e.preventDefault();
+
+        const dx = e.clientX - panStartRef.current.x;
+        const dy = e.clientY - panStartRef.current.y;
+
+        calendarRef.current.scrollLeft = panStartRef.current.scrollLeft - dx;
+        calendarRef.current.scrollTop = panStartRef.current.scrollTop - dy;
+    }, [isPanning, isPanReady]);
+
+    const handlePanEnd = useCallback(() => {
+        if (!calendarRef.current) return;
+
+        setIsPanning(false);
+        setIsPanReady(false);
+        calendarRef.current.style.cursor = '';
+        calendarRef.current.style.userSelect = '';
+    }, []);
+
+    // Add global mouse event listeners for panning
+    useEffect(() => {
+        if (isPanning || isPanReady) {
+            window.addEventListener('mousemove', handlePanMove);
+            window.addEventListener('mouseup', handlePanEnd);
+
+            return () => {
+                window.removeEventListener('mousemove', handlePanMove);
+                window.removeEventListener('mouseup', handlePanEnd);
+            };
+        }
+    }, [isPanning, isPanReady, handlePanMove, handlePanEnd]);
 
     // Set up drag and drop sensors (only PointerSensor, not TouchSensor, to exclude mobile)
     const sensors = useSensors(
@@ -494,15 +584,27 @@ const EquipmentCalendarPage = () => {
         return Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
     }, [currentWeekStart]);
 
-    const handleCellClick = (userId, date, dayIndex) => {
-        if (!canAllocateResources) return;
-        setSelectedCell({ userId, date, dayIndex });
-        setIsAllocationModalOpen(true);
-    };
-
     const handleActionClick = (e, userId, dayIndex, assignment, equipmentIndex = null) => {
         e.stopPropagation();
         e.preventDefault();
+
+        // If we just closed the menu, don't immediately reopen it
+        if (justClosedMenuRef.current) {
+            justClosedMenuRef.current = false;
+            return;
+        }
+
+        // If context menu is already visible, close it instead of opening a new one
+        if (contextMenu.visible) {
+            setContextMenu({ visible: false, x: 0, y: 0, cellData: null });
+            justClosedMenuRef.current = true;
+            // Reset the flag after a short delay
+            setTimeout(() => {
+                justClosedMenuRef.current = false;
+            }, 100);
+            return;
+        }
+
         setContextMenu({
             visible: true,
             x: e.pageX,
@@ -821,6 +923,76 @@ const EquipmentCalendarPage = () => {
                 // Add more equipment from an individual item's context menu
                 setSelectedCell({ ...cellToUpdate, isSecondEquipment: true });
                 setIsAllocationModalOpen(true);
+            } else if (action === 'paste') {
+                // Paste equipment as an additional item to the existing array
+                const isPastingSingleItem = !Array.isArray(clipboard.data);
+
+                if (isPastingSingleItem) {
+                    // Add to existing content
+                    handleSaveAllocation(clipboard.data, cellToUpdate, true); // Use isSecondEquipment flag
+                } else {
+                    // If pasting an array, add all items
+                    for (const item of clipboard.data) {
+                        await handleSaveAllocation(item, cellToUpdate, true);
+                    }
+                }
+
+                // Handle cut operation - remove from source
+                if (clipboard.type === 'cut') {
+                    if (clipboard.sourceIndex !== null && clipboard.sourceIndex !== undefined) {
+                        const weekKey = formatDateForKey(getWeekStartDate(clipboard.sourceCell.date));
+                        const dayIndex = (clipboard.sourceCell.date.getDay() + 1) % 7;
+                        const sourceAssignment = allocations[weekKey]?.[clipboard.sourceCell.userId]?.assignments[dayIndex];
+
+                        if (Array.isArray(sourceAssignment)) {
+                            const newAssignment = sourceAssignment.filter((_, idx) => idx !== clipboard.sourceIndex);
+                            const finalAssignment = newAssignment.length === 1 ? newAssignment[0] : newAssignment.length === 0 ? null : newAssignment;
+
+                            // Update state
+                            setAllocations(prev => {
+                                const newAllocations = JSON.parse(JSON.stringify(prev));
+                                if (newAllocations[weekKey] && newAllocations[weekKey][clipboard.sourceCell.userId]) {
+                                    newAllocations[weekKey][clipboard.sourceCell.userId].assignments[dayIndex] = finalAssignment;
+                                }
+                                return newAllocations;
+                            });
+
+                            // Update database
+                            try {
+                                const allocationDateString = formatDateForKey(clipboard.sourceCell.date);
+
+                                const { error: deleteError } = await supabase
+                                    .from('equipment_calendar')
+                                    .delete()
+                                    .eq('user_id', clipboard.sourceCell.userId)
+                                    .eq('allocation_date', allocationDateString);
+
+                                if (deleteError) throw deleteError;
+
+                                if (newAssignment.length > 0) {
+                                    const recordsToInsert = newAssignment.map(item => ({
+                                        user_id: clipboard.sourceCell.userId,
+                                        equipment_id: item.equipmentId || null,
+                                        allocation_date: allocationDateString,
+                                        comment: item.comment || null
+                                    }));
+
+                                    const { error: insertError } = await supabase
+                                        .from('equipment_calendar')
+                                        .insert(recordsToInsert);
+
+                                    if (insertError) throw insertError;
+                                }
+                            } catch (err) {
+                                console.error('Error removing cut equipment from source:', err);
+                            }
+                        }
+                    } else {
+                        // Original cut from whole cell
+                        handleSaveAllocation(null, clipboard.sourceCell);
+                    }
+                    setClipboard({ type: null, data: null, sourceCell: null, sourceIndex: null });
+                }
             }
         } else {
             // Original behavior for whole cell operations
@@ -1659,7 +1831,12 @@ const EquipmentCalendarPage = () => {
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
             >
-                <div ref={calendarRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)] overflow-y-auto">
+                <div
+                    ref={calendarRef}
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)]"
+                    onMouseDown={handlePanStart}
+                    style={{ cursor: isDesktop && !isPanning ? 'grab' : isPanning ? 'grabbing' : undefined }}
+                >
                     <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-10">
                         <tr>
@@ -1701,23 +1878,13 @@ const EquipmentCalendarPage = () => {
                                                         const categoryColors = equipmentItem ? getCategoryColorClasses(equipmentItem.category) : { backgroundColor: '#93C5FD', textColor: 'text-gray-900' };
 
                                                         return (
-                                                            <DraggableEquipmentItem key={index} id={`${user.id}::${dayIndex}::${index}`} disabled={!isDesktop || !canAllocateResources}>
+                                                            <DraggableEquipmentItem key={index} id={`${user.id}::${dayIndex}::${index}`} disabled={!isDesktop || !canAllocateResources} className="flex-1 min-h-[40px] max-h-[40px]">
                                                                 <div
-                                                                    className={`p-2 rounded-md flex flex-col items-center justify-center text-center flex-1 relative ${categoryColors.textColor} ${canAllocateResources ? 'cursor-pointer' : ''}`}
+                                                                    data-equipment="true"
+                                                                    className={`p-1 rounded-md flex flex-col items-center justify-center text-center h-full relative ${categoryColors.textColor}`}
                                                                     style={{ backgroundColor: categoryColors.backgroundColor }}
-                                                                    onClick={(e) => {
-                                                                        if (!canAllocateResources) return;
-                                                                        e.stopPropagation();
-                                                                        setSelectedCell({
-                                                                            userId: user.id,
-                                                                            date,
-                                                                            dayIndex,
-                                                                            editingItem: eq,
-                                                                            editingIndex: index
-                                                                        });
-                                                                        setIsAllocationModalOpen(true);
-                                                                    }}
                                                                     onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
+                                                                    onClick={!isDesktop && canAllocateResources ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
                                                                 >
                                                                     {isAssignedToUser && (
                                                                         <CheckCircle
@@ -1738,14 +1905,6 @@ const EquipmentCalendarPage = () => {
                                                                         </div>
                                                                     )}
                                                                     {eq.comment && <p className={`text-sm font-bold ${eq.equipmentId ? 'truncate mt-1' : 'break-words'}`} title={eq.comment}>{eq.comment}</p>}
-                                                                    {!isDesktop && canAllocateResources && (
-                                                                        <button
-                                                                            onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment, index)}
-                                                                            className="absolute top-1 right-1 p-0.5 rounded-full bg-gray-300/30 dark:bg-gray-900/30 hover:bg-gray-400/50 dark:hover:bg-gray-700/50"
-                                                                        >
-                                                                            <MoreVertical size={12} />
-                                                                        </button>
-                                                                    )}
                                                                 </div>
                                                             </DraggableEquipmentItem>
                                                         );
@@ -1760,18 +1919,15 @@ const EquipmentCalendarPage = () => {
                                             const categoryColors = equipmentItem ? getCategoryColorClasses(equipmentItem.category) : { backgroundColor: '#93C5FD', textColor: 'text-gray-900' };
 
                                             cellContent = (
-                                                <DraggableEquipmentItem id={`${user.id}::${dayIndex}::0`} disabled={!isDesktop || !canAllocateResources}>
-                                                    <div
-                                                        className={`p-2 rounded-md h-full flex flex-col items-center justify-center text-center relative ${categoryColors.textColor} ${canAllocateResources ? 'cursor-pointer' : ''}`}
-                                                        style={{ backgroundColor: categoryColors.backgroundColor }}
-                                                        onClick={(e) => {
-                                                            if (!canAllocateResources) return;
-                                                            e.stopPropagation();
-                                                            setSelectedCell({ userId: user.id, date, dayIndex });
-                                                            setIsAllocationModalOpen(true);
-                                                        }}
-                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                    >
+                                                <div className="h-full flex flex-col gap-1">
+                                                    <DraggableEquipmentItem id={`${user.id}::${dayIndex}::0`} disabled={!isDesktop || !canAllocateResources}>
+                                                        <div
+                                                            data-equipment="true"
+                                                            className={`p-1 rounded-md flex flex-col items-center justify-center text-center min-h-[40px] max-h-[40px] relative ${categoryColors.textColor}`}
+                                                            style={{ backgroundColor: categoryColors.backgroundColor }}
+                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                            onClick={!isDesktop && canAllocateResources ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                        >
                                                         {isAssignedToUser && (
                                                             <CheckCircle
                                                                 size={18}
@@ -1793,8 +1949,9 @@ const EquipmentCalendarPage = () => {
                                                         {assignment.comment && (
                                                             <p className={`text-sm font-bold ${assignment.equipmentId ? 'whitespace-nowrap overflow-ellipsis overflow-hidden' : 'break-words'}`} title={assignment.comment}>{assignment.comment}</p>
                                                         )}
-                                                    </div>
-                                                </DraggableEquipmentItem>
+                                                        </div>
+                                                    </DraggableEquipmentItem>
+                                                </div>
                                             );
                                         }
                                     }
@@ -1805,22 +1962,15 @@ const EquipmentCalendarPage = () => {
                                     return (
                                         <td key={date.toISOString()} className="p-1 align-top h-32 relative group">
                                             <div
-                                                onClick={() => handleCellClick(user.id, date, dayIndex)}
+                                                data-empty={!assignment ? "true" : undefined}
                                                 onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                className={`w-full h-full text-left rounded-md ${canAllocateResources ? 'cursor-pointer' : 'cursor-default'}`}
+                                                onClick={!isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                className={`w-full h-full text-left rounded-md ${!assignment && isDesktop ? 'cursor-grab hover:cursor-grab' : ''}`}
                                             >
                                                 <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop || !canAllocateResources}>
                                                     {cellContent}
                                                 </DroppableCell>
                                             </div>
-                                            {!isDesktop && showContextMenuButton && !isArrayTile && (
-                                                <button
-                                                    onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment)}
-                                                    className="absolute top-1 right-1 p-1 rounded-full bg-gray-300/20 dark:bg-gray-900/20 hover:bg-gray-400/50 dark:hover:bg-gray-700/50"
-                                                >
-                                                    <MoreVertical size={14} />
-                                                </button>
-                                            )}
                                         </td>
                                     );
                                 })}
@@ -1837,7 +1987,13 @@ const EquipmentCalendarPage = () => {
                     cellData={contextMenu.cellData}
                     clipboard={clipboard}
                     onAction={handleContextMenuAction}
-                    onClose={() => setContextMenu({ visible: false })}
+                    onClose={() => {
+                        setContextMenu({ visible: false });
+                        justClosedMenuRef.current = true;
+                        setTimeout(() => {
+                            justClosedMenuRef.current = false;
+                        }, 100);
+                    }}
                     canAllocate={canAllocateResources}
                 />
             )}
@@ -2008,7 +2164,11 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("touchstart", handleClickOutside);
+        };
     }, [onClose]);
 
     useEffect(() => {
@@ -2095,7 +2255,7 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                                     <button onClick={() => onAction('delete')} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={14} className="mr-2" />Delete</button>
                                 </>
                             ) : null}
-                            {clipboard.data && !isArrayItemOperation && (
+                            {clipboard.data && (
                                 <button onClick={() => onAction('paste')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ClipboardCheck size={14} className="mr-2" />Paste</button>
                             )}
                             {canAddMoreEquipment && (
