@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, Download, Edit } from 'lucide-react';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, DragOverlay, rectIntersection } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -140,6 +140,10 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const [isPanReady, setIsPanReady] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
+    // Drag overlay state
+    const [activeId, setActiveId] = useState(null);
+    const [activeDimensions, setActiveDimensions] = useState(null);
+
     // Detect desktop mode for drag and drop (768px is md breakpoint in Tailwind)
     useEffect(() => {
         const handleResize = () => {
@@ -237,7 +241,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 8, // 8px movement required before drag starts
+                distance: 3, // 3px movement required before drag starts (reduced for faster response)
             },
         })
     );
@@ -1334,10 +1338,36 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         }
     };
 
+    const handleDragStart = (event) => {
+        setActiveId(event.active.id);
+
+        // Capture the dimensions of the dragged element
+        try {
+            const activeElement = event.active?.rect?.current?.initial;
+            if (activeElement) {
+                setActiveDimensions({
+                    width: activeElement.width,
+                    height: activeElement.height
+                });
+            }
+        } catch (error) {
+            console.log('Could not capture dimensions:', error);
+        }
+    };
+
+    const handleDragCancel = () => {
+        setActiveId(null);
+        setActiveDimensions(null);
+    };
+
     const handleDragEnd = async (event) => {
         const { active, over } = event;
 
         console.log('🎯 Drag end event:', { active: active?.id, over: over?.id });
+
+        // Clear active drag overlay
+        setActiveId(null);
+        setActiveDimensions(null);
 
         if (!over || !active) {
             console.log('❌ No over or active');
@@ -1592,6 +1622,79 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         );
     }
 
+    // Render the drag overlay item
+    const renderDragOverlay = () => {
+        if (!activeId) return null;
+
+        const [userId, dayIndex, assignmentIndex] = activeId.split('::');
+        const dayIndexNum = parseInt(dayIndex);
+        const assignmentIndexNum = parseInt(assignmentIndex);
+        const weekKey = formatDateForKey(currentWeekStart);
+
+        const assignment = allocations[weekKey]?.[userId]?.assignments[dayIndexNum];
+        if (!assignment) return null;
+
+        let draggedItem;
+        if (Array.isArray(assignment)) {
+            draggedItem = assignment[assignmentIndexNum];
+        } else {
+            draggedItem = assignment;
+        }
+
+        if (!draggedItem) return null;
+
+        // Render based on type
+        if (draggedItem.type === 'project') {
+            const projColorStyle = getShiftColor(draggedItem.shift);
+            const projColor = typeof projColorStyle === 'string' ? projColorStyle : '';
+            const projInlineStyle = typeof projColorStyle === 'object' ? projColorStyle : {};
+
+            return (
+                <div
+                    className={`p-1.5 rounded text-center ${projColor} shadow-lg opacity-90`}
+                    style={{
+                        ...projInlineStyle,
+                        width: activeDimensions?.width ? `${activeDimensions.width}px` : 'auto',
+                        height: activeDimensions?.height ? `${activeDimensions.height}px` : 'auto',
+                        boxSizing: 'border-box',
+                    }}
+                >
+                    <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1">{draggedItem.projectName}</p>
+                    <p className="font-semibold text-xs mb-0.5 truncate">{draggedItem.projectNumber}</p>
+                    {draggedItem.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1">{draggedItem.task}</p>}
+                    <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof draggedItem.shift === 'string' ? draggedItem.shift : String(draggedItem.shift || '')}</p>
+                    {draggedItem.time && <p className="text-xs leading-tight font-semibold truncate">{draggedItem.time}</p>}
+                </div>
+            );
+        } else if (draggedItem.type === 'leave') {
+            const leaveColorStyle = getLeaveColor(draggedItem.leaveType);
+            const leaveColor = typeof leaveColorStyle === 'string' ? leaveColorStyle : '';
+            const leaveInlineStyle = typeof leaveColorStyle === 'object' ? leaveColorStyle : {};
+            const hasComment = draggedItem.comment && draggedItem.comment.trim().length > 0;
+
+            return (
+                <div
+                    className={`p-2 rounded-md shadow-lg opacity-90 font-bold ${leaveColor}`}
+                    style={{
+                        ...leaveInlineStyle,
+                        width: activeDimensions?.width ? `${activeDimensions.width}px` : 'auto',
+                        height: activeDimensions?.height ? `${activeDimensions.height}px` : 'auto',
+                        boxSizing: 'border-box',
+                    }}
+                >
+                    <div className={`text-center ${hasComment ? 'mb-1' : ''} text-lg truncate`}>{draggedItem.leaveType}</div>
+                    {hasComment && (
+                        <div className="text-center text-sm font-bold opacity-90 leading-tight line-clamp-3">
+                            {draggedItem.comment}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        return null;
+    };
+
     return (
         <div className="p-4 md:p-6">
             <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
@@ -1686,8 +1789,10 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             )}
             <DndContext
                 sensors={sensors}
-                collisionDetection={closestCenter}
+                collisionDetection={rectIntersection}
+                onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
             >
                 <div
                     ref={calendarRef}
@@ -1877,6 +1982,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     </tbody>
                 </table>
                 </div>
+                <DragOverlay dropAnimation={null}>
+                    {renderDragOverlay()}
+                </DragOverlay>
             </DndContext>
             {contextMenu.visible && (
                 <ContextMenu

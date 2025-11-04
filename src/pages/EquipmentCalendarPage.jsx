@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, Download, Package, CheckCircle, XCircle, Zap } from 'lucide-react';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, DragOverlay, rectIntersection } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -97,6 +97,10 @@ const EquipmentCalendarPage = () => {
     const [isPanning, setIsPanning] = useState(false);
     const [isPanReady, setIsPanReady] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+
+    // Drag overlay state
+    const [activeId, setActiveId] = useState(null);
+    const [activeDimensions, setActiveDimensions] = useState(null);
 
     // Detect desktop mode for drag and drop (768px is md breakpoint in Tailwind)
     useEffect(() => {
@@ -195,7 +199,7 @@ const EquipmentCalendarPage = () => {
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 8, // 8px movement required before drag starts
+                distance: 3, // 3px movement required before drag starts (reduced for faster response)
             },
         })
     );
@@ -1422,10 +1426,36 @@ const EquipmentCalendarPage = () => {
         }
     };
 
+    const handleDragStart = (event) => {
+        setActiveId(event.active.id);
+
+        // Capture the dimensions of the dragged element
+        try {
+            const activeElement = event.active?.rect?.current?.initial;
+            if (activeElement) {
+                setActiveDimensions({
+                    width: activeElement.width,
+                    height: activeElement.height
+                });
+            }
+        } catch (error) {
+            console.log('Could not capture dimensions:', error);
+        }
+    };
+
+    const handleDragCancel = () => {
+        setActiveId(null);
+        setActiveDimensions(null);
+    };
+
     const handleDragEnd = async (event) => {
         const { active, over } = event;
 
         console.log('🎯 Drag end event:', { active: active?.id, over: over?.id });
+
+        // Clear active drag overlay
+        setActiveId(null);
+        setActiveDimensions(null);
 
         if (!over || !active) {
             console.log('❌ No over or active');
@@ -1793,6 +1823,57 @@ const EquipmentCalendarPage = () => {
         );
     }
 
+    // Render the drag overlay item
+    const renderDragOverlay = () => {
+        if (!activeId) return null;
+
+        const [userId, dayIndex, equipmentIndex] = activeId.split('::');
+        const dayIndexNum = parseInt(dayIndex);
+        const equipmentIndexNum = parseInt(equipmentIndex);
+        const weekKey = formatDateForKey(currentWeekStart);
+
+        const assignment = allocations[weekKey]?.[userId]?.assignments[dayIndexNum];
+        if (!assignment) return null;
+
+        let draggedItem;
+        if (Array.isArray(assignment)) {
+            draggedItem = assignment[equipmentIndexNum];
+        } else {
+            draggedItem = assignment;
+        }
+
+        if (!draggedItem) return null;
+
+        // Get equipment details
+        const equipmentItem = draggedItem.equipmentId ? equipment.find(e => e.id === draggedItem.equipmentId) : null;
+        const isNoEquipmentRequired = draggedItem.comment === 'No Equipment Required' || draggedItem.comment?.startsWith('No Equipment Required:');
+        const categoryColors = equipmentItem ? getCategoryColorClasses(equipmentItem.category) : { backgroundColor: '#93C5FD', textColor: 'text-gray-900' };
+
+        return (
+            <div
+                className={`p-1 rounded-md flex flex-col items-center justify-center text-center shadow-lg opacity-90 ${categoryColors.textColor}`}
+                style={{
+                    backgroundColor: categoryColors.backgroundColor,
+                    width: activeDimensions?.width ? `${activeDimensions.width}px` : 'auto',
+                    height: activeDimensions?.height ? `${activeDimensions.height}px` : 'auto',
+                    boxSizing: 'border-box',
+                }}
+            >
+                {draggedItem.equipmentId && (
+                    <div className="flex items-center justify-center gap-1.5 mb-1">
+                        <Package size={18} />
+                        <p className="font-bold text-base whitespace-nowrap overflow-ellipsis overflow-hidden">{equipmentItem?.name || 'Unknown'}</p>
+                    </div>
+                )}
+                {draggedItem.comment && (
+                    <p className={`text-sm font-bold ${draggedItem.equipmentId ? 'whitespace-nowrap overflow-ellipsis overflow-hidden' : 'break-words'}`}>
+                        {draggedItem.comment}
+                    </p>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="p-4 md:p-6">
             <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
@@ -1946,8 +2027,10 @@ const EquipmentCalendarPage = () => {
             )}
             <DndContext
                 sensors={sensors}
-                collisionDetection={closestCenter}
+                collisionDetection={rectIntersection}
+                onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
             >
                 <div
                     ref={calendarRef}
@@ -2097,6 +2180,9 @@ const EquipmentCalendarPage = () => {
                     </tbody>
                 </table>
             </div>
+            <DragOverlay dropAnimation={null}>
+                {renderDragOverlay()}
+            </DragOverlay>
             </DndContext>
             {contextMenu.visible && (
                 <ContextMenu
