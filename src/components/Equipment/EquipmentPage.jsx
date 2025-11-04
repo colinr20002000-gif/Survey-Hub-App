@@ -85,11 +85,20 @@ const EquipmentPage = () => {
                     table: 'equipment'
                 },
                 (payload) => {
-                    console.log('🔧 Equipment table changed:', payload.eventType);
+                    console.log('🔧 Equipment table changed:', payload.eventType, payload);
                     loadEquipment(); // Reload equipment data
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log('📡 Equipment subscription status:', status);
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ Successfully subscribed to equipment real-time updates');
+                } else if (status === 'CLOSED') {
+                    console.log('❌ Equipment subscription closed');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('❌ Equipment subscription error');
+                }
+            });
 
         const assignmentsSubscription = supabase
             .channel('equipment-assignments-changes')
@@ -101,11 +110,20 @@ const EquipmentPage = () => {
                     table: 'equipment_assignments'
                 },
                 (payload) => {
-                    console.log('📋 Equipment assignments changed:', payload.eventType);
+                    console.log('📋 Equipment assignments changed:', payload.eventType, payload);
                     loadAssignments(); // Reload assignments
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log('📡 Assignments subscription status:', status);
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ Successfully subscribed to assignments real-time updates');
+                } else if (status === 'CLOSED') {
+                    console.log('❌ Assignments subscription closed');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('❌ Assignments subscription error');
+                }
+            });
 
         const commentsSubscription = supabase
             .channel('equipment-comments-changes')
@@ -117,16 +135,30 @@ const EquipmentPage = () => {
                     table: 'equipment_comments'
                 },
                 (payload) => {
-                    console.log('💬 Equipment comments changed:', payload.eventType);
+                    console.log('💬 Equipment comments changed:', payload.eventType, payload);
                     loadComments(); // Reload comments
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log('📡 Comments subscription status:', status);
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ Successfully subscribed to comments real-time updates');
+                } else if (status === 'CLOSED') {
+                    console.log('❌ Comments subscription closed');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('❌ Comments subscription error');
+                }
+            });
 
         return () => {
-            equipmentSubscription.unsubscribe();
-            assignmentsSubscription.unsubscribe();
-            commentsSubscription.unsubscribe();
+            console.log('🧹 Cleaning up equipment subscriptions');
+            try {
+                supabase.removeChannel(equipmentSubscription);
+                supabase.removeChannel(assignmentsSubscription);
+                supabase.removeChannel(commentsSubscription);
+            } catch (error) {
+                console.warn('⚠️ Error during subscription cleanup (non-critical):', error);
+            }
         };
     }, []);
 
