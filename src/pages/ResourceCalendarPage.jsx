@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, MoreVertical, Download, Edit } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, Download, Edit } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
@@ -1767,14 +1767,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                     {proj.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1" title={proj.task}>{proj.task}</p>}
                                                                     <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof proj.shift === 'string' ? proj.shift : String(proj.shift || '')}</p>
                                                                     {proj.time && <p className="text-xs leading-tight font-semibold truncate">{proj.time}</p>}
-                                                                    {!isDesktop && (canAllocateResources || (proj.type === 'project' && proj.projectNumber)) && (
-                                                                        <button
-                                                                            onClick={(e) => handleActionClick(e, user.id, dayIndex, assignment, index)}
-                                                                            className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-gray-300/20 dark:bg-gray-900/20 hover:bg-gray-400/50 dark:hover:bg-gray-700/50 transition-opacity"
-                                                                        >
-                                                                            <MoreVertical size={12} />
-                                                                        </button>
-                                                                    )}
                                                                 </div>
                                                             </DraggableResourceItem>
                                                         );
