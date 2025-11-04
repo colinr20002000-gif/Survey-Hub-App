@@ -1137,13 +1137,18 @@ CREATE TABLE equipment_audit_log (
             }
 
             // Update equipment status
-            await supabase
+            const { error: equipmentUpdateError } = await supabase
                 .from('equipment')
                 .update({
                     status: 'available',
                     updated_by: currentUser.id
                 })
                 .eq('id', equipmentId);
+
+            if (equipmentUpdateError) {
+                console.error('❌ Failed to update equipment status:', equipmentUpdateError);
+                throw equipmentUpdateError;
+            }
 
             // Log audit trail
             const equipmentItem = equipment.find(e => e.id === equipmentId);
