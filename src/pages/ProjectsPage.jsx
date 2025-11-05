@@ -64,7 +64,7 @@ const ProjectsPage = ({ onViewProject }) => {
         return sortableItems;
     }, [filteredProjects, sortConfig]);
 
-    // Calculate pagination
+    // Calculate pagination - compute total number of pages
     const totalPages = useMemo(() => {
         if (!sortedProjects || sortedProjects.length === 0 || !itemsPerPage || itemsPerPage <= 0) return 0;
         return Math.ceil(sortedProjects.length / itemsPerPage);

@@ -123,6 +123,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const [filterDepartments, setFilterDepartments] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [sortOrder, setSortOrder] = useState('department');
+    const [filterSaturday, setFilterSaturday] = useState(false);
+    const [filterSunday, setFilterSunday] = useState(false);
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
     const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null, sourceItemIndex: null });
     const [undoHistory, setUndoHistory] = useState([]);
@@ -521,6 +523,65 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             usersToDisplay = usersToDisplay.filter(user => filterDepartments.includes(user.department));
         }
 
+        const weekKey = formatDateForKey(currentWeekStart);
+        const currentWeekAllocations = allocations[weekKey] || {};
+
+        // Filter by weekend availability (Saturday OR Sunday)
+        if (filterSaturday || filterSunday) {
+            usersToDisplay = usersToDisplay.filter(user => {
+                let availableOnSaturday = false;
+                let availableOnSunday = false;
+
+                // Check Saturday (dayIndex 0) - include if Available status OR has project assignment
+                if (filterSaturday) {
+                    const saturdayAssignment = currentWeekAllocations[user.id]?.assignments[0];
+                    if (saturdayAssignment) {
+                        if (Array.isArray(saturdayAssignment)) {
+                            // Check for any Available status (including Available, Available (D), Available (N)) or project assignment
+                            availableOnSaturday = saturdayAssignment.some(a =>
+                                (a.type === 'status' && (a.status === 'Available' || a.status === 'Available (D)' || a.status === 'Available (N)')) ||
+                                a.type === 'project'
+                            );
+                        } else {
+                            // Single assignment - check for any Available status or project
+                            availableOnSaturday =
+                                (saturdayAssignment.type === 'status' && (saturdayAssignment.status === 'Available' || saturdayAssignment.status === 'Available (D)' || saturdayAssignment.status === 'Available (N)')) ||
+                                saturdayAssignment.type === 'project';
+                        }
+                    }
+                }
+
+                // Check Sunday (dayIndex 1) - include if Available status OR has project assignment
+                if (filterSunday) {
+                    const sundayAssignment = currentWeekAllocations[user.id]?.assignments[1];
+                    if (sundayAssignment) {
+                        if (Array.isArray(sundayAssignment)) {
+                            // Check for any Available status (including Available, Available (D), Available (N)) or project assignment
+                            availableOnSunday = sundayAssignment.some(a =>
+                                (a.type === 'status' && (a.status === 'Available' || a.status === 'Available (D)' || a.status === 'Available (N)')) ||
+                                a.type === 'project'
+                            );
+                        } else {
+                            // Single assignment - check for any Available status or project
+                            availableOnSunday =
+                                (sundayAssignment.type === 'status' && (sundayAssignment.status === 'Available' || sundayAssignment.status === 'Available (D)' || sundayAssignment.status === 'Available (N)')) ||
+                                sundayAssignment.type === 'project';
+                        }
+                    }
+                }
+
+                // If both filters are active, show users available/assigned on Saturday OR Sunday
+                // If only one filter is active, show users available/assigned on that day
+                if (filterSaturday && filterSunday) {
+                    return availableOnSaturday || availableOnSunday;
+                } else if (filterSaturday) {
+                    return availableOnSaturday;
+                } else {
+                    return availableOnSunday;
+                }
+            });
+        }
+
         usersToDisplay = usersToDisplay.filter(user => visibleUserIds.includes(user.id));
 
         // Apply sorting based on sortOrder
@@ -567,7 +628,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         }
 
         return usersToDisplay;
-    }, [allUsers, visibleUserIds, filterDepartments, sortOrder]);
+    }, [allUsers, visibleUserIds, filterDepartments, sortOrder, filterSaturday, filterSunday, allocations, currentWeekStart]);
 
     const weekDates = useMemo(() => {
         return Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
@@ -1193,6 +1254,10 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             setIsAllocationModalOpen(true);
         } else if (action === 'setAvailable') {
             handleSaveAllocation({ type: 'status', status: 'Available' }, cellToUpdate);
+        } else if (action === 'setAvailableDay') {
+            handleSaveAllocation({ type: 'status', status: 'Available (D)' }, cellToUpdate);
+        } else if (action === 'setAvailableNight') {
+            handleSaveAllocation({ type: 'status', status: 'Available (N)' }, cellToUpdate);
         } else if (action === 'setNotAvailable') {
             handleSaveAllocation({ type: 'status', status: 'Not Available' }, cellToUpdate);
         }
@@ -1769,6 +1834,42 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                      </div>
                                      <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setFilterDepartments([])}>Clear Departments</Button>
                                  </div>
+                                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                     <h4 className="font-semibold mb-2 text-sm">Weekend Availability</h4>
+                                     <div className="space-y-2">
+                                         <label className="flex items-center space-x-2 text-sm">
+                                             <input
+                                                 type="checkbox"
+                                                 checked={filterSaturday}
+                                                 onChange={(e) => setFilterSaturday(e.target.checked)}
+                                                 className="rounded text-orange-500 focus:ring-orange-500"
+                                             />
+                                             <span>Available Saturdays</span>
+                                         </label>
+                                         <label className="flex items-center space-x-2 text-sm">
+                                             <input
+                                                 type="checkbox"
+                                                 checked={filterSunday}
+                                                 onChange={(e) => setFilterSunday(e.target.checked)}
+                                                 className="rounded text-orange-500 focus:ring-orange-500"
+                                             />
+                                             <span>Available Sundays</span>
+                                         </label>
+                                     </div>
+                                     {(filterSaturday || filterSunday) && (
+                                         <Button
+                                             variant="outline"
+                                             size="sm"
+                                             className="w-full mt-2"
+                                             onClick={() => {
+                                                 setFilterSaturday(false);
+                                                 setFilterSunday(false);
+                                             }}
+                                         >
+                                             Clear Weekend Filters
+                                         </Button>
+                                     )}
+                                 </div>
                              </div>
                          )}
                     </div>
@@ -1907,9 +2008,17 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                 </DraggableResourceItem>
                                             );
                                         } else if (assignment.type === 'status') {
-                                            const statusColor = assignment.status === 'Available'
-                                                ? 'text-green-600 dark:text-green-400'
-                                                : 'text-red-600 dark:text-red-400';
+                                            // Determine color based on availability status
+                                            let statusColor;
+                                            if (assignment.status === 'Available') {
+                                                statusColor = 'text-green-600 dark:text-green-400';
+                                            } else if (assignment.status === 'Available (D)') {
+                                                statusColor = 'text-green-600 dark:text-green-400';
+                                            } else if (assignment.status === 'Available (N)') {
+                                                statusColor = 'text-green-600 dark:text-green-400';
+                                            } else {
+                                                statusColor = 'text-red-600 dark:text-red-400';
+                                            }
                                             // Fixed text size for status tiles
                                             cellContent = (
                                                 <div
@@ -2129,6 +2238,8 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                     {canSetStatus && (
                         <>
                             <button onClick={() => onAction('setAvailable')} className="w-full text-left flex items-center px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700"><Check size={14} className="mr-2"/>Available</button>
+                            <button onClick={() => onAction('setAvailableDay')} className="w-full text-left flex items-center px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700"><Check size={14} className="mr-2"/>Available (D)</button>
+                            <button onClick={() => onAction('setAvailableNight')} className="w-full text-left flex items-center px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700"><Check size={14} className="mr-2"/>Available (N)</button>
                             <button onClick={() => onAction('setNotAvailable')} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"><X size={14} className="mr-2"/>Not Available</button>
                         </>
                     )}

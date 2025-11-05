@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -1929,10 +1929,12 @@ const ProjectTasks = ({ project, canEdit }) => {
 };
 
 const ProjectFiles = ({ projectId }) => {
-    const { canDownloadFiles, canUploadDocuments } = usePermissions();
+    const { canDownloadFiles, canUploadDocuments, canDeleteDocuments } = usePermissions();
     const [files, setFiles] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [fileToDelete, setFileToDelete] = useState(null);
     const fileInputRef = useRef(null);
 
     const getFileIcon = (fileName) => {
@@ -1980,13 +1982,21 @@ const ProjectFiles = ({ projectId }) => {
                 return;
             }
 
-            const filesWithDetails = data.map(file => ({
-                id: file.id,
-                name: file.name,
-                size: formatFileSize(file.metadata?.size || 0),
-                uploaded: new Date(file.created_at).toLocaleDateString(),
-                fullPath: `project-${projectId}/${file.name}`
-            }));
+            const filesWithDetails = data.map(file => {
+                // Extract original filename by removing timestamp prefix (format: timestamp_originalname)
+                const originalName = file.name.includes('_')
+                    ? file.name.substring(file.name.indexOf('_') + 1)
+                    : file.name;
+
+                return {
+                    id: file.id,
+                    name: originalName,
+                    storageName: file.name, // Keep the storage name for downloads
+                    size: formatFileSize(file.metadata?.size || 0),
+                    uploaded: new Date(file.created_at).toLocaleDateString(),
+                    fullPath: `project-${projectId}/${file.name}`
+                };
+            });
 
             setFiles(filesWithDetails);
         } catch (error) {
@@ -2057,6 +2067,63 @@ const ProjectFiles = ({ projectId }) => {
         }
     };
 
+    const handleOpen = async (file) => {
+        try {
+            // Get the public URL for the file (bucket is public)
+            const { data } = supabase.storage
+                .from('project-files')
+                .getPublicUrl(file.fullPath);
+
+            if (!data?.publicUrl) {
+                alert('Error: Could not generate file URL');
+                return;
+            }
+
+            // Check if it's a KML file and open in Google Earth Web
+            const extension = file.name.split('.').pop().toLowerCase();
+            if (extension === 'kml' || extension === 'kmz') {
+                // Open KML/KMZ files in Google Earth Web
+                const googleEarthUrl = `https://earth.google.com/web/@0,0,0a,22251752.77375655d,35y,0h,0t,0r/data=CgRCAggB?url=${encodeURIComponent(data.publicUrl)}`;
+                window.open(googleEarthUrl, '_blank');
+            } else {
+                // Open other files directly - browser will handle inline display
+                window.open(data.publicUrl, '_blank');
+            }
+        } catch (error) {
+            console.error('Error opening file:', error);
+            alert('Error opening file');
+        }
+    };
+
+    const handleDeleteClick = (file) => {
+        setFileToDelete(file);
+        setIsDeleteModalOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!fileToDelete) return;
+
+        try {
+            const { error } = await supabase.storage
+                .from('project-files')
+                .remove([fileToDelete.fullPath]);
+
+            if (error) {
+                alert('Error deleting file: ' + error.message);
+                return;
+            }
+
+            await fetchFiles();
+            alert('File deleted successfully!');
+        } catch (error) {
+            console.error('Error deleting file:', error);
+            alert('Error deleting file');
+        } finally {
+            setIsDeleteModalOpen(false);
+            setFileToDelete(null);
+        }
+    };
+
     if (loading) {
         return (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
@@ -2101,7 +2168,7 @@ const ProjectFiles = ({ projectId }) => {
                             <th className="px-4 py-2 text-left">Name</th>
                             <th className="px-4 py-2 text-left">Size</th>
                             <th className="px-4 py-2 text-left">Uploaded</th>
-                            <th className="px-4 py-2"></th>
+                            <th className="px-4 py-2 text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -2120,18 +2187,39 @@ const ProjectFiles = ({ projectId }) => {
                                     </td>
                                     <td className="px-4 py-3">{file.size}</td>
                                     <td className="px-4 py-3">{file.uploaded}</td>
-                                    <td className="px-4 py-3 text-center">
-                                        {canDownloadFiles ? (
-                                            <button
-                                                onClick={() => handleDownload(file)}
-                                                className="p-1 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-                                                title="Download file"
-                                            >
-                                                <Download size={16} />
-                                            </button>
-                                        ) : (
-                                            <span className="text-xs text-gray-400 dark:text-gray-500">No access</span>
-                                        )}
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center justify-center space-x-1">
+                                            {canDownloadFiles && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleOpen(file)}
+                                                        className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                        title="Open file"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDownload(file)}
+                                                        className="p-1.5 text-gray-500 hover:text-green-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                        title="Download file"
+                                                    >
+                                                        <Download size={16} />
+                                                    </button>
+                                                </>
+                                            )}
+                                            {canDeleteDocuments && (
+                                                <button
+                                                    onClick={() => handleDeleteClick(file)}
+                                                    className="p-1.5 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                    title="Delete file"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                            {!canDownloadFiles && !canDeleteDocuments && (
+                                                <span className="text-xs text-gray-400 dark:text-gray-500">No access</span>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))
@@ -2139,6 +2227,15 @@ const ProjectFiles = ({ projectId }) => {
                     </tbody>
                 </table>
             </div>
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={confirmDelete}
+                title="Confirm File Deletion"
+                message={`Are you sure you want to delete "${fileToDelete?.name}"? This action cannot be undone.`}
+                confirmText="Delete"
+                confirmVariant="danger"
+            />
         </div>
     );
 };

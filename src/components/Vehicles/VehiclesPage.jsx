@@ -170,17 +170,19 @@ const VehiclesPage = () => {
 
     const loadUsers = async () => {
         try {
-            // Fetch real users
+            // Fetch real users (exclude soft deleted users)
             const { data: realUsers, error: realUsersError } = await supabase
                 .from('users')
                 .select('*')
+                .is('deleted_at', null)
                 .order('name');
 
-            // Fetch active dummy users
+            // Fetch active dummy users (exclude soft deleted users)
             const { data: dummyUsers, error: dummyUsersError } = await supabase
                 .from('dummy_users')
                 .select('*')
                 .eq('is_active', true)
+                .is('deleted_at', null)
                 .order('name');
 
             if (realUsersError && dummyUsersError) {

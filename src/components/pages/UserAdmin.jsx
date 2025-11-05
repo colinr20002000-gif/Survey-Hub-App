@@ -53,7 +53,9 @@ const UserAdmin = () => {
     mobile_number: '',
     privilege: 'Viewer',
     competencies: '',
-    pts_number: ''
+    pts_number: '',
+    available_saturday: false,
+    available_sunday: false
   });
 
   // Dummy user editing states
@@ -3037,6 +3039,29 @@ const UserAdmin = () => {
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   placeholder="Enter PTS number"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Weekend Availability</label>
+                <div className="space-y-2">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={dummyUserForm.available_saturday}
+                      onChange={(e) => setDummyUserForm(prev => ({ ...prev, available_saturday: e.target.checked }))}
+                      className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <span className="text-sm">Available Saturdays</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={dummyUserForm.available_sunday}
+                      onChange={(e) => setDummyUserForm(prev => ({ ...prev, available_sunday: e.target.checked }))}
+                      className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <span className="text-sm">Available Sundays</span>
+                  </label>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Privilege</label>

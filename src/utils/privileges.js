@@ -110,7 +110,7 @@ export const PERMISSIONS = {
     ALLOCATE_RESOURCES: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     EDIT_RESOURCE_ALLOCATIONS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     DELETE_RESOURCE_ALLOCATIONS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
-    SET_AVAILABILITY_STATUS: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
+    SET_AVAILABILITY_STATUS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
 
     UPLOAD_DOCUMENTS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     DELETE_DOCUMENTS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
@@ -202,21 +202,21 @@ export const canAccessAdminMode = (userPrivilege) => {
 export const PERMISSION_DESCRIPTIONS = {
     [PRIVILEGES.VIEWER]: {
         title: 'Viewer',
-        description: 'Read-only access. Can view all pages, use filters and sorting. Can set availability status and submit feedback.',
+        description: 'Read-only access. Can view all pages, use filters and sorting. Can submit feedback.',
         capabilities: [
             '✓ View all pages (Projects, Equipment, Vehicles, Tasks, etc.)',
             '✓ Use all filters and sorting features',
-            '✓ Set availability status in resource calendar',
             '✓ Submit bug reports and feature requests',
             '✓ Change own password',
             '✓ Toggle light/dark mode',
             '✗ Cannot modify any data',
+            '✗ Cannot set availability status',
             '✗ No admin mode access'
         ]
     },
     [PRIVILEGES.VIEWER_PLUS]: {
         title: 'Viewer+',
-        description: 'View access plus limited actions. Can complete tasks, assign/return equipment & vehicles, download files, set availability.',
+        description: 'View access plus limited actions. Can complete tasks, assign/return equipment & vehicles, download files.',
         capabilities: [
             '✓ All Viewer permissions',
             '✓ Complete project tasks',
@@ -224,10 +224,10 @@ export const PERMISSION_DESCRIPTIONS = {
             '✓ Add comments to equipment',
             '✓ Assign/return vehicles',
             '✓ Add comments to vehicles',
-            '✓ Set availability status in resource calendar',
             '✓ Download files from Document Hub',
             '✓ Download files from Projects',
             '✗ Cannot create/edit/delete items',
+            '✗ Cannot set availability status',
             '✗ No admin mode access'
         ]
     },
@@ -235,12 +235,13 @@ export const PERMISSION_DESCRIPTIONS = {
         title: 'Editor',
         description: 'Full access to all features except admin mode. Can create, edit, and delete all items.',
         capabilities: [
-            '✓ All Viewer+ permissions',
+            '✓ All Viewer+ permissions (except those marked with ✗)',
             '✓ Create/edit/delete projects',
             '✓ Create/edit/delete tasks',
             '✓ Add/edit/delete equipment',
             '✓ Add/edit/delete vehicles',
             '✓ Allocate/edit/delete resource allocations',
+            '✓ Set availability status in resource calendar',
             '✓ Upload/delete documents',
             '✗ No admin mode access',
             '✗ Cannot manage users',
@@ -251,12 +252,13 @@ export const PERMISSION_DESCRIPTIONS = {
         title: 'Editor+',
         description: 'Full access to all features except admin mode. Same permissions as Editor.',
         capabilities: [
-            '✓ All Viewer+ permissions',
+            '✓ All Viewer+ permissions (except those marked with ✗)',
             '✓ Create/edit/delete projects',
             '✓ Create/edit/delete tasks',
             '✓ Add/edit/delete equipment',
             '✓ Add/edit/delete vehicles',
             '✓ Allocate/edit/delete resource allocations',
+            '✓ Set availability status in resource calendar',
             '✓ Upload/delete documents',
             '✗ No admin mode access',
             '✗ Cannot manage users',

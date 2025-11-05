@@ -122,6 +122,7 @@ export const usePermissions = () => {
 
             canDownloadFiles: can('DOWNLOAD_PROJECT_FILES'),
             canUploadDocuments: can('UPLOAD_DOCUMENTS'),
+            canDeleteDocuments: can('DELETE_DOCUMENTS'),
 
             canAccessUserAdmin: can('ACCESS_USER_ADMIN'),
             canAccessFeedback: can('ACCESS_FEEDBACK'),

@@ -25,6 +25,7 @@ const ProjectTasksPage = () => {
                 const { data, error } = await supabase
                     .from('users')
                     .select('id, username, name, privilege, avatar, email')
+                    .is('deleted_at', null)
                     .order('name');
 
                 if (error) {
