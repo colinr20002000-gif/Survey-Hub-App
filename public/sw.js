@@ -2,11 +2,13 @@
 /* global clients, firebase */
 
 // Service Worker for Survey Hub PWA + Firebase Cloud Messaging
-// Cache name now includes build timestamp for automatic versioning
-const CACHE_NAME = `survey-hub-v4-fcm-${Date.now()}`;
+// IMPORTANT: Version is set during build by Vite, not dynamically
+const CACHE_VERSION = 'v5'; // Increment this manually for major updates
+const CACHE_NAME = `survey-hub-${CACHE_VERSION}-fcm`;
 const OFFLINE_URL = '/offline.html';
 
 console.log('🔔 [SW] Survey Hub service worker loading...');
+console.log('🔔 [SW] Cache version:', CACHE_NAME);
 
 // Import Firebase scripts for messaging
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
@@ -30,60 +32,58 @@ firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 console.log('🔔 [SW] Firebase messaging initialized');
 
-// Workbox will inject the manifest here during build
-// self.__WB_MANIFEST is replaced by the actual precache manifest during build
-if ('workbox' in self) {
-  self.workbox.precaching.precacheAndRoute(self.__WB_MANIFEST);
-  self.workbox.precaching.cleanupOutdatedCaches();
-} else {
-  // Fallback for when workbox is injected differently
-  self.__WB_MANIFEST;
-}
-
-// Files to cache for offline functionality (in addition to Workbox precaching)
+// Files to cache for offline functionality
 const STATIC_CACHE_FILES = [
   OFFLINE_URL
 ];
 
 // Install event - cache additional files
 self.addEventListener('install', (event) => {
-  console.log('Service Worker installing...');
+  console.log('🔔 [SW] Service Worker installing...', CACHE_NAME);
 
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Caching additional static files');
+        console.log('🔔 [SW] Caching additional static files');
         return cache.addAll(STATIC_CACHE_FILES);
       })
       .catch((error) => {
-        console.error('Failed to cache additional static files:', error);
+        console.error('🔔 [SW] Failed to cache additional static files:', error);
       })
   );
 
-  // Automatically activate the new service worker
-  console.log('Service Worker installed, automatically activating...');
+  // Force immediate activation
   self.skipWaiting();
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker activating...');
-  
+  console.log('🔔 [SW] Service Worker activating...', CACHE_NAME);
+
   event.waitUntil(
-    caches.keys()
-      .then((cacheNames) => {
+    Promise.all([
+      // Clean up old caches
+      caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames
-            .filter((cacheName) => cacheName !== CACHE_NAME)
+            .filter((cacheName) => {
+              // Delete caches that don't match current version
+              const isOurCache = cacheName.startsWith('survey-hub-');
+              const isCurrentCache = cacheName === CACHE_NAME;
+              return isOurCache && !isCurrentCache;
+            })
             .map((cacheName) => {
-              console.log('Deleting old cache:', cacheName);
+              console.log('🔔 [SW] Deleting old cache:', cacheName);
               return caches.delete(cacheName);
             })
         );
-      })
+      }),
+      // Take control of all clients immediately
+      self.clients.claim()
+    ]).then(() => {
+      console.log('🔔 [SW] Service Worker activated successfully');
+    })
   );
-
-  self.clients.claim();
 });
 
 // Fetch event - serve from cache when offline
@@ -93,19 +93,46 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle navigation requests - show offline page if network fails
+  // Skip Supabase requests - always fetch fresh
+  if (event.request.url.includes('supabase.co')) {
+    return;
+  }
+
+  // Handle navigation requests (HTML pages)
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .catch(() => {
-          return caches.match(OFFLINE_URL);
+          // If network fails, try cache, fall back to offline page
+          return caches.match(event.request).then((response) => {
+            return response || caches.match(OFFLINE_URL);
+          });
         })
     );
     return;
   }
 
-  // For other requests, let Workbox handle precached files
-  // and fall back to network for non-precached resources
+  // For asset requests (JS, CSS, images), try network first, fall back to cache
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        // Clone the response before caching
+        const responseToCache = response.clone();
+
+        // Cache successful responses
+        if (response.status === 200) {
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+
+        return response;
+      })
+      .catch(() => {
+        // If network fails, try cache
+        return caches.match(event.request);
+      })
+  );
 });
 
 // === FIREBASE CLOUD MESSAGING ===

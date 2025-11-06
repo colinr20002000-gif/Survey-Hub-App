@@ -26,6 +26,8 @@ export const shiftColors = {
 // Updated for better visibility in light mode
 export const leaveColors = {
     'Annual Leave': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
+    'Annual Leave (am)': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
+    'Annual Leave (pm)': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
     'Bank Holiday': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
     'Office (Haydock)': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
     'Office (Home)': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',

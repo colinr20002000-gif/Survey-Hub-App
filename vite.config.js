@@ -9,26 +9,15 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Don't use strategies - we manage the service worker manually
+      // This way VitePWA just handles copying the file, not injecting manifests
+      injectRegister: null, // We register the service worker manually in main.jsx
+      useCredentials: false,
+      manifest: false, // Use the existing manifest.json
+      // Just copy the service worker as-is without modification
       srcDir: 'public',
       filename: 'sw.js',
-      strategies: 'injectManifest',
-      injectManifest: {
-        swSrc: 'public/sw.js',
-        swDest: 'dist/sw.js',
-        globPatterns: [
-          '**/*.{js,css,html,ico,png,svg,webmanifest,json}',
-        ],
-      },
-      useCredentials: false,
-      // Use the existing manifest.json instead of generating one
-      manifest: false,
-      workbox: {
-        // Force service worker to update on every build
-        cleanupOutdatedCaches: true,
-        skipWaiting: true,
-        clientsClaim: true
-      }
+      outDir: 'dist'
     })
   ],
   build: {
@@ -47,6 +36,10 @@ export default defineConfig({
       compress: {
         drop_console: true,
         drop_debugger: true
+      },
+      // Don't mangle __WB_MANIFEST to preserve service worker injection point
+      mangle: {
+        reserved: ['__WB_MANIFEST']
       }
     }
   }

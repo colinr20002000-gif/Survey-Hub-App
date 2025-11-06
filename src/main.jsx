@@ -18,15 +18,28 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
-        console.log('SW registered: ', registration);
+        console.log('✅ Service Worker registered successfully');
 
-        // Check for updates every 60 seconds
+        // Check for updates only every 5 minutes (reduced from 60 seconds)
+        // This prevents excessive update checks that could cause issues
         setInterval(() => {
-          registration.update();
-        }, 60000);
+          console.log('🔍 Checking for service worker updates...');
+          registration.update().catch((error) => {
+            console.error('❌ Service worker update check failed:', error);
+          });
+        }, 5 * 60 * 1000); // 5 minutes
+
+        // Also check for updates when the page gains focus
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) {
+            registration.update().catch((error) => {
+              console.error('❌ Service worker update check failed:', error);
+            });
+          }
+        });
       })
       .catch((registrationError) => {
-        console.log('SW registration failed: ', registrationError);
+        console.error('❌ Service Worker registration failed:', registrationError);
       });
   });
 
@@ -35,6 +48,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!refreshing) {
       refreshing = true;
+      console.log('🔄 New service worker activated, reloading page...');
       // Set flag to show update notification after reload
       sessionStorage.setItem('appJustUpdated', 'true');
       window.location.reload();
