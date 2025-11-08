@@ -421,6 +421,48 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         console.log('🔐 Found existing session for:', session.user.email);
 
+        // Check if backup code was just verified
+        const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
+
+        // If backup code was used, skip MFA checks and allow login
+        if (backupCodeVerified) {
+          console.log('🔐 Backup code verification detected - skipping AAL check and allowing login');
+          sessionStorage.removeItem('backupCodeVerified');
+          // Continue to user data fetch below
+        } else {
+          // Normal MFA check for TOTP
+          try {
+            // Add timeout to prevent hanging
+            const mfaCheckPromise = (async () => {
+              const { data: { currentLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+              const { data: factors } = await supabase.auth.mfa.listFactors();
+              const hasMFA = factors?.totp && factors.totp.length > 0;
+              return { currentLevel, hasMFA };
+            })();
+
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('MFA check timeout')), 5000)
+            );
+
+            const { currentLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
+
+            console.log('🔐 Initial MFA check:', { currentLevel, hasMFA });
+
+            // If user has MFA enabled but hasn't completed verification (AAL1), don't log them in
+            if (hasMFA && currentLevel !== 'aal2') {
+              console.log('🔐 MFA required but not verified - staying on login page');
+              setUser(null);
+              setIsLoading(false);
+              return;
+            }
+
+            console.log('🔐 Initial MFA check passed - proceeding with login');
+          } catch (mfaError) {
+            console.warn('🔐 Initial MFA check failed:', mfaError);
+            // Continue with login if MFA check fails
+          }
+        }
+
         // Quick check: verify user is not deleted before setting temporary user
         // Add timeout to prevent hanging on mobile/slow connections
         try {
@@ -490,6 +532,12 @@ export const AuthProvider = ({ children }) => {
             setUser(userData);
             autoSubscribePushNotifications(userData);
 
+            // Clear backup code flag now that user is fully logged in
+            if (sessionStorage.getItem('backupCodeVerified') === 'true') {
+              console.log('🔐 Clearing backup code verification flag after successful login (initial session)');
+              sessionStorage.removeItem('backupCodeVerified');
+            }
+
             // DISABLED: Too many log entries on every page refresh
             // createAuditLog(
             //   userData,
@@ -546,8 +594,69 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      // If user is already logged in with full data and this is just an MFA enrollment event,
+      // skip the entire reload process to prevent pages from getting stuck
+      if (event === 'MFA_CHALLENGE_VERIFIED' && user && !user._isTemporary) {
+        console.log('🔐 MFA enrollment completed for already-logged-in user - skipping reload');
+        return;
+      }
+
       if (session?.user) {
         console.log('Auth change - loading user data for:', session.user.email);
+        console.log('🔐 Event type:', event);
+
+        // Check MFA status before allowing login
+        // Skip this check if event is MFA_CHALLENGE_VERIFIED because that event proves MFA was just verified
+        if (event !== 'MFA_CHALLENGE_VERIFIED') {
+          console.log('🔐 Starting MFA check...');
+
+          // Check if backup code was just verified
+          const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
+
+          // If backup code was used, skip MFA checks and allow login
+          if (backupCodeVerified) {
+            console.log('🔐 Backup code verification detected - skipping AAL check and allowing login');
+            // Don't remove the flag yet - it needs to persist across SIGNED_IN and INITIAL_SESSION events
+            // Continue to user data fetch below
+          } else {
+            // Normal MFA check for TOTP
+            try {
+              console.log('🔐 Getting AAL level...');
+
+              // Add timeout to prevent hanging
+              const mfaCheckPromise = (async () => {
+                const { data: { currentLevel, nextLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+                console.log('🔐 Getting MFA factors...');
+                const { data: factors } = await supabase.auth.mfa.listFactors();
+                const hasMFA = factors?.totp && factors.totp.length > 0;
+                return { currentLevel, nextLevel, hasMFA };
+              })();
+
+              const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('MFA check timeout')), 5000)
+              );
+
+              const { currentLevel, nextLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
+
+              console.log('🔐 MFA check:', { currentLevel, nextLevel, hasMFA });
+
+              // If user has MFA enabled but hasn't completed verification (AAL1), don't log them in
+              if (hasMFA && currentLevel !== 'aal2') {
+                console.log('🔐 MFA required but not verified - staying on login page');
+                setUser(null);
+                setIsLoading(false);
+                return;
+              }
+
+              console.log('🔐 MFA check passed - proceeding with login');
+            } catch (mfaError) {
+              console.warn('🔐 MFA check failed:', mfaError);
+              // Continue with login if MFA check fails
+            }
+          }
+        } else {
+          console.log('🔐 MFA_CHALLENGE_VERIFIED event - skipping AAL check, MFA already verified');
+        }
 
         // Quick check: verify user is not deleted before setting temporary user
         // Add timeout to prevent hanging on mobile/slow connections
@@ -618,6 +727,12 @@ export const AuthProvider = ({ children }) => {
             setUser(userData);
             autoSubscribePushNotifications(userData);
 
+            // Clear backup code flag now that user is fully logged in
+            if (sessionStorage.getItem('backupCodeVerified') === 'true') {
+              console.log('🔐 Clearing backup code verification flag after successful login');
+              sessionStorage.removeItem('backupCodeVerified');
+            }
+
             // Only log actual sign-ins, not page refreshes/session restorations
             if (event === 'SIGNED_IN') {
               createAuditLog(
@@ -667,6 +782,12 @@ export const AuthProvider = ({ children }) => {
           console.log('✅ Successfully fetched full user data in background');
           setUser(fullUserData);
           autoSubscribePushNotifications(fullUserData);
+
+          // Clear backup code flag now that user is fully logged in
+          if (sessionStorage.getItem('backupCodeVerified') === 'true') {
+            console.log('🔐 Clearing backup code verification flag after successful login (retry path)');
+            sessionStorage.removeItem('backupCodeVerified');
+          }
         }
       } catch (err) {
         console.error('🔄 Background retry failed:', err);

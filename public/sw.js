@@ -3,7 +3,7 @@
 
 // Service Worker for Survey Hub PWA + Firebase Cloud Messaging
 // IMPORTANT: Version is set during build by Vite, not dynamically
-const CACHE_VERSION = 'v5'; // Increment this manually for major updates
+const CACHE_VERSION = 'v6'; // Increment this manually for major updates
 const CACHE_NAME = `survey-hub-${CACHE_VERSION}-fcm`;
 const OFFLINE_URL = '/offline.html';
 
@@ -93,6 +93,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const url = new URL(event.request.url);
+
+  // Skip chrome extensions, localhost, and non-http(s) schemes
+  if (
+    url.protocol === 'chrome-extension:' ||
+    url.protocol === 'moz-extension:' ||
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    (!url.protocol.startsWith('http'))
+  ) {
+    return;
+  }
+
   // Skip Supabase requests - always fetch fresh
   if (event.request.url.includes('supabase.co')) {
     return;
@@ -122,7 +135,10 @@ self.addEventListener('fetch', (event) => {
         // Cache successful responses
         if (response.status === 200) {
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+            cache.put(event.request, responseToCache).catch((err) => {
+              // Silently ignore caching errors (e.g., for unsupported schemes)
+              console.log('🔔 [SW] Skipping cache for:', event.request.url);
+            });
           });
         }
 

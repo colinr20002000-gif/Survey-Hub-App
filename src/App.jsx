@@ -1041,17 +1041,21 @@ const UserAdminPage = () => {
     // MODIFICATION 1: Get data and functions from the new useUsers hook
     const { users, addUser, updateUser, deleteUser, loading, error } = useUsers();
     const { teamRoles } = useTeamRoles();
+    const { createAuditLog } = useAuditTrail();
 
     // Helper function to get display text for team role
     const getTeamRoleDisplayText = (roleValue) => {
         const role = teamRoles.find(r => r.value === roleValue);
         return role ? role.display_text : roleValue;
     };
-    
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [userToEdit, setUserToEdit] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState(null);
+    const [isResetMFAModalOpen, setIsResetMFAModalOpen] = useState(false);
+    const [userToResetMFA, setUserToResetMFA] = useState(null);
+    const [mfaStatuses, setMfaStatuses] = useState({});
     const { user: currentUser } = useAuth();
     const privileges = userPrivileges[currentUser.privilege];
     const [searchTerm, setSearchTerm] = useState('');
@@ -1115,6 +1119,78 @@ const UserAdminPage = () => {
         return sortConfig.direction === 'ascending' ? '↑' : '↓';
     };
 
+    // Fetch MFA status for all users
+    useEffect(() => {
+        const fetchMFAStatuses = async () => {
+            const statuses = {};
+            for (const user of users) {
+                try {
+                    const { data, error } = await supabase.rpc('user_has_mfa', {
+                        check_user_id: user.id
+                    });
+
+                    if (error) {
+                        console.error('Error fetching MFA status for user:', user.email, error);
+                        statuses[user.id] = false;
+                    } else {
+                        statuses[user.id] = data === true;
+                    }
+                } catch (err) {
+                    console.error('Error fetching MFA status for user:', user.email, err);
+                    statuses[user.id] = false;
+                }
+            }
+            setMfaStatuses(statuses);
+        };
+
+        if (users.length > 0) {
+            fetchMFAStatuses();
+        }
+    }, [users]);
+
+    const handleResetMFAClick = (user) => {
+        setUserToResetMFA(user);
+        setIsResetMFAModalOpen(true);
+    };
+
+    const confirmResetMFA = async () => {
+        try {
+            // Delete MFA factors from auth.mfa_factors table using RPC
+            const { data, error } = await supabase.rpc('admin_reset_user_mfa', {
+                target_user_id: userToResetMFA.id
+            });
+
+            if (error) {
+                console.error('Error calling admin_reset_user_mfa:', error);
+                throw error;
+            }
+
+            console.log('MFA reset successful for user:', userToResetMFA.email);
+
+            // Log the action in audit trail
+            await createAuditLog(
+                currentUser,
+                'MFA Reset',
+                `Admin ${currentUser.name} reset MFA for user ${userToResetMFA.name} (${userToResetMFA.email})`,
+                'SYSTEM_EVENT'
+            );
+
+            // Update MFA status in state
+            setMfaStatuses(prev => ({
+                ...prev,
+                [userToResetMFA.id]: false
+            }));
+
+            alert(`MFA has been reset for ${userToResetMFA.name}. They can now log in with just their password.`);
+        } catch (err) {
+            console.error('Error resetting MFA:', err);
+            alert(`Failed to reset MFA: ${err.message || 'Unknown error'}. Please try again.`);
+        } finally {
+            setIsResetMFAModalOpen(false);
+            setUserToResetMFA(null);
+        }
+    };
+
     const filteredUsers = useMemo(() => users.filter(user =>
         (user.name && user.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
         (user.username && user.username.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
@@ -1172,6 +1248,7 @@ const UserAdminPage = () => {
                                     <div className="flex items-center">{key.replace('_', ' ')}<span className="ml-2">{getSortIndicator(key)}</span></div>
                                 </th>
                             ))}
+                            <th scope="col" className="px-6 py-3">MFA Status</th>
                             {privileges.canEditUserAdmin && <th className="px-6 py-3">Actions</th>}
                         </tr>
                     </thead>
@@ -1186,10 +1263,27 @@ const UserAdminPage = () => {
                                 <td className="px-6 py-4">{user.privilege}</td>
                                 <td className="px-6 py-4">{user.team_role}</td>
                                 <td className="px-6 py-4">{user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
+                                <td className="px-6 py-4">
+                                    {mfaStatuses[user.id] ? (
+                                        <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                                            <Shield className="inline w-3 h-3 mr-1" />
+                                            Enabled
+                                        </span>
+                                    ) : (
+                                        <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                            Disabled
+                                        </span>
+                                    )}
+                                </td>
                                 {privileges.canEditUserAdmin && (
                                     <td className="px-6 py-4">
-                                        <button onClick={() => openEditModal(user)} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={16} /></button>
-                                        <button onClick={() => handleDeleteClick(user)} className="p-1.5 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={16} /></button>
+                                        <div className="flex items-center space-x-1">
+                                            <button onClick={() => openEditModal(user)} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" title="Edit User"><Edit size={16} /></button>
+                                            {mfaStatuses[user.id] && (
+                                                <button onClick={() => handleResetMFAClick(user)} className="p-1.5 text-gray-500 hover:text-orange-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" title="Reset MFA"><Shield size={16} /></button>
+                                            )}
+                                            <button onClick={() => handleDeleteClick(user)} className="p-1.5 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" title="Delete User"><Trash2 size={16} /></button>
+                                        </div>
                                     </td>
                                 )}
                             </tr>
@@ -1200,13 +1294,22 @@ const UserAdminPage = () => {
             {privileges.canEditUserAdmin && (
                 <>
                     <UserModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveUser} user={userToEdit} />
-                    <ConfirmationModal 
-                        isOpen={isDeleteModalOpen} 
-                        onClose={() => setIsDeleteModalOpen(false)} 
-                        onConfirm={confirmDelete} 
+                    <ConfirmationModal
+                        isOpen={isDeleteModalOpen}
+                        onClose={() => setIsDeleteModalOpen(false)}
+                        onConfirm={confirmDelete}
                         title="Confirm User Deletion"
                         message={`Are you sure you want to delete the user "${userToDelete?.name}"? This action cannot be undone.`}
                         confirmText="Delete"
+                        confirmVariant="danger"
+                    />
+                    <ConfirmationModal
+                        isOpen={isResetMFAModalOpen}
+                        onClose={() => setIsResetMFAModalOpen(false)}
+                        onConfirm={confirmResetMFA}
+                        title="Reset Multi-Factor Authentication"
+                        message={`Are you sure you want to reset MFA for "${userToResetMFA?.name}"? They will be able to log in with just their password until they re-enable MFA. This action will be logged in the audit trail.`}
+                        confirmText="Reset MFA"
                         confirmVariant="danger"
                     />
                 </>
@@ -1476,39 +1579,500 @@ const SecuritySettings = () => {
     };
 
     return (
+        <div className="space-y-8">
+            {/* Password Change Section */}
+            <div>
+                <h2 className="text-xl font-semibold mb-4">Change Password</h2>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <Input
+                        label="Current Password"
+                        type="password"
+                        name="currentPassword"
+                        value={passwords.currentPassword}
+                        onChange={handleChange}
+                        placeholder="Enter your current password"
+                    />
+                    <Input
+                        label="New Password"
+                        type="password"
+                        name="newPassword"
+                        value={passwords.newPassword}
+                        onChange={handleChange}
+                        placeholder="Enter new password (min 6 characters)"
+                    />
+                    <Input
+                        label="Confirm New Password"
+                        type="password"
+                        name="confirmPassword"
+                        value={passwords.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="Confirm your new password"
+                    />
+                    <div className="pt-2">
+                        <Button type="submit" disabled={isLoading}>
+                            {isLoading ? 'Updating...' : 'Update Password'}
+                        </Button>
+                    </div>
+                </form>
+            </div>
+
+            {/* MFA Section */}
+            <div className="border-t dark:border-gray-700 pt-8">
+                <MFASettings />
+            </div>
+        </div>
+    );
+};
+
+// MFA Settings Component
+const MFASettings = () => {
+    const { user } = useAuth();
+    const [mfaEnabled, setMfaEnabled] = useState(false);
+    const [isEnrolling, setIsEnrolling] = useState(false);
+    const [qrCode, setQrCode] = useState(null);
+    const [factorId, setFactorId] = useState(null);
+    const [verificationCode, setVerificationCode] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [message, setMessage] = useState({ type: '', text: '' });
+    const [backupCodes, setBackupCodes] = useState([]);
+    const [showBackupCodes, setShowBackupCodes] = useState(false);
+
+    // Check if MFA is already enabled
+    useEffect(() => {
+        checkMFAStatus();
+    }, []);
+
+    const checkMFAStatus = async () => {
+        try {
+            const { data, error } = await supabase.auth.mfa.listFactors();
+
+            if (error) {
+                console.error('Error checking MFA status:', error);
+                setMessage({ type: 'error', text: 'Failed to check MFA status' });
+                return;
+            }
+
+            const hasActiveFactor = data?.totp?.length > 0;
+            setMfaEnabled(hasActiveFactor);
+
+            if (hasActiveFactor) {
+                setFactorId(data.totp[0].id);
+            }
+        } catch (error) {
+            console.error('Error checking MFA status:', error);
+            setMessage({ type: 'error', text: 'Failed to check MFA status' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Generate 10 random backup codes
+    const generateBackupCodes = () => {
+        const codes = [];
+        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+        for (let i = 0; i < 10; i++) {
+            let code = '';
+            for (let j = 0; j < 8; j++) {
+                code += characters.charAt(Math.floor(Math.random() * characters.length));
+                if (j === 3) code += '-'; // Add dash in middle: XXXX-XXXX
+            }
+            codes.push(code);
+        }
+
+        return codes;
+    };
+
+    // Simple hash function for backup codes (using SubtleCrypto API)
+    const hashBackupCode = async (code) => {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(code);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex;
+    };
+
+    // Save backup codes to database
+    const saveBackupCodes = async (codes) => {
+        try {
+            // Delete any existing backup codes for this user
+            await supabase
+                .from('mfa_backup_codes')
+                .delete()
+                .eq('user_id', user.id);
+
+            // Hash and save new codes
+            const codeRecords = await Promise.all(
+                codes.map(async (code) => ({
+                    user_id: user.id,
+                    code_hash: await hashBackupCode(code),
+                    used: false
+                }))
+            );
+
+            const { error } = await supabase
+                .from('mfa_backup_codes')
+                .insert(codeRecords);
+
+            if (error) {
+                console.error('Error saving backup codes:', error);
+                throw error;
+            }
+
+            console.log('✅ Backup codes saved successfully');
+        } catch (error) {
+            console.error('Error saving backup codes:', error);
+            throw error;
+        }
+    };
+
+    const handleEnableMFA = async () => {
+        setIsEnrolling(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            const { data, error } = await supabase.auth.mfa.enroll({
+                factorType: 'totp',
+                friendlyName: 'Authenticator App'
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            setQrCode(data.totp.qr_code);
+            setFactorId(data.id);
+            setMessage({
+                type: 'info',
+                text: 'Scan the QR code with your Microsoft Authenticator app, then enter the 6-digit code below.'
+            });
+        } catch (error) {
+            console.error('Error enrolling MFA:', error);
+            setMessage({ type: 'error', text: `Failed to enable MFA: ${error.message}` });
+            setIsEnrolling(false);
+        }
+    };
+
+    const handleVerifyMFA = async (e) => {
+        console.log('🔐 FUNCTION CALLED - handleVerifyMFA');
+        e.preventDefault();
+        setIsVerifying(true);
+        setMessage({ type: '', text: '' });
+
+        console.log('🔐 Starting MFA enrollment verification...');
+        console.log('🔐 Verification code:', verificationCode);
+        console.log('🔐 Factor ID:', factorId);
+
+        if (verificationCode.length !== 6) {
+            console.log('🔐 Invalid code length:', verificationCode.length);
+            setMessage({ type: 'error', text: 'Please enter a valid 6-digit code' });
+            setIsVerifying(false);
+            return;
+        }
+
+        try {
+            // Step 1: Create a challenge
+            console.log('🔐 Creating challenge for factor:', factorId);
+            const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+                factorId: factorId
+            });
+
+            if (challengeError) {
+                console.error('🔐 Challenge error:', challengeError);
+                throw challengeError;
+            }
+
+            console.log('🔐 Challenge created:', challengeData.id);
+
+            // Step 2: Verify the code
+            // Note: mfa.verify() triggers an auth state change (MFA_CHALLENGE_VERIFIED)
+            console.log('🔐 Verifying code:', verificationCode);
+
+            // Create a promise that resolves when MFA_CHALLENGE_VERIFIED event fires
+            const verificationPromise = new Promise((resolve, reject) => {
+                const authSubscription = supabase.auth.onAuthStateChange((event, session) => {
+                    console.log('🔐 Auth event during verification:', event);
+                    if (event === 'MFA_CHALLENGE_VERIFIED') {
+                        console.log('🔐 MFA_CHALLENGE_VERIFIED event received!');
+                        authSubscription.data.subscription.unsubscribe();
+                        resolve(true);
+                    }
+                });
+
+                // Set a timeout in case the event never fires
+                setTimeout(() => {
+                    authSubscription.data.subscription.unsubscribe();
+                    reject(new Error('Verification timed out waiting for MFA_CHALLENGE_VERIFIED event'));
+                }, 10000);
+            });
+
+            // Call verify (this will trigger MFA_CHALLENGE_VERIFIED event)
+            const verifyPromise = supabase.auth.mfa.verify({
+                factorId: factorId,
+                challengeId: challengeData.id,
+                code: verificationCode
+            });
+
+            // Wait for either the verify promise or the event (whichever comes first)
+            await Promise.race([verificationPromise, verifyPromise.then(result => {
+                if (result.error) {
+                    throw result.error;
+                }
+                console.log('🔐 Verify API call completed');
+                return result;
+            })]);
+
+            console.log('🔐 Verification successful!');
+
+            // Generate and save backup codes
+            console.log('🔐 Generating backup recovery codes...');
+            const codes = generateBackupCodes();
+            await saveBackupCodes(codes);
+
+            setBackupCodes(codes);
+            setShowBackupCodes(true);
+            setMessage({ type: 'success', text: 'Two-factor authentication enabled successfully! Please save your backup codes.' });
+            setMfaEnabled(true);
+            setIsEnrolling(false);
+            setQrCode(null);
+            setVerificationCode('');
+
+            // Refresh MFA status
+            await checkMFAStatus();
+        } catch (error) {
+            console.error('🔐 MFA verification error:', error);
+            setMessage({ type: 'error', text: `Verification failed: ${error.message}` });
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
+    const handleDisableMFA = async () => {
+        if (!confirm('Are you sure you want to disable two-factor authentication? This will make your account less secure.')) {
+            return;
+        }
+
+        setIsLoading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            const { error } = await supabase.auth.mfa.unenroll({
+                factorId: factorId
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            setMessage({ type: 'success', text: 'Two-factor authentication disabled' });
+            setMfaEnabled(false);
+            setFactorId(null);
+        } catch (error) {
+            console.error('Error disabling MFA:', error);
+            setMessage({ type: 'error', text: `Failed to disable MFA: ${error.message}` });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCancelEnrollment = () => {
+        setIsEnrolling(false);
+        setQrCode(null);
+        setVerificationCode('');
+        setMessage({ type: '', text: '' });
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center py-4">
+                <Loader2 className="animate-spin mr-2" size={20} />
+                <span>Loading MFA settings...</span>
+            </div>
+        );
+    }
+
+    return (
         <div>
-            <h2 className="text-xl font-semibold mb-4">Security</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <Input 
-                    label="Current Password" 
-                    type="password" 
-                    name="currentPassword"
-                    value={passwords.currentPassword}
-                    onChange={handleChange}
-                    placeholder="Enter your current password"
-                />
-                <Input 
-                    label="New Password" 
-                    type="password" 
-                    name="newPassword"
-                    value={passwords.newPassword}
-                    onChange={handleChange}
-                    placeholder="Enter new password (min 6 characters)"
-                />
-                <Input 
-                    label="Confirm New Password" 
-                    type="password" 
-                    name="confirmPassword"
-                    value={passwords.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="Confirm your new password"
-                />
-                <div className="pt-2">
-                    <Button type="submit" disabled={isLoading}>
-                        {isLoading ? 'Updating...' : 'Update Password'}
+            <h2 className="text-xl font-semibold mb-4 flex items-center">
+                <Shield className="mr-2" size={24} />
+                Two-Factor Authentication (2FA)
+            </h2>
+
+            {/* Status Message */}
+            {message.text && (
+                <div className={`mb-4 p-3 rounded-lg ${
+                    message.type === 'success' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
+                    message.type === 'error' ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200' :
+                    'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                }`}>
+                    {message.text}
+                </div>
+            )}
+
+            {/* Current Status */}
+            <div className="mb-6 p-4 border rounded-lg dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="font-medium">Status: {mfaEnabled ? 'Enabled' : 'Disabled'}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            {mfaEnabled
+                                ? 'Your account is protected with two-factor authentication'
+                                : 'Add an extra layer of security to your account'}
+                        </p>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        mfaEnabled
+                            ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                    }`}>
+                        {mfaEnabled ? '✓ Active' : 'Inactive'}
+                    </div>
+                </div>
+            </div>
+
+            {/* Enrollment Flow */}
+            {!mfaEnabled && !isEnrolling && (
+                <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Two-factor authentication adds an extra layer of security by requiring a code from your authenticator app in addition to your password when signing in.
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        You'll need an authenticator app like <strong>Microsoft Authenticator</strong>, Google Authenticator, or Authy.
+                    </p>
+                    <Button onClick={handleEnableMFA}>
+                        <Shield className="mr-2" size={16} />
+                        Enable Two-Factor Authentication
                     </Button>
                 </div>
-            </form>
+            )}
+
+            {/* QR Code Display */}
+            {isEnrolling && qrCode && (
+                <div className="space-y-4">
+                    <div className="p-4 border rounded-lg dark:border-gray-600">
+                        <h3 className="font-medium mb-2">Step 1: Scan QR Code</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            Open Microsoft Authenticator and scan this QR code:
+                        </p>
+                        <div className="flex justify-center bg-white p-6 rounded-lg">
+                            <div
+                                className="qr-code-container"
+                                style={{ width: '300px', height: '300px' }}
+                                dangerouslySetInnerHTML={{ __html: qrCode }}
+                            />
+                        </div>
+                        <style>{`
+                            .qr-code-container svg {
+                                width: 100% !important;
+                                height: 100% !important;
+                            }
+                        `}</style>
+                    </div>
+
+                    <div className="p-4 border rounded-lg dark:border-gray-600">
+                        <h3 className="font-medium mb-2">Step 2: Enter Verification Code</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            Enter the 6-digit code from your authenticator app:
+                        </p>
+                        <form onSubmit={handleVerifyMFA} className="space-y-4">
+                            <Input
+                                type="text"
+                                value={verificationCode}
+                                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                placeholder="000000"
+                                maxLength={6}
+                                className="text-center text-2xl tracking-widest"
+                            />
+                            <div className="flex gap-2">
+                                <Button type="submit" disabled={isVerifying || verificationCode.length !== 6}>
+                                    {isVerifying ? 'Verifying...' : 'Verify and Enable'}
+                                </Button>
+                                <Button type="button" onClick={handleCancelEnrollment} variant="outline">
+                                    Cancel
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Backup Codes Display */}
+            {showBackupCodes && backupCodes.length > 0 && (
+                <div className="p-6 border-2 border-orange-500 rounded-lg bg-orange-50 dark:bg-orange-900/20 dark:border-orange-600">
+                    <div className="flex items-start mb-4">
+                        <AlertTriangle className="w-6 h-6 text-orange-600 dark:text-orange-400 mr-3 flex-shrink-0 mt-1" />
+                        <div>
+                            <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">Save Your Backup Codes</h3>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                                These backup codes can be used to access your account if you lose access to your authenticator app.
+                            </p>
+                            <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                                ⚠️ Save these codes now! You won't be able to see them again.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            {backupCodes.map((code, index) => (
+                                <div key={index} className="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded text-center">
+                                    {code}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={() => {
+                                const text = `Survey Hub - MFA Backup Codes\n\nGenerated: ${new Date().toLocaleString()}\n\nBackup Codes:\n${backupCodes.map((code, i) => `${i + 1}. ${code}`).join('\n')}\n\nEach code can only be used once. Keep these codes in a safe place.`;
+                                const blob = new Blob([text], { type: 'text/plain' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'surveyhub-backup-codes.txt';
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            }}
+                        >
+                            <Download className="mr-2" size={16} />
+                            Download Codes
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                window.print();
+                            }}
+                        >
+                            Print Codes
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowBackupCodes(false);
+                                setBackupCodes([]);
+                            }}
+                        >
+                            I've Saved My Codes
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Disable MFA */}
+            {mfaEnabled && !showBackupCodes && (
+                <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Two-factor authentication is currently enabled. You'll be asked for a code from your authenticator app each time you sign in.
+                    </p>
+                    <Button onClick={handleDisableMFA} variant="outline" className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900">
+                        <X className="mr-2" size={16} />
+                        Disable Two-Factor Authentication
+                    </Button>
+                </div>
+            )}
         </div>
     );
 };

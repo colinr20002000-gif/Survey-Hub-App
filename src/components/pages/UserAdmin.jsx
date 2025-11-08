@@ -40,6 +40,11 @@ const UserAdmin = () => {
   const [newMobileNumber, setNewMobileNumber] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
 
+  // MFA management states
+  const [mfaStatuses, setMfaStatuses] = useState({});
+  const [isResetMFAModalOpen, setIsResetMFAModalOpen] = useState(false);
+  const [userToResetMFA, setUserToResetMFA] = useState(null);
+
   // Dummy user states
   const [showAddDummyUser, setShowAddDummyUser] = useState(false);
   const [dummyUserForm, setDummyUserForm] = useState({
@@ -90,6 +95,35 @@ const UserAdmin = () => {
     fetchOrganisations();
     fetchCompetencies();
   }, []);
+
+  // Fetch MFA statuses for all users
+  useEffect(() => {
+    const fetchMFAStatuses = async () => {
+      const statuses = {};
+      for (const userItem of users) {
+        try {
+          const { data, error } = await supabase.rpc('user_has_mfa', {
+            check_user_id: userItem.id
+          });
+
+          if (error) {
+            console.error('Error fetching MFA status for user:', userItem.email, error);
+            statuses[userItem.id] = false;
+          } else {
+            statuses[userItem.id] = data === true;
+          }
+        } catch (err) {
+          console.error('Error fetching MFA status for user:', userItem.email, err);
+          statuses[userItem.id] = false;
+        }
+      }
+      setMfaStatuses(statuses);
+    };
+
+    if (users.length > 0) {
+      fetchMFAStatuses();
+    }
+  }, [users]);
 
   // Check if current user has admin privileges
   const isAdmin = user?.privilege === 'Admin';
@@ -954,6 +988,37 @@ const UserAdmin = () => {
     }
   };
 
+  // MFA Reset Function
+  const confirmResetMFA = async () => {
+    try {
+      // Delete MFA factors from auth.mfa_factors table using RPC
+      const { data, error } = await supabase.rpc('admin_reset_user_mfa', {
+        target_user_id: userToResetMFA.id
+      });
+
+      if (error) {
+        console.error('Error calling admin_reset_user_mfa:', error);
+        throw error;
+      }
+
+      console.log('MFA reset successful for user:', userToResetMFA.email);
+
+      // Update MFA status in state
+      setMfaStatuses(prev => ({
+        ...prev,
+        [userToResetMFA.id]: false
+      }));
+
+      alert(`MFA has been reset for ${userToResetMFA.name}. They can now log in with just their password.`);
+    } catch (err) {
+      console.error('Error resetting MFA:', err);
+      alert(`Failed to reset MFA: ${err.message || 'Unknown error'}. Please try again.`);
+    } finally {
+      setIsResetMFAModalOpen(false);
+      setUserToResetMFA(null);
+    }
+  };
+
   // Dummy User CRUD Operations
   const createDummyUser = async () => {
     if (!isAdmin) {
@@ -1610,6 +1675,9 @@ const UserAdmin = () => {
                     <span className="ml-1">{getSortIcon('last_login')}</span>
                   </div>
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  MFA Status
+                </th>
                 {isSuperAdmin && (
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -2104,6 +2172,29 @@ const UserAdmin = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(userItem.last_login)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {mfaStatuses[userItem.id] ? (
+                      <div className="flex items-center">
+                        <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                          <svg className="inline w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
+                          Enabled
+                        </span>
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => { setUserToResetMFA(userItem); setIsResetMFAModalOpen(true); }}
+                            className="ml-2 p-1 text-orange-600 hover:text-orange-800"
+                            title="Reset MFA"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+                        Disabled
+                      </span>
+                    )}
                   </td>
                   {isSuperAdmin && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -3094,6 +3185,37 @@ const UserAdmin = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600"
               >
                 Create Dummy User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MFA Reset Confirmation Modal */}
+      {isResetMFAModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Reset Multi-Factor Authentication</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to reset MFA for <strong>{userToResetMFA?.name}</strong>?
+              <br /><br />
+              They will be able to log in with just their password until they re-enable MFA.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setIsResetMFAModalOpen(false);
+                  setUserToResetMFA(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmResetMFA}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+              >
+                Reset MFA
               </button>
             </div>
           </div>
