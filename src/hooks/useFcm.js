@@ -253,10 +253,12 @@ export const useFcm = () => {
         .rpc('manage_user_push_subscription', functionParams);
 
       if (error) {
-        // Handle duplicate FCM token gracefully (409 conflict)
-        if (error.code === '23505' && error.message?.includes('fcm_token')) {
-          console.log('[FCM] FCM token already exists - treating as success');
-          return { id: 'existing', action: 'already_exists' };
+        // Handle duplicate FCM token gracefully (409 conflict or code 23505)
+        if ((error.code === '23505' || error.code === 'P0001' || error.status === 409) &&
+            (error.message?.includes('fcm_token') || error.message?.includes('duplicate key'))) {
+          console.log('[FCM] FCM token already exists - using fallback to update existing subscription');
+          // Fall through to manual management to update the existing subscription
+          return await manageFCMSubscriptionManual(userId, userEmail, fcmToken, deviceFingerprint, deviceInfo);
         }
         throw error;
       }
@@ -297,8 +299,8 @@ export const useFcm = () => {
         .eq('device_fingerprint', deviceFingerprint)
         .neq('user_id', userId);
 
-      // Step 2: Check if current user has an existing subscription for this specific device
-      const { data: existingSubscription, error: checkError } = await supabase
+      // Step 2: Check if current user has an existing subscription by device fingerprint OR fcm_token
+      const { data: existingByDevice, error: checkError1 } = await supabase
         .from('push_subscriptions')
         .select('id, is_active, fcm_token, device_fingerprint')
         .eq('user_id', userId)
@@ -307,9 +309,26 @@ export const useFcm = () => {
         .limit(1)
         .maybeSingle();
 
-      if (checkError && checkError.code !== 'PGRST116') {
-        throw checkError;
+      if (checkError1 && checkError1.code !== 'PGRST116') {
+        throw checkError1;
       }
+
+      // Also check by FCM token (in case device fingerprint changed)
+      const { data: existingByToken, error: checkError2 } = await supabase
+        .from('push_subscriptions')
+        .select('id, is_active, fcm_token, device_fingerprint')
+        .eq('user_id', userId)
+        .eq('fcm_token', fcmToken)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (checkError2 && checkError2.code !== 'PGRST116') {
+        throw checkError2;
+      }
+
+      // Use whichever record we found (prefer device match, fallback to token match)
+      const existingSubscription = existingByDevice || existingByToken;
 
       if (existingSubscription) {
         // Update existing subscription
@@ -349,6 +368,71 @@ export const useFcm = () => {
           .select();
 
         if (insertError) {
+          // Handle duplicate key error gracefully
+          if (insertError.code === '23505' && insertError.message?.includes('fcm_token')) {
+            console.log('[FCM] Duplicate FCM token on insert - this token is already in use');
+            console.log('[FCM] This could mean the token belongs to another user or session');
+
+            // Try one more time to find and update the subscription by token only
+            const { data: existingByTokenOnly, error: finalCheckError } = await supabase
+              .from('push_subscriptions')
+              .select('id, user_id')
+              .eq('fcm_token', fcmToken)
+              .limit(1)
+              .maybeSingle();
+
+            if (existingByTokenOnly) {
+              // If it belongs to the same user, update it
+              if (existingByTokenOnly.user_id === userId) {
+                const { data: finalUpdateResult, error: finalUpdateError } = await supabase
+                  .from('push_subscriptions')
+                  .update({
+                    device_fingerprint: deviceFingerprint,
+                    device_info: deviceInfo,
+                    is_active: true,
+                    last_used_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', existingByTokenOnly.id)
+                  .select();
+
+                if (finalUpdateError) {
+                  throw finalUpdateError;
+                }
+
+                console.log('[FCM] Successfully updated existing subscription after duplicate error');
+                return { id: finalUpdateResult[0].id, action: 'updated' };
+              } else {
+                // Token belongs to different user - deactivate it and retry insert
+                console.log('[FCM] Token belongs to different user - deactivating and retrying');
+                await supabase
+                  .from('push_subscriptions')
+                  .update({ is_active: false })
+                  .eq('fcm_token', fcmToken);
+
+                // Retry insert
+                const { data: retryInsertResult, error: retryInsertError } = await supabase
+                  .from('push_subscriptions')
+                  .insert({
+                    user_id: userId,
+                    user_email: userEmail,
+                    fcm_token: fcmToken,
+                    is_active: true,
+                    device_fingerprint: deviceFingerprint,
+                    device_info: deviceInfo,
+                    last_used_at: new Date().toISOString()
+                  })
+                  .select();
+
+                if (retryInsertError) {
+                  throw retryInsertError;
+                }
+
+                console.log('[FCM] Successfully created new subscription after deactivating old one');
+                return { id: retryInsertResult[0].id, action: 'created' };
+              }
+            }
+          }
           throw insertError;
         }
 

@@ -54,21 +54,20 @@ const OnCallContactsPage = () => {
 
     const autoArchiveOldContacts = async (contactsList) => {
         try {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const now = new Date();
 
-            // Calculate the threshold date (1 day ago from today)
-            const thresholdDate = new Date(today);
-            thresholdDate.setDate(thresholdDate.getDate() - 1);
+            // Calculate the threshold date (12 hours ago from now)
+            const thresholdDate = new Date(now);
+            thresholdDate.setHours(thresholdDate.getHours() - 12);
 
             // Find contacts that need to be archived
             const contactsToArchive = contactsList.filter(contact => {
                 if (contact.archived) return false; // Skip already archived
 
                 const weekEndDate = new Date(contact.week_end_date);
-                weekEndDate.setHours(0, 0, 0, 0);
+                weekEndDate.setHours(23, 59, 59, 999); // Set to end of day for week_end_date
 
-                // Archive if week_end_date is before threshold (more than 1 day old)
+                // Archive if week_end_date is before threshold (more than 12 hours old)
                 return weekEndDate < thresholdDate;
             });
 
