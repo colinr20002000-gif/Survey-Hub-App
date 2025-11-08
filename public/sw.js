@@ -3,7 +3,7 @@
 
 // Service Worker for Survey Hub PWA + Firebase Cloud Messaging
 // IMPORTANT: Version is set during build by Vite, not dynamically
-const CACHE_VERSION = 'v7'; // Increment this manually for major updates
+const CACHE_VERSION = 'v8'; // Increment this manually for major updates
 const CACHE_NAME = `survey-hub-${CACHE_VERSION}-fcm`;
 const OFFLINE_URL = '/offline.html';
 
@@ -198,7 +198,21 @@ messaging.onBackgroundMessage((payload) => {
   };
 
   console.log('🔔 [SW] Showing notification:', notificationTitle);
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+
+  // Close any existing browser update notifications before showing our notification
+  return self.registration.getNotifications().then((notifications) => {
+    // Close any notifications that might be browser-generated update messages
+    notifications.forEach(notification => {
+      if (notification.tag === 'sw-update' ||
+          notification.title?.toLowerCase().includes('updated') ||
+          notification.body?.toLowerCase().includes('updated in the background')) {
+        console.log('🔔 [SW] Closing browser update notification:', notification.title);
+        notification.close();
+      }
+    });
+    // Show our actual notification
+    return self.registration.showNotification(notificationTitle, notificationOptions);
+  });
 });
 
 // Handle direct push events (fallback)
