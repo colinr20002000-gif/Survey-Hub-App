@@ -416,12 +416,12 @@ const Header = ({ onMenuClick, setActiveTab, activeTab }) => {
                                                 if (notif.source === 'announcements') {
                                                     targetTab = 'Announcements';
                                                 } else if (notif.type?.includes('delivery_task')) {
-                                                    targetTab = 'Assigned Tasks';
+                                                    targetTab = 'Delivery Tasks';
                                                 } else if (notif.type?.includes('project_task')) {
                                                     targetTab = 'Project Tasks';
                                                 }
 
-                                                console.log('Navigating to:', targetTab);
+                                                console.log('Navigating to:', targetTab, 'for notification:', notif);
                                                 setActiveTab(targetTab);
                                                 setIsNotificationsOpen(false);
                                             }}
@@ -2163,7 +2163,8 @@ const NotificationSettings = () => {
     const {
         isSubscribed,
         isLoading: subscriptionLoading,
-        error: subscriptionError
+        error: subscriptionError,
+        enableSubscription
     } = useSubscription();
 
     // Device permissions status
@@ -2207,6 +2208,31 @@ const NotificationSettings = () => {
         }
     };
 
+    // Handle manual subscription as backup when auto-subscribe fails
+    const handleManualSubscribe = async () => {
+        try {
+            // First, enable device permissions if not already enabled
+            if (!hasDevicePermissions) {
+                console.log('📱 Requesting device permissions first...');
+                const permissionSuccess = await requestPermission();
+                if (!permissionSuccess) {
+                    console.error('Failed to get device permissions');
+                    return;
+                }
+            }
+
+            // Then, enable the subscription
+            console.log('📝 Enabling subscription...');
+            const subscriptionSuccess = await enableSubscription();
+            if (subscriptionSuccess) {
+                console.log('✅ Manual subscription successful');
+            } else {
+                console.error('❌ Failed to enable subscription');
+            }
+        } catch (error) {
+            console.error('Error during manual subscription:', error);
+        }
+    };
 
     const handleInstallApp = async () => {
         if (installPrompt) {
@@ -2332,6 +2358,29 @@ const NotificationSettings = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* Manual Subscribe Button - Shows when not subscribed */}
+                        {!isSubscribed && !subscriptionLoading && (
+                            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3">
+                                <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+                                    <strong>Not receiving notifications?</strong> Click below to manually subscribe.
+                                </p>
+                                <Button
+                                    onClick={handleManualSubscribe}
+                                    disabled={fcmLoading}
+                                    className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                                >
+                                    {fcmLoading ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            Subscribing...
+                                        </div>
+                                    ) : (
+                                        <>🔔 Subscribe to Notifications</>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
 
                         {/* Information Messages */}
                         {isDeviceBlocked && (

@@ -413,11 +413,90 @@ export const NotificationProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Refresh notifications periodically (every 5 minutes)
+  // Set up real-time subscriptions for notifications and announcements
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('🔔 Setting up real-time notification subscriptions for user:', user.id);
+
+    // Subscribe to notifications table for the current user
+    const notificationsSubscription = supabase
+      .channel('user-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('🔔 Real-time notification change:', payload);
+          // Refresh notifications when any change occurs
+          fetchNotifications();
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔔 Notifications subscription status:', status);
+      });
+
+    // Subscribe to announcements table (for new announcements)
+    const announcementsSubscription = supabase
+      .channel('all-announcements')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events
+          schema: 'public',
+          table: 'announcements'
+        },
+        (payload) => {
+          console.log('🔔 Real-time announcement change:', payload);
+          // Refresh notifications when any change occurs
+          fetchNotifications();
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔔 Announcements subscription status:', status);
+      });
+
+    // Subscribe to announcement_reads table (for read/dismissed status changes)
+    const announcementReadsSubscription = supabase
+      .channel('user-announcement-reads')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'announcement_reads',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('🔔 Real-time announcement read change:', payload);
+          // Refresh notifications when read status changes
+          fetchNotifications();
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔔 Announcement reads subscription status:', status);
+      });
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      console.log('🔔 Cleaning up notification subscriptions');
+      notificationsSubscription.unsubscribe();
+      announcementsSubscription.unsubscribe();
+      announcementReadsSubscription.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Refresh notifications periodically (every 5 minutes) as backup
   useEffect(() => {
     if (!user?.id) return;
 
     const interval = setInterval(() => {
+      console.log('🔔 Periodic notification refresh (backup)');
       fetchNotifications();
     }, 5 * 60 * 1000); // 5 minutes
 
