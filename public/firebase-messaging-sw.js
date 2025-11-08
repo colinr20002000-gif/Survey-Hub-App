@@ -70,7 +70,21 @@ messaging.onBackgroundMessage((payload) => {
 
   // Show the notification manually (this prevents Firebase's default notification)
   console.log('🔔 [SW] Showing notification:', notificationTitle, notificationOptions);
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+
+  // Close any existing browser update notifications before showing our notification
+  return self.registration.getNotifications().then((notifications) => {
+    // Close any notifications that might be browser-generated update messages
+    notifications.forEach(notification => {
+      if (notification.tag === 'sw-update' ||
+          notification.title?.toLowerCase().includes('updated') ||
+          notification.body?.toLowerCase().includes('updated in the background')) {
+        console.log('🔔 [SW] Closing browser update notification:', notification.title);
+        notification.close();
+      }
+    });
+    // Show our actual notification
+    return self.registration.showNotification(notificationTitle, notificationOptions);
+  });
 });
 
 // Handle notification click events
