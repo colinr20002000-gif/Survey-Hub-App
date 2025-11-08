@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && npm run copy-sw",
-    "copy-sw": "powershell Copy-Item public/sw.js dist/sw.js -Force && powershell Copy-Item public/firebase-messaging-sw.js dist/firebase-messaging-sw.js -Force",
+    "copy-sw": "node copy-sw.js",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
