@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import packageJson from '../../package.json';
 
 /**
  * UpdateNotification Component
@@ -13,7 +14,7 @@ export default function UpdateNotification() {
       // Clear the flag
       sessionStorage.removeItem('appJustUpdated');
 
-      // Show the notification
+      // Show the success notification
       setShowUpdate(true);
 
       // Auto-dismiss after 5 seconds
@@ -52,7 +53,7 @@ export default function UpdateNotification() {
         <div className="flex-1">
           <h3 className="font-semibold mb-1">App Updated Successfully</h3>
           <p className="text-sm text-green-100">
-            Survey Hub has been updated to the latest version with new features and improvements.
+            Survey Hub v{packageJson.version} is now installed with new features and improvements.
           </p>
         </div>
         <button

@@ -52,8 +52,16 @@ self.addEventListener('install', (event) => {
       })
   );
 
-  // Force immediate activation
+  // Automatically activate new version
   self.skipWaiting();
+});
+
+// Listen for SKIP_WAITING message from client (for manual update checks)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('🔔 [SW] SKIP_WAITING message received from manual update check');
+    self.skipWaiting();
+  }
 });
 
 // Activate event - clean up old caches

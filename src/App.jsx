@@ -7,6 +7,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { supabase } from './supabaseClient';
+import packageJson from '../package.json';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
@@ -259,6 +260,7 @@ const RetroTargetIcon = ({ className }) => (
 const Header = ({ onMenuClick, setActiveTab, activeTab }) => {
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
+    const { addToast } = useToast();
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -311,6 +313,35 @@ const Header = ({ onMenuClick, setActiveTab, activeTab }) => {
     // Handle logout cancellation
     const handleLogoutCancel = () => {
         setShowLogoutConfirm(false);
+    };
+
+    // Handle manual update check
+    const handleCheckForUpdates = async () => {
+        setIsProfileOpen(false);
+
+        if (!window.swRegistration) {
+            addToast({ message: 'Service worker not available', type: 'error' });
+            return;
+        }
+
+        try {
+            addToast({ message: 'Checking for updates...', type: 'info' });
+            await window.swRegistration.update();
+
+            // Check if an update is waiting
+            if (window.swRegistration.waiting) {
+                addToast({ message: 'Update found! Installing...', type: 'success' });
+                // Tell it to skip waiting and activate
+                window.swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            } else if (window.swRegistration.installing) {
+                addToast({ message: 'Update found! Installing...', type: 'success' });
+            } else {
+                addToast({ message: `You're running the latest version (v${packageJson.version})`, type: 'success' });
+            }
+        } catch (error) {
+            console.error('Update check failed:', error);
+            addToast({ message: 'Failed to check for updates', type: 'error' });
+        }
     };
 
     return (
@@ -455,6 +486,8 @@ const Header = ({ onMenuClick, setActiveTab, activeTab }) => {
                     {isProfileOpen && (
                         <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                             <button onClick={() => { if (activeTab === 'Settings') setIsProfileOpen(false); else setActiveTab('Settings'); }} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Settings size={16} className="mr-2"/>Profile Settings</button>
+                            <button onClick={handleCheckForUpdates} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><RefreshCw size={16} className="mr-2"/>Check for Updates</button>
+                            <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                             <button onClick={handleLogoutClick} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"><LogOut size={16} className="mr-2"/>Logout</button>
                         </div>
                     )}
@@ -735,6 +768,14 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                     ))}
                 </ul>
             </nav>
+
+            {/* Version Display */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <Shield size={14} />
+                    <span>v{packageJson.version}</span>
+                </div>
+            </div>
         </aside>
     );
 };

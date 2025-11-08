@@ -20,8 +20,10 @@ if ('serviceWorker' in navigator) {
       .then((registration) => {
         console.log('✅ Service Worker registered successfully');
 
-        // Check for updates only every 5 minutes (reduced from 60 seconds)
-        // This prevents excessive update checks that could cause issues
+        // Store registration globally for manual update checks
+        window.swRegistration = registration;
+
+        // Check for updates every 5 minutes
         setInterval(() => {
           console.log('🔍 Checking for service worker updates...');
           registration.update().catch((error) => {
@@ -43,7 +45,7 @@ if ('serviceWorker' in navigator) {
       });
   });
 
-  // Listen for controller change (when SW updates) and reload
+  // Listen for controller change (when SW updates) and reload automatically
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!refreshing) {
