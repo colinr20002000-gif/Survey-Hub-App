@@ -3,7 +3,7 @@
 
 // Service Worker for Survey Hub PWA + Firebase Cloud Messaging
 // IMPORTANT: Version is set during build by Vite, not dynamically
-const CACHE_VERSION = 'v9'; // Increment this manually for major updates
+const CACHE_VERSION = 'v10'; // Increment this manually for major updates
 const CACHE_NAME = `survey-hub-${CACHE_VERSION}-fcm`;
 const OFFLINE_URL = '/offline.html';
 

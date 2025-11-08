@@ -1,11 +1,12 @@
 {
   "name": "survey-hub-app",
   "private": true,
-  "version": "1.9.5",
+  "version": "1.9.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm run copy-sw",
+    "copy-sw": "powershell Copy-Item public/sw.js dist/sw.js -Force && powershell Copy-Item public/firebase-messaging-sw.js dist/firebase-messaging-sw.js -Force",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },

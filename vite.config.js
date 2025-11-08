@@ -7,18 +7,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(),
-    VitePWA({
-      // Don't use strategies - we manage the service worker manually
-      // This way VitePWA just handles copying the file, not injecting manifests
-      injectRegister: null, // We register the service worker manually in main.jsx
-      useCredentials: false,
-      manifest: false, // Use the existing manifest.json
-      // Just copy the service worker as-is without modification
-      srcDir: 'public',
-      filename: 'sw.js',
-      outDir: 'dist'
-    })
+    tailwindcss()
+    // Vite PWA disabled - we manage service workers manually
   ],
   build: {
     // Add timestamp to build assets for better cache busting
