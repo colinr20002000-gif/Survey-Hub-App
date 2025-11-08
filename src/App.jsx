@@ -407,12 +407,23 @@ const Header = ({ onMenuClick, setActiveTab, activeTab }) => {
                                             key={notif.id}
                                             className={`flex items-start px-2 sm:px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${!notif.read ? 'bg-orange-50 dark:bg-orange-500/10' : ''}`}
                                             onClick={() => {
-                                                console.log('Notification clicked, navigating to Announcements');
+                                                console.log('Notification clicked:', notif);
                                                 markAsRead(notif.id);
-                                                // Navigate to announcements page for all notifications
-                                                setActiveTab('Announcements');
+
+                                                // Navigate based on notification type and source
+                                                let targetTab = 'Announcements'; // Default
+
+                                                if (notif.source === 'announcements') {
+                                                    targetTab = 'Announcements';
+                                                } else if (notif.type?.includes('delivery_task')) {
+                                                    targetTab = 'Assigned Tasks';
+                                                } else if (notif.type?.includes('project_task')) {
+                                                    targetTab = 'Project Tasks';
+                                                }
+
+                                                console.log('Navigating to:', targetTab);
+                                                setActiveTab(targetTab);
                                                 setIsNotificationsOpen(false);
-                                                console.log('setActiveTab called with: Announcements');
                                             }}
                                         >
                                             <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${!notif.read ? 'bg-orange-500' : 'bg-transparent'}`}></div>
