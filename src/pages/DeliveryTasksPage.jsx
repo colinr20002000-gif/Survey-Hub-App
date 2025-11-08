@@ -6,6 +6,7 @@ import { useDeliveryTasks } from '../contexts/DeliveryTaskContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Button } from '../components/ui';
 import { DeliveryTaskItem, DeliveryTaskModal } from '../components/tasks/TaskComponents';
+import { sendDeliveryTaskCompletionNotification } from '../utils/fcmNotifications';
 
 const mockUsers = {
   '1': { id: 1, username: 'Colin.Rogers', name: 'Colin Rogers', role: 'Admin', teamRole: 'Office Staff', avatar: 'CR', email: 'colin.rogers@surveyhub.co.uk', last_login: '2024-08-25 10:30', password: 'Survey Hub', privilege: 'Admin' },
@@ -75,6 +76,20 @@ const DeliveryTasksPage = () => {
             completedBy: isCompleting ? user?.id : null
         };
         await updateDeliveryTask(updatedTask);
+
+        // Send notification to task creator when task is completed
+        if (isCompleting && task.createdBy && task.createdBy !== user?.id) {
+            try {
+                await sendDeliveryTaskCompletionNotification(
+                    updatedTask,
+                    task.createdBy,
+                    user?.name || user?.email || 'Someone'
+                );
+                console.log('✅ Task completion notification sent to creator');
+            } catch (error) {
+                console.error('❌ Failed to send task completion notification:', error);
+            }
+        }
     };
 
     const handleDeleteTask = async (taskId) => {

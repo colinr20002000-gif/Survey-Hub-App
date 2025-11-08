@@ -6,6 +6,7 @@ import { useProjectTasks } from '../contexts/ProjectTaskContext';
 import { supabase } from '../supabaseClient';
 import { Button } from '../components/ui';
 import { DeliveryTaskItem, DeliveryTaskModal } from '../components/tasks/TaskComponents';
+import { sendProjectTaskCompletionNotification } from '../utils/fcmNotifications';
 
 const ProjectTasksPage = () => {
     const { user } = useAuth();
@@ -78,6 +79,20 @@ const ProjectTasksPage = () => {
             completedBy: isCompleting ? user?.id : null
         };
         await updateProjectTask(updatedTask);
+
+        // Send notification to task creator when task is completed
+        if (isCompleting && task.createdBy && task.createdBy !== user?.id) {
+            try {
+                await sendProjectTaskCompletionNotification(
+                    updatedTask,
+                    task.createdBy,
+                    user?.name || user?.email || 'Someone'
+                );
+                console.log('✅ Task completion notification sent to creator');
+            } catch (error) {
+                console.error('❌ Failed to send task completion notification:', error);
+            }
+        }
     };
 
     const handleDeleteTask = async (taskId) => {
