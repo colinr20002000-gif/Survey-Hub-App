@@ -1672,12 +1672,6 @@ const ResourceAnalyticsPage = () => {
                                     </th>
                                     <th
                                         className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                                        onClick={() => requestTableSort('total')}
-                                    >
-                                        Total {getTableSortIndicator('total')}
-                                    </th>
-                                    <th
-                                        className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                                         onClick={() => requestTableSort('projects')}
                                     >
                                         Projects {getTableSortIndicator('projects')}
@@ -1686,7 +1680,7 @@ const ResourceAnalyticsPage = () => {
                                         className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                                         onClick={() => requestTableSort('leave')}
                                     >
-                                        Leave {getTableSortIndicator('leave')}
+                                        Non-Project {getTableSortIndicator('leave')}
                                     </th>
                                     <th
                                         className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
@@ -1719,7 +1713,6 @@ const ResourceAnalyticsPage = () => {
                                     <tr key={user.userId} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
                                         <td className="px-4 py-3 font-medium">{user.name}</td>
                                         <td className="px-4 py-3">{user.department || '-'}</td>
-                                        <td className="px-4 py-3 text-center font-bold text-orange-500">{user.total}</td>
                                         <td className="px-4 py-3 text-center text-blue-500">{user.projects}</td>
                                         <td className="px-4 py-3 text-center text-purple-500">{user.leave}</td>
                                         <td className="px-4 py-3 text-center text-green-500">{user.available}</td>
@@ -1738,7 +1731,7 @@ const ResourceAnalyticsPage = () => {
                                 ))}
                                 {userBreakdown.length === 0 && (
                                     <tr>
-                                        <td colSpan="9" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan="8" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                             No user data available for the selected filters
                                         </td>
                                     </tr>

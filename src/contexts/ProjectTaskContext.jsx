@@ -123,6 +123,8 @@ export const ProjectTaskProvider = ({ children }) => {
                                 type: 'project_task',
                                 title: 'New Project Task Assigned',
                                 message: `You have been assigned to: "${newTask.text}"`,
+                                read: false,
+                                dismissed: false,
                                 data: {
                                     task_id: newTask.id,
                                     task_text: newTask.text,
@@ -217,6 +219,8 @@ export const ProjectTaskProvider = ({ children }) => {
                             type: 'project_task_completed',
                             title: 'Project Task Completed',
                             message: `"${updatedTask.text}" has been marked as complete by ${user.name}`,
+                            read: false,
+                            dismissed: false,
                             data: {
                                 task_id: updatedTask.id,
                                 task_text: updatedTask.text,

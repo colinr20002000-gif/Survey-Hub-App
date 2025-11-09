@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, Download, Edit } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, Download, Edit } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, DragOverlay, rectIntersection } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
@@ -409,16 +409,14 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                         if (!currentAssignment) {
                             // First assignment for this day
                             formattedAllocations[weekKey][allocation.user_id].assignments[dayIndex] = assignmentData;
-                        } else if (assignmentData && assignmentData.type === 'project' && currentAssignment.type === 'project') {
-                            // Multiple projects - convert to array
+                        } else if (assignmentData) {
+                            // Multiple assignments - convert to array
+                            // This supports: multiple projects, multiple leaves, or mixed project+leave
                             if (Array.isArray(currentAssignment)) {
                                 currentAssignment.push(assignmentData);
                             } else {
                                 formattedAllocations[weekKey][allocation.user_id].assignments[dayIndex] = [currentAssignment, assignmentData];
                             }
-                        } else if (assignmentData && assignmentData.type === 'leave') {
-                            // Leave overwrites any project assignments
-                            formattedAllocations[weekKey][allocation.user_id].assignments[dayIndex] = assignmentData;
                         }
                     }
                 });
@@ -844,7 +842,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleUndo]);
 
-    const handleSaveAllocation = async (allocationData, cellToUpdate = selectedCell, isSecondProject = false) => {
+    const handleSaveAllocation = async (allocationData, cellToUpdate = selectedCell, isSecondProject = false, isSecondLeave = false) => {
         const { userId } = cellToUpdate;
         const weekKey = formatDateForKey(getWeekStartDate(cellToUpdate.date));
         const dayIndex = (cellToUpdate.date.getDay() + 1) % 7; // Saturday = 0, Sunday = 1, etc.
@@ -862,7 +860,19 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             if (allocationData === null) {
                 newAllocations[weekKey][userId].assignments[dayIndex] = null;
             } else if (allocationData.type === 'leave') {
-                newAllocations[weekKey][userId].assignments[dayIndex] = allocationData;
+                // Handle multiple leave items per day
+                if (isSecondLeave && currentAssignment) {
+                    if (Array.isArray(currentAssignment)) {
+                        // Already have multiple items, add another
+                        newAllocations[weekKey][userId].assignments[dayIndex] = [...currentAssignment, allocationData];
+                    } else {
+                        // Convert single item to array
+                        newAllocations[weekKey][userId].assignments[dayIndex] = [currentAssignment, allocationData];
+                    }
+                } else {
+                    // First/only leave for the day (or replacing existing)
+                    newAllocations[weekKey][userId].assignments[dayIndex] = allocationData;
+                }
             } else if (allocationData.type === 'status') {
                 newAllocations[weekKey][userId].assignments[dayIndex] = allocationData;
             } else if (!Object.values(allocationData).some(val => val !== '' && val !== 'Days' && val !== null)) {
@@ -1018,6 +1028,28 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     time: allocationData.time || null,
                     comment: allocationData.comment || null,
                     leave_type: null
+                };
+
+                const { error } = await supabase
+                    .from(tableName)
+                    .insert([recordData]);
+
+                if (error) throw error;
+            } else if (isSecondLeave) {
+                // Adding a second leave - insert new record
+                recordData = {
+                    user_id: userId,
+                    allocation_date: allocationDateString,
+                    assignment_type: 'leave',
+                    leave_type: allocationData.leaveType,
+                    comment: allocationData.comment || null,
+                    project_id: null,
+                    project_number: null,
+                    project_name: null,
+                    client: null,
+                    task: null,
+                    shift: null,
+                    time: null
                 };
 
                 const { error } = await supabase
@@ -1219,18 +1251,22 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 handleSaveAllocation(null, cellToUpdate);
             }
         } else if (action === 'paste') {
-            // Check if the target cell already has a project assignment
+            // Check if the target cell already has any assignment
             const weekKey = formatDateForKey(getWeekStartDate(cellToUpdate.date));
             const currentAssignment = allocations[weekKey]?.[cellToUpdate.userId]?.assignments[cellToUpdate.dayIndex];
-            const hasExistingProject = currentAssignment && (
-                (Array.isArray(currentAssignment) && currentAssignment.some(a => a.type === 'project')) ||
-                (currentAssignment.type === 'project')
+
+            // Determine if we should add as second item
+            const hasExistingAssignment = currentAssignment && currentAssignment.type !== 'status';
+            const shouldAddAsSecondItem = hasExistingAssignment;
+            const isAddingProject = clipboard.data?.type === 'project';
+            const isAddingLeave = clipboard.data?.type === 'leave';
+
+            handleSaveAllocation(
+                clipboard.data,
+                cellToUpdate,
+                isAddingProject && shouldAddAsSecondItem,
+                isAddingLeave && shouldAddAsSecondItem
             );
-
-            // If pasting a project and there's already a project, add as second project
-            const shouldAddAsSecondProject = hasExistingProject && clipboard.data?.type === 'project';
-
-            handleSaveAllocation(clipboard.data, cellToUpdate, shouldAddAsSecondProject);
             if (clipboard.type === 'cut') {
                 // If cutting a specific item from a multi-item array, only remove that item
                 if (clipboard.sourceItemIndex !== null && clipboard.sourceItemIndex !== undefined) {
@@ -1249,9 +1285,89 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         } else if (action === 'allocate') {
             setSelectedCell(cellToUpdate);
             setIsAllocationModalOpen(true);
-        } else if (action === 'addSecondProject') {
+        } else if (action === 'addSecondProject' || action === 'addProject') {
             setSelectedCell({...cellToUpdate, isSecondProject: true});
             setIsAllocationModalOpen(true);
+        } else if (action === 'addSecondLeave' || action === 'addLeave') {
+            setSelectedCell({...cellToUpdate, isSecondLeave: true});
+            setIsAllocationModalOpen(true);
+        } else if (action === 'moveUp' || action === 'moveDown') {
+            // Reorder items in the array
+            const newAssignment = [...cellData.assignment];
+            const targetIndex = action === 'moveUp' ? cellData.itemIndex - 1 : cellData.itemIndex + 1;
+
+            // Swap items
+            [newAssignment[cellData.itemIndex], newAssignment[targetIndex]] = [newAssignment[targetIndex], newAssignment[cellData.itemIndex]];
+
+            // Update state immediately
+            const weekKey = formatDateForKey(getWeekStartDate(cellData.date));
+            setAllocations(prev => {
+                const newAllocations = JSON.parse(JSON.stringify(prev));
+                if (newAllocations[weekKey] && newAllocations[weekKey][cellData.userId]) {
+                    newAllocations[weekKey][cellData.userId].assignments[cellData.dayIndex] = newAssignment;
+                }
+                return newAllocations;
+            });
+
+            // Save to database
+            const user = allUsers.find(u => u.id === cellData.userId);
+            const isDummyUser = user?.isDummy === true;
+            const tableName = isDummyUser ? 'dummy_resource_allocations' : 'resource_allocations';
+            const allocationDateString = formatDateForKey(cellData.date);
+
+            (async () => {
+                try {
+                    // Delete all existing records for this day
+                    await supabase
+                        .from(tableName)
+                        .delete()
+                        .eq('user_id', cellData.userId)
+                        .eq('allocation_date', allocationDateString);
+
+                    // Re-insert all items in new order
+                    const recordsToInsert = newAssignment.map(item => {
+                        if (item.type === 'leave') {
+                            return {
+                                user_id: cellData.userId,
+                                allocation_date: allocationDateString,
+                                assignment_type: 'leave',
+                                leave_type: item.leaveType,
+                                comment: item.comment || null,
+                                project_id: null,
+                                project_number: null,
+                                project_name: null,
+                                client: null,
+                                task: null,
+                                shift: null,
+                                time: null
+                            };
+                        } else {
+                            return {
+                                user_id: cellData.userId,
+                                allocation_date: allocationDateString,
+                                assignment_type: 'project',
+                                project_id: item.projectId || null,
+                                project_number: item.projectNumber || null,
+                                project_name: item.projectName || null,
+                                client: item.client || null,
+                                task: item.task || null,
+                                shift: item.shift || null,
+                                time: item.time || null,
+                                comment: item.comment || null,
+                                leave_type: null
+                            };
+                        }
+                    });
+
+                    await supabase
+                        .from(tableName)
+                        .insert(recordsToInsert);
+                } catch (err) {
+                    console.error('Error reordering items:', err);
+                    // Refresh allocations to revert UI changes
+                    getResourceAllocations(true);
+                }
+            })();
         } else if (action === 'setAvailable') {
             handleSaveAllocation({ type: 'status', status: 'Available' }, cellToUpdate);
         } else if (action === 'setAvailableDay') {
@@ -1948,34 +2064,66 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
                                     if (assignment) {
                                         if (Array.isArray(assignment)) {
-                                            // Multiple projects - backgrounds fill vertical space with small gap
+                                            // Multiple assignments - could be projects, leaves, or mixed
                                             cellContent = (
                                                 <div className="flex-1 flex flex-col gap-1">
-                                                    {assignment.map((proj, index) => {
-                                                        const projColorStyle = getShiftColor(proj.shift);
-                                                        const projColor = typeof projColorStyle === 'string' ? projColorStyle : '';
-                                                        const projInlineStyle = typeof projColorStyle === 'object' ? projColorStyle : {};
+                                                    {assignment.map((item, index) => {
+                                                        if (item.type === 'project') {
+                                                            // Render project
+                                                            const projColorStyle = getShiftColor(item.shift);
+                                                            const projColor = typeof projColorStyle === 'string' ? projColorStyle : '';
+                                                            const projInlineStyle = typeof projColorStyle === 'object' ? projColorStyle : {};
 
-                                                        return (
-                                                            <DraggableResourceItem
-                                                                key={index}
-                                                                id={`${user.id}::${dayIndex}::${index}`}
-                                                                disabled={!isDesktop}
-                                                            >
-                                                                <div
-                                                                    data-assignment="true"
-                                                                    className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
-                                                                    onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
-                                                                    style={projInlineStyle}
+                                                            return (
+                                                                <DraggableResourceItem
+                                                                    key={index}
+                                                                    id={`${user.id}::${dayIndex}::${index}`}
+                                                                    disabled={!isDesktop}
                                                                 >
-                                                                    <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={proj.projectName}>{proj.projectName}</p>
-                                                                    <p className="font-semibold text-xs mb-0.5 truncate">{proj.projectNumber}</p>
-                                                                    {proj.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1" title={proj.task}>{proj.task}</p>}
-                                                                    <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof proj.shift === 'string' ? proj.shift : String(proj.shift || '')}</p>
-                                                                    {proj.time && <p className="text-xs leading-tight font-semibold truncate">{proj.time}</p>}
-                                                                </div>
-                                                            </DraggableResourceItem>
-                                                        );
+                                                                    <div
+                                                                        data-assignment="true"
+                                                                        className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
+                                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
+                                                                        style={projInlineStyle}
+                                                                    >
+                                                                        <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={item.projectName}>{item.projectName}</p>
+                                                                        <p className="font-semibold text-xs mb-0.5 truncate">{item.projectNumber}</p>
+                                                                        {item.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1" title={item.task}>{item.task}</p>}
+                                                                        <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof item.shift === 'string' ? item.shift : String(item.shift || '')}</p>
+                                                                        {item.time && <p className="text-xs leading-tight font-semibold truncate">{item.time}</p>}
+                                                                    </div>
+                                                                </DraggableResourceItem>
+                                                            );
+                                                        } else if (item.type === 'leave') {
+                                                            // Render leave
+                                                            const leaveColorStyle = getLeaveColor(item.leaveType);
+                                                            const leaveColor = typeof leaveColorStyle === 'string' ? leaveColorStyle : '';
+                                                            const leaveInlineStyle = typeof leaveColorStyle === 'object' ? leaveColorStyle : {};
+                                                            const hasComment = item.comment && item.comment.trim().length > 0;
+
+                                                            return (
+                                                                <DraggableResourceItem
+                                                                    key={index}
+                                                                    id={`${user.id}::${dayIndex}::${index}`}
+                                                                    disabled={!isDesktop}
+                                                                >
+                                                                    <div
+                                                                        data-assignment="true"
+                                                                        className={`p-1.5 rounded-md h-full flex flex-col justify-center font-bold ${leaveColor}`}
+                                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
+                                                                        style={leaveInlineStyle}
+                                                                    >
+                                                                        <div className={`text-center ${hasComment ? 'mb-0.5' : ''} text-sm truncate`}>{item.leaveType}</div>
+                                                                        {hasComment && (
+                                                                            <div className="text-center text-xs font-bold opacity-90 leading-tight line-clamp-2" title={item.comment}>
+                                                                                {item.comment}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </DraggableResourceItem>
+                                                            );
+                                                        }
+                                                        return null;
                                                     })}
                                                 </div>
                                             );
@@ -2117,12 +2265,13 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 <AllocationModal
                     isOpen={isAllocationModalOpen}
                     onClose={() => setIsAllocationModalOpen(false)}
-                    onSave={(allocationData) => handleSaveAllocation(allocationData, selectedCell, selectedCell.isSecondProject)}
+                    onSave={(allocationData) => handleSaveAllocation(allocationData, selectedCell, selectedCell.isSecondProject, selectedCell.isSecondLeave)}
                     user={selectedUser}
                     date={selectedCell.date}
                     currentAssignment={currentWeekAllocations[selectedCell.userId]?.assignments[selectedCell.dayIndex] || null}
                     projects={projects}
                     isSecondProject={selectedCell.isSecondProject}
+                    isSecondLeave={selectedCell.isSecondLeave}
                     editingSpecificItem={selectedCell.editingSpecificItem}
                     editItemIndex={selectedCell.editItemIndex}
                 />
@@ -2187,10 +2336,22 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
         (Array.isArray(cellData.assignment) && cellData.assignment.some(a => a.type === 'project' && a.projectNumber)) ||
         (cellData.assignment.type === 'project' && cellData.assignment.projectNumber)
     );
-    const canAddSecondProject = hasAssignment && (
-        (!Array.isArray(cellData.assignment) && cellData.assignment.type === 'project') ||
-        (Array.isArray(cellData.assignment) && cellData.assignment.length === 1 && cellData.assignment.every(a => a.type === 'project'))
+    const hasLeaveAssignment = hasAssignment && (
+        (Array.isArray(cellData.assignment) && cellData.assignment.some(a => a.type === 'leave')) ||
+        (cellData.assignment.type === 'leave')
     );
+
+    // Can add project if: no status assignment exists
+    const canAddProject = hasAssignment && !isStatusAssignment;
+
+    // Can add leave if: no status assignment exists
+    const canAddLeave = hasAssignment && !isStatusAssignment;
+
+    // For Move Up/Down functionality
+    const isArrayItemOperation = cellData.itemIndex !== null && cellData.itemIndex !== undefined;
+    const isMultiItemTile = Array.isArray(cellData.assignment);
+    const canMoveUp = isArrayItemOperation && isMultiItemTile && cellData.itemIndex > 0;
+    const canMoveDown = isArrayItemOperation && isMultiItemTile && cellData.itemIndex < cellData.assignment.length - 1;
 
     // Show context menu for viewers if there's a project to navigate to
     const canViewProject = hasProjectAssignment;
@@ -2208,14 +2369,44 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                 <>
                     {!isStatusAssignment && canAllocate && (
                         <>
-                            <button onClick={() => onAction('edit')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={14} className="mr-2"/>Edit</button>
-                            <button onClick={() => onAction('copy')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2"/>Copy</button>
-                            <button onClick={() => onAction('cut')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>Cut</button>
-                            {canAddSecondProject && (
-                                <button onClick={() => onAction('addSecondProject')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><PlusCircle size={14} className="mr-2"/>Add Second Project</button>
+                            {(!isMultiItemTile || isArrayItemOperation) && (
+                                <button onClick={() => onAction('edit')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={14} className="mr-2"/>Edit</button>
                             )}
-                            {hasProjectAssignment && clipboard.data && clipboard.data.type === 'project' && (
-                                <button onClick={() => onAction('paste')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ClipboardCheck size={14} className="mr-2"/>Paste as Second Project</button>
+                            {isArrayItemOperation && isMultiItemTile && cellData.assignment.length > 1 && (
+                                <>
+                                    <button
+                                        onClick={() => onAction('moveUp')}
+                                        disabled={!canMoveUp}
+                                        className={`w-full text-left flex items-center px-4 py-2 text-sm ${canMoveUp ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
+                                    >
+                                        <ChevronUp size={14} className="mr-2" />Move Up
+                                    </button>
+                                    <button
+                                        onClick={() => onAction('moveDown')}
+                                        disabled={!canMoveDown}
+                                        className={`w-full text-left flex items-center px-4 py-2 text-sm ${canMoveDown ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
+                                    >
+                                        <ChevronDown size={14} className="mr-2" />Move Down
+                                    </button>
+                                </>
+                            )}
+                            {(!isMultiItemTile || isArrayItemOperation) && (
+                                <>
+                                    <button onClick={() => onAction('copy')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2"/>Copy</button>
+                                    <button onClick={() => onAction('cut')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>Cut</button>
+                                </>
+                            )}
+                            {canAddProject && (
+                                <button onClick={() => onAction('addProject')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><PlusCircle size={14} className="mr-2"/>Add Project</button>
+                            )}
+                            {canAddLeave && (
+                                <button onClick={() => onAction('addLeave')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><PlusCircle size={14} className="mr-2"/>Add Leave</button>
+                            )}
+                            {clipboard.data && clipboard.data.type === 'project' && (
+                                <button onClick={() => onAction('paste')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ClipboardCheck size={14} className="mr-2"/>Paste Project</button>
+                            )}
+                            {clipboard.data && clipboard.data.type === 'leave' && (
+                                <button onClick={() => onAction('paste')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ClipboardCheck size={14} className="mr-2"/>Paste Leave</button>
                             )}
                         </>
                     )}
@@ -2314,7 +2505,7 @@ const ShowHideUsersModal = ({ isOpen, onClose, onSave, allUsers, visibleUserIds 
     );
 };
 
-const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignment, projects, isSecondProject = false, editingSpecificItem = null, editItemIndex = null }) => {
+const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignment, projects, isSecondProject = false, isSecondLeave = false, editingSpecificItem = null, editItemIndex = null }) => {
     const [isManual, setIsManual] = useState(false);
     const [leaveType, setLeaveType] = useState('');
     const [projectSearch, setProjectSearch] = useState('');
@@ -2350,8 +2541,8 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                 setIsManual(!isProjectInList && !!editingSpecificItem.projectNumber);
             }
         }
-        // If adding to a multi-item cell (isSecondProject) or currentAssignment is an array, show blank form
-        else if (isSecondProject || Array.isArray(currentAssignment)) {
+        // If adding to a multi-item cell (isSecondProject/isSecondLeave) or currentAssignment is an array, show blank form
+        else if (isSecondProject || isSecondLeave || Array.isArray(currentAssignment)) {
             setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null });
             setIsManual(false);
             setLeaveType('');
@@ -2380,7 +2571,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
             setIsManual(false);
             setLeaveType('');
         }
-    }, [currentAssignment, isOpen, isSecondProject]);
+    }, [currentAssignment, isOpen, isSecondProject, isSecondLeave]);
 
     const handleProjectSelect = (e) => {
         const selectedProjectNumber = e.target.value;
@@ -2440,7 +2631,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={isSecondProject ? "Add Second Project" : "Allocate Resource"}>
+        <Modal isOpen={isOpen} onClose={onClose} title={isSecondProject ? "Add Second Project" : isSecondLeave ? "Add Second Leave" : "Allocate Resource"}>
              <div className="p-6 overflow-y-auto max-h-[80vh]">
                 <div className="space-y-4">
                     <div>
@@ -2463,7 +2654,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                         </div>
                     )}
 
-                    <fieldset disabled={projectFieldsDisabled} className={`space-y-4 ${!isSecondProject ? 'border-t pt-4 mt-4 border-gray-200 dark:border-gray-700' : ''} disabled:opacity-40`}>
+                    {!isSecondLeave && <fieldset disabled={projectFieldsDisabled} className={`space-y-4 ${!isSecondProject ? 'border-t pt-4 mt-4 border-gray-200 dark:border-gray-700' : ''} disabled:opacity-40`}>
                         <div className="flex items-center space-x-2">
                             <input type="checkbox" id="manual-entry" checked={isManual} onChange={(e) => setIsManual(e.target.checked)} className="rounded text-orange-500 focus:ring-orange-500"/>
                             <label htmlFor="manual-entry" className="text-sm">Enter Manually</label>
@@ -2547,9 +2738,21 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                         
                         <Input label="Start/End Time" name="time" value={formData.time} onChange={handleInputChange} placeholder="e.g., 09:00 - 17:00"/>
                         <Input label="Comment" name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..."/>
-                    </fieldset>
+                    </fieldset>}
 
                     {!isSecondProject && leaveType && (
+                        <div className="space-y-2 pt-4">
+                            <Input
+                                label="Comment (Optional)"
+                                name="comment"
+                                value={formData.comment}
+                                onChange={handleInputChange}
+                                placeholder="Add a comment for this leave type..."
+                            />
+                        </div>
+                    )}
+
+                    {isSecondLeave && (
                         <div className="space-y-2 pt-4">
                             <Input
                                 label="Comment (Optional)"

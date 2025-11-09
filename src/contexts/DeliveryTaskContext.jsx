@@ -138,6 +138,8 @@ export const DeliveryTaskProvider = ({ children }) => {
                                 type: 'delivery_task',
                                 title: 'New Delivery Task Assigned',
                                 message: `You have been assigned to: "${newTask.text}"`,
+                                read: false,
+                                dismissed: false,
                                 data: {
                                     task_id: newTask.id,
                                     task_text: newTask.text,
@@ -231,6 +233,8 @@ export const DeliveryTaskProvider = ({ children }) => {
                             type: 'delivery_task_completed',
                             title: 'Delivery Task Completed',
                             message: `"${updatedTask.text}" has been marked as complete by ${user.name}`,
+                            read: false,
+                            dismissed: false,
                             data: {
                                 task_id: updatedTask.id,
                                 task_text: updatedTask.text,
