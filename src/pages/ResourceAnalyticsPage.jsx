@@ -841,8 +841,18 @@ const ResourceAnalyticsPage = () => {
         filteredAllocations
             .filter(a => a.assignment_type === 'leave' && a.leave_type)
             .forEach(allocation => {
-                leaveCounts[allocation.leave_type] = (leaveCounts[allocation.leave_type] || 0) + 1;
+                // Combine all annual leave types (AM, PM, full day) into one category
+                let leaveType = allocation.leave_type;
+
+                // Normalize and combine all variations of Annual Leave
+                if (leaveType.toLowerCase().includes('annual leave')) {
+                    leaveType = 'Annual Leave';
+                }
+
+                leaveCounts[leaveType] = (leaveCounts[leaveType] || 0) + 1;
             });
+
+        console.log('Leave type counts:', leaveCounts);
 
         return Object.entries(leaveCounts)
             .map(([name, value]) => ({ name, value }))
@@ -1594,35 +1604,35 @@ const ResourceAnalyticsPage = () => {
             <div ref={dashboardRef} className="space-y-6">
                 {/* Summary Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-                    {/* 1. Project Allocations */}
+                    {/* 1. Total Allocations */}
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Total Allocations</div>
+                        <div className="text-2xl font-bold text-orange-500">{stats.total}</div>
+                    </div>
+                    {/* 2. Project Allocations */}
                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
                         <div className="text-sm text-gray-500 dark:text-gray-400">Project Allocations</div>
                         <div className="text-2xl font-bold text-blue-500">{stats.projects}</div>
                     </div>
-                    {/* 2. Unique Projects */}
+                    {/* 3. Unique Projects */}
                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
                         <div className="text-sm text-gray-500 dark:text-gray-400">Unique Projects</div>
                         <div className="text-2xl font-bold text-yellow-500">{stats.uniqueProjects}</div>
                     </div>
-                    {/* 3. Team Members */}
+                    {/* 4. Team Members */}
                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
                         <div className="text-sm text-gray-500 dark:text-gray-400">Team Members</div>
                         <div className="text-2xl font-bold text-pink-500">{stats.uniqueUsers}</div>
                     </div>
-                    {/* 4. Clients */}
+                    {/* 5. Clients */}
                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
                         <div className="text-sm text-gray-500 dark:text-gray-400">Clients</div>
                         <div className="text-2xl font-bold text-teal-500">{stats.uniqueClients}</div>
                     </div>
-                    {/* 5. Available */}
+                    {/* 6. Available */}
                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
                         <div className="text-sm text-gray-500 dark:text-gray-400">Available</div>
                         <div className="text-2xl font-bold text-green-500">{stats.available}</div>
-                    </div>
-                    {/* 6. Not Available */}
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Not Available</div>
-                        <div className="text-2xl font-bold text-red-500">{stats.notAvailable}</div>
                     </div>
                     {/* 7. Avg Per User */}
                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4">

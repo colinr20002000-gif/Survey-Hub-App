@@ -38,6 +38,10 @@ const UserAdmin = () => {
   const [newName, setNewName] = useState('');
   const [editingMobileNumber, setEditingMobileNumber] = useState(null);
   const [newMobileNumber, setNewMobileNumber] = useState('');
+  const [editingHireDate, setEditingHireDate] = useState(null);
+  const [newHireDate, setNewHireDate] = useState('');
+  const [editingTerminationDate, setEditingTerminationDate] = useState(null);
+  const [newTerminationDate, setNewTerminationDate] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
 
   // MFA management states
@@ -60,7 +64,9 @@ const UserAdmin = () => {
     competencies: '',
     pts_number: '',
     available_saturday: false,
-    available_sunday: false
+    available_sunday: false,
+    hire_date: '',
+    termination_date: ''
   });
 
   // Dummy user editing states
@@ -85,6 +91,11 @@ const UserAdmin = () => {
   const [newDummyMobileNumber, setNewDummyMobileNumber] = useState('');
   const [newDummyCompetencies, setNewDummyCompetencies] = useState('');
   const [newDummyPtsNumber, setNewDummyPtsNumber] = useState('');
+  const [editingDummyHireDate, setEditingDummyHireDate] = useState(null);
+  const [newDummyHireDate, setNewDummyHireDate] = useState('');
+  const [editingDummyTerminationDate, setEditingDummyTerminationDate] = useState(null);
+  const [newDummyTerminationDate, setNewDummyTerminationDate] = useState('');
+
   useEffect(() => {
     fetchUsers();
     fetchDummyUsers();
@@ -918,6 +929,70 @@ const UserAdmin = () => {
     setNewMobileNumber('');
   };
 
+  const handleUpdateHireDate = async (userId) => {
+    if (!isSuperAdmin) {
+      alert('Only super administrators can modify hire dates');
+      return;
+    }
+
+    try {
+      const updateQuery = Promise.race([
+        supabase.from('users').update({ hire_date: newHireDate || null }).eq('id', userId).select(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database update timeout')), 8000)
+        )
+      ]);
+
+      const { data, error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data[0]) {
+        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
+        alert('Hire date updated successfully');
+        setEditingHireDate(null);
+        setNewHireDate('');
+      }
+    } catch (err) {
+      console.error('Error updating hire date:', err);
+      alert(`Error updating hire date: ${err.message}`);
+    }
+  };
+
+  const handleUpdateTerminationDate = async (userId) => {
+    if (!isSuperAdmin) {
+      alert('Only super administrators can modify termination dates');
+      return;
+    }
+
+    try {
+      const updateQuery = Promise.race([
+        supabase.from('users').update({ termination_date: newTerminationDate || null }).eq('id', userId).select(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database update timeout')), 8000)
+        )
+      ]);
+
+      const { data, error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data[0]) {
+        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
+        alert('Termination date updated successfully');
+        setEditingTerminationDate(null);
+        setNewTerminationDate('');
+      }
+    } catch (err) {
+      console.error('Error updating termination date:', err);
+      alert(`Error updating termination date: ${err.message}`);
+    }
+  };
+
   const deleteUser = async (userId, userEmail) => {
     if (!isAdmin) {
       alert('Only administrators can delete users');
@@ -1675,6 +1750,24 @@ const UserAdmin = () => {
                     <span className="ml-1">{getSortIcon('last_login')}</span>
                   </div>
                 </th>
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('hire_date')}
+                >
+                  <div className="flex items-center">
+                    Hire Date
+                    <span className="ml-1">{getSortIcon('hire_date')}</span>
+                  </div>
+                </th>
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('termination_date')}
+                >
+                  <div className="flex items-center">
+                    Termination Date
+                    <span className="ml-1">{getSortIcon('termination_date')}</span>
+                  </div>
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   MFA Status
                 </th>
@@ -2172,6 +2265,92 @@ const UserAdmin = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(userItem.last_login)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {isSuperAdmin && editingHireDate === userItem.id ? (
+                      <>
+                        <input
+                          type="date"
+                          value={newHireDate}
+                          onChange={(e) => setNewHireDate(e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handleUpdateHireDate(userItem.id);
+                            }
+                          }}
+                        />
+                        <div className="flex gap-1 mt-1">
+                          <button
+                            onClick={() => handleUpdateHireDate(userItem.id)}
+                            className="text-green-600 hover:text-green-800 text-xs"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingHireDate(null)}
+                            className="text-red-600 hover:text-red-800 text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <span
+                        onClick={() => {
+                          if (isSuperAdmin) {
+                            setEditingHireDate(userItem.id);
+                            setNewHireDate(userItem.hire_date || '');
+                          }
+                        }}
+                        className={isSuperAdmin ? "cursor-pointer hover:bg-gray-100 px-2 py-1 rounded" : ""}
+                      >
+                        {userItem.hire_date ? formatDate(userItem.hire_date) : '-'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {isSuperAdmin && editingTerminationDate === userItem.id ? (
+                      <>
+                        <input
+                          type="date"
+                          value={newTerminationDate}
+                          onChange={(e) => setNewTerminationDate(e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handleUpdateTerminationDate(userItem.id);
+                            }
+                          }}
+                        />
+                        <div className="flex gap-1 mt-1">
+                          <button
+                            onClick={() => handleUpdateTerminationDate(userItem.id)}
+                            className="text-green-600 hover:text-green-800 text-xs"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingTerminationDate(null)}
+                            className="text-red-600 hover:text-red-800 text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <span
+                        onClick={() => {
+                          if (isSuperAdmin) {
+                            setEditingTerminationDate(userItem.id);
+                            setNewTerminationDate(userItem.termination_date || '');
+                          }
+                        }}
+                        className={isSuperAdmin ? "cursor-pointer hover:bg-gray-100 px-2 py-1 rounded" : ""}
+                      >
+                        {userItem.termination_date ? formatDate(userItem.termination_date) : '-'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {mfaStatuses[userItem.id] ? (

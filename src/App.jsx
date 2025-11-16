@@ -1373,17 +1373,44 @@ const UserAdminPage = () => {
 // --- REPLACE UserModal with this new version ---
 const UserModal = ({ isOpen, onClose, onSave, user }) => {
     // Note: The form still uses 'teamRole' (camelCase) for its state
-    const [formData, setFormData] = useState({ name: '', username: '', email: '', privilege: 'Viewer', teamRole: 'site_team', password: '' });
+    const [formData, setFormData] = useState({
+        name: '',
+        username: '',
+        email: '',
+        privilege: 'Viewer',
+        teamRole: 'site_team',
+        password: '',
+        hire_date: '',
+        termination_date: ''
+    });
     const { teamRoles, loading: teamRolesLoading } = useTeamRoles();
 
     useEffect(() => {
         if (user) {
             // When editing, map snake_case from DB to camelCase for the form state
-            setFormData({ name: user.name, username: user.username, email: user.email, privilege: user.privilege, teamRole: user.team_role, password: user.password || '' });
+            setFormData({
+                name: user.name,
+                username: user.username,
+                email: user.email,
+                privilege: user.privilege,
+                teamRole: user.team_role,
+                password: user.password || '',
+                hire_date: user.hire_date || '',
+                termination_date: user.termination_date || ''
+            });
         } else {
             // Set default to first available team role or fallback
             const defaultTeamRole = teamRoles.length > 0 ? teamRoles[0].value : 'site_team';
-            setFormData({ name: '', username: '', email: '', privilege: 'Viewer', teamRole: defaultTeamRole, password: '' });
+            setFormData({
+                name: '',
+                username: '',
+                email: '',
+                privilege: 'Viewer',
+                teamRole: defaultTeamRole,
+                password: '',
+                hire_date: '',
+                termination_date: ''
+            });
         }
     }, [user, isOpen, teamRoles]);
 
@@ -1422,6 +1449,21 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
                             teamRoles.map(role => <option key={role.value} value={role.value}>{role.display_text}</option>)
                         )}
                     </Select>
+                    <Input
+                        label="Hire Date"
+                        name="hire_date"
+                        type="date"
+                        value={formData.hire_date}
+                        onChange={handleChange}
+                    />
+                    <Input
+                        label="Termination Date"
+                        name="termination_date"
+                        type="date"
+                        value={formData.termination_date}
+                        onChange={handleChange}
+                        placeholder="Leave blank for active employees"
+                    />
                     <div className="flex justify-end space-x-2 pt-4">
                         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
                         <Button type="submit">Save</Button>

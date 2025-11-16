@@ -5,7 +5,8 @@
       "Bash(find:*)",
       "mcp__Supabase__list_projects",
       "mcp__Supabase__execute_sql",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npx supabase:*)"
     ],
     "deny": [],
     "ask": []

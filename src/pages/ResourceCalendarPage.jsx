@@ -571,6 +571,43 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const displayedUsers = useMemo(() => {
         let usersToDisplay = allUsers;
 
+        // Helper function to normalize dates to midnight local time for comparison
+        const normalizeDate = (dateInput) => {
+            if (!dateInput) return null;
+
+            if (typeof dateInput === 'string') {
+                // Parse date string as YYYY-MM-DD
+                const parts = dateInput.split('-');
+                if (parts.length === 3) {
+                    // Create date in local timezone at midnight
+                    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0, 0, 0, 0);
+                }
+            }
+
+            // For Date objects, normalize to midnight
+            const date = new Date(dateInput);
+            date.setHours(0, 0, 0, 0);
+            return date;
+        };
+
+        // Filter by employment dates - only show users employed during the visible week
+        const weekStartDate = normalizeDate(currentWeekStart);
+        const weekEndDate = normalizeDate(addDays(currentWeekStart, 6)); // Saturday to Friday (7 days)
+
+        usersToDisplay = usersToDisplay.filter(user => {
+            // Check if user was employed during the visible week
+            const hireDate = user.hire_date ? normalizeDate(user.hire_date) : null;
+            const terminationDate = user.termination_date ? normalizeDate(user.termination_date) : null;
+
+            // User must have started before or during the visible week
+            const startedBeforeOrDuringWeek = !hireDate || hireDate <= weekEndDate;
+
+            // User must still be employed or left after (or on) the week started
+            const stillEmployedOrLeftAfterWeekStart = !terminationDate || terminationDate >= weekStartDate;
+
+            return startedBeforeOrDuringWeek && stillEmployedOrLeftAfterWeekStart;
+        });
+
         if (filterDepartments.length > 0) {
             usersToDisplay = usersToDisplay.filter(user => filterDepartments.includes(user.department));
         }
