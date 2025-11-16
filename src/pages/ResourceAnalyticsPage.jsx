@@ -66,17 +66,38 @@ const ResourceAnalyticsPage = () => {
     const DAYS_OF_WEEK = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-    // Fetch users
+    // Fetch users (both real and dummy users)
     const fetchUsers = async () => {
         try {
-            const { data, error } = await supabase
-                .from('users')
-                .select('id, username, name, privilege, avatar, email, department')
-                .is('deleted_at', null)
-                .order('name');
+            // Fetch both real users and dummy users in parallel
+            const [realUsersResult, dummyUsersResult] = await Promise.all([
+                supabase
+                    .from('users')
+                    .select('id, username, name, privilege, avatar, email, department')
+                    .is('deleted_at', null)
+                    .order('name'),
+                supabase
+                    .from('dummy_users')
+                    .select('id, username, name, privilege, avatar, email, department')
+                    .order('name')
+            ]);
 
-            if (error) throw error;
-            setAllUsers(data || []);
+            const { data: realData, error: realError } = realUsersResult;
+            const { data: dummyData, error: dummyError } = dummyUsersResult;
+
+            if (realError && dummyError) {
+                throw realError || dummyError;
+            }
+
+            // Combine both user lists
+            const allUsersData = [
+                ...(realData || []),
+                ...(dummyData || []).map(user => ({ ...user, isDummy: true })) // Mark dummy users
+            ];
+
+            console.log(`👥 Loaded ${realData?.length || 0} real users, ${dummyData?.length || 0} dummy users (Total: ${allUsersData.length})`);
+
+            setAllUsers(allUsersData);
         } catch (err) {
             console.error('Error fetching users:', err);
         }
@@ -126,14 +147,67 @@ const ResourceAnalyticsPage = () => {
             setLoading(true);
             setError(null);
 
-            const { data, error } = await supabase
-                .from('resource_allocations')
-                .select('*')
-                .order('allocation_date', { ascending: false });
+            // Fetch allocations from both tables using pagination to get ALL records
+            // PostgREST has a server-side max limit (often 3000), so we need to paginate
+            const fetchAllWithPagination = async (tableName) => {
+                let allData = [];
+                let from = 0;
+                const pageSize = 1000;
+                let hasMore = true;
 
-            if (error) throw error;
+                while (hasMore) {
+                    const { data, error } = await supabase
+                        .from(tableName)
+                        .select('*')
+                        .order('allocation_date', { ascending: false })
+                        .range(from, from + pageSize - 1);
 
-            setAllocations(data || []);
+                    if (error) throw error;
+
+                    if (data && data.length > 0) {
+                        allData = allData.concat(data);
+                        from += pageSize;
+                        hasMore = data.length === pageSize;
+                    } else {
+                        hasMore = false;
+                    }
+                }
+
+                return allData;
+            };
+
+            // Fetch from both tables in parallel
+            const [realData, dummyData] = await Promise.all([
+                fetchAllWithPagination('resource_allocations'),
+                fetchAllWithPagination('dummy_resource_allocations')
+            ]);
+
+            // Combine data from both tables
+            const allData = [
+                ...(realData || []),
+                ...(dummyData || [])
+            ];
+
+            // Sort combined data by allocation_date descending
+            allData.sort((a, b) => new Date(b.allocation_date) - new Date(a.allocation_date));
+
+            // Count by type for logging
+            const projectCount = allData.filter(a => a.assignment_type === 'project').length;
+            const leaveCount = allData.filter(a => a.assignment_type === 'leave').length;
+            const statusCount = allData.filter(a => a.assignment_type === 'status').length;
+
+            console.log(`📊 Analytics Data Loaded:`, {
+                total: allData.length,
+                real: realData?.length || 0,
+                dummy: dummyData?.length || 0,
+                byType: {
+                    projects: projectCount,
+                    leave: leaveCount,
+                    status: statusCount
+                }
+            });
+
+            setAllocations(allData);
             setLastUpdated(new Date());
         } catch (err) {
             console.error('Error fetching resource allocations:', err);
@@ -461,45 +535,69 @@ const ResourceAnalyticsPage = () => {
                 endDate = null;
         }
 
-        return allocations.filter(allocation => {
+        // Count allocations at each filter stage for debugging
+        let debugCounts = {
+            initial: allocations.length,
+            afterDate: 0,
+            afterProject: 0,
+            afterClient: 0,
+            afterShift: 0,
+            afterDayOfWeek: 0,
+            afterMonth: 0,
+            afterLeave: 0,
+            afterUser: 0,
+            afterDepartment: 0,
+            final: 0
+        };
+
+        const filtered = allocations.filter(allocation => {
             const allocationDate = new Date(allocation.allocation_date);
 
             // Date filter
             if (startDate && allocationDate < startDate) return false;
             if (endDate && allocationDate > endDate) return false;
+            debugCounts.afterDate++;
 
             // Project filter
             if (selectedProjects.length > 0 && !selectedProjects.includes(allocation.project_number)) return false;
+            debugCounts.afterProject++;
 
             // Client filter
             if (selectedClients.length > 0 && !selectedClients.includes(allocation.client)) return false;
+            debugCounts.afterClient++;
 
             // Shift filter
             if (selectedShifts.length > 0 && !selectedShifts.includes(allocation.shift)) return false;
+            debugCounts.afterShift++;
 
             // Day of week filter
             if (selectedDaysOfWeek.length > 0) {
                 const dayIndex = (allocationDate.getDay() + 1) % 7; // Convert to Sat=0, Sun=1, etc.
                 if (!selectedDaysOfWeek.includes(DAYS_OF_WEEK[dayIndex])) return false;
             }
+            debugCounts.afterDayOfWeek++;
 
             // Month filter
             if (selectedMonths.length > 0) {
                 const monthName = MONTHS[allocationDate.getMonth()];
                 if (!selectedMonths.includes(monthName)) return false;
             }
+            debugCounts.afterMonth++;
 
             // Leave type filter
             if (selectedLeaveTypes.length > 0 && !selectedLeaveTypes.includes(allocation.leave_type)) return false;
+            debugCounts.afterLeave++;
 
             // User filter
             if (selectedUsers.length > 0 && !selectedUsers.includes(allocation.user_id)) return false;
+            debugCounts.afterUser++;
 
             // Department filter
             if (selectedDepartments.length > 0) {
                 const user = allUsers.find(u => u.id === allocation.user_id);
                 if (!user || !selectedDepartments.includes(user.department)) return false;
             }
+            debugCounts.afterDepartment++;
 
             // Status filter (for status assignments)
             if (selectedStatuses.length > 0 && allocation.assignment_type === 'status') {
@@ -507,10 +605,41 @@ const ResourceAnalyticsPage = () => {
                 // as the status value isn't stored directly in resource_allocations
             }
 
+            debugCounts.final++;
             return true;
         });
+
+        // Log detailed filter breakdown
+        console.log('🔍 Filter Breakdown:', {
+            dateRange,
+            startDate: startDate?.toISOString().split('T')[0],
+            endDate: endDate?.toISOString().split('T')[0],
+            activeFilters: {
+                projects: selectedProjects.length,
+                clients: selectedClients.length,
+                shifts: selectedShifts.length,
+                daysOfWeek: selectedDaysOfWeek.length,
+                months: selectedMonths.length,
+                users: selectedUsers.length,
+                departments: selectedDepartments.length,
+                leaveTypes: selectedLeaveTypes.length
+            },
+            counts: debugCounts
+        });
+
+        return filtered;
     }, [allocations, dateRange, customStartDate, customEndDate, selectedProjects, selectedClients,
         selectedShifts, selectedDaysOfWeek, selectedMonths, selectedLeaveTypes, selectedUsers, selectedDepartments, selectedStatuses, allUsers]);
+
+    // Log filtering results for debugging
+    useEffect(() => {
+        const projectAllocations = filteredAllocations.filter(a => a.assignment_type === 'project');
+        console.log(`📊 Analytics Filtering: ${allocations.length} total allocations → ${filteredAllocations.length} after filters (${projectAllocations.length} projects)`);
+
+        if (allocations.length > 0 && filteredAllocations.length === 0) {
+            console.warn('⚠️ All allocations filtered out! Check your filter settings.');
+        }
+    }, [allocations, filteredAllocations]);
 
     // Calculate comprehensive statistics
     const stats = useMemo(() => {

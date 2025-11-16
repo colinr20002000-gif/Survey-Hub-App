@@ -133,6 +133,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const calendarRef = useRef(null);
     const justClosedMenuRef = useRef(false);
     const [isExporting, setIsExporting] = useState(false);
+    const isSavingRef = useRef(false); // Track when save operations are in progress to prevent race conditions
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
     const [customShiftColors, setCustomShiftColors] = useState({});
     const [customLeaveColors, setCustomLeaveColors] = useState({});
@@ -323,6 +324,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     }, [customLeaveColors]);
 
     const getResourceAllocations = useCallback(async (silent = false) => {
+        // Skip reload if we're in the middle of a save operation to prevent race conditions
+        if (isSavingRef.current && silent) {
+            console.log('⏭️ Skipping reload - save operation in progress');
+            return;
+        }
+
         // Save scroll position before updating if in silent mode
         if (silent) {
             scrollPositionRef.current = window.scrollY || document.documentElement.scrollTop;
@@ -333,17 +340,42 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         }
         setError(null);
         try {
-            // Fetch allocations from both real users and dummy users tables
-            const [realAllocationsResult, dummyAllocationsResult] = await Promise.all([
-                supabase.from('resource_allocations').select('*'),
-                supabase.from('dummy_resource_allocations').select('*')
+            // Fetch allocations from both tables using pagination to get ALL records
+            // PostgREST has a server-side max limit (often 3000), so we need to paginate
+            const fetchAllWithPagination = async (tableName) => {
+                let allData = [];
+                let from = 0;
+                const pageSize = 1000;
+                let hasMore = true;
+
+                while (hasMore) {
+                    const { data, error } = await supabase
+                        .from(tableName)
+                        .select('*')
+                        .range(from, from + pageSize - 1);
+
+                    if (error) throw error;
+
+                    if (data && data.length > 0) {
+                        allData = allData.concat(data);
+                        from += pageSize;
+                        hasMore = data.length === pageSize;
+                    } else {
+                        hasMore = false;
+                    }
+                }
+
+                return allData;
+            };
+
+            // Fetch from both tables in parallel
+            const [realData, dummyData] = await Promise.all([
+                fetchAllWithPagination('resource_allocations'),
+                fetchAllWithPagination('dummy_resource_allocations')
             ]);
 
-            const { data: realData, error: realError } = realAllocationsResult;
-            const { data: dummyData, error: dummyError } = dummyAllocationsResult;
-
-                if (realError && dummyError) {
-                    console.error('Error fetching resource allocations:', realError, dummyError);
+                if (!realData && !dummyData) {
+                    console.error('Error fetching resource allocations');
                     setError('Failed to fetch allocations');
                     setAllocations({});
                     return;
@@ -354,6 +386,14 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     ...(realData || []),
                     ...(dummyData || [])
                 ];
+
+                // Log allocation counts for debugging
+                console.log(`📊 Loaded ${realData?.length || 0} real allocations, ${dummyData?.length || 0} dummy allocations (Total: ${allData.length})`);
+
+                // Warn if approaching the row limit
+                if (realData?.length >= 45000 || dummyData?.length >= 45000) {
+                    console.warn('⚠️ WARNING: Approaching row limit! Consider implementing pagination.');
+                }
 
                 const formattedAllocations = {};
 
@@ -447,6 +487,19 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
         console.log('🔌 Setting up real-time subscriptions for resource allocations...');
 
+        // Debounce timer for realtime updates to prevent excessive refetches
+        let realtimeDebounceTimer = null;
+
+        const debouncedReload = () => {
+            if (realtimeDebounceTimer) {
+                clearTimeout(realtimeDebounceTimer);
+            }
+            realtimeDebounceTimer = setTimeout(() => {
+                console.log('🔄 Reloading resource allocations (debounced, silent)...');
+                getResourceAllocations(true);
+            }, 500); // 500ms debounce to batch multiple rapid changes
+        };
+
         // Set up real-time subscriptions for resource allocations
         const realAllocationsSubscription = supabase
             .channel('resource-allocations-changes')
@@ -459,8 +512,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 },
                 (payload) => {
                     console.log('📅 Resource allocations changed:', payload.eventType, payload);
-                    console.log('🔄 Reloading resource allocations (silent)...');
-                    getResourceAllocations(true); // Reload all allocations silently without showing loading state
+                    debouncedReload();
                 }
             )
             .subscribe((status) => {
@@ -478,8 +530,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 },
                 (payload) => {
                     console.log('📅 Dummy resource allocations changed:', payload.eventType, payload);
-                    console.log('🔄 Reloading dummy resource allocations (silent)...');
-                    getResourceAllocations(true); // Reload all allocations silently without showing loading state
+                    debouncedReload();
                 }
             )
             .subscribe((status) => {
@@ -488,6 +539,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
         return () => {
             console.log('🔌 Unsubscribing from resource allocations...');
+            if (realtimeDebounceTimer) {
+                clearTimeout(realtimeDebounceTimer);
+            }
             realAllocationsSubscription.unsubscribe();
             dummyAllocationsSubscription.unsubscribe();
         };
@@ -850,6 +904,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         // Save current state to history before making changes
         saveToHistory();
 
+        // Set flag to prevent race conditions with realtime updates
+        isSavingRef.current = true;
+
         setAllocations(prev => {
             const newAllocations = JSON.parse(JSON.stringify(prev));
             if (!newAllocations[weekKey]) newAllocations[weekKey] = {};
@@ -1112,6 +1169,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     .insert([recordData]);
                 if (error) throw error;
             }
+
+            // Clear the saving flag after successful database operation
+            // Use setTimeout to allow realtime to catch up
+            setTimeout(() => {
+                isSavingRef.current = false;
+            }, 1000);
         } catch (err) {
             console.error('Error saving allocation to Supabase:', err);
             const errorMessage = handleSupabaseError(err, tableName, 'insert', recordData);
@@ -1120,6 +1183,11 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             } else {
                 showErrorModal(errorMessage, 'Failed to Save Allocation');
             }
+            // Clear the saving flag on error as well
+            isSavingRef.current = false;
+            // Reload allocations to revert the optimistic update
+            console.log('🔄 Reverting optimistic update due to save error...');
+            getResourceAllocations(true);
         }
     };
 
@@ -1134,6 +1202,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         const isDummyUser = user?.isDummy === true;
         const tableName = isDummyUser ? 'dummy_resource_allocations' : 'resource_allocations';
         const allocationDateString = formatDateForKey(date);
+
+        // Set flag to prevent race conditions with realtime updates
+        isSavingRef.current = true;
 
         try {
             // Get remaining items after removing the specific one
@@ -1190,6 +1261,11 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
                 if (insertError) throw insertError;
             }
+
+            // Clear the saving flag after successful database operation
+            setTimeout(() => {
+                isSavingRef.current = false;
+            }, 1000);
         } catch (err) {
             console.error('Error deleting individual item:', err);
             const errorMessage = handleSupabaseError(err, tableName, 'delete', null);
@@ -1198,6 +1274,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             } else {
                 showErrorModal(errorMessage, 'Failed to Delete Item');
             }
+            // Clear the saving flag on error as well
+            isSavingRef.current = false;
             // Refresh allocations to revert UI changes
             getResourceAllocations(true);
         }
