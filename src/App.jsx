@@ -595,8 +595,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                 { name: 'Resource Calendar', parent: 'Project Team', show: can('VIEW_RESOURCE_CALENDAR') },
                 { name: 'Equipment Calendar', parent: 'Project Team', show: can('VIEW_EQUIPMENT_CALENDAR') },
                 { name: 'Project Tasks', parent: 'Project Team', show: can('VIEW_TASKS') },
-                { name: 'Equipment', parent: 'Project Team', show: can('VIEW_EQUIPMENT') },
-                { name: 'Vehicles', parent: 'Project Team', show: can('VIEW_VEHICLES') }
+                { name: 'Equipment', parent: 'Project Team', show: can('VIEW_EQUIPMENT') }
             ]
         },
         {
@@ -648,6 +647,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             show: can('VIEW_VEHICLES'),
             isGroup: true,
             subItems: [
+                { name: 'Vehicle Management', parent: 'Vehicles', show: can('VIEW_VEHICLES') },
                 { name: 'Mileage Logs', parent: 'Vehicles', show: can('VIEW_VEHICLES') }
             ]
         },
@@ -686,10 +686,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     };
 
     const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Tasks';
-    const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Equipment Calendar' || activeTab === 'Project Tasks' || activeTab === 'Equipment' || activeTab === 'Vehicles';
+    const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Equipment Calendar' || activeTab === 'Project Tasks' || activeTab === 'Equipment';
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
     const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
-    const isVehiclesActive = activeTab === 'Mileage Logs';
+    const isVehiclesActive = activeTab === 'Vehicle Management' || activeTab === 'Mileage Logs';
 
     // Close sidebar when clicking outside in mobile mode
     useEffect(() => {

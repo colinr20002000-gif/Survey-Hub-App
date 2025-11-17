@@ -11,7 +11,7 @@ const VehicleMileageLogsPage = () => {
     const [assignments, setAssignments] = useState([]);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [filterUser, setFilterUser] = useState('all');
     const [filterStatus, setFilterStatus] = useState('all'); // all, overdue, upcoming, compliant
     const [showInspectionModal, setShowInspectionModal] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
@@ -143,12 +143,13 @@ const VehicleMileageLogsPage = () => {
         return users.find(u => u.id === userId);
     };
 
-    // Filter vehicles based on search and status
+    // Filter vehicles based on user and status
     const filteredVehicles = vehicles.filter(vehicle => {
-        const matchesSearch = vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (vehicle.serial_number && vehicle.serial_number.toLowerCase().includes(searchTerm.toLowerCase()));
-
-        if (!matchesSearch) return false;
+        // Filter by assigned user
+        if (filterUser !== 'all') {
+            const assignedUser = getAssignedUser(vehicle.id);
+            if (!assignedUser || assignedUser.id !== filterUser) return false;
+        }
 
         if (filterStatus === 'all') return true;
 
@@ -326,21 +327,24 @@ const VehicleMileageLogsPage = () => {
                     </Card>
                     </div>
 
-                    {/* Search and Filter */}
+                    {/* Filters */}
                     <div className="flex flex-col sm:flex-row gap-2 md:gap-4 mt-3 md:mt-4">
-                    <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                        <Input
-                            type="text"
-                            placeholder="Search by vehicle name or serial number..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10"
-                        />
-                    </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-1">
                         <Filter className="w-5 h-5 text-gray-400" />
-                        <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                        <Select value={filterUser} onChange={(e) => setFilterUser(e.target.value)} className="flex-1">
+                            <option value="all">All Users</option>
+                            {users
+                                .filter(u => assignments.some(a => (a.user_id === u.id || a.dummy_user_id === u.id) && !a.returned_at))
+                                .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                                .map(u => (
+                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                ))
+                            }
+                        </Select>
+                    </div>
+                    <div className="flex items-center space-x-2 flex-1">
+                        <Filter className="w-5 h-5 text-gray-400" />
+                        <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="flex-1">
                             <option value="all">All Status</option>
                             <option value="compliant">Compliant</option>
                             <option value="upcoming">Due Soon</option>
@@ -443,8 +447,8 @@ const VehicleMileageLogsPage = () => {
                         <Car className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No vehicles found</h3>
                         <p className="text-gray-500 dark:text-gray-400">
-                            {searchTerm || filterStatus !== 'all'
-                                ? 'Try adjusting your search or filters'
+                            {filterUser !== 'all' || filterStatus !== 'all'
+                                ? 'Try adjusting your filters'
                                 : 'No vehicles are currently tracked in the system'}
                         </p>
                     </div>
@@ -569,38 +573,41 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
 
         setUploading(true);
         try {
-            const uploadPromises = files.map(async (file) => {
-                // Compress image
-                const compressedBlob = await compressImage(file);
+            const file = files[0]; // Take only the first file since we removed multiple
 
-                // Generate unique filename
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-                const filePath = `vehicle-inspections/${vehicle.id}/${fileName}`;
+            // Compress image
+            const compressedBlob = await compressImage(file);
 
-                // Upload to Supabase Storage
-                const { data, error } = await supabase.storage
-                    .from('vehicle-photos')
-                    .upload(filePath, compressedBlob, {
-                        contentType: 'image/jpeg',
-                        cacheControl: '3600'
-                    });
+            // Generate unique filename
+            const fileExt = file.name.split('.').pop() || 'jpg';
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+            const filePath = `vehicle-inspections/${vehicle.id}/${fileName}`;
 
-                if (error) throw error;
+            // Upload to Supabase Storage
+            const { data, error } = await supabase.storage
+                .from('vehicle-photos')
+                .upload(filePath, compressedBlob, {
+                    contentType: 'image/jpeg',
+                    cacheControl: '3600'
+                });
 
-                // Get public URL
-                const { data: { publicUrl } } = supabase.storage
-                    .from('vehicle-photos')
-                    .getPublicUrl(filePath);
+            if (error) {
+                console.error('Supabase upload error:', error);
+                throw error;
+            }
 
-                return { url: publicUrl, path: filePath };
-            });
+            // Get public URL
+            const { data: { publicUrl } } = supabase.storage
+                .from('vehicle-photos')
+                .getPublicUrl(filePath);
 
-            const uploadedUrls = await Promise.all(uploadPromises);
-            setUploadedImages(prev => [...prev, ...uploadedUrls]);
+            setUploadedImages(prev => [...prev, { url: publicUrl, path: filePath }]);
+
+            // Reset the input so user can take another photo
+            e.target.value = '';
         } catch (error) {
-            console.error('Error uploading images:', error);
-            alert('Error uploading images. Please try again.');
+            console.error('Error uploading image:', error);
+            alert(`Error uploading image: ${error.message}. Please try again.`);
         } finally {
             setUploading(false);
         }
@@ -816,7 +823,7 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                             Damage Photos (Optional)
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                            Upload photos of any damage or issues found
+                            Take photos with your camera of any damage or issues found
                         </p>
 
                         {/* Upload Button */}
@@ -830,9 +837,9 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                                         </>
                                     ) : (
                                         <>
-                                            <Upload className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                            <Camera className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Choose Photos or Use Camera
+                                                Take Photo with Camera
                                             </span>
                                         </>
                                     )}
@@ -840,7 +847,6 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                                 <input
                                     type="file"
                                     accept="image/*"
-                                    multiple
                                     capture="environment"
                                     onChange={handleImageUpload}
                                     disabled={uploading}
