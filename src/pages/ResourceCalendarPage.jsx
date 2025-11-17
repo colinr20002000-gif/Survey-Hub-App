@@ -934,6 +934,13 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     }, [handleUndo]);
 
     const handleSaveAllocation = async (allocationData, cellToUpdate = selectedCell, isSecondProject = false, isSecondLeave = false) => {
+        console.log('🎯 handleSaveAllocation called with:', {
+            allocationData,
+            userId: cellToUpdate.userId,
+            isSecondProject,
+            isSecondLeave
+        });
+
         const { userId } = cellToUpdate;
         const weekKey = formatDateForKey(getWeekStartDate(cellToUpdate.date));
         const dayIndex = (cellToUpdate.date.getDay() + 1) % 7; // Saturday = 0, Sunday = 1, etc.
@@ -1124,6 +1131,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     leave_type: null
                 };
 
+                console.log('📤 Inserting second project to', tableName, ':', recordData);
+
                 const { error } = await supabase
                     .from(tableName)
                     .insert([recordData]);
@@ -1200,6 +1209,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
                     if (deleteError) throw deleteError;
                 }
+
+                console.log('📤 Inserting single allocation to', tableName, ':', recordData);
 
                 const { error } = await supabase
                     .from(tableName)
@@ -2707,7 +2718,23 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
         if (leaveType) {
             onSave({ type: 'leave', leaveType: leaveType, comment: formData.comment || '' });
         } else {
-            onSave(formData);
+            // If manual entry was used and we have a project number but no projectId,
+            // try to look up the project to get its UUID
+            let dataToSave = { ...formData };
+
+            console.log('📝 AllocationModal handleSave - formData:', formData);
+
+            if (formData.projectNumber && !formData.projectId) {
+                const matchingProject = projects?.find(p => p.project_number === formData.projectNumber);
+                console.log('🔍 Looking up project by number:', formData.projectNumber, 'Found:', matchingProject);
+                if (matchingProject) {
+                    dataToSave.projectId = matchingProject.id;
+                    console.log('✅ Set projectId to:', matchingProject.id);
+                }
+            }
+
+            console.log('💾 AllocationModal sending to onSave:', dataToSave);
+            onSave(dataToSave);
         }
     };
 
@@ -2740,6 +2767,8 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     }, []);
 
     const handleProjectSelectFromDropdown = (project) => {
+        console.log('🎯 Selected project from dropdown:', project);
+        console.log('🔑 Project keys:', Object.keys(project));
         setFormData(prev => ({ ...prev, projectNumber: project.project_number, projectName: project.project_name, client: project.client, projectId: project.id }));
         setIsDropdownOpen(false);
         setProjectSearch('');

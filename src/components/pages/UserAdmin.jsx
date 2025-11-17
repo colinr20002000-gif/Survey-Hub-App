@@ -1361,10 +1361,23 @@ const UserAdmin = () => {
       const { data, error } = await supabase
         .from('dummy_users')
         .insert([{
-          ...dummyUserForm,
+          name: dummyUserForm.name,
+          username: dummyUserForm.username,
+          email: dummyUserForm.email,
+          avatar: dummyUserForm.avatar || dummyUserForm.name.substring(0, 3).toUpperCase(),
+          team_role: dummyUserForm.team_role || null,
+          department: dummyUserForm.department || null,
+          organisation: dummyUserForm.organisation || null,
+          mobile_number: dummyUserForm.mobile_number || null,
+          privilege: dummyUserForm.privilege || 'Viewer',
+          competencies: dummyUserForm.competencies || null,
+          pts_number: dummyUserForm.pts_number || null,
+          available_saturday: dummyUserForm.available_saturday || false,
+          available_sunday: dummyUserForm.available_sunday || false,
+          hire_date: dummyUserForm.hire_date || null,
+          termination_date: dummyUserForm.termination_date || null,
           created_by: user.id,
-          updated_by: user.id,
-          avatar: dummyUserForm.avatar || dummyUserForm.name.substring(0, 3).toUpperCase()
+          updated_by: user.id
         }])
         .select();
 
@@ -1382,7 +1395,13 @@ const UserAdmin = () => {
         department: '',
         organisation: '',
         mobile_number: '',
-        privilege: 'Viewer'
+        privilege: 'Viewer',
+        competencies: '',
+        pts_number: '',
+        available_saturday: false,
+        available_sunday: false,
+        hire_date: '',
+        termination_date: ''
       });
       setShowAddDummyUser(false);
       alert('Dummy user created successfully');
@@ -3755,8 +3774,11 @@ const UserAdmin = () => {
       {/* Add Dummy User Modal */}
       {showAddDummyUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Dummy User</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Create a dummy user for resource planning. Dummy users don't have login access.
+            </p>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Name *</label>
@@ -3876,38 +3898,6 @@ const UserAdmin = () => {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Competencies</label>
-                <div className="mt-1 border border-gray-300 rounded-md p-3 bg-white max-h-40 overflow-y-auto">
-                  {competencies.map(comp => {
-                    const selectedCompetencies = dummyUserForm.competencies ? dummyUserForm.competencies.split(',').map(c => c.trim()) : [];
-                    return (
-                      <label key={comp} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                        <input
-                          type="checkbox"
-                          checked={selectedCompetencies.includes(comp)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              const updated = selectedCompetencies.length > 0
-                                ? [...selectedCompetencies, comp].join(', ')
-                                : comp;
-                              setDummyUserForm(prev => ({ ...prev, competencies: updated }));
-                            } else {
-                              const updated = selectedCompetencies.filter(c => c !== comp);
-                              setDummyUserForm(prev => ({ ...prev, competencies: updated.join(', ') }));
-                            }
-                          }}
-                          className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
-                        />
-                        <span className="text-sm">{comp}</span>
-                      </label>
-                    );
-                  })}
-                  {competencies.length === 0 && (
-                    <p className="text-xs text-gray-500">No competencies available. Please add them in Dropdown Menu Management.</p>
-                  )}
-                </div>
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700">PTS Number</label>
                 <input
                   type="text"
@@ -3918,45 +3908,23 @@ const UserAdmin = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Weekend Availability</label>
-                <div className="space-y-2">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={dummyUserForm.available_saturday}
-                      onChange={(e) => setDummyUserForm(prev => ({ ...prev, available_saturday: e.target.checked }))}
-                      className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
-                    />
-                    <span className="text-sm">Available Saturdays</span>
-                  </label>
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={dummyUserForm.available_sunday}
-                      onChange={(e) => setDummyUserForm(prev => ({ ...prev, available_sunday: e.target.checked }))}
-                      className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
-                    />
-                    <span className="text-sm">Available Sundays</span>
-                  </label>
-                </div>
+                <label className="block text-sm font-medium text-gray-700">Hire Date</label>
+                <input
+                  type="date"
+                  value={dummyUserForm.hire_date}
+                  onChange={(e) => setDummyUserForm(prev => ({ ...prev, hire_date: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Privilege</label>
-                <select
-                  value={dummyUserForm.privilege}
-                  onChange={(e) => setDummyUserForm(prev => ({ ...prev, privilege: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-900"
-                  style={{
-                    backgroundColor: 'white',
-                    color: '#111827'
-                  }}
-                >
-                  <option value="Viewer" style={{ backgroundColor: 'white', color: '#111827' }}>Viewer</option>
-                  <option value="Viewer+" style={{ backgroundColor: 'white', color: '#111827' }}>Viewer+</option>
-                  <option value="Editor" style={{ backgroundColor: 'white', color: '#111827' }}>Editor</option>
-                  <option value="Editor+" style={{ backgroundColor: 'white', color: '#111827' }}>Editor+</option>
-                  {isSuperAdmin && <option value="Admin" style={{ backgroundColor: 'white', color: '#111827' }}>Admin</option>}
-                </select>
+                <label className="block text-sm font-medium text-gray-700">Termination Date</label>
+                <input
+                  type="date"
+                  value={dummyUserForm.termination_date}
+                  onChange={(e) => setDummyUserForm(prev => ({ ...prev, termination_date: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Leave blank for active employees"
+                />
               </div>
             </div>
             <div className="mt-6 flex justify-end space-x-3">
