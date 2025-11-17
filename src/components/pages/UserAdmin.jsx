@@ -67,6 +67,23 @@ const UserAdmin = () => {
     termination_date: ''
   });
 
+  // Invite user states (same as real user but without password)
+  const [showInviteUser, setShowInviteUser] = useState(false);
+  const [inviteUserForm, setInviteUserForm] = useState({
+    name: '',
+    username: '',
+    email: '',
+    privilege: 'Viewer',
+    team_role: '',
+    department: '',
+    organisation: '',
+    mobile_number: '',
+    avatar: '',
+    pts_number: '',
+    hire_date: '',
+    termination_date: ''
+  });
+
   // Dummy user states
   const [showAddDummyUser, setShowAddDummyUser] = useState(false);
   const [dummyUserForm, setDummyUserForm] = useState({
@@ -1221,6 +1238,105 @@ const UserAdmin = () => {
     }
   };
 
+  const sendInvite = async () => {
+    try {
+      // Validate required fields (no password needed for invite)
+      if (!inviteUserForm.name || !inviteUserForm.username || !inviteUserForm.email) {
+        alert('Please fill in all required fields (Name, Username, Email)');
+        return;
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(inviteUserForm.email)) {
+        alert('Please enter a valid email address');
+        return;
+      }
+
+      // Prepare the request body
+      const requestBody = {
+        email: inviteUserForm.email,
+        name: inviteUserForm.name,
+        username: inviteUserForm.username,
+        privilege: inviteUserForm.privilege,
+        teamRole: inviteUserForm.team_role,
+        department: inviteUserForm.department,
+        organisation: inviteUserForm.organisation,
+        mobile_number: inviteUserForm.mobile_number,
+        avatar: inviteUserForm.avatar || inviteUserForm.name.split(' ').map(n => n[0]).join('').substring(0, 3),
+        pts_number: inviteUserForm.pts_number,
+        hire_date: inviteUserForm.hire_date || null,
+        termination_date: inviteUserForm.termination_date || null
+      };
+
+      console.log('📤 Sending invite request to Edge Function:', JSON.stringify(requestBody, null, 2));
+
+      // Call the Edge Function to invite user
+      const { data, error } = await supabase.functions.invoke('invite-user', {
+        body: requestBody
+      });
+
+      console.log('📡 Edge Function response:', { data, error });
+
+      // Check if there's an error response in data
+      if (data && !data.success) {
+        const errorMsg = data.error || 'Failed to invite user';
+        console.error('❌ Edge Function returned error:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      if (error) {
+        console.error('❌ Error calling invite-user function:', error);
+        console.error('❌ Error context:', error.context);
+
+        // Try to read the response body if available
+        if (error.context && error.context instanceof Response) {
+          try {
+            const responseBody = await error.context.text();
+            console.error('❌ Response body:', responseBody);
+            const parsedError = JSON.parse(responseBody);
+            if (parsedError.error) {
+              throw new Error(parsedError.error);
+            }
+          } catch (parseError) {
+            console.error('❌ Could not parse error response:', parseError);
+          }
+        }
+
+        const errorMessage = error.message || error.toString();
+        throw new Error(`Failed to call Edge Function: ${errorMessage}`);
+      }
+
+      if (!data) {
+        throw new Error('No response data from Edge Function');
+      }
+
+      // Refresh the users list
+      await fetchUsers();
+
+      // Reset form
+      setInviteUserForm({
+        name: '',
+        username: '',
+        email: '',
+        privilege: 'Viewer',
+        team_role: '',
+        department: '',
+        organisation: '',
+        mobile_number: '',
+        avatar: '',
+        pts_number: '',
+        hire_date: '',
+        termination_date: ''
+      });
+      setShowInviteUser(false);
+      alert(`Invitation sent successfully to ${inviteUserForm.email}! They will receive an email to set their password.`);
+    } catch (err) {
+      console.error('Error inviting user:', err);
+      alert(`Error inviting user: ${err.message}`);
+    }
+  };
+
   const handleAddRealUserClick = () => {
     // Refresh dropdown data before opening modal
     fetchTeamRoles();
@@ -1761,6 +1877,12 @@ const UserAdmin = () => {
                   className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 text-sm"
                 >
                   Add Real User
+                </button>
+                <button
+                  onClick={() => setShowInviteUser(true)}
+                  className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 text-sm"
+                >
+                  Invite User
                 </button>
                 <button
                   onClick={fetchUsers}
@@ -3455,6 +3577,171 @@ const UserAdmin = () => {
                 </button>
                 <button
                   onClick={() => setShowAddRealUser(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite User Modal */}
+      {showInviteUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Invite New User</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Send an invitation email to create a new user account. They will set their own password.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Full Name *</label>
+                <input
+                  type="text"
+                  value={inviteUserForm.name}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Username *</label>
+                <input
+                  type="text"
+                  value={inviteUserForm.username}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, username: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  placeholder="john.doe"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email *</label>
+                <input
+                  type="email"
+                  value={inviteUserForm.email}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, email: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  placeholder="john.doe@example.com"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">An invitation email will be sent to this address</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Privilege</label>
+                <select
+                  value={inviteUserForm.privilege}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, privilege: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white"
+                >
+                  <option value="Viewer">Viewer</option>
+                  <option value="Viewer+">Viewer+</option>
+                  <option value="Editor">Editor</option>
+                  <option value="Editor+">Editor+</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Team Role</label>
+                <select
+                  value={inviteUserForm.team_role}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, team_role: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white"
+                >
+                  <option value="">Select Team Role</option>
+                  {teamRoles.map((role, index) => (
+                    <option key={`team-role-${index}`} value={role}>{role}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Hire Date</label>
+                <input
+                  type="date"
+                  value={inviteUserForm.hire_date}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, hire_date: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Termination Date</label>
+                <input
+                  type="date"
+                  value={inviteUserForm.termination_date}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, termination_date: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  placeholder="Leave blank for active employees"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Department</label>
+                <select
+                  value={inviteUserForm.department}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, department: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white"
+                >
+                  <option value="">Select Department</option>
+                  {departments.map((dept, index) => (
+                    <option key={`dept-${index}`} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Organisation</label>
+                <select
+                  value={inviteUserForm.organisation}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, organisation: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white"
+                >
+                  <option value="">Select Organisation</option>
+                  {organisations.map((org, index) => (
+                    <option key={`org-${index}`} value={org}>{org}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Mobile Number</label>
+                <input
+                  type="tel"
+                  value={inviteUserForm.mobile_number}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, mobile_number: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  placeholder="Enter mobile number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Avatar (max 3 chars)</label>
+                <input
+                  type="text"
+                  value={inviteUserForm.avatar}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, avatar: e.target.value.substring(0, 3) }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  placeholder="Auto-generated from name if empty"
+                  maxLength="3"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">PTS Number</label>
+                <input
+                  type="text"
+                  value={inviteUserForm.pts_number}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, pts_number: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  placeholder="Enter PTS number"
+                />
+              </div>
+              <div className="flex gap-2 pt-4">
+                <button
+                  onClick={sendInvite}
+                  className="flex-1 bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600"
+                >
+                  Send Invitation
+                </button>
+                <button
+                  onClick={() => setShowInviteUser(false)}
                   className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
                 >
                   Cancel

@@ -463,9 +463,41 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        // Quick check: verify user is not deleted before setting temporary user
+        // Quick check: verify user still exists in Supabase Auth and is not deleted
         // Add timeout to prevent hanging on mobile/slow connections
         try {
+          // First, verify the user actually exists in Supabase Auth
+          console.log('🔐 Verifying auth user exists (initial session)...');
+          const authUserCheckPromise = supabase.auth.getUser();
+          const authTimeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Auth user check timeout')), 3000)
+          );
+
+          const { data: authData, error: authError } = await Promise.race([
+            authUserCheckPromise,
+            authTimeoutPromise
+          ]);
+
+          // If the auth user doesn't exist or there's an auth error, sign them out
+          if (authError || !authData?.user) {
+            console.error('🚫 Auth user does not exist or error occurred (initial session):', authError);
+            setUser(null);
+            setIsLoading(false);
+            setPushSubscriptionAttempted(false);
+
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              console.error('Sign out error:', signOutError);
+            }
+
+            alert('Your account no longer exists. Please contact an administrator if you believe this is an error.');
+            return;
+          }
+
+          console.log('✅ Auth user exists (initial session), checking deletion status...');
+
+          // Now check if user is soft-deleted in users table
           const deletionCheckPromise = supabase
             .from('users')
             .select('id, deleted_at')
@@ -658,9 +690,41 @@ export const AuthProvider = ({ children }) => {
           console.log('🔐 MFA_CHALLENGE_VERIFIED event - skipping AAL check, MFA already verified');
         }
 
-        // Quick check: verify user is not deleted before setting temporary user
+        // Quick check: verify user still exists in Supabase Auth and is not deleted
         // Add timeout to prevent hanging on mobile/slow connections
         try {
+          // First, verify the user actually exists in Supabase Auth
+          console.log('🔐 Verifying auth user exists...');
+          const authUserCheckPromise = supabase.auth.getUser();
+          const authTimeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Auth user check timeout')), 3000)
+          );
+
+          const { data: authData, error: authError } = await Promise.race([
+            authUserCheckPromise,
+            authTimeoutPromise
+          ]);
+
+          // If the auth user doesn't exist or there's an auth error, sign them out
+          if (authError || !authData?.user) {
+            console.error('🚫 Auth user does not exist or error occurred:', authError);
+            setUser(null);
+            setIsLoading(false);
+            setPushSubscriptionAttempted(false);
+
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              console.error('Sign out error:', signOutError);
+            }
+
+            alert('Your account no longer exists. Please contact an administrator if you believe this is an error.');
+            return;
+          }
+
+          console.log('✅ Auth user exists, checking deletion status...');
+
+          // Now check if user is soft-deleted in users table
           const deletionCheckPromise = supabase
             .from('users')
             .select('id, deleted_at')

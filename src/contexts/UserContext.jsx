@@ -155,6 +155,53 @@ export const UserProvider = ({ children }) => {
         }
     }, []);
 
+    const inviteUser = useCallback(async (userData) => {
+        try {
+            // Get the current session token
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (!session) {
+                throw new Error('No active session');
+            }
+
+            // Call the Edge Function to invite user
+            const { data, error } = await supabase.functions.invoke('invite-user', {
+                body: {
+                    email: userData.email,
+                    name: userData.name,
+                    username: userData.username,
+                    privilege: userData.privilege,
+                    teamRole: userData.team_role || userData.teamRole,
+                    department: userData.department,
+                    organisation: userData.organisation,
+                    mobile_number: userData.mobile_number,
+                    avatar: userData.avatar,
+                    pts_number: userData.pts_number,
+                    hire_date: userData.hire_date,
+                    termination_date: userData.termination_date
+                }
+            });
+
+            if (error) {
+                console.error('Error calling invite-user function:', error);
+                throw error;
+            }
+
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to invite user');
+            }
+
+            // Add the new user to local state
+            setUsers(prev => [...prev, data.user].sort((a, b) => a.name.localeCompare(b.name)));
+
+            return { success: true, user: data.user };
+        } catch (error) {
+            console.error('Error inviting user:', error);
+            alert(`Error inviting user: ${error.message}`);
+            return { success: false, error: error.message };
+        }
+    }, []);
+
     const updateUser = useCallback(async (updatedUser) => {
         const { data, error } = await supabase
             .from('users')
@@ -191,12 +238,13 @@ export const UserProvider = ({ children }) => {
         users,
         addUser,
         addAuthUser,
+        inviteUser,
         updateUser,
         deleteUser,
         loading,
         error,
         refreshUsers: getUsers
-    }), [users, addUser, addAuthUser, updateUser, deleteUser, loading, error, getUsers]);
+    }), [users, addUser, addAuthUser, inviteUser, updateUser, deleteUser, loading, error, getUsers]);
 
     return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 };
