@@ -68,7 +68,7 @@ const ProjectsPage = ({ onViewProject }) => {
     const totalPages = useMemo(() => {
         if (!sortedProjects || sortedProjects.length === 0 || !itemsPerPage || itemsPerPage <= 0) return 0;
         return Math.ceil(sortedProjects.length / itemsPerPage);
-    }, [sortedProjects, itemsPerPage]);
+    }, [sortedProjects, itemsPerPage]) || 0;
 
     const paginatedProjects = useMemo(() => {
         if (!sortedProjects || sortedProjects.length === 0) return [];
@@ -311,11 +311,11 @@ const ProjectsPage = ({ onViewProject }) => {
             {/* Pagination */}
             <div className="mt-4">
                 <Pagination
-                    currentPage={currentPage}
+                    currentPage={currentPage || 1}
                     setCurrentPage={setCurrentPage}
                     totalPages={totalPages || 0}
                     totalItems={sortedProjects?.length || 0}
-                    itemsPerPage={itemsPerPage}
+                    itemsPerPage={itemsPerPage || 25}
                     setItemsPerPage={setItemsPerPage}
                 />
             </div>

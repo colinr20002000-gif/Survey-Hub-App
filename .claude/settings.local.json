@@ -8,7 +8,16 @@
       "Bash(npm run build:*)",
       "Bash(npx supabase:*)",
       "mcp__Supabase__get_logs",
-      "mcp__Supabase__apply_migration"
+      "mcp__Supabase__apply_migration",
+      "Bash(taskkill:*)",
+      "Bash(NUL)",
+      "Bash(exit 0)",
+      "Bash(if exist node_modules.vite rmdir /s /q node_modules.vite)",
+      "Bash(rd /s /q \"node_modules\\.vite\" 2)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(.gitignore)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
