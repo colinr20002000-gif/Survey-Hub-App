@@ -107,6 +107,15 @@ const userPrivileges = {
         canViewAuditTrail: false,
         canViewAnalytics: true,
     },
+    'Editor+': {
+        level: 1.5,
+        canEditProjects: true,
+        canViewAssignedTasks: true,
+        canViewUserAdmin: false,
+        canEditUserAdmin: false,
+        canViewAuditTrail: false,
+        canViewAnalytics: true,
+    },
     'Subcontractor': {
         level: 2,
         canEditProjects: false,
@@ -1091,7 +1100,7 @@ const DeliveryTrackerContent = () => {
 
 const UserAdminPage = () => {
     // MODIFICATION 1: Get data and functions from the new useUsers hook
-    const { users, addUser, updateUser, deleteUser, loading, error } = useUsers();
+    const { users, addUser, addAuthUser, updateUser, deleteUser, loading, error } = useUsers();
     const { teamRoles } = useTeamRoles();
     const { createAuditLog } = useAuditTrail();
 
@@ -1109,7 +1118,7 @@ const UserAdminPage = () => {
     const [userToResetMFA, setUserToResetMFA] = useState(null);
     const [mfaStatuses, setMfaStatuses] = useState({});
     const { user: currentUser } = useAuth();
-    const privileges = userPrivileges[currentUser.privilege];
+    const privileges = currentUser?.privilege ? userPrivileges[currentUser.privilege] : {};
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
@@ -1126,11 +1135,20 @@ const UserAdminPage = () => {
         if (userToEdit) {
             await updateUser({ ...userToEdit, ...userRecord });
         } else {
-            const newUser = { 
-                ...userRecord, 
-                avatar: userRecord.name.split(' ').map(n => n[0]).join(''),
-            };
-            await addUser(newUser);
+            // Check if we should create an auth user or just a database user
+            if (userData.createAuthUser) {
+                const result = await addAuthUser(userRecord);
+                if (!result.success) {
+                    // Error already shown by addAuthUser
+                    return;
+                }
+            } else {
+                const newUser = {
+                    ...userRecord,
+                    avatar: userRecord.name.split(' ').map(n => n[0]).join(''),
+                };
+                await addUser(newUser);
+            }
         }
         setIsModalOpen(false);
         setUserToEdit(null);
@@ -1262,6 +1280,10 @@ const UserAdminPage = () => {
     }, [filteredUsers, sortConfig]);
     
     // MODIFICATION 4: Add loading and error states
+    if (!currentUser) {
+        return <div className="p-8 text-2xl font-semibold text-center">Loading...</div>;
+    }
+
     if (loading) {
         return <div className="p-8 text-2xl font-semibold text-center">Loading Users...</div>;
     }
@@ -1381,8 +1403,10 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
         teamRole: 'site_team',
         password: '',
         hire_date: '',
-        termination_date: ''
+        termination_date: '',
+        createAuthUser: true // Default to creating auth users
     });
+    const [errors, setErrors] = useState({});
     const { teamRoles, loading: teamRolesLoading } = useTeamRoles();
 
     useEffect(() => {
@@ -1396,7 +1420,8 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
                 teamRole: user.team_role,
                 password: user.password || '',
                 hire_date: user.hire_date || '',
-                termination_date: user.termination_date || ''
+                termination_date: user.termination_date || '',
+                createAuthUser: false // Not applicable when editing
             });
         } else {
             // Set default to first available team role or fallback
@@ -1409,17 +1434,56 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
                 teamRole: defaultTeamRole,
                 password: '',
                 hire_date: '',
-                termination_date: ''
+                termination_date: '',
+                createAuthUser: true // Default to creating auth users for new users
             });
         }
     }, [user, isOpen, teamRoles]);
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+        setFormData({ ...formData, [e.target.name]: value });
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.email)) {
+            newErrors.email = 'Please enter a valid email address';
+        }
+
+        // Validate password for new auth users
+        if (!user && formData.createAuthUser) {
+            if (!formData.password || formData.password.length < 6) {
+                newErrors.password = 'Password must be at least 6 characters long';
+            }
+        }
+
+        // Validate required fields
+        if (!formData.name.trim()) {
+            newErrors.name = 'Name is required';
+        }
+        if (!formData.username.trim()) {
+            newErrors.username = 'Username is required';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        // Clear previous errors
+        setErrors({});
+
+        // Validate form
+        if (!validateForm()) {
+            return;
+        }
+
         onSave(formData);
     };
 
@@ -1427,18 +1491,30 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
         <Modal isOpen={isOpen} onClose={onClose} title={user ? 'Edit User' : 'Add User'}>
             <div className="p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <Input label="Full Name" name="name" value={formData.name} onChange={handleChange} required />
-                    <Input label="Username" name="username" value={formData.username} onChange={handleChange} required />
-                    <Input label="Email" name="email" type="email" value={formData.email} onChange={handleChange} required />
-                    <Input 
-                        label="Password" 
-                        name="password" 
-                        type="password" 
-                        value={formData.password} 
-                        onChange={handleChange} // This line was added
-                        placeholder={user ? "Leave blank to keep unchanged" : ""} 
-                        required={!user} 
-                    />
+                    <div>
+                        <Input label="Full Name" name="name" value={formData.name} onChange={handleChange} required />
+                        {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+                    </div>
+                    <div>
+                        <Input label="Username" name="username" value={formData.username} onChange={handleChange} required />
+                        {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username}</p>}
+                    </div>
+                    <div>
+                        <Input label="Email" name="email" type="email" value={formData.email} onChange={handleChange} required />
+                        {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+                    </div>
+                    <div>
+                        <Input
+                            label="Password"
+                            name="password"
+                            type="password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            placeholder={user ? "Leave blank to keep unchanged" : ""}
+                            required={!user && formData.createAuthUser}
+                        />
+                        {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+                    </div>
                     <Select label="Privilege" name="privilege" value={formData.privilege} onChange={handleChange}>
                         {Object.keys(userPrivileges).map(p => <option key={p}>{p}</option>)}
                     </Select>
@@ -1464,6 +1540,28 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
                         onChange={handleChange}
                         placeholder="Leave blank for active employees"
                     />
+                    {!user && (
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                            <label className="flex items-start space-x-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    name="createAuthUser"
+                                    checked={formData.createAuthUser}
+                                    onChange={handleChange}
+                                    className="mt-1 w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
+                                />
+                                <div>
+                                    <div className="font-semibold text-gray-900 dark:text-white">
+                                        Create Authentication User
+                                    </div>
+                                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                        If checked, this will create a real user in Supabase Auth who can log in to the application.
+                                        If unchecked, this will only create a user record in the database (useful for dummy users or references).
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    )}
                     <div className="flex justify-end space-x-2 pt-4">
                         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
                         <Button type="submit">Save</Button>

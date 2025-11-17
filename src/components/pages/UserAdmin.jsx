@@ -49,6 +49,24 @@ const UserAdmin = () => {
   const [isResetMFAModalOpen, setIsResetMFAModalOpen] = useState(false);
   const [userToResetMFA, setUserToResetMFA] = useState(null);
 
+  // Real user states
+  const [showAddRealUser, setShowAddRealUser] = useState(false);
+  const [realUserForm, setRealUserForm] = useState({
+    name: '',
+    username: '',
+    email: '',
+    password: '',
+    privilege: 'Viewer',
+    team_role: '',
+    department: '',
+    organisation: '',
+    mobile_number: '',
+    avatar: '',
+    pts_number: '',
+    hire_date: '',
+    termination_date: ''
+  });
+
   // Dummy user states
   const [showAddDummyUser, setShowAddDummyUser] = useState(false);
   const [dummyUserForm, setDummyUserForm] = useState({
@@ -1094,6 +1112,123 @@ const UserAdmin = () => {
     }
   };
 
+  // Real User CRUD Operations
+  const createRealUser = async () => {
+    try {
+      // Validate required fields
+      if (!realUserForm.name || !realUserForm.username || !realUserForm.email || !realUserForm.password) {
+        alert('Please fill in all required fields (Name, Username, Email, Password)');
+        return;
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(realUserForm.email)) {
+        alert('Please enter a valid email address');
+        return;
+      }
+
+      // Validate password length
+      if (realUserForm.password.length < 6) {
+        alert('Password must be at least 6 characters long');
+        return;
+      }
+
+      // Prepare the request body
+      const requestBody = {
+        email: realUserForm.email,
+        password: realUserForm.password,
+        name: realUserForm.name,
+        username: realUserForm.username,
+        privilege: realUserForm.privilege,
+        teamRole: realUserForm.team_role,
+        department: realUserForm.department,
+        organisation: realUserForm.organisation,
+        mobile_number: realUserForm.mobile_number,
+        avatar: realUserForm.avatar || realUserForm.name.split(' ').map(n => n[0]).join('').substring(0, 3),
+        pts_number: realUserForm.pts_number,
+        hire_date: realUserForm.hire_date || null,
+        termination_date: realUserForm.termination_date || null
+      };
+
+      console.log('📤 Sending request to Edge Function:', JSON.stringify(requestBody, null, 2));
+
+      // Call the Edge Function to create auth user
+      const { data, error } = await supabase.functions.invoke('create-auth-user', {
+        body: requestBody
+      });
+
+      console.log('📡 Edge Function response:', { data, error });
+
+      // Check if there's an error response in data (even when error is set)
+      if (data && !data.success) {
+        const errorMsg = data.error || 'Failed to create user';
+        console.error('❌ Edge Function returned error:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      if (error) {
+        console.error('❌ Error calling create-auth-user function:', error);
+        console.error('❌ Error context:', error.context);
+
+        // Try to read the response body if available
+        if (error.context && error.context instanceof Response) {
+          try {
+            const responseBody = await error.context.text();
+            console.error('❌ Response body:', responseBody);
+            const parsedError = JSON.parse(responseBody);
+            if (parsedError.error) {
+              throw new Error(parsedError.error);
+            }
+          } catch (parseError) {
+            console.error('❌ Could not parse error response:', parseError);
+          }
+        }
+
+        // Try to get more error details from the error object
+        const errorMessage = error.message || error.toString();
+        throw new Error(`Failed to call Edge Function: ${errorMessage}`);
+      }
+
+      if (!data) {
+        throw new Error('No response data from Edge Function');
+      }
+
+      // Refresh the users list
+      await fetchUsers();
+
+      // Reset form
+      setRealUserForm({
+        name: '',
+        username: '',
+        email: '',
+        password: '',
+        privilege: 'Viewer',
+        team_role: '',
+        department: '',
+        organisation: '',
+        mobile_number: '',
+        avatar: '',
+        pts_number: '',
+        hire_date: '',
+        termination_date: ''
+      });
+      setShowAddRealUser(false);
+      alert('User created successfully! They can now log in with their email and password.');
+    } catch (err) {
+      console.error('Error creating real user:', err);
+      alert(`Error creating user: ${err.message}`);
+    }
+  };
+
+  const handleAddRealUserClick = () => {
+    // Refresh dropdown data before opening modal
+    fetchTeamRoles();
+    fetchDepartments();
+    fetchOrganisations();
+    setShowAddRealUser(true);
+  };
+
   // Dummy User CRUD Operations
   const createDummyUser = async () => {
     if (!isAdmin) {
@@ -1620,12 +1755,20 @@ const UserAdmin = () => {
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-medium text-gray-900">Real Users</h2>
-              <button
-                onClick={fetchUsers}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 text-sm"
-              >
-                Refresh
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAddRealUserClick}
+                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 text-sm"
+                >
+                  Add Real User
+                </button>
+                <button
+                  onClick={fetchUsers}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 text-sm"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
           </div>
 
@@ -3142,6 +3285,183 @@ const UserAdmin = () => {
               <p className="mt-1 text-sm text-gray-500">All users are currently active.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Add Real User Modal */}
+      {showAddRealUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Real User</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This will create a real authentication user who can log in to the application.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Full Name *</label>
+                <input
+                  type="text"
+                  value={realUserForm.name}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Username *</label>
+                <input
+                  type="text"
+                  value={realUserForm.username}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, username: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="john.doe"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email *</label>
+                <input
+                  type="email"
+                  value={realUserForm.email}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, email: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="john.doe@example.com"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Password *</label>
+                <input
+                  type="password"
+                  value={realUserForm.password}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, password: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Minimum 6 characters"
+                  required
+                  minLength="6"
+                />
+                <p className="text-xs text-gray-500 mt-1">Minimum 6 characters required</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Privilege</label>
+                <select
+                  value={realUserForm.privilege}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, privilege: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                >
+                  <option value="Viewer">Viewer</option>
+                  <option value="Viewer+">Viewer+</option>
+                  <option value="Editor">Editor</option>
+                  <option value="Editor+">Editor+</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Team Role</label>
+                <select
+                  value={realUserForm.team_role}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, team_role: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Select Team Role</option>
+                  {teamRoles.map((role, index) => (
+                    <option key={`team-role-${index}`} value={role}>{role}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Hire Date</label>
+                <input
+                  type="date"
+                  value={realUserForm.hire_date}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, hire_date: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Termination Date</label>
+                <input
+                  type="date"
+                  value={realUserForm.termination_date}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, termination_date: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Leave blank for active employees"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Department</label>
+                <select
+                  value={realUserForm.department}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, department: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Select Department</option>
+                  {departments.map((dept, index) => (
+                    <option key={`dept-${index}`} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Organisation</label>
+                <select
+                  value={realUserForm.organisation}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, organisation: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Select Organisation</option>
+                  {organisations.map((org, index) => (
+                    <option key={`org-${index}`} value={org}>{org}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Mobile Number</label>
+                <input
+                  type="tel"
+                  value={realUserForm.mobile_number}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, mobile_number: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Enter mobile number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Avatar (max 3 chars)</label>
+                <input
+                  type="text"
+                  value={realUserForm.avatar}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, avatar: e.target.value.substring(0, 3) }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Auto-generated from name if empty"
+                  maxLength="3"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">PTS Number</label>
+                <input
+                  type="text"
+                  value={realUserForm.pts_number}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, pts_number: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Enter PTS number"
+                />
+              </div>
+              <div className="flex gap-2 pt-4">
+                <button
+                  onClick={createRealUser}
+                  className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+                >
+                  Create User
+                </button>
+                <button
+                  onClick={() => setShowAddRealUser(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
