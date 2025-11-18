@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+/* Export mode - force all text to black for readability */
+.export-mode * {
+  color: #000000 !important;
+}
+
+.export-mode .text-green-600,
+.export-mode .text-green-400 {
+  color: #16a34a !important; /* Keep green for satisfactory */
+}
+
+.export-mode .text-red-600,
+.export-mode .text-red-400 {
+  color: #dc2626 !important; /* Keep red for defects */
+}
+
+.export-mode .bg-gray-700,
+.export-mode .bg-gray-800,
+.export-mode .bg-gray-900 {
+  background-color: #ffffff !important;
+}
+
+.export-mode .bg-gray-50 {
+  background-color: #f9fafb !important;
+}
+
+.export-mode .border-gray-700,
+.export-mode .border-gray-600 {
+  border-color: #d1d5db !important;
+}
+
 /* Allow both portrait and landscape orientations */
 html, body {
   width: 100%;

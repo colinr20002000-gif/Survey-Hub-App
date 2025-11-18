@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, Button, Input, Modal, Select } from '../components/ui';
-import { Car, Plus, Search, Calendar, AlertTriangle, CheckCircle, Clock, FileText, ChevronRight, Filter, Loader2, Eye, X, Camera, Upload, Trash2 } from 'lucide-react';
+import { Car, Plus, Search, Calendar, AlertTriangle, CheckCircle, Clock, FileText, ChevronRight, Filter, Loader2, Eye, X, Camera, Upload, Trash2, Download, ZoomIn, FileImage } from 'lucide-react';
+import { exportAsImage, exportAsPDF } from '../utils/inspectionExport';
 
 const VehicleMileageLogsPage = () => {
     const { user } = useAuth();
@@ -19,6 +20,7 @@ const VehicleMileageLogsPage = () => {
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedInspectionDetail, setSelectedInspectionDetail] = useState(null);
+    const [exportingAll, setExportingAll] = useState(false);
 
     // Fetch vehicles from vehicles table
     const fetchVehicles = useCallback(async () => {
@@ -208,6 +210,269 @@ const VehicleMileageLogsPage = () => {
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
+    // Export all latest inspections
+    const handleExportAllInspections = async () => {
+        setExportingAll(true);
+
+        try {
+            // Get all vehicles that have inspections
+            const vehiclesWithInspections = vehicles.filter(vehicle => {
+                const vehicleInspections = inspections.filter(i => i.vehicle_id === vehicle.id);
+                return vehicleInspections.length > 0;
+            });
+
+            if (vehiclesWithInspections.length === 0) {
+                alert('No inspections found to export');
+                return;
+            }
+
+            // Process each vehicle
+            for (const vehicle of vehiclesWithInspections) {
+                // Get latest inspection for this vehicle
+                const vehicleInspections = inspections.filter(i => i.vehicle_id === vehicle.id);
+                const latestInspection = vehicleInspections[0]; // Already sorted by date desc
+
+                // Create temporary container
+                const container = document.createElement('div');
+                container.style.position = 'absolute';
+                container.style.left = '-9999px';
+                container.style.top = '0';
+                container.style.width = '800px';
+                container.style.backgroundColor = '#ffffff';
+                container.style.padding = '24px';
+
+                // Build inspection content HTML
+                const getCheckIcon = (value) => {
+                    if (value === 'satisfactory') return '<span style="color: #16a34a;">✓ Satisfactory</span>';
+                    if (value === 'defective') return '<span style="color: #dc2626;">✗ Defective</span>';
+                    return '<span style="color: #9ca3af;">N/A N/A</span>';
+                };
+
+                container.innerHTML = `
+                    <div style="background-color: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div>
+                                <span style="font-size: 14px; color: #6b7280;">Vehicle:</span>
+                                <p style="font-weight: 500; color: #111827; margin: 4px 0 0 0;">${latestInspection.vehicles?.name || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <span style="font-size: 14px; color: #6b7280;">Registration:</span>
+                                <p style="font-weight: 500; color: #111827; margin: 4px 0 0 0;">${latestInspection.vehicles?.serial_number || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <span style="font-size: 14px; color: #6b7280;">Date:</span>
+                                <p style="font-weight: 500; color: #111827; margin: 4px 0 0 0;">${formatDate(latestInspection.inspection_date)}</p>
+                            </div>
+                            <div>
+                                <span style="font-size: 14px; color: #6b7280;">Mileage:</span>
+                                <p style="font-weight: 500; color: #111827; margin: 4px 0 0 0;">${latestInspection.mileage?.toLocaleString() || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <span style="font-size: 14px; color: #6b7280;">Inspector:</span>
+                                <p style="font-weight: 500; color: #111827; margin: 4px 0 0 0;">${latestInspection.users?.name || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <span style="font-size: 14px; color: #6b7280;">Status:</span>
+                                <p style="font-weight: 500; color: ${latestInspection.has_defects ? '#dc2626' : '#16a34a'}; margin: 4px 0 0 0;">${latestInspection.has_defects ? 'Has Defects' : 'All Clear'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 12px;">💧 Fluids</h3>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Engine Oil</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_engine_oil)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Brake Fluid</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_brake)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Clutch Fluid</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_clutch)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Power Steering</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_power_steering)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Auto Transmission</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_auto_transmission)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Screen Wash</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_screen_wash)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Fuel</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_fuel)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Coolant</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_coolant)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 12px;">💡 Lights/Electric</h3>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Indicators</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_indicators)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Side Lights</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_side_lights)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Headlights (Dipped)</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_headlights_dipped)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Headlights (Main)</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_headlights_main)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Number Plate Light</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_number_plate_light)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Reversing Light</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_reversing_light)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Warning Lights</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_warning_lights)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Horn</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_horn)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 12px;">🚗 External Condition</h3>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Door/Wing Mirrors</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_door_wing_mirrors)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Wiper Blades</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_wiper_blades)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Screen Washers</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_screen_washers)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Tyre Pressure</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_tyre_pressure)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Tyre Condition</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_tyre_condition)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Windscreen Wipers</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_windscreen_wipers)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Spare Wheel</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_spare_wheel)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Cleanliness</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_cleanliness)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 12px;">🔧 Internal Condition</h3>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Seat Belts</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_seat_belts)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">First Aid Kit</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_first_aid_kit)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Fire Extinguisher</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_fire_extinguisher)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Head Restraint</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_head_restraint)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Torch</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_torch)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">General Bodywork</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_general_bodywork)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Spill Kit</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_spill_kit)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                <span style="font-size: 14px; color: #374151;">Door Locking</span>
+                                <span style="font-size: 14px;">${getCheckIcon(latestInspection.check_door_locking)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${latestInspection.comments ? `
+                        <div style="margin-bottom: 16px;">
+                            <h3 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px;">Comments:</h3>
+                            <p style="font-size: 14px; color: #4b5563; background-color: #f9fafb; padding: 12px; border-radius: 4px;">${latestInspection.comments}</p>
+                        </div>
+                    ` : ''}
+
+                    ${latestInspection.damage_notes ? `
+                        <div>
+                            <h3 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px;">Damage Notes:</h3>
+                            <p style="font-size: 14px; color: #4b5563; background-color: #fef2f2; padding: 12px; border-radius: 4px;">${latestInspection.damage_notes}</p>
+                        </div>
+                    ` : ''}
+                `;
+
+                document.body.appendChild(container);
+
+                // Wait for rendering
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                // Export
+                const vehicleName = latestInspection.vehicles?.name || 'vehicle';
+                const registration = latestInspection.vehicles?.serial_number || '';
+                const date = formatDate(latestInspection.inspection_date).replace(/\s+/g, '-');
+
+                await exportAsImage(container, vehicleName, date, registration);
+
+                // Clean up
+                document.body.removeChild(container);
+
+                // Small delay between exports
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            alert(`Successfully exported ${vehiclesWithInspections.length} inspection(s)`);
+        } catch (error) {
+            console.error('Error exporting inspections:', error);
+            alert('Failed to export inspections');
+        } finally {
+            setExportingAll(false);
+        }
+    };
+
     // Statistics
     const stats = {
         total: vehicles.length,
@@ -291,12 +556,31 @@ const VehicleMileageLogsPage = () => {
         <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
             {/* Fixed Header - Title Only */}
             <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-2 md:py-4">
-                <div className="flex items-center space-x-3">
-                    <Car className="w-6 h-6 md:w-8 md:h-8 text-orange-500" />
-                    <div>
-                        <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Vehicle Mileage Logs</h1>
-                        <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Weekly vehicle inspection tracking</p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                        <Car className="w-6 h-6 md:w-8 md:h-8 text-orange-500" />
+                        <div>
+                            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Vehicle Mileage Logs</h1>
+                            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Weekly vehicle inspection tracking</p>
+                        </div>
                     </div>
+                    <Button
+                        onClick={handleExportAllInspections}
+                        disabled={exportingAll}
+                        className="flex items-center space-x-2"
+                    >
+                        {exportingAll ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span className="hidden sm:inline">Exporting...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Download className="w-4 h-4" />
+                                <span className="hidden sm:inline">Export All Latest</span>
+                            </>
+                        )}
+                    </Button>
                 </div>
             </div>
 
@@ -304,11 +588,7 @@ const VehicleMileageLogsPage = () => {
             <div className="flex-1 overflow-auto">
                 <div className="bg-white dark:bg-gray-800 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 dark:border-gray-700">
                     {/* Statistics Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-4">
-                    <Card className="p-2 md:p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus('all')}>
-                        <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Total Vehicles</div>
-                        <div className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.total}</div>
-                    </Card>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                     <Card className="p-2 md:p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus('compliant')}>
                         <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Compliant</div>
                         <div className="text-xl md:text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.compliant}</div>
@@ -353,6 +633,14 @@ const VehicleMileageLogsPage = () => {
                             <option value="defects">With Defects</option>
                         </Select>
                     </div>
+                    <Button
+                        onClick={() => setFilterUser(filterUser === user.id ? 'all' : user.id)}
+                        className={`flex items-center space-x-2 ${filterUser === user.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-700'}`}
+                    >
+                        <Car className="w-4 h-4" />
+                        <span className="hidden sm:inline">{filterUser === user.id ? 'Show All' : 'My Vehicles'}</span>
+                        <span className="sm:hidden">{filterUser === user.id ? 'All' : 'Mine'}</span>
+                    </Button>
                     </div>
                 </div>
 
@@ -508,6 +796,7 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
     const [saving, setSaving] = useState(false);
     const [uploadedImages, setUploadedImages] = useState([]);
     const [uploading, setUploading] = useState(false);
+    const [validationError, setValidationError] = useState(null);
 
     const handleCheckChange = (field, value) => {
         setFormData(prev => ({
@@ -571,6 +860,13 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
 
+        // Check if already have 3 photos
+        if (uploadedImages.length >= 3) {
+            setValidationError('Maximum 3 photos allowed. Please remove a photo before adding a new one.');
+            e.target.value = '';
+            return;
+        }
+
         setUploading(true);
         try {
             const file = files[0]; // Take only the first file since we removed multiple
@@ -607,7 +903,7 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
             e.target.value = '';
         } catch (error) {
             console.error('Error uploading image:', error);
-            alert(`Error uploading image: ${error.message}. Please try again.`);
+            setValidationError(`Error uploading image: ${error.message}. Please try again.`);
         } finally {
             setUploading(false);
         }
@@ -630,8 +926,32 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
     };
 
     const handleSubmit = async () => {
+        // Clear previous errors
+        setValidationError(null);
+
         if (!formData.mileage) {
-            alert('Please enter the current mileage');
+            setValidationError('Please enter the current mileage');
+            return;
+        }
+
+        // Validate that all inspection items are filled (mandatory except comments and damage_notes)
+        const checkFields = Object.keys(formData).filter(key => key.startsWith('check_'));
+        const emptyFields = checkFields.filter(key => !formData[key]);
+
+        if (emptyFields.length > 0) {
+            const fieldNames = emptyFields.map(field => {
+                // Convert field name to readable format (e.g., check_engine_oil -> Engine Oil)
+                return field.replace('check_', '').split('_').map(word =>
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' ');
+            });
+            setValidationError(`Please complete all inspection items. Missing: ${fieldNames.join(', ')}`);
+            return;
+        }
+
+        // Validate that exactly 3 photos are uploaded
+        if (uploadedImages.length < 3) {
+            setValidationError(`Please upload all 3 required vehicle photos. You have uploaded ${uploadedImages.length}/3 photos.`);
             return;
         }
 
@@ -647,7 +967,7 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                 has_defects: hasDefects || uploadedImages.length > 0,
                 is_submitted: true,
                 submitted_at: new Date().toISOString(),
-                photos: uploadedImages.length > 0 ? uploadedImages : []
+                photos: uploadedImages
             };
 
             const { error } = await supabase
@@ -659,7 +979,7 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
             onSave();
         } catch (err) {
             console.error('Error saving inspection:', err);
-            alert('Failed to save inspection: ' + err.message);
+            setValidationError('Failed to save inspection: ' + err.message);
         } finally {
             setSaving(false);
         }
@@ -701,7 +1021,7 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">{vehicle.name}</p>
                         </div>
                         <div>
-                            <label className="text-xs text-gray-500 dark:text-gray-400">Serial Number</label>
+                            <label className="text-xs text-gray-500 dark:text-gray-400">Registration</label>
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">{vehicle.serial_number || 'N/A'}</p>
                         </div>
                         <div>
@@ -731,6 +1051,29 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                         Mark each item as: ✓ - Satisfactory | ✗ - Defective/Missing | N/A - Not Applicable
                     </p>
                 </div>
+
+                {/* Validation Error Message */}
+                {validationError && (
+                    <div className="mx-6 mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                        <div className="flex items-start">
+                            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 mr-3 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                                <h4 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-1">
+                                    Validation Error
+                                </h4>
+                                <p className="text-sm text-red-700 dark:text-red-400">
+                                    {validationError}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setValidationError(null)}
+                                className="ml-3 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Check Sections */}
                 <div className="p-6 space-y-6">
@@ -814,16 +1157,16 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                         </div>
                     </div>
 
-                    {/* Damage Photos Section */}
+                    {/* Vehicle Photos Section */}
                     <div>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
                             <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mr-2">
                                 <Camera className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                             </div>
-                            Damage Photos (Optional)
+                            Vehicle Photos (Mandatory) *
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                            Take photos with your camera of any damage or issues found
+                            Take exactly 3 photos of your vehicle to confirm you are present during inspection ({uploadedImages.length}/3 photos taken)
                         </p>
 
                         {/* Upload Button */}
@@ -988,9 +1331,116 @@ const HistoryModal = ({ vehicle, inspections, onClose, onViewDetail }) => {
 
 // Inspection Detail Modal Component
 const InspectionDetailModal = ({ inspection, onClose }) => {
+    const [viewingImage, setViewingImage] = useState(null);
+    const [exporting, setExporting] = useState(false);
+    const contentRef = useRef(null);
+
     const formatDate = (dateString) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const handleDownloadImage = async (imageUrl) => {
+        try {
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `vehicle-inspection-photo-${Date.now()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading image:', error);
+            alert('Failed to download image');
+        }
+    };
+
+    const handleExportAsImage = async () => {
+        if (!contentRef.current) return;
+
+        setExporting(true);
+
+        // Store original styles
+        const originalMaxHeight = contentRef.current.style.maxHeight;
+        const originalOverflow = contentRef.current.style.overflow;
+        const originalHeight = contentRef.current.style.height;
+
+        try {
+            // Temporarily remove scroll constraints to capture full content
+            contentRef.current.style.maxHeight = 'none';
+            contentRef.current.style.overflow = 'visible';
+            contentRef.current.style.height = 'auto';
+
+            // Wait for layout to settle
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            const vehicleName = inspection.vehicles?.name || 'vehicle';
+            const registration = inspection.vehicles?.registration || '';
+            const date = formatDate(inspection.inspection_date).replace(/\s+/g, '-');
+            const result = await exportAsImage(contentRef.current, vehicleName, date, registration);
+
+            if (!result.success) {
+                alert(`Failed to export as image: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Error exporting as image:', error);
+            alert('Failed to export as image');
+        } finally {
+            // Restore original styles
+            contentRef.current.style.maxHeight = originalMaxHeight;
+            contentRef.current.style.overflow = originalOverflow;
+            contentRef.current.style.height = originalHeight;
+
+            setExporting(false);
+        }
+    };
+
+    const handleExportAsPDF = async () => {
+        if (!contentRef.current) return;
+
+        setExporting(true);
+
+        // Store original styles
+        const originalMaxHeight = contentRef.current.style.maxHeight;
+        const originalOverflow = contentRef.current.style.overflow;
+        const originalHeight = contentRef.current.style.height;
+
+        try {
+            // Temporarily remove scroll constraints to capture full content
+            contentRef.current.style.maxHeight = 'none';
+            contentRef.current.style.overflow = 'visible';
+            contentRef.current.style.height = 'auto';
+
+            // Add export mode class to force black text
+            contentRef.current.classList.add('export-mode');
+
+            // Wait for styles to apply
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            const vehicleName = inspection.vehicles?.name || 'vehicle';
+            const date = formatDate(inspection.inspection_date).replace(/\s+/g, '-');
+            const result = await exportAsPDF(contentRef.current, vehicleName, date);
+
+            if (!result.success) {
+                alert(`Failed to export as PDF: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Error exporting as PDF:', error);
+            alert('Failed to export as PDF');
+        } finally {
+            // Remove export mode class
+            contentRef.current.classList.remove('export-mode');
+
+            // Restore original styles
+            contentRef.current.style.maxHeight = originalMaxHeight;
+            contentRef.current.style.overflow = originalOverflow;
+            contentRef.current.style.height = originalHeight;
+
+            setExporting(false);
+        }
     };
 
     const getCheckIcon = (value) => {
@@ -1024,10 +1474,26 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
     return (
         <Modal isOpen={true} onClose={onClose} title="Inspection Details">
             <div className="flex flex-col max-h-[80vh]">
-                <div className="flex-1 overflow-y-auto p-6">
+                <div ref={contentRef} className="flex-1 overflow-y-auto p-6">
                     {/* Header Info */}
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
                         <div className="grid grid-cols-2 gap-4">
+                            {inspection.vehicles && (
+                                <>
+                                    <div>
+                                        <span className="text-sm text-gray-500 dark:text-gray-400">Vehicle:</span>
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                            {inspection.vehicles.name}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm text-gray-500 dark:text-gray-400">Registration:</span>
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                            {inspection.vehicles.serial_number || 'N/A'}
+                                        </p>
+                                    </div>
+                                </>
+                            )}
                             <div>
                                 <span className="text-sm text-gray-500 dark:text-gray-400">Date:</span>
                                 <p className="font-medium text-gray-900 dark:text-white">
@@ -1125,27 +1591,40 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
                         </div>
                     </div>
 
-                    {/* Damage Photos */}
+                    {/* Vehicle Photos */}
                     {inspection.photos && Array.isArray(inspection.photos) && inspection.photos.length > 0 && (
                         <div className="mb-6">
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
                                 <Camera className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
-                                Damage Photos ({inspection.photos.length})
+                                Vehicle Photos ({inspection.photos.length})
                             </h3>
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {inspection.photos.map((image, index) => (
-                                    <div key={index} className="relative group">
-                                        <img
-                                            src={image.url}
-                                            alt={`Damage ${index + 1}`}
-                                            className="w-full h-40 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
-                                            onClick={() => window.open(image.url, '_blank')}
-                                        />
-                                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center">
-                                            <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                {inspection.photos.map((image, index) => {
+                                    const imageUrl = typeof image === 'string' ? image : image.url;
+                                    return (
+                                        <div
+                                            key={index}
+                                            className="relative aspect-square cursor-pointer group"
+                                            onClick={() => setViewingImage({ url: imageUrl, index })}
+                                        >
+                                            <img
+                                                src={imageUrl}
+                                                alt={`Vehicle photo ${index + 1}`}
+                                                className="absolute inset-0 w-full h-full object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 group-hover:border-blue-500 dark:group-hover:border-blue-400 transition-colors"
+                                                onError={(e) => {
+                                                    console.error('Failed to load thumbnail:', imageUrl);
+                                                    e.target.style.backgroundColor = '#fee2e2';
+                                                }}
+                                                onLoad={(e) => {
+                                                    console.log('Thumbnail loaded:', imageUrl);
+                                                }}
+                                            />
+                                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center pointer-events-none z-10">
+                                                <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
@@ -1175,11 +1654,54 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
 
                 {/* Footer */}
                 <div className="flex-shrink-0 p-6 border-t border-gray-200 dark:border-gray-700">
-                    <div className="flex justify-end">
+                    <div className="flex justify-between items-center">
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={handleExportAsImage}
+                                disabled={exporting}
+                                className="flex items-center gap-2"
+                            >
+                                {exporting ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Download className="w-4 h-4" />
+                                )}
+                                {exporting ? 'Exporting...' : 'Export Inspection'}
+                            </Button>
+                        </div>
                         <Button variant="outline" onClick={onClose}>Close</Button>
                     </div>
                 </div>
             </div>
+
+            {/* Image Viewer Modal */}
+            {viewingImage && (
+                <div className="fixed inset-0 bg-black bg-opacity-90 z-[100] flex items-center justify-center p-4" onClick={() => setViewingImage(null)}>
+                    <button
+                        onClick={() => setViewingImage(null)}
+                        className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors z-10"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadImage(viewingImage.url);
+                        }}
+                        className="absolute top-4 right-16 text-white hover:text-gray-300 transition-colors z-10 flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg hover:bg-white/20"
+                    >
+                        <Download className="w-5 h-5" />
+                        <span>Download</span>
+                    </button>
+                    <img
+                        src={viewingImage.url}
+                        alt={`Vehicle photo ${viewingImage.index + 1}`}
+                        className="max-w-full max-h-full object-contain rounded-lg"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+            )}
         </Modal>
     );
 };
