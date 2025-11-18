@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card, Button, Input, Modal, Select } from '../components/ui';
 import { Car, Plus, Search, Calendar, AlertTriangle, CheckCircle, Clock, FileText, ChevronRight, Filter, Loader2, Eye, X, Camera, Upload, Trash2, Download, ZoomIn, FileImage } from 'lucide-react';
 import { exportAsImage, exportAsPDF } from '../utils/inspectionExport';
+import { hasPermission } from '../utils/privileges';
 
 const VehicleMileageLogsPage = () => {
     const { user } = useAuth();
@@ -21,6 +22,7 @@ const VehicleMileageLogsPage = () => {
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedInspectionDetail, setSelectedInspectionDetail] = useState(null);
     const [exportingAll, setExportingAll] = useState(false);
+    const [cleaningUp, setCleaningUp] = useState(false);
 
     // Fetch vehicles from vehicles table
     const fetchVehicles = useCallback(async () => {
@@ -223,6 +225,109 @@ const VehicleMileageLogsPage = () => {
         if (!dateString) return 'N/A';
         const date = new Date(dateString);
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    // Clean up old inspection photos (keep only last 3 inspections per vehicle)
+    const cleanupOldInspectionPhotos = async (vehicleId) => {
+        try {
+            console.log(`Cleaning up old inspection photos for vehicle ${vehicleId}...`);
+
+            // Get all inspections for this vehicle, sorted by date and created_at (most recent first)
+            const { data: allInspections, error: fetchError } = await supabase
+                .from('vehicle_inspection_logs')
+                .select('id, inspection_date, created_at, photos')
+                .eq('vehicle_id', vehicleId)
+                .order('inspection_date', { ascending: false })
+                .order('created_at', { ascending: false });
+
+            if (fetchError) {
+                console.error('Error fetching inspections for cleanup:', fetchError);
+                return;
+            }
+
+            // Keep only the last 3 inspections, delete photos from older ones
+            if (allInspections && allInspections.length > 3) {
+                const inspectionsToCleanup = allInspections.slice(3); // Get inspections beyond the 3rd
+
+                console.log(`Found ${inspectionsToCleanup.length} old inspections to clean up`);
+
+                for (const inspection of inspectionsToCleanup) {
+                    if (inspection.photos && Array.isArray(inspection.photos) && inspection.photos.length > 0) {
+                        // Extract file paths from photo objects
+                        const pathsToDelete = [];
+
+                        inspection.photos.forEach(photo => {
+                            if (typeof photo === 'object' && photo.path) {
+                                pathsToDelete.push(photo.path);
+                            } else if (typeof photo === 'string') {
+                                // If it's a URL, extract the path
+                                try {
+                                    const url = new URL(photo);
+                                    const pathMatch = url.pathname.match(/vehicle-inspections\/.+/);
+                                    if (pathMatch) {
+                                        pathsToDelete.push(pathMatch[0]);
+                                    }
+                                } catch (e) {
+                                    console.error('Failed to parse photo URL:', photo);
+                                }
+                            }
+                        });
+
+                        // Delete photos from storage
+                        if (pathsToDelete.length > 0) {
+                            console.log(`Deleting ${pathsToDelete.length} photos from inspection ${inspection.id}`);
+
+                            const { error: deleteError } = await supabase.storage
+                                .from('vehicle-photos')
+                                .remove(pathsToDelete);
+
+                            if (deleteError) {
+                                console.error('Error deleting photos from storage:', deleteError);
+                            } else {
+                                console.log(`Successfully deleted photos for inspection ${inspection.id}`);
+
+                                // Update the inspection record to clear the photos array
+                                await supabase
+                                    .from('vehicle_inspection_logs')
+                                    .update({ photos: [] })
+                                    .eq('id', inspection.id);
+                            }
+                        }
+                    }
+                }
+
+                console.log('Cleanup completed successfully');
+            } else {
+                console.log('No old inspections to clean up (3 or fewer inspections exist)');
+            }
+        } catch (error) {
+            console.error('Error during photo cleanup:', error);
+            // Don't throw - we don't want cleanup failures to prevent inspection submission
+        }
+    };
+
+    // Clean up old photos for all vehicles
+    const handleCleanupAllPhotos = async () => {
+        if (!window.confirm('This will delete inspection photos older than the last 3 inspections for each vehicle. Continue?')) {
+            return;
+        }
+
+        setCleaningUp(true);
+        let totalCleaned = 0;
+
+        try {
+            for (const vehicle of vehicles) {
+                await cleanupOldInspectionPhotos(vehicle.id);
+                totalCleaned++;
+            }
+
+            alert(`Successfully cleaned up old photos for ${totalCleaned} vehicle(s)`);
+        } catch (error) {
+            console.error('Error during cleanup:', error);
+            alert(`Cleanup completed with errors. Check console for details.`);
+        } finally {
+            setCleaningUp(false);
+        }
     };
 
     // Export all latest inspections
@@ -573,6 +678,57 @@ const VehicleMileageLogsPage = () => {
         setShowDetailModal(true);
     };
 
+    const handleDeleteInspection = async (inspection) => {
+        try {
+            // Delete photos from storage if they exist
+            if (inspection.photos && Array.isArray(inspection.photos) && inspection.photos.length > 0) {
+                const pathsToDelete = [];
+
+                inspection.photos.forEach(photo => {
+                    if (typeof photo === 'object' && photo.path) {
+                        pathsToDelete.push(photo.path);
+                    } else if (typeof photo === 'string') {
+                        try {
+                            const url = new URL(photo);
+                            const pathMatch = url.pathname.match(/vehicle-inspections\/.+/);
+                            if (pathMatch) {
+                                pathsToDelete.push(pathMatch[0]);
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse photo URL:', photo);
+                        }
+                    }
+                });
+
+                if (pathsToDelete.length > 0) {
+                    const { error: deleteError } = await supabase.storage
+                        .from('vehicle-photos')
+                        .remove(pathsToDelete);
+
+                    if (deleteError) {
+                        console.error('Error deleting photos from storage:', deleteError);
+                    }
+                }
+            }
+
+            // Delete the inspection record
+            const { error } = await supabase
+                .from('vehicle_inspection_logs')
+                .delete()
+                .eq('id', inspection.id);
+
+            if (error) throw error;
+
+            // Refresh inspections list
+            await fetchInspections();
+
+            alert('Inspection deleted successfully');
+        } catch (error) {
+            console.error('Error deleting inspection:', error);
+            alert('Failed to delete inspection. Please try again.');
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full">
@@ -593,23 +749,47 @@ const VehicleMileageLogsPage = () => {
                             <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Weekly vehicle inspection tracking</p>
                         </div>
                     </div>
-                    <Button
-                        onClick={handleExportAllInspections}
-                        disabled={exportingAll}
-                        className="flex items-center space-x-2"
-                    >
-                        {exportingAll ? (
-                            <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span className="hidden sm:inline">Exporting...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Download className="w-4 h-4" />
-                                <span className="hidden sm:inline">Export All Latest</span>
-                            </>
+                    <div className="flex items-center space-x-2">
+                        {hasPermission(user?.privilege, 'EXPORT_VEHICLE_INSPECTIONS') && (
+                            <Button
+                                onClick={handleExportAllInspections}
+                                disabled={exportingAll}
+                                className="flex items-center space-x-2"
+                            >
+                                {exportingAll ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span className="hidden sm:inline">Exporting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Export All Latest</span>
+                                    </>
+                                )}
+                            </Button>
                         )}
-                    </Button>
+                        {hasPermission(user?.privilege, 'CLEANUP_VEHICLE_INSPECTION_PHOTOS') && (
+                            <Button
+                                onClick={handleCleanupAllPhotos}
+                                disabled={cleaningUp}
+                                variant="outline"
+                                className="flex items-center space-x-2 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            >
+                                {cleaningUp ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span className="hidden sm:inline">Cleaning...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Cleanup Photos</span>
+                                    </>
+                                )}
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -620,7 +800,7 @@ const VehicleMileageLogsPage = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                     <Card className="p-2 md:p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus('compliant')}>
                         <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Compliant</div>
-                        <div className="text-xl md:text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.compliant}</div>
+                        <div className="text-xl md:text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.compliant}/{stats.total}</div>
                     </Card>
                     <Card className="p-2 md:p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus('upcoming')}>
                         <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Due Soon</div>
@@ -744,13 +924,15 @@ const VehicleMileageLogsPage = () => {
                                             <Eye className="w-4 h-4 mr-2" />
                                             History
                                         </Button>
-                                        <Button
-                                            onClick={() => handleStartInspection(vehicle)}
-                                            className="flex-1 group-hover:bg-orange-600 transition-colors"
-                                        >
-                                            <Plus className="w-4 h-4 mr-2" />
-                                            Inspect
-                                        </Button>
+                                        {hasPermission(user?.privilege, 'CREATE_VEHICLE_INSPECTIONS') && (
+                                            <Button
+                                                onClick={() => handleStartInspection(vehicle)}
+                                                className="flex-1 group-hover:bg-orange-600 transition-colors"
+                                            >
+                                                <Plus className="w-4 h-4 mr-2" />
+                                                Inspect
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </Card>
@@ -801,6 +983,8 @@ const VehicleMileageLogsPage = () => {
                         setSelectedVehicle(null);
                     }}
                     onViewDetail={handleViewInspectionDetail}
+                    onDelete={handleDeleteInspection}
+                    user={user}
                 />
             )}
 
@@ -953,6 +1137,85 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
         }
     };
 
+    // Clean up old inspection photos (keep only last 3 inspections per vehicle)
+    const cleanupOldInspectionPhotos = async (vehicleId) => {
+        try {
+            console.log(`Cleaning up old inspection photos for vehicle ${vehicleId}...`);
+
+            // Get all inspections for this vehicle, sorted by date and created_at (most recent first)
+            const { data: allInspections, error: fetchError } = await supabase
+                .from('vehicle_inspection_logs')
+                .select('id, inspection_date, created_at, photos')
+                .eq('vehicle_id', vehicleId)
+                .order('inspection_date', { ascending: false })
+                .order('created_at', { ascending: false });
+
+            if (fetchError) {
+                console.error('Error fetching inspections for cleanup:', fetchError);
+                return;
+            }
+
+            // Keep only the last 3 inspections, delete photos from older ones
+            if (allInspections && allInspections.length > 3) {
+                const inspectionsToCleanup = allInspections.slice(3); // Get inspections beyond the 3rd
+
+                console.log(`Found ${inspectionsToCleanup.length} old inspections to clean up`);
+
+                for (const inspection of inspectionsToCleanup) {
+                    if (inspection.photos && Array.isArray(inspection.photos) && inspection.photos.length > 0) {
+                        // Extract file paths from photo objects
+                        const pathsToDelete = [];
+
+                        inspection.photos.forEach(photo => {
+                            if (typeof photo === 'object' && photo.path) {
+                                pathsToDelete.push(photo.path);
+                            } else if (typeof photo === 'string') {
+                                // If it's a URL, extract the path
+                                try {
+                                    const url = new URL(photo);
+                                    const pathMatch = url.pathname.match(/vehicle-inspections\/.+/);
+                                    if (pathMatch) {
+                                        pathsToDelete.push(pathMatch[0]);
+                                    }
+                                } catch (e) {
+                                    console.error('Failed to parse photo URL:', photo);
+                                }
+                            }
+                        });
+
+                        // Delete photos from storage
+                        if (pathsToDelete.length > 0) {
+                            console.log(`Deleting ${pathsToDelete.length} photos from inspection ${inspection.id}`);
+
+                            const { error: deleteError } = await supabase.storage
+                                .from('vehicle-photos')
+                                .remove(pathsToDelete);
+
+                            if (deleteError) {
+                                console.error('Error deleting photos from storage:', deleteError);
+                            } else {
+                                console.log(`Successfully deleted photos for inspection ${inspection.id}`);
+
+                                // Update the inspection record to clear the photos array
+                                await supabase
+                                    .from('vehicle_inspection_logs')
+                                    .update({ photos: [] })
+                                    .eq('id', inspection.id);
+                            }
+                        }
+                    }
+                }
+
+                console.log('Cleanup completed successfully');
+            } else {
+                console.log('No old inspections to clean up (3 or fewer inspections exist)');
+            }
+        } catch (error) {
+            console.error('Error during photo cleanup:', error);
+            // Don't throw - we don't want cleanup failures to prevent inspection submission
+        }
+    };
+
     const handleSubmit = async () => {
         // Clear previous errors
         setValidationError(null);
@@ -1003,6 +1266,9 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                 .insert([dataToSubmit]);
 
             if (error) throw error;
+
+            // Clean up old inspection photos (keep only last 3 inspections)
+            await cleanupOldInspectionPhotos(formData.vehicle_id);
 
             onSave();
         } catch (err) {
@@ -1302,10 +1568,20 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
 };
 
 // History Modal Component
-const HistoryModal = ({ vehicle, inspections, onClose, onViewDetail }) => {
+const HistoryModal = ({ vehicle, inspections, onClose, onViewDetail, onDelete, user }) => {
     const formatDate = (dateString) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const handleDelete = async (e, inspection) => {
+        e.stopPropagation(); // Prevent opening detail view
+
+        if (!window.confirm(`Are you sure you want to delete the inspection from ${formatDate(inspection.inspection_date)}? This cannot be undone.`)) {
+            return;
+        }
+
+        await onDelete(inspection);
     };
 
     return (
@@ -1321,10 +1597,9 @@ const HistoryModal = ({ vehicle, inspections, onClose, onViewDetail }) => {
                         {inspections.map((inspection) => (
                             <div
                                 key={inspection.id}
-                                className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
-                                onClick={() => onViewDetail(inspection)}
+                                className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                             >
-                                <div className="flex-1">
+                                <div className="flex-1 cursor-pointer" onClick={() => onViewDetail(inspection)}>
                                     <div className="flex items-center space-x-2 mb-1">
                                         <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                                         <span className="font-medium text-gray-900 dark:text-white">
@@ -1344,7 +1619,20 @@ const HistoryModal = ({ vehicle, inspections, onClose, onViewDetail }) => {
                                         )}
                                     </div>
                                 </div>
-                                <ChevronRight className="w-5 h-5 text-gray-400" />
+                                <div className="flex items-center space-x-2">
+                                    {hasPermission(user?.privilege, 'DELETE_VEHICLE_INSPECTIONS') && (
+                                        <button
+                                            onClick={(e) => handleDelete(e, inspection)}
+                                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                            title="Delete inspection"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                    <div className="cursor-pointer p-2" onClick={() => onViewDetail(inspection)}>
+                                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                                    </div>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -1626,28 +1914,22 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
                                 <Camera className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
                                 Vehicle Photos ({inspection.photos.length})
                             </h3>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                 {inspection.photos.map((image, index) => {
                                     const imageUrl = typeof image === 'string' ? image : image.url;
                                     return (
-                                        <div
-                                            key={index}
-                                            className="relative aspect-square cursor-pointer group"
-                                            onClick={() => setViewingImage({ url: imageUrl, index })}
-                                        >
+                                        <div key={index} className="relative group">
                                             <img
                                                 src={imageUrl}
                                                 alt={`Vehicle photo ${index + 1}`}
-                                                className="absolute inset-0 w-full h-full object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 group-hover:border-blue-500 dark:group-hover:border-blue-400 transition-colors"
-                                                onError={(e) => {
-                                                    console.error('Failed to load thumbnail:', imageUrl);
-                                                    e.target.style.backgroundColor = '#fee2e2';
-                                                }}
-                                                onLoad={(e) => {
-                                                    console.log('Thumbnail loaded:', imageUrl);
-                                                }}
+                                                className="w-full h-32 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 cursor-pointer"
+                                                style={{ opacity: 1, visibility: 'visible', display: 'block' }}
+                                                onClick={() => setViewingImage({ url: imageUrl, index })}
                                             />
-                                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center pointer-events-none z-10">
+                                            <div
+                                                className="absolute inset-0 bg-transparent group-hover:bg-black group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center pointer-events-none cursor-pointer"
+                                                onClick={() => setViewingImage({ url: imageUrl, index })}
+                                            >
                                                 <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                                             </div>
                                         </div>

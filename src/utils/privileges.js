@@ -55,6 +55,7 @@ export const PERMISSIONS = {
     VIEW_EQUIPMENT_CALENDAR: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     VIEW_AFV: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     VIEW_PROJECT_LOGS: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
+    VIEW_VEHICLE_INSPECTIONS: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
 
     // Filter and sort (all privileges)
     USE_FILTERS: [PRIVILEGES.VIEWER, PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
@@ -78,6 +79,9 @@ export const PERMISSIONS = {
     ADD_VEHICLE_COMMENTS: [PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     DOWNLOAD_DOCUMENT_HUB_FILES: [PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     DOWNLOAD_PROJECT_FILES: [PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
+    CREATE_VEHICLE_INSPECTIONS: [PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
+    EXPORT_VEHICLE_INSPECTIONS: [PRIVILEGES.VIEWER_PLUS, PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
+    DELETE_VEHICLE_INSPECTIONS: [PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
 
     // Editor and above permissions
     CREATE_PROJECTS: [PRIVILEGES.EDITOR, PRIVILEGES.EDITOR_PLUS, PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
@@ -130,6 +134,9 @@ export const PERMISSIONS = {
     // Import CSV permissions (Admin and Super Admin only)
     IMPORT_AFV_CSV: [PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
     IMPORT_PROJECT_LOGS_CSV: [PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
+
+    // Vehicle Inspection cleanup (Admin and Super Admin only)
+    CLEANUP_VEHICLE_INSPECTION_PHOTOS: [PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
 
     // User management (Admin and Super Admin only)
     CREATE_USERS: [PRIVILEGES.ADMIN, PRIVILEGES.SUPER_ADMIN],
@@ -205,18 +212,20 @@ export const PERMISSION_DESCRIPTIONS = {
         description: 'Read-only access. Can view all pages, use filters and sorting. Can submit feedback.',
         capabilities: [
             '✓ View all pages (Projects, Equipment, Vehicles, Tasks, etc.)',
+            '✓ View vehicle inspections (read-only)',
             '✓ Use all filters and sorting features',
             '✓ Submit bug reports and feature requests',
             '✓ Change own password',
             '✓ Toggle light/dark mode',
             '✗ Cannot modify any data',
+            '✗ Cannot create vehicle inspections',
             '✗ Cannot set availability status',
             '✗ No admin mode access'
         ]
     },
     [PRIVILEGES.VIEWER_PLUS]: {
         title: 'Viewer+',
-        description: 'View access plus limited actions. Can complete tasks, assign/return equipment & vehicles, download files.',
+        description: 'View access plus limited actions. Can complete tasks, assign/return equipment & vehicles, download files, and manage vehicle inspections.',
         capabilities: [
             '✓ All Viewer permissions',
             '✓ Complete project tasks',
@@ -224,9 +233,11 @@ export const PERMISSION_DESCRIPTIONS = {
             '✓ Add comments to equipment',
             '✓ Assign/return vehicles',
             '✓ Add comments to vehicles',
+            '✓ Create/view vehicle inspections',
+            '✓ Export vehicle inspections',
             '✓ Download files from Document Hub',
             '✓ Download files from Projects',
-            '✗ Cannot create/edit/delete items',
+            '✗ Cannot create/edit/delete projects',
             '✗ Cannot set availability status',
             '✗ No admin mode access'
         ]
@@ -240,6 +251,7 @@ export const PERMISSION_DESCRIPTIONS = {
             '✓ Create/edit/delete tasks',
             '✓ Add/edit/delete equipment',
             '✓ Add/edit/delete vehicles',
+            '✓ Create/view/export vehicle inspections',
             '✓ Allocate/edit/delete resource allocations',
             '✓ Set availability status in resource calendar',
             '✓ Upload/delete documents',
@@ -257,6 +269,7 @@ export const PERMISSION_DESCRIPTIONS = {
             '✓ Create/edit/delete tasks',
             '✓ Add/edit/delete equipment',
             '✓ Add/edit/delete vehicles',
+            '✓ Create/view/export vehicle inspections',
             '✓ Allocate/edit/delete resource allocations',
             '✓ Set availability status in resource calendar',
             '✓ Upload/delete documents',
@@ -271,6 +284,7 @@ export const PERMISSION_DESCRIPTIONS = {
         capabilities: [
             '✓ All Editor permissions',
             '✓ Access admin mode',
+            '✓ Cleanup vehicle inspection photos',
             '✓ Manage users (create/edit/delete)',
             '✓ Access feedback',
             '✓ Access user admin',
