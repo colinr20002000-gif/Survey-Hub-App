@@ -47,7 +47,8 @@ const VehicleMileageLogsPage = () => {
                     vehicles:vehicle_id (id, name, serial_number),
                     users:user_id (id, name)
                 `)
-                .order('inspection_date', { ascending: false });
+                .order('inspection_date', { ascending: false })
+                .order('created_at', { ascending: false });
 
             if (error) throw error;
             setInspections(data || []);
@@ -109,12 +110,19 @@ const VehicleMileageLogsPage = () => {
 
     // Calculate inspection status for a vehicle
     const getVehicleStatus = (vehicleId) => {
-        const vehicleInspections = inspections.filter(i => i.vehicle_id === vehicleId);
+        const vehicleInspections = inspections
+            .filter(i => i.vehicle_id === vehicleId)
+            .sort((a, b) => {
+                // Sort by inspection_date descending, then by created_at descending
+                const dateCompare = new Date(b.inspection_date) - new Date(a.inspection_date);
+                if (dateCompare !== 0) return dateCompare;
+                return new Date(b.created_at) - new Date(a.created_at);
+            });
         if (vehicleInspections.length === 0) {
             return { status: 'never', daysOverdue: null, lastInspection: null, nextInspectionDate: null };
         }
 
-        const lastInspection = vehicleInspections[0];
+        const lastInspection = vehicleInspections[0]; // Most recent inspection
         const lastInspectionDate = new Date(lastInspection.inspection_date);
         const today = new Date();
         const daysSinceInspection = Math.floor((today - lastInspectionDate) / (1000 * 60 * 60 * 24));
@@ -157,9 +165,16 @@ const VehicleMileageLogsPage = () => {
 
         // Handle defects filter
         if (filterStatus === 'defects') {
-            const vehicleInspections = inspections.filter(i => i.vehicle_id === vehicle.id);
+            const vehicleInspections = inspections
+                .filter(i => i.vehicle_id === vehicle.id)
+                .sort((a, b) => {
+                    // Sort by inspection_date descending, then by created_at descending
+                    const dateCompare = new Date(b.inspection_date) - new Date(a.inspection_date);
+                    if (dateCompare !== 0) return dateCompare;
+                    return new Date(b.created_at) - new Date(a.created_at);
+                });
             if (vehicleInspections.length === 0) return false;
-            const lastInspection = vehicleInspections[0];
+            const lastInspection = vehicleInspections[0]; // Most recent inspection
             return lastInspection.has_defects === true;
         }
 
@@ -229,8 +244,15 @@ const VehicleMileageLogsPage = () => {
             // Process each vehicle
             for (const vehicle of vehiclesWithInspections) {
                 // Get latest inspection for this vehicle
-                const vehicleInspections = inspections.filter(i => i.vehicle_id === vehicle.id);
-                const latestInspection = vehicleInspections[0]; // Already sorted by date desc
+                const vehicleInspections = inspections
+                    .filter(i => i.vehicle_id === vehicle.id)
+                    .sort((a, b) => {
+                        // Sort by inspection_date descending, then by created_at descending
+                        const dateCompare = new Date(b.inspection_date) - new Date(a.inspection_date);
+                        if (dateCompare !== 0) return dateCompare;
+                        return new Date(b.created_at) - new Date(a.created_at);
+                    });
+                const latestInspection = vehicleInspections[0]; // Most recent inspection
 
                 // Create temporary container
                 const container = document.createElement('div');
@@ -480,9 +502,16 @@ const VehicleMileageLogsPage = () => {
         upcoming: vehicles.filter(v => getVehicleStatus(v.id).status === 'upcoming').length,
         overdue: vehicles.filter(v => getVehicleStatus(v.id).status === 'overdue').length,
         withDefects: vehicles.filter(v => {
-            const vehicleInspections = inspections.filter(i => i.vehicle_id === v.id);
+            const vehicleInspections = inspections
+                .filter(i => i.vehicle_id === v.id)
+                .sort((a, b) => {
+                    // Sort by inspection_date descending, then by created_at descending
+                    const dateCompare = new Date(b.inspection_date) - new Date(a.inspection_date);
+                    if (dateCompare !== 0) return dateCompare;
+                    return new Date(b.created_at) - new Date(a.created_at);
+                });
             if (vehicleInspections.length === 0) return false;
-            const lastInspection = vehicleInspections[0]; // Already sorted by date desc
+            const lastInspection = vehicleInspections[0]; // Most recent inspection
             return lastInspection.has_defects === true;
         }).length,
     };
@@ -560,7 +589,7 @@ const VehicleMileageLogsPage = () => {
                     <div className="flex items-center space-x-3">
                         <Car className="w-6 h-6 md:w-8 md:h-8 text-orange-500" />
                         <div>
-                            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Vehicle Mileage Logs</h1>
+                            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Vehicle Inspection</h1>
                             <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Weekly vehicle inspection tracking</p>
                         </div>
                     </div>
@@ -608,10 +637,10 @@ const VehicleMileageLogsPage = () => {
                     </div>
 
                     {/* Filters */}
-                    <div className="flex flex-col sm:flex-row gap-2 md:gap-4 mt-3 md:mt-4">
-                    <div className="flex items-center space-x-2 flex-1">
-                        <Filter className="w-5 h-5 text-gray-400" />
-                        <Select value={filterUser} onChange={(e) => setFilterUser(e.target.value)} className="flex-1">
+                    <div className="flex flex-row gap-2 md:gap-3 mt-3 md:mt-4">
+                    <div className="flex items-center space-x-2 w-full md:w-auto">
+                        <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
+                        <Select value={filterUser} onChange={(e) => setFilterUser(e.target.value)} className="flex-1 md:w-48">
                             <option value="all">All Users</option>
                             {users
                                 .filter(u => assignments.some(a => (a.user_id === u.id || a.dummy_user_id === u.id) && !a.returned_at))
@@ -622,9 +651,9 @@ const VehicleMileageLogsPage = () => {
                             }
                         </Select>
                     </div>
-                    <div className="flex items-center space-x-2 flex-1">
-                        <Filter className="w-5 h-5 text-gray-400" />
-                        <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="flex-1">
+                    <div className="flex items-center space-x-2 w-full md:w-auto">
+                        <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
+                        <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="flex-1 md:w-48">
                             <option value="all">All Status</option>
                             <option value="compliant">Compliant</option>
                             <option value="upcoming">Due Soon</option>
@@ -635,11 +664,10 @@ const VehicleMileageLogsPage = () => {
                     </div>
                     <Button
                         onClick={() => setFilterUser(filterUser === user.id ? 'all' : user.id)}
-                        className={`flex items-center space-x-2 ${filterUser === user.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-700'}`}
+                        className={`flex items-center space-x-2 whitespace-nowrap ${filterUser === user.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-700'}`}
                     >
                         <Car className="w-4 h-4" />
-                        <span className="hidden sm:inline">{filterUser === user.id ? 'Show All' : 'My Vehicles'}</span>
-                        <span className="sm:hidden">{filterUser === user.id ? 'All' : 'Mine'}</span>
+                        <span>{filterUser === user.id ? 'Show All' : 'My Vehicles'}</span>
                     </Button>
                     </div>
                 </div>
@@ -964,7 +992,7 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
 
             const dataToSubmit = {
                 ...formData,
-                has_defects: hasDefects || uploadedImages.length > 0,
+                has_defects: hasDefects,
                 is_submitted: true,
                 submitted_at: new Date().toISOString(),
                 photos: uploadedImages

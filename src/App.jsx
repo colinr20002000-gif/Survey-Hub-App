@@ -648,7 +648,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Vehicle Management', parent: 'Vehicles', show: can('VIEW_VEHICLES') },
-                { name: 'Mileage Logs', parent: 'Vehicles', show: can('VIEW_VEHICLES') }
+                { name: 'Vehicle Inspection', parent: 'Vehicles', show: can('VIEW_VEHICLES') }
             ]
         },
         { name: 'Settings', icon: Settings, show: true },
@@ -689,7 +689,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Equipment Calendar' || activeTab === 'Project Tasks' || activeTab === 'Equipment';
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
     const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
-    const isVehiclesActive = activeTab === 'Vehicle Management' || activeTab === 'Mileage Logs';
+    const isVehiclesActive = activeTab === 'Vehicle Management' || activeTab === 'Vehicle Inspection';
 
     // Close sidebar when clicking outside in mobile mode
     useEffect(() => {
@@ -4232,7 +4232,7 @@ const MainLayout = () => {
             case 'Project Tasks': return can('VIEW_TASKS') ? <ProjectTasksPage /> : <AccessDenied />;
             case 'Equipment': return can('VIEW_EQUIPMENT') ? <EquipmentPage /> : <AccessDenied />;
             case 'Vehicle Management': return can('VIEW_VEHICLES') ? <VehiclesPage /> : <AccessDenied />;
-            case 'Mileage Logs': return can('VIEW_VEHICLES') ? <Suspense fallback={<LoadingFallback />}><VehicleMileageLogsPage /></Suspense> : <AccessDenied />;
+            case 'Vehicle Inspection': return can('VIEW_VEHICLES') ? <Suspense fallback={<LoadingFallback />}><VehicleMileageLogsPage /></Suspense> : <AccessDenied />;
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
             case 'Delivery Tasks': return <DeliveryTasksPage />;
             case 'Project Logs': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><ProjectLogsPage /></Suspense> : <AccessDenied />;
