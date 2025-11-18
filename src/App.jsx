@@ -4231,7 +4231,7 @@ const MainLayout = () => {
             case 'Equipment Calendar': return can('VIEW_EQUIPMENT_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
             case 'Project Tasks': return can('VIEW_TASKS') ? <ProjectTasksPage /> : <AccessDenied />;
             case 'Equipment': return can('VIEW_EQUIPMENT') ? <EquipmentPage /> : <AccessDenied />;
-            case 'Vehicles': return can('VIEW_VEHICLES') ? <VehiclesPage /> : <AccessDenied />;
+            case 'Vehicle Management': return can('VIEW_VEHICLES') ? <VehiclesPage /> : <AccessDenied />;
             case 'Mileage Logs': return can('VIEW_VEHICLES') ? <Suspense fallback={<LoadingFallback />}><VehicleMileageLogsPage /></Suspense> : <AccessDenied />;
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
             case 'Delivery Tasks': return <DeliveryTasksPage />;
