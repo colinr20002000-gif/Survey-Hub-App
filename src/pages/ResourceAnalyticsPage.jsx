@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Filter, Calendar, Download, Image as ImageIcon, User, TrendingUp, X, ChevronDown, Check } from 'lucide-react';
+import { Filter, Calendar, Download, Image as ImageIcon, User, TrendingUp, X, ChevronDown, Check, Copy, CheckCheck } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Button, Select, Input } from '../components/ui';
 import {
@@ -60,6 +60,11 @@ const ResourceAnalyticsPage = () => {
 
     // Table sorting state
     const [tableSortConfig, setTableSortConfig] = useState({ key: 'total', direction: 'descending' });
+
+    // Modal state for allocation details
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalData, setModalData] = useState({ userName: '', allocationType: '', allocations: [] });
+    const [isCopied, setIsCopied] = useState(false);
 
     // Colors for charts
     const COLORS = ['#f97316', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444', '#06b6d4', '#84cc16'];
@@ -900,11 +905,16 @@ const ResourceAnalyticsPage = () => {
 
         filteredAllocations.forEach(allocation => {
             const date = new Date(allocation.allocation_date);
-            const monthYear = `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            const monthYear = `${MONTHS[month]} ${year}`;
+            // Create a sortable key: YYYY-MM format
+            const sortKey = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-            if (!monthCounts[monthYear]) {
-                monthCounts[monthYear] = {
+            if (!monthCounts[sortKey]) {
+                monthCounts[sortKey] = {
                     month: monthYear,
+                    sortKey: sortKey,
                     total: 0,
                     projects: 0,
                     leave: 0,
@@ -912,18 +922,15 @@ const ResourceAnalyticsPage = () => {
                 };
             }
 
-            monthCounts[monthYear].total++;
-            if (allocation.assignment_type === 'project') monthCounts[monthYear].projects++;
-            else if (allocation.assignment_type === 'leave') monthCounts[monthYear].leave++;
-            else if (allocation.assignment_type === 'status') monthCounts[monthYear].status++;
+            monthCounts[sortKey].total++;
+            if (allocation.assignment_type === 'project') monthCounts[sortKey].projects++;
+            else if (allocation.assignment_type === 'leave') monthCounts[sortKey].leave++;
+            else if (allocation.assignment_type === 'status') monthCounts[sortKey].status++;
         });
 
+        // Sort by the sortKey (YYYY-MM format) which will sort chronologically
         return Object.values(monthCounts).sort((a, b) => {
-            const [monthA, yearA] = a.month.split(' ');
-            const [monthB, yearB] = b.month.split(' ');
-            const dateA = new Date(`${monthA} 1, ${yearA}`);
-            const dateB = new Date(`${monthB} 1, ${yearB}`);
-            return dateA - dateB;
+            return a.sortKey.localeCompare(b.sortKey);
         });
     }, [filteredAllocations]);
 
@@ -1004,6 +1011,79 @@ const ResourceAnalyticsPage = () => {
     const getTableSortIndicator = (key) => {
         if (tableSortConfig.key !== key) return '↕';
         return tableSortConfig.direction === 'ascending' ? '↑' : '↓';
+    };
+
+    // Function to open modal with allocation details
+    const openAllocationDetails = (userId, userName, allocationType) => {
+        // Filter allocations for this user and type
+        let userAllocations = filteredAllocations.filter(a => a.user_id === userId);
+
+        // Further filter by allocation type
+        switch (allocationType) {
+            case 'total':
+                // Show all allocations
+                break;
+            case 'projects':
+                userAllocations = userAllocations.filter(a => a.assignment_type === 'project');
+                break;
+            case 'leave':
+                userAllocations = userAllocations.filter(a => a.assignment_type === 'leave');
+                break;
+            case 'available':
+                userAllocations = userAllocations.filter(a =>
+                    a.assignment_type === 'status' &&
+                    (a.comment === 'Available' || a.comment === 'Available (D)' || a.comment === 'Available (N)')
+                );
+                break;
+            case 'notAvailable':
+                userAllocations = userAllocations.filter(a =>
+                    a.assignment_type === 'status' && a.comment === 'Not Available'
+                );
+                break;
+            default:
+                break;
+        }
+
+        // Sort by date descending
+        userAllocations.sort((a, b) => new Date(b.allocation_date) - new Date(a.allocation_date));
+
+        setModalData({
+            userName,
+            allocationType,
+            allocations: userAllocations
+        });
+        setIsModalOpen(true);
+        setIsCopied(false);
+    };
+
+    // Function to copy allocation details to clipboard
+    const copyToClipboard = () => {
+        const { userName, allocationType, allocations } = modalData;
+
+        // Create header
+        let text = `${userName} - ${allocationType.charAt(0).toUpperCase() + allocationType.slice(1)} Allocations\n`;
+        text += `Total: ${allocations.length}\n\n`;
+        text += `Date\tDay\tProject Number\tProject Name\tShift\n`;
+        text += `${'='.repeat(100)}\n`;
+
+        // Add each allocation
+        allocations.forEach(allocation => {
+            const date = new Date(allocation.allocation_date);
+            const dayName = DAYS_OF_WEEK[(date.getDay() + 1) % 7]; // Convert to Sat=0 format
+            const projectNumber = allocation.project_number || '-';
+            const projectName = allocation.project_name || allocation.leave_type || allocation.comment || '-';
+            const shift = allocation.shift || '-';
+
+            text += `${allocation.allocation_date}\t${dayName}\t${projectNumber}\t${projectName}\t${shift}\n`;
+        });
+
+        navigator.clipboard.writeText(text).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            alert('Failed to copy to clipboard');
+        });
     };
 
     if (loading) {
@@ -1772,17 +1852,22 @@ const ResourceAnalyticsPage = () => {
                     </div>
                 </div>
 
-                {/* Month of the Year Distribution - Full Width */}
+                {/* Monthly Trend Chart - Full Width */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
-                    <h3 className="text-lg font-semibold mb-4">Month of the Year Distribution (Project Allocations)</h3>
+                    <h3 className="text-lg font-semibold mb-4">Monthly Trend (Project Allocations)</h3>
                     <ResponsiveContainer width="100%" height={400}>
-                        <BarChart data={monthOfYearData}>
+                        <BarChart data={monthlyTrendData}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
+                            <XAxis
+                                dataKey="month"
+                                angle={-45}
+                                textAnchor="end"
+                                height={100}
+                            />
                             <YAxis />
                             <Tooltip />
                             <Legend />
-                            <Bar dataKey="count" fill="#f97316" name="Allocations" />
+                            <Bar dataKey="projects" fill="#f97316" name="Project Allocations" />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -1808,6 +1893,12 @@ const ResourceAnalyticsPage = () => {
                                         onClick={() => requestTableSort('department')}
                                     >
                                         Department {getTableSortIndicator('department')}
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestTableSort('total')}
+                                    >
+                                        Total Allocations {getTableSortIndicator('total')}
                                     </th>
                                     <th
                                         className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
@@ -1852,9 +1943,42 @@ const ResourceAnalyticsPage = () => {
                                     <tr key={user.userId} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
                                         <td className="px-4 py-3 font-medium">{user.name}</td>
                                         <td className="px-4 py-3">{user.department || '-'}</td>
-                                        <td className="px-4 py-3 text-center text-blue-500">{user.projects}</td>
-                                        <td className="px-4 py-3 text-center text-purple-500">{user.leave}</td>
-                                        <td className="px-4 py-3 text-center text-green-500">{user.available}</td>
+                                        <td className="px-4 py-3 text-center">
+                                            <button
+                                                onClick={() => openAllocationDetails(user.userId, user.name, 'total')}
+                                                className="text-orange-500 hover:text-orange-600 font-semibold hover:underline cursor-pointer"
+                                                title="Click to view all allocations"
+                                            >
+                                                {user.total}
+                                            </button>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <button
+                                                onClick={() => openAllocationDetails(user.userId, user.name, 'projects')}
+                                                className="text-blue-500 hover:text-blue-600 font-semibold hover:underline cursor-pointer"
+                                                title="Click to view project allocations"
+                                            >
+                                                {user.projects}
+                                            </button>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <button
+                                                onClick={() => openAllocationDetails(user.userId, user.name, 'leave')}
+                                                className="text-purple-500 hover:text-purple-600 font-semibold hover:underline cursor-pointer"
+                                                title="Click to view non-project allocations"
+                                            >
+                                                {user.leave}
+                                            </button>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <button
+                                                onClick={() => openAllocationDetails(user.userId, user.name, 'available')}
+                                                className="text-green-500 hover:text-green-600 font-semibold hover:underline cursor-pointer"
+                                                title="Click to view available allocations"
+                                            >
+                                                {user.available}
+                                            </button>
+                                        </td>
                                         <td className="px-4 py-3 text-center">{user.uniqueProjects}</td>
                                         <td className="px-4 py-3 text-center">{user.uniqueClients}</td>
                                         <td className="px-4 py-3 text-center">
@@ -1870,7 +1994,7 @@ const ResourceAnalyticsPage = () => {
                                 ))}
                                 {userBreakdown.length === 0 && (
                                     <tr>
-                                        <td colSpan="8" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan="9" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                             No user data available for the selected filters
                                         </td>
                                     </tr>
@@ -1880,6 +2004,116 @@ const ResourceAnalyticsPage = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Allocation Details Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
+                                    {modalData.userName} - {modalData.allocationType.charAt(0).toUpperCase() + modalData.allocationType.slice(1)} Allocations
+                                </h2>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    Total: {modalData.allocations.length} allocation{modalData.allocations.length !== 1 ? 's' : ''}
+                                </p>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={copyToClipboard}
+                                    variant="outline"
+                                    className="flex items-center gap-2"
+                                >
+                                    {isCopied ? (
+                                        <>
+                                            <CheckCheck size={16} className="text-green-500" />
+                                            Copied!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy size={16} />
+                                            Copy to Clipboard
+                                        </>
+                                    )}
+                                </Button>
+                                <button
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                    aria-label="Close modal"
+                                >
+                                    <X size={24} className="text-gray-500 dark:text-gray-400" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {modalData.allocations.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left">Date</th>
+                                                <th className="px-4 py-3 text-left">Day</th>
+                                                <th className="px-4 py-3 text-left">Project Number</th>
+                                                <th className="px-4 py-3 text-left">Project Name</th>
+                                                <th className="px-4 py-3 text-center">Shift</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {modalData.allocations.map((allocation, index) => {
+                                                const date = new Date(allocation.allocation_date);
+                                                const dayName = DAYS_OF_WEEK[(date.getDay() + 1) % 7];
+                                                const projectNumber = allocation.project_number || '-';
+                                                const projectName = allocation.project_name || allocation.leave_type || allocation.comment || '-';
+                                                const shift = allocation.shift || '-';
+
+                                                return (
+                                                    <tr
+                                                        key={index}
+                                                        className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                                    >
+                                                        <td className="px-4 py-3 font-medium">{allocation.allocation_date}</td>
+                                                        <td className="px-4 py-3">{dayName}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={projectNumber !== '-' ? 'text-blue-500 font-semibold' : ''}>
+                                                                {projectNumber}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3">{projectName}</td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                                shift === 'Days' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                                shift === 'Nights' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                                                                shift === 'Evening' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
+                                                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                                                            }`}>
+                                                                {shift}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                                    No allocations found
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="flex items-center justify-end p-6 border-t border-gray-200 dark:border-gray-700 gap-3">
+                            <Button onClick={() => setIsModalOpen(false)} variant="outline">
+                                Close
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
