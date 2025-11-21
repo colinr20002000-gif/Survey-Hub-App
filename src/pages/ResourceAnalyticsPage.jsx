@@ -58,12 +58,28 @@ const ResourceAnalyticsPage = () => {
     const [usersDropdownOpen, setUsersDropdownOpen] = useState(false);
     const [departmentsDropdownOpen, setDepartmentsDropdownOpen] = useState(false);
 
-    // Table sorting state
+    // Table sorting state for Individual User Statistics
     const [tableSortConfig, setTableSortConfig] = useState({ key: 'total', direction: 'descending' });
+
+    // Table sorting state for Project Statistics
+    const [projectSortConfig, setProjectSortConfig] = useState({ key: 'projectNumber', direction: 'descending' });
+
+    // Pagination state for Project Statistics table
+    const [projectTablePage, setProjectTablePage] = useState(1);
+    const projectsPerPage = 10;
+
+    // Pagination state for Individual User Statistics table
+    const [userTablePage, setUserTablePage] = useState(1);
+    const usersPerPage = 10;
 
     // Modal state for allocation details
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalData, setModalData] = useState({ userName: '', allocationType: '', allocations: [] });
+    const [modalData, setModalData] = useState({
+        title: '',
+        allocationType: '',
+        allocations: [],
+        viewType: 'user' // 'user' or 'project'
+    });
     const [isCopied, setIsCopied] = useState(false);
 
     // Colors for charts
@@ -787,6 +803,103 @@ const ResourceAnalyticsPage = () => {
         });
     }, [filteredAllocations, allUsers, tableSortConfig]);
 
+    // Individual project breakdown with detailed stats
+    const projectBreakdown = useMemo(() => {
+        const projectStats = {};
+
+        filteredAllocations
+            .filter(a => a.assignment_type === 'project' && a.project_number)
+            .forEach(allocation => {
+                const projectNumber = allocation.project_number;
+                if (!projectStats[projectNumber]) {
+                    projectStats[projectNumber] = {
+                        projectNumber,
+                        projectName: allocation.project_name || 'Unknown',
+                        client: allocation.client || '-',
+                        totalAllocations: 0,
+                        uniqueUsers: new Set(),
+                        userList: new Set()
+                    };
+                }
+
+                projectStats[projectNumber].totalAllocations++;
+                if (allocation.user_id) {
+                    projectStats[projectNumber].uniqueUsers.add(allocation.user_id);
+                }
+            });
+
+        // Convert to array and add user names
+        const projects = Object.values(projectStats).map(project => {
+            // Get user names
+            const userNames = Array.from(project.uniqueUsers)
+                .map(userId => {
+                    const user = allUsers.find(u => u.id === userId);
+                    return user ? user.name : 'Unknown';
+                })
+                .filter(name => name !== 'Unknown');
+
+            return {
+                ...project,
+                uniqueUsers: project.uniqueUsers.size,
+                userList: userNames
+            };
+        });
+
+        // Apply sorting based on projectSortConfig
+        return projects.sort((a, b) => {
+            let aVal = a[projectSortConfig.key];
+            let bVal = b[projectSortConfig.key];
+
+            // Handle numeric values
+            if (typeof aVal === 'number' && typeof bVal === 'number') {
+                return projectSortConfig.direction === 'ascending' ? aVal - bVal : bVal - aVal;
+            }
+
+            // Handle string values
+            if (typeof aVal === 'string' && typeof bVal === 'string') {
+                return projectSortConfig.direction === 'ascending'
+                    ? aVal.localeCompare(bVal)
+                    : bVal.localeCompare(aVal);
+            }
+
+            // Handle null/undefined values
+            if (!aVal) return 1;
+            if (!bVal) return -1;
+
+            return 0;
+        });
+    }, [filteredAllocations, allUsers, projectSortConfig]);
+
+    // Paginated project breakdown
+    const paginatedProjects = useMemo(() => {
+        const startIndex = (projectTablePage - 1) * projectsPerPage;
+        const endIndex = startIndex + projectsPerPage;
+        return projectBreakdown.slice(startIndex, endIndex);
+    }, [projectBreakdown, projectTablePage, projectsPerPage]);
+
+    // Calculate total pages for project table
+    const totalProjectPages = Math.ceil(projectBreakdown.length / projectsPerPage);
+
+    // Reset project table page when projects change
+    useEffect(() => {
+        setProjectTablePage(1);
+    }, [projectBreakdown.length]);
+
+    // Paginated user breakdown
+    const paginatedUsers = useMemo(() => {
+        const startIndex = (userTablePage - 1) * usersPerPage;
+        const endIndex = startIndex + usersPerPage;
+        return userBreakdown.slice(startIndex, endIndex);
+    }, [userBreakdown, userTablePage, usersPerPage]);
+
+    // Calculate total pages for user table
+    const totalUserPages = Math.ceil(userBreakdown.length / usersPerPage);
+
+    // Reset user table page when users change
+    useEffect(() => {
+        setUserTablePage(1);
+    }, [userBreakdown.length]);
+
     // Top 10 users by allocations (sorted by project count)
     const topUsersData = useMemo(() => {
         return [...userBreakdown]
@@ -999,7 +1112,7 @@ const ResourceAnalyticsPage = () => {
         selectedShifts.length > 0 || selectedDaysOfWeek.length > 0 || selectedMonths.length > 0 ||
         selectedLeaveTypes.length > 0 || selectedUsers.length > 0 || selectedDepartments.length > 0 || selectedStatuses.length > 0;
 
-    // Table sorting functions
+    // Table sorting functions for User Statistics
     const requestTableSort = (key) => {
         let direction = 'ascending';
         if (tableSortConfig.key === key && tableSortConfig.direction === 'ascending') {
@@ -1013,7 +1126,21 @@ const ResourceAnalyticsPage = () => {
         return tableSortConfig.direction === 'ascending' ? '↑' : '↓';
     };
 
-    // Function to open modal with allocation details
+    // Table sorting functions for Project Statistics
+    const requestProjectSort = (key) => {
+        let direction = 'ascending';
+        if (projectSortConfig.key === key && projectSortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setProjectSortConfig({ key, direction });
+    };
+
+    const getProjectSortIndicator = (key) => {
+        if (projectSortConfig.key !== key) return '↕';
+        return projectSortConfig.direction === 'ascending' ? '↑' : '↓';
+    };
+
+    // Function to open modal with user allocation details
     const openAllocationDetails = (userId, userName, allocationType) => {
         // Filter allocations for this user and type
         let userAllocations = filteredAllocations.filter(a => a.user_id === userId);
@@ -1048,9 +1175,30 @@ const ResourceAnalyticsPage = () => {
         userAllocations.sort((a, b) => new Date(b.allocation_date) - new Date(a.allocation_date));
 
         setModalData({
-            userName,
+            title: `${userName} - ${allocationType.charAt(0).toUpperCase() + allocationType.slice(1)} Allocations`,
             allocationType,
-            allocations: userAllocations
+            allocations: userAllocations,
+            viewType: 'user'
+        });
+        setIsModalOpen(true);
+        setIsCopied(false);
+    };
+
+    // Function to open modal with project allocation details
+    const openProjectDetails = (projectNumber, projectName) => {
+        // Filter allocations for this project
+        let projectAllocations = filteredAllocations.filter(
+            a => a.assignment_type === 'project' && a.project_number === projectNumber
+        );
+
+        // Sort by date descending
+        projectAllocations.sort((a, b) => new Date(b.allocation_date) - new Date(a.allocation_date));
+
+        setModalData({
+            title: `${projectNumber} - ${projectName}`,
+            allocationType: 'project',
+            allocations: projectAllocations,
+            viewType: 'project'
         });
         setIsModalOpen(true);
         setIsCopied(false);
@@ -1058,24 +1206,41 @@ const ResourceAnalyticsPage = () => {
 
     // Function to copy allocation details to clipboard
     const copyToClipboard = () => {
-        const { userName, allocationType, allocations } = modalData;
+        const { title, allocationType, allocations, viewType } = modalData;
 
         // Create header
-        let text = `${userName} - ${allocationType.charAt(0).toUpperCase() + allocationType.slice(1)} Allocations\n`;
+        let text = `${title}\n`;
         text += `Total: ${allocations.length}\n\n`;
-        text += `Date\tDay\tProject Number\tProject Name\tShift\n`;
-        text += `${'='.repeat(100)}\n`;
 
-        // Add each allocation
-        allocations.forEach(allocation => {
-            const date = new Date(allocation.allocation_date);
-            const dayName = DAYS_OF_WEEK[(date.getDay() + 1) % 7]; // Convert to Sat=0 format
-            const projectNumber = allocation.project_number || '-';
-            const projectName = allocation.project_name || allocation.leave_type || allocation.comment || '-';
-            const shift = allocation.shift || '-';
+        if (viewType === 'project') {
+            // Project view: Date, Day, User Name, Shift
+            text += `Date\tDay\tUser Name\tShift\n`;
+            text += `${'='.repeat(100)}\n`;
 
-            text += `${allocation.allocation_date}\t${dayName}\t${projectNumber}\t${projectName}\t${shift}\n`;
-        });
+            allocations.forEach(allocation => {
+                const date = new Date(allocation.allocation_date);
+                const dayName = DAYS_OF_WEEK[(date.getDay() + 1) % 7];
+                const user = allUsers.find(u => u.id === allocation.user_id);
+                const userName = user ? user.name : 'Unknown';
+                const shift = allocation.shift || '-';
+
+                text += `${allocation.allocation_date}\t${dayName}\t${userName}\t${shift}\n`;
+            });
+        } else {
+            // User view: Date, Day, Project Number, Project Name, Shift
+            text += `Date\tDay\tProject Number\tProject Name\tShift\n`;
+            text += `${'='.repeat(100)}\n`;
+
+            allocations.forEach(allocation => {
+                const date = new Date(allocation.allocation_date);
+                const dayName = DAYS_OF_WEEK[(date.getDay() + 1) % 7];
+                const projectNumber = allocation.project_number || '-';
+                const projectName = allocation.project_name || allocation.leave_type || allocation.comment || '-';
+                const shift = allocation.shift || '-';
+
+                text += `${allocation.allocation_date}\t${dayName}\t${projectNumber}\t${projectName}\t${shift}\n`;
+            });
+        }
 
         navigator.clipboard.writeText(text).then(() => {
             setIsCopied(true);
@@ -1939,7 +2104,7 @@ const ResourceAnalyticsPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {userBreakdown.map((user, index) => (
+                                {paginatedUsers.map((user, index) => (
                                     <tr key={user.userId} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
                                         <td className="px-4 py-3 font-medium">{user.name}</td>
                                         <td className="px-4 py-3">{user.department || '-'}</td>
@@ -2002,6 +2167,170 @@ const ResourceAnalyticsPage = () => {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination Controls */}
+                    {totalUserPages > 1 && (
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                                Showing {((userTablePage - 1) * usersPerPage) + 1} to {Math.min(userTablePage * usersPerPage, userBreakdown.length)} of {userBreakdown.length} users
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={() => setUserTablePage(1)}
+                                    disabled={userTablePage === 1}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    First
+                                </Button>
+                                <Button
+                                    onClick={() => setUserTablePage(prev => Math.max(1, prev - 1))}
+                                    disabled={userTablePage === 1}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Previous
+                                </Button>
+                                <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+                                    Page {userTablePage} of {totalUserPages}
+                                </span>
+                                <Button
+                                    onClick={() => setUserTablePage(prev => Math.min(totalUserPages, prev + 1))}
+                                    disabled={userTablePage === totalUserPages}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Next
+                                </Button>
+                                <Button
+                                    onClick={() => setUserTablePage(totalUserPages)}
+                                    disabled={userTablePage === totalUserPages}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Last
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Project Statistics Table */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                        <TrendingUp size={20} className="mr-2 text-orange-500" />
+                        Project Statistics
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                                <tr>
+                                    <th
+                                        className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('projectNumber')}
+                                    >
+                                        Project Number {getProjectSortIndicator('projectNumber')}
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('projectName')}
+                                    >
+                                        Project Name {getProjectSortIndicator('projectName')}
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('client')}
+                                    >
+                                        Client {getProjectSortIndicator('client')}
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('totalAllocations')}
+                                    >
+                                        Total Allocations {getProjectSortIndicator('totalAllocations')}
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('uniqueUsers')}
+                                    >
+                                        Unique Users {getProjectSortIndicator('uniqueUsers')}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {paginatedProjects.map((project, index) => (
+                                    <tr key={project.projectNumber} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
+                                        <td className="px-4 py-3 font-medium text-blue-500">{project.projectNumber}</td>
+                                        <td className="px-4 py-3">{project.projectName}</td>
+                                        <td className="px-4 py-3">{project.client}</td>
+                                        <td className="px-4 py-3 text-center">
+                                            <button
+                                                onClick={() => openProjectDetails(project.projectNumber, project.projectName)}
+                                                className="text-orange-500 hover:text-orange-600 font-semibold hover:underline cursor-pointer"
+                                                title="Click to view project allocation details"
+                                            >
+                                                {project.totalAllocations}
+                                            </button>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">{project.uniqueUsers}</td>
+                                    </tr>
+                                ))}
+                                {projectBreakdown.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                            No project data available for the selected filters
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalProjectPages > 1 && (
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                                Showing {((projectTablePage - 1) * projectsPerPage) + 1} to {Math.min(projectTablePage * projectsPerPage, projectBreakdown.length)} of {projectBreakdown.length} projects
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={() => setProjectTablePage(1)}
+                                    disabled={projectTablePage === 1}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    First
+                                </Button>
+                                <Button
+                                    onClick={() => setProjectTablePage(prev => Math.max(1, prev - 1))}
+                                    disabled={projectTablePage === 1}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Previous
+                                </Button>
+                                <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+                                    Page {projectTablePage} of {totalProjectPages}
+                                </span>
+                                <Button
+                                    onClick={() => setProjectTablePage(prev => Math.min(totalProjectPages, prev + 1))}
+                                    disabled={projectTablePage === totalProjectPages}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Next
+                                </Button>
+                                <Button
+                                    onClick={() => setProjectTablePage(totalProjectPages)}
+                                    disabled={projectTablePage === totalProjectPages}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Last
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -2013,7 +2342,7 @@ const ResourceAnalyticsPage = () => {
                         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
-                                    {modalData.userName} - {modalData.allocationType.charAt(0).toUpperCase() + modalData.allocationType.slice(1)} Allocations
+                                    {modalData.title}
                                 </h2>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                     Total: {modalData.allocations.length} allocation{modalData.allocations.length !== 1 ? 's' : ''}
@@ -2056,8 +2385,14 @@ const ResourceAnalyticsPage = () => {
                                             <tr>
                                                 <th className="px-4 py-3 text-left">Date</th>
                                                 <th className="px-4 py-3 text-left">Day</th>
-                                                <th className="px-4 py-3 text-left">Project Number</th>
-                                                <th className="px-4 py-3 text-left">Project Name</th>
+                                                {modalData.viewType === 'project' ? (
+                                                    <th className="px-4 py-3 text-left">User Name</th>
+                                                ) : (
+                                                    <>
+                                                        <th className="px-4 py-3 text-left">Project Number</th>
+                                                        <th className="px-4 py-3 text-left">Project Name</th>
+                                                    </>
+                                                )}
                                                 <th className="px-4 py-3 text-center">Shift</th>
                                             </tr>
                                         </thead>
@@ -2065,8 +2400,6 @@ const ResourceAnalyticsPage = () => {
                                             {modalData.allocations.map((allocation, index) => {
                                                 const date = new Date(allocation.allocation_date);
                                                 const dayName = DAYS_OF_WEEK[(date.getDay() + 1) % 7];
-                                                const projectNumber = allocation.project_number || '-';
-                                                const projectName = allocation.project_name || allocation.leave_type || allocation.comment || '-';
                                                 const shift = allocation.shift || '-';
 
                                                 return (
@@ -2076,12 +2409,24 @@ const ResourceAnalyticsPage = () => {
                                                     >
                                                         <td className="px-4 py-3 font-medium">{allocation.allocation_date}</td>
                                                         <td className="px-4 py-3">{dayName}</td>
-                                                        <td className="px-4 py-3">
-                                                            <span className={projectNumber !== '-' ? 'text-blue-500 font-semibold' : ''}>
-                                                                {projectNumber}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-3">{projectName}</td>
+                                                        {modalData.viewType === 'project' ? (
+                                                            <td className="px-4 py-3">
+                                                                <span className="text-blue-500 font-semibold">
+                                                                    {allUsers.find(u => u.id === allocation.user_id)?.name || 'Unknown'}
+                                                                </span>
+                                                            </td>
+                                                        ) : (
+                                                            <>
+                                                                <td className="px-4 py-3">
+                                                                    <span className={allocation.project_number ? 'text-blue-500 font-semibold' : ''}>
+                                                                        {allocation.project_number || '-'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {allocation.project_name || allocation.leave_type || allocation.comment || '-'}
+                                                                </td>
+                                                            </>
+                                                        )}
                                                         <td className="px-4 py-3 text-center">
                                                             <span className={`px-2 py-1 rounded text-xs font-semibold ${
                                                                 shift === 'Days' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
