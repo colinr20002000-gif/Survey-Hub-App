@@ -5,6 +5,7 @@ import {
   ChevronDown,
   LogOut,
   Moon,
+  MessageSquare,
   Search,
   Settings,
   Sun,
@@ -18,7 +19,7 @@ import { getDepartmentColor, getAvatarText } from '../../utils/avatarColors';
 // This is the main header that appears at the top of every page when logged in
 // It contains the search bar, theme toggle, notifications, and user menu
 // The header stays visible as users navigate between different parts of the app
-const Header = ({ onMenuClick, setActiveTab }) => {
+const Header = ({ onMenuClick, setActiveTab, onChatbotToggle }) => {
   // Get user info and logout function from authentication context
   const { user, logout } = useAuth();
   
@@ -121,14 +122,23 @@ const Header = ({ onMenuClick, setActiveTab }) => {
       </div>
       
       <div className="flex items-center space-x-4">
-        <button 
-          onClick={toggleTheme} 
+        <button
+          onClick={toggleTheme}
           className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
           aria-label="Toggle theme"
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
-        
+
+        <button
+          onClick={onChatbotToggle}
+          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+          aria-label="Toggle AI Assistant"
+          title="AI Company Assistant"
+        >
+          <MessageSquare size={20} />
+        </button>
+
         <div className="relative" ref={notificationsRef}>
           <button 
             onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} 
@@ -309,7 +319,8 @@ const Header = ({ onMenuClick, setActiveTab }) => {
 
 Header.propTypes = {
   onMenuClick: PropTypes.func.isRequired,
-  setActiveTab: PropTypes.func.isRequired
+  setActiveTab: PropTypes.func.isRequired,
+  onChatbotToggle: PropTypes.func.isRequired
 };
 
 Header.displayName = 'Header';

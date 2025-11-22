@@ -61,7 +61,7 @@ const ResetPasswordPage = ({ onBack }) => {
       if (error) {
         setError(error.message);
       } else {
-        setMessage('Your password has been successfully reset. You will be redirected to login...');
+        setMessage('Your password has been successfully reset. Redirecting to login...');
 
         // Clear the recovery flag from session storage
         sessionStorage.removeItem('isPasswordRecovery');
@@ -69,10 +69,13 @@ const ResetPasswordPage = ({ onBack }) => {
         // Clear the hash from URL
         window.history.replaceState(null, '', window.location.pathname);
 
-        // Redirect to login after 2 seconds
+        // Sign out the user to clear the session completely
+        await supabase.auth.signOut();
+
+        // Reload the page to ensure clean state and show login page
         setTimeout(() => {
-          onBack();
-        }, 2000);
+          window.location.href = window.location.origin;
+        }, 1500);
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');

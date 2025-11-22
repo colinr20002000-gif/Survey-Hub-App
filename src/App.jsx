@@ -267,7 +267,7 @@ const RetroTargetIcon = ({ className }) => (
 
 
 // --- MAIN LAYOUT COMPONENTS ---
-const Header = ({ onMenuClick, setActiveTab, activeTab }) => {
+const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const { addToast } = useToast();
@@ -365,6 +365,9 @@ const Header = ({ onMenuClick, setActiveTab, activeTab }) => {
                 <div className="flex items-center space-x-4">
                     <button onClick={() => window.location.reload()} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400" title="Refresh page">
                         <RefreshCw size={20} />
+                    </button>
+                    <button onClick={onChatbotToggle} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400" title="AI Company Assistant">
+                        <MessageSquare size={20} />
                     </button>
                     <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
                         {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -4276,7 +4279,7 @@ const MainLayout = () => {
         <div className="flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans">
             <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
             <div className="flex-1 flex flex-col overflow-hidden">
-                <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} setActiveTab={setActiveTab} activeTab={activeTab} />
+                <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} setActiveTab={setActiveTab} activeTab={activeTab} onChatbotToggle={() => setIsChatbotVisible(!isChatbotVisible)} />
                 <main className="flex-1 overflow-x-hidden overflow-y-auto">
                     {renderContent()}
                 </main>
@@ -4300,14 +4303,6 @@ const MainLayout = () => {
                 isVisible={isChatbotVisible}
                 onClose={() => setIsChatbotVisible(false)}
             />
-            {!isChatbotVisible && (
-                <button
-                    onClick={() => setIsChatbotVisible(true)}
-                    className="fixed bottom-4 right-4 bg-orange-500 text-white p-4 rounded-full shadow-lg hover:bg-orange-600 z-40"
-                >
-                    <MessageSquare size={24} />
-                </button>
-            )}
         </div>
     );
 };

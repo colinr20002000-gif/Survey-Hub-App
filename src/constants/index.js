@@ -35,6 +35,12 @@ export const leaveColors = {
     'Stand Down': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
     'Sick Day': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
     'Rest Day': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
+    'Compassionate Leave': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
+    'Enforced Rest': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
+    'Travel Shift': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
+    'Paternity Leave': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
+    'Xmas': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
+    'No Assignment': 'bg-purple-300 text-purple-950 dark:bg-purple-800 dark:text-purple-50',
 };
 
 // Announcement priorities
