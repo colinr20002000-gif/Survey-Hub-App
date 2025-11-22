@@ -15,14 +15,14 @@ export const UserProvider = ({ children }) => {
             // Fetch only active real users (not deleted)
             const { data: realUsers, error: realUsersError} = await supabase
                 .from('users')
-                .select('*')
+                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status')
                 .is('deleted_at', null)
                 .order('name', { ascending: true });
 
             // Fetch only active dummy users (not deleted and is_active = true)
             const { data: dummyUsers, error: dummyUsersError } = await supabase
                 .from('dummy_users')
-                .select('*')
+                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, is_active')
                 .eq('is_active', true)
                 .is('deleted_at', null)
                 .order('name', { ascending: true });

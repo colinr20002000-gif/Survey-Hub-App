@@ -134,6 +134,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const justClosedMenuRef = useRef(false);
     const [isExporting, setIsExporting] = useState(false);
     const isSavingRef = useRef(false); // Track when save operations are in progress to prevent race conditions
+
+    // Week caching for performance optimization
+    const weekCacheRef = useRef({}); // Stores fetched week data: { weekKey: { data, timestamp } }
+    const fetchingWeeksRef = useRef(new Set()); // Track which weeks are currently being fetched
+    const MAX_CACHED_WEEKS = 10; // Keep last 10 weeks in cache to prevent memory bloat
+
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
     const [customShiftColors, setCustomShiftColors] = useState({});
     const [customLeaveColors, setCustomLeaveColors] = useState({});
@@ -323,55 +329,82 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         return leaveColors[leaveType] || '';
     }, [customLeaveColors]);
 
-    const getResourceAllocations = useCallback(async (silent = false) => {
+    const getResourceAllocations = useCallback(async (silent = false, weekStartOverride = null) => {
         // Skip reload if we're in the middle of a save operation to prevent race conditions
         if (isSavingRef.current && silent) {
             console.log('⏭️ Skipping reload - save operation in progress');
             return;
         }
 
+        // Use override week if provided (for prefetching), otherwise use current week
+        const targetWeek = weekStartOverride || currentWeekStart;
+        const cacheKey = formatDateForKey(targetWeek);
+
+        // Check if this week range is already cached
+        if (weekCacheRef.current[cacheKey] && !weekStartOverride) {
+            const cachedData = weekCacheRef.current[cacheKey];
+            const cacheAge = Date.now() - cachedData.timestamp;
+            const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
+
+            if (cacheAge < MAX_CACHE_AGE) {
+                console.log(`💾 Using cached data for week ${cacheKey} (age: ${Math.round(cacheAge / 1000)}s)`);
+                setAllocations(cachedData.data);
+                setLoading(false);
+                return;
+            } else {
+                console.log(`🔄 Cache expired for week ${cacheKey}, refreshing...`);
+            }
+        }
+
+        // Check if we're already fetching this week (prevent duplicate fetches)
+        if (fetchingWeeksRef.current.has(cacheKey)) {
+            console.log(`⏳ Already fetching week ${cacheKey}, skipping duplicate request`);
+            return;
+        }
+
+        // Mark this week as being fetched
+        fetchingWeeksRef.current.add(cacheKey);
+
         // Save scroll position before updating if in silent mode
         if (silent) {
             scrollPositionRef.current = window.scrollY || document.documentElement.scrollTop;
         }
 
-        if (!silent) {
+        if (!silent && !weekStartOverride) {
             setLoading(true);
         }
         setError(null);
         try {
-            // Fetch allocations from both tables using pagination to get ALL records
-            // PostgREST has a server-side max limit (often 3000), so we need to paginate
-            const fetchAllWithPagination = async (tableName) => {
-                let allData = [];
-                let from = 0;
-                const pageSize = 1000;
-                let hasMore = true;
+            // Calculate date range: current week ± 1 week (3 weeks total = 21 days)
+            // This dramatically reduces the amount of data fetched
+            const startDate = addDays(targetWeek, -7); // 1 week before
+            const endDate = addDays(targetWeek, 13); // Current week (7 days) + 1 week after (7 days) - 1 = 13
+            const startDateString = formatDateForKey(startDate);
+            const endDateString = formatDateForKey(endDate);
 
-                while (hasMore) {
-                    const { data, error } = await supabase
-                        .from(tableName)
-                        .select('*')
-                        .range(from, from + pageSize - 1);
+            if (!weekStartOverride) {
+                console.log(`📅 Fetching allocations for date range: ${startDateString} to ${endDateString}`);
+            } else {
+                console.log(`🔮 Prefetching allocations for week ${cacheKey}: ${startDateString} to ${endDateString}`);
+            }
 
-                    if (error) throw error;
+            // Fetch allocations from both tables with date range filter
+            const fetchWithDateRange = async (tableName) => {
+                const { data, error } = await supabase
+                    .from(tableName)
+                    .select('id, user_id, allocation_date, assignment_type, project_id, project_number, project_name, client, task, shift, time, comment, leave_type')
+                    .gte('allocation_date', startDateString)
+                    .lte('allocation_date', endDateString)
+                    .order('allocation_date', { ascending: true });
 
-                    if (data && data.length > 0) {
-                        allData = allData.concat(data);
-                        from += pageSize;
-                        hasMore = data.length === pageSize;
-                    } else {
-                        hasMore = false;
-                    }
-                }
-
-                return allData;
+                if (error) throw error;
+                return data || [];
             };
 
             // Fetch from both tables in parallel
             const [realData, dummyData] = await Promise.all([
-                fetchAllWithPagination('resource_allocations'),
-                fetchAllWithPagination('dummy_resource_allocations')
+                fetchWithDateRange('resource_allocations'),
+                fetchWithDateRange('dummy_resource_allocations')
             ]);
 
                 if (!realData && !dummyData) {
@@ -461,14 +494,60 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     }
                 });
 
-            setAllocations(formattedAllocations);
+            // Update state with the fetched data
+            if (!weekStartOverride) {
+                // Only update displayed allocations if this is for the current week
+                setAllocations(formattedAllocations);
+            }
+
+            // Store in cache
+            weekCacheRef.current[cacheKey] = {
+                data: formattedAllocations,
+                timestamp: Date.now()
+            };
+            console.log(`💾 Cached week ${cacheKey}`);
+
+            // Clean up old cache entries (keep only MAX_CACHED_WEEKS most recent)
+            const cacheKeys = Object.keys(weekCacheRef.current);
+            if (cacheKeys.length > MAX_CACHED_WEEKS) {
+                // Sort by timestamp (oldest first)
+                const sortedKeys = cacheKeys.sort((a, b) => {
+                    return weekCacheRef.current[a].timestamp - weekCacheRef.current[b].timestamp;
+                });
+                // Remove oldest entries
+                const keysToRemove = sortedKeys.slice(0, cacheKeys.length - MAX_CACHED_WEEKS);
+                keysToRemove.forEach(key => {
+                    delete weekCacheRef.current[key];
+                    console.log(`🗑️ Removed old cache entry: ${key}`);
+                });
+            }
 
             // Restore scroll position after state update if in silent mode
-            if (silent) {
+            if (silent && !weekStartOverride) {
                 // Use requestAnimationFrame to ensure DOM has updated
                 requestAnimationFrame(() => {
                     window.scrollTo(0, scrollPositionRef.current);
                 });
+            }
+
+            // Prefetch adjacent weeks in the background (only if this is not already a prefetch)
+            if (!weekStartOverride) {
+                const prevWeek = addDays(targetWeek, -7);
+                const nextWeek = addDays(targetWeek, 7);
+                const prevWeekKey = formatDateForKey(prevWeek);
+                const nextWeekKey = formatDateForKey(nextWeek);
+
+                // Prefetch previous week if not cached
+                if (!weekCacheRef.current[prevWeekKey] && !fetchingWeeksRef.current.has(prevWeekKey)) {
+                    console.log(`🔮 Prefetching previous week: ${prevWeekKey}`);
+                    setTimeout(() => getResourceAllocations(true, prevWeek), 100);
+                }
+
+                // Prefetch next week if not cached
+                if (!weekCacheRef.current[nextWeekKey] && !fetchingWeeksRef.current.has(nextWeekKey)) {
+                    console.log(`🔮 Prefetching next week: ${nextWeekKey}`);
+                    setTimeout(() => getResourceAllocations(true, nextWeek), 200);
+                }
             }
 
         } catch (err) {
@@ -476,11 +555,14 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             setError('Failed to load resource allocations');
             setAllocations({});
         } finally {
-            if (!silent) {
+            // Remove from fetching set
+            fetchingWeeksRef.current.delete(cacheKey);
+
+            if (!silent && !weekStartOverride) {
                 setLoading(false);
             }
         }
-    }, []); // Empty dependency array - function is stable
+    }, [currentWeekStart]); // Re-fetch when week changes
 
     useEffect(() => {
         getResourceAllocations();
@@ -545,7 +627,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             realAllocationsSubscription.unsubscribe();
             dummyAllocationsSubscription.unsubscribe();
         };
-    }, [getResourceAllocations]); // Now depends on the memoized function
+    }, [getResourceAllocations, currentWeekStart]); // Re-subscribe when week changes
 
     useEffect(() => {
         const handleClickOutside = (event) => {

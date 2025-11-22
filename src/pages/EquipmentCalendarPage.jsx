@@ -86,6 +86,12 @@ const EquipmentCalendarPage = () => {
     const scrollPositionRef = useRef(0);
     const calendarRef = useRef(null);
     const justClosedMenuRef = useRef(false);
+
+    // Week caching for performance optimization
+    const weekCacheRef = useRef({}); // Stores fetched week data: { weekKey: { data, timestamp } }
+    const fetchingWeeksRef = useRef(new Set()); // Track which weeks are currently being fetched
+    const MAX_CACHED_WEEKS = 10; // Keep last 10 weeks in cache to prevent memory bloat
+
     const [isExporting, setIsExporting] = useState(false);
     const [showDiscrepancies, setShowDiscrepancies] = useState(false);
     const [discrepanciesData, setDiscrepanciesData] = useState([]);
@@ -210,7 +216,7 @@ const EquipmentCalendarPage = () => {
         try {
             const { data, error } = await supabase
                 .from('equipment')
-                .select('*')
+                .select('id, name, category, status')
                 .order('name');
 
             if (error) {
@@ -330,20 +336,65 @@ const EquipmentCalendarPage = () => {
     }, []);
 
     // Fetch equipment allocations
-    const getEquipmentAllocations = useCallback(async (silent = false) => {
-        if (silent) {
+    const getEquipmentAllocations = useCallback(async (silent = false, weekStartOverride = null) => {
+        // Use override week if provided (for prefetching), otherwise use current week
+        const targetWeek = weekStartOverride || currentWeekStart;
+        const cacheKey = formatDateForKey(targetWeek);
+
+        // Check if this week range is already cached
+        if (weekCacheRef.current[cacheKey] && !weekStartOverride) {
+            const cachedData = weekCacheRef.current[cacheKey];
+            const cacheAge = Date.now() - cachedData.timestamp;
+            const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
+
+            if (cacheAge < MAX_CACHE_AGE) {
+                console.log(`💾 Using cached equipment data for week ${cacheKey} (age: ${Math.round(cacheAge / 1000)}s)`);
+                setAllocations(cachedData.data);
+                setLoading(false);
+                return;
+            } else {
+                console.log(`🔄 Cache expired for week ${cacheKey}, refreshing...`);
+            }
+        }
+
+        // Check if we're already fetching this week (prevent duplicate fetches)
+        if (fetchingWeeksRef.current.has(cacheKey)) {
+            console.log(`⏳ Already fetching week ${cacheKey}, skipping duplicate request`);
+            return;
+        }
+
+        // Mark this week as being fetched
+        fetchingWeeksRef.current.add(cacheKey);
+
+        if (silent && !weekStartOverride) {
             scrollPositionRef.current = window.scrollY || document.documentElement.scrollTop;
         }
 
-        if (!silent) {
+        if (!silent && !weekStartOverride) {
             setLoading(true);
         }
         setError(null);
 
         try {
+            // Calculate date range: current week ± 1 week (3 weeks total = 21 days)
+            // This dramatically reduces the amount of data fetched
+            const startDate = addDays(targetWeek, -7); // 1 week before
+            const endDate = addDays(targetWeek, 13); // Current week (7 days) + 1 week after (7 days) - 1 = 13
+            const startDateString = formatDateForKey(startDate);
+            const endDateString = formatDateForKey(endDate);
+
+            if (!weekStartOverride) {
+                console.log(`📅 Fetching equipment allocations for date range: ${startDateString} to ${endDateString}`);
+            } else {
+                console.log(`🔮 Prefetching equipment allocations for week ${cacheKey}: ${startDateString} to ${endDateString}`);
+            }
+
             const { data, error } = await supabase
                 .from('equipment_calendar')
-                .select('*');
+                .select('id, user_id, equipment_id, allocation_date, comment')
+                .gte('allocation_date', startDateString)
+                .lte('allocation_date', endDateString)
+                .order('allocation_date', { ascending: true });
 
             if (error) {
                 console.error('Error fetching equipment allocations:', error);
@@ -392,12 +443,58 @@ const EquipmentCalendarPage = () => {
                 }
             });
 
-            setAllocations(formattedAllocations);
+            // Update state with the fetched data
+            if (!weekStartOverride) {
+                // Only update displayed allocations if this is for the current week
+                setAllocations(formattedAllocations);
+            }
 
-            if (silent) {
+            // Store in cache
+            weekCacheRef.current[cacheKey] = {
+                data: formattedAllocations,
+                timestamp: Date.now()
+            };
+            console.log(`💾 Cached equipment week ${cacheKey}`);
+
+            // Clean up old cache entries (keep only MAX_CACHED_WEEKS most recent)
+            const cacheKeys = Object.keys(weekCacheRef.current);
+            if (cacheKeys.length > MAX_CACHED_WEEKS) {
+                // Sort by timestamp (oldest first)
+                const sortedKeys = cacheKeys.sort((a, b) => {
+                    return weekCacheRef.current[a].timestamp - weekCacheRef.current[b].timestamp;
+                });
+                // Remove oldest entries
+                const keysToRemove = sortedKeys.slice(0, cacheKeys.length - MAX_CACHED_WEEKS);
+                keysToRemove.forEach(key => {
+                    delete weekCacheRef.current[key];
+                    console.log(`🗑️ Removed old equipment cache entry: ${key}`);
+                });
+            }
+
+            if (silent && !weekStartOverride) {
                 requestAnimationFrame(() => {
                     window.scrollTo(0, scrollPositionRef.current);
                 });
+            }
+
+            // Prefetch adjacent weeks in the background (only if this is not already a prefetch)
+            if (!weekStartOverride) {
+                const prevWeek = addDays(targetWeek, -7);
+                const nextWeek = addDays(targetWeek, 7);
+                const prevWeekKey = formatDateForKey(prevWeek);
+                const nextWeekKey = formatDateForKey(nextWeek);
+
+                // Prefetch previous week if not cached
+                if (!weekCacheRef.current[prevWeekKey] && !fetchingWeeksRef.current.has(prevWeekKey)) {
+                    console.log(`🔮 Prefetching previous equipment week: ${prevWeekKey}`);
+                    setTimeout(() => getEquipmentAllocations(true, prevWeek), 100);
+                }
+
+                // Prefetch next week if not cached
+                if (!weekCacheRef.current[nextWeekKey] && !fetchingWeeksRef.current.has(nextWeekKey)) {
+                    console.log(`🔮 Prefetching next equipment week: ${nextWeekKey}`);
+                    setTimeout(() => getEquipmentAllocations(true, nextWeek), 200);
+                }
             }
 
         } catch (err) {
@@ -405,11 +502,14 @@ const EquipmentCalendarPage = () => {
             setError('Failed to load equipment allocations');
             setAllocations({});
         } finally {
-            if (!silent) {
+            // Remove from fetching set
+            fetchingWeeksRef.current.delete(cacheKey);
+
+            if (!silent && !weekStartOverride) {
                 setLoading(false);
             }
         }
-    }, []);
+    }, [currentWeekStart]); // Re-fetch when week changes
 
     useEffect(() => {
         getEquipment();
@@ -520,7 +620,7 @@ const EquipmentCalendarPage = () => {
             categoriesSubscription.unsubscribe();
             coloursSubscription.unsubscribe();
         };
-    }, [getEquipment, getEquipmentAllocations, getEquipmentAssignments, getEquipmentCategories, getEquipmentColours]);
+    }, [getEquipment, getEquipmentAllocations, getEquipmentAssignments, getEquipmentCategories, getEquipmentColours, currentWeekStart]); // Re-subscribe when week changes
 
     useEffect(() => {
         const handleClickOutside = (event) => {

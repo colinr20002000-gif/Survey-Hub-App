@@ -19,7 +19,8 @@
       "Bash(.gitignore)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "mcp__Supabase__list_tables"
     ],
     "deny": [],
     "ask": []
