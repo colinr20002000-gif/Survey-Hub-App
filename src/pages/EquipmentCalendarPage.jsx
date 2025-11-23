@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, Download, Package, CheckCircle, XCircle, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Copy, Trash2, PlusCircle, ClipboardCheck, Filter, Download, Package, CheckCircle, XCircle, Zap, Calendar } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, DragOverlay, rectIntersection } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
@@ -70,6 +70,9 @@ const EquipmentCalendarPage = () => {
     const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
     const [isManageUsersModalOpen, setIsManageUsersModalOpen] = useState(false);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+    const [pickerMonth, setPickerMonth] = useState(new Date().getMonth());
+    const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
     const [selectedCell, setSelectedCell] = useState(null);
     const [isAutoAssignModalOpen, setIsAutoAssignModalOpen] = useState(false);
     const [isAutoAssigning, setIsAutoAssigning] = useState(false);
@@ -83,6 +86,7 @@ const EquipmentCalendarPage = () => {
     const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null, sourceIndex: null });
     const [undoHistory, setUndoHistory] = useState([]);
     const filterRef = useRef(null);
+    const datePickerRef = useRef(null);
     const scrollPositionRef = useRef(0);
     const calendarRef = useRef(null);
     const justClosedMenuRef = useRef(false);
@@ -90,7 +94,7 @@ const EquipmentCalendarPage = () => {
     // Week caching for performance optimization
     const weekCacheRef = useRef({}); // Stores fetched week data: { weekKey: { data, timestamp } }
     const fetchingWeeksRef = useRef(new Set()); // Track which weeks are currently being fetched
-    const MAX_CACHED_WEEKS = 10; // Keep last 10 weeks in cache to prevent memory bloat
+    const MAX_CACHED_WEEKS = 20; // Keep last 20 weeks in cache (supports ±4 weeks + navigation buffer)
 
     const [isExporting, setIsExporting] = useState(false);
     const [showDiscrepancies, setShowDiscrepancies] = useState(false);
@@ -376,10 +380,10 @@ const EquipmentCalendarPage = () => {
         setError(null);
 
         try {
-            // Calculate date range: current week ± 1 week (3 weeks total = 21 days)
-            // This dramatically reduces the amount of data fetched
-            const startDate = addDays(targetWeek, -7); // 1 week before
-            const endDate = addDays(targetWeek, 13); // Current week (7 days) + 1 week after (7 days) - 1 = 13
+            // Calculate date range: current week ± 4 weeks (9 weeks total = 63 days)
+            // This ensures smooth navigation without frequent refetches
+            const startDate = addDays(targetWeek, -28); // 4 weeks before
+            const endDate = addDays(targetWeek, 34); // Current week (7 days) + 4 weeks after (28 days) - 1 = 34
             const startDateString = formatDateForKey(startDate);
             const endDateString = formatDateForKey(endDate);
 
@@ -449,12 +453,16 @@ const EquipmentCalendarPage = () => {
                 setAllocations(formattedAllocations);
             }
 
-            // Store in cache
-            weekCacheRef.current[cacheKey] = {
-                data: formattedAllocations,
-                timestamp: Date.now()
-            };
-            console.log(`💾 Cached equipment week ${cacheKey}`);
+            // Store in cache - IMPORTANT: Cache under ALL week keys in the fetched range
+            // This prevents re-fetching when navigating to adjacent weeks
+            const timestamp = Date.now();
+            Object.keys(formattedAllocations).forEach(weekKey => {
+                weekCacheRef.current[weekKey] = {
+                    data: formattedAllocations,
+                    timestamp: timestamp
+                };
+            });
+            console.log(`💾 Cached ${Object.keys(formattedAllocations).length} equipment weeks (${cacheKey} and surrounding weeks)`);
 
             // Clean up old cache entries (keep only MAX_CACHED_WEEKS most recent)
             const cacheKeys = Object.keys(weekCacheRef.current);
@@ -477,23 +485,27 @@ const EquipmentCalendarPage = () => {
                 });
             }
 
-            // Prefetch adjacent weeks in the background (only if this is not already a prefetch)
+            // Prefetch extended range (weeks 5-6 on each side) in the background
+            // This provides buffer beyond the ±4 weeks already loaded
             if (!weekStartOverride) {
-                const prevWeek = addDays(targetWeek, -7);
-                const nextWeek = addDays(targetWeek, 7);
-                const prevWeekKey = formatDateForKey(prevWeek);
-                const nextWeekKey = formatDateForKey(nextWeek);
-
-                // Prefetch previous week if not cached
-                if (!weekCacheRef.current[prevWeekKey] && !fetchingWeeksRef.current.has(prevWeekKey)) {
-                    console.log(`🔮 Prefetching previous equipment week: ${prevWeekKey}`);
-                    setTimeout(() => getEquipmentAllocations(true, prevWeek), 100);
+                // Prefetch weeks 5-6 before current week
+                for (let i = 5; i <= 6; i++) {
+                    const week = addDays(targetWeek, -7 * i);
+                    const weekKey = formatDateForKey(week);
+                    if (!weekCacheRef.current[weekKey] && !fetchingWeeksRef.current.has(weekKey)) {
+                        console.log(`🔮 Prefetching equipment week ${i} before: ${weekKey}`);
+                        setTimeout(() => getEquipmentAllocations(true, week), 100 * i);
+                    }
                 }
 
-                // Prefetch next week if not cached
-                if (!weekCacheRef.current[nextWeekKey] && !fetchingWeeksRef.current.has(nextWeekKey)) {
-                    console.log(`🔮 Prefetching next equipment week: ${nextWeekKey}`);
-                    setTimeout(() => getEquipmentAllocations(true, nextWeek), 200);
+                // Prefetch weeks 5-6 after current week
+                for (let i = 5; i <= 6; i++) {
+                    const week = addDays(targetWeek, 7 * i);
+                    const weekKey = formatDateForKey(week);
+                    if (!weekCacheRef.current[weekKey] && !fetchingWeeksRef.current.has(weekKey)) {
+                        console.log(`🔮 Prefetching equipment week ${i} after: ${weekKey}`);
+                        setTimeout(() => getEquipmentAllocations(true, week), 100 * (i + 6));
+                    }
                 }
             }
 
@@ -632,6 +644,9 @@ const EquipmentCalendarPage = () => {
         const handleClickOutside = (event) => {
             if (filterRef.current && !filterRef.current.contains(event.target)) {
                 setIsFilterOpen(false);
+            }
+            if (datePickerRef.current && !datePickerRef.current.contains(event.target)) {
+                setIsDatePickerOpen(false);
             }
             if (contextMenu.visible) {
                 setContextMenu({ visible: false });
@@ -1352,6 +1367,40 @@ const EquipmentCalendarPage = () => {
         setCurrentWeekStart(prev => addDays(prev, offset * 7));
     };
 
+    const handleDateSelect = (date) => {
+        const newWeekStart = getWeekStartDate(date);
+        // Only update if the week actually changed
+        if (formatDateForKey(newWeekStart) !== formatDateForKey(currentWeekStart)) {
+            setCurrentWeekStart(newWeekStart);
+        }
+        setIsDatePickerOpen(false);
+    };
+
+    const handlePickerMonthChange = (offset) => {
+        let newMonth = pickerMonth + offset;
+        let newYear = pickerYear;
+
+        if (newMonth > 11) {
+            newMonth = 0;
+            newYear++;
+        } else if (newMonth < 0) {
+            newMonth = 11;
+            newYear--;
+        }
+
+        setPickerMonth(newMonth);
+        setPickerYear(newYear);
+    };
+
+    const getDaysInMonth = (month, year) => {
+        return new Date(year, month + 1, 0).getDate();
+    };
+
+    const getFirstDayOfMonth = (month, year) => {
+        // Returns 0-6 where 0 is Sunday
+        return new Date(year, month, 1).getDay();
+    };
+
     const handleDepartmentFilterChange = (department) => {
         setFilterDepartments(prev => prev.includes(department) ? prev.filter(d => d !== department) : [...prev, department]);
     };
@@ -2023,6 +2072,70 @@ const EquipmentCalendarPage = () => {
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Equipment Calendar</h1>
                 <div className="flex items-center gap-2 flex-wrap justify-center">
                     <Button variant="outline" onClick={() => setCurrentWeekStart(getWeekStartDate(new Date()))}>This Week</Button>
+                    <div className="relative" ref={datePickerRef}>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setPickerMonth(currentWeekStart.getMonth());
+                                setPickerYear(currentWeekStart.getFullYear());
+                                setIsDatePickerOpen(!isDatePickerOpen);
+                            }}
+                            title="Jump to week"
+                        >
+                            <Calendar size={16} />
+                        </Button>
+                        {isDatePickerOpen && (
+                            <div className="absolute left-0 top-full mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50" style={{ minWidth: '280px' }}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <button
+                                        onClick={() => handlePickerMonthChange(-1)}
+                                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                    >
+                                        <ChevronLeft size={20} />
+                                    </button>
+                                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                        {new Date(pickerYear, pickerMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                    </span>
+                                    <button
+                                        onClick={() => handlePickerMonthChange(1)}
+                                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                    >
+                                        <ChevronRight size={20} />
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-7 gap-1 text-center">
+                                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                                        <div key={day} className="text-xs font-semibold text-gray-600 dark:text-gray-400 p-2">
+                                            {day}
+                                        </div>
+                                    ))}
+                                    {Array.from({ length: getFirstDayOfMonth(pickerMonth, pickerYear) }).map((_, i) => (
+                                        <div key={`empty-${i}`} className="p-2"></div>
+                                    ))}
+                                    {Array.from({ length: getDaysInMonth(pickerMonth, pickerYear) }).map((_, i) => {
+                                        const day = i + 1;
+                                        const date = new Date(pickerYear, pickerMonth, day);
+                                        const isToday = formatDateForKey(date) === formatDateForKey(new Date());
+                                        const isSelected = formatDateForKey(getWeekStartDate(date)) === formatDateForKey(currentWeekStart);
+
+                                        return (
+                                            <button
+                                                key={day}
+                                                onClick={() => handleDateSelect(date)}
+                                                className={`p-2 text-sm rounded hover:bg-orange-100 dark:hover:bg-orange-900/30 ${
+                                                    isToday ? 'bg-blue-100 dark:bg-blue-900/30 font-bold' : ''
+                                                } ${
+                                                    isSelected ? 'bg-orange-500 text-white font-bold hover:bg-orange-600' : 'text-gray-900 dark:text-gray-100'
+                                                }`}
+                                            >
+                                                {day}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <Button variant="outline" onClick={() => changeWeek(-1)}><ChevronLeft size={16} /></Button>
                     <Button variant="outline" onClick={() => changeWeek(1)}><ChevronRight size={16} /></Button>
                     <Button onClick={() => setIsManageUsersModalOpen(true)}><Users size={16} className="mr-2" />Show/Hide User</Button>

@@ -336,15 +336,35 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
 
         try {
             addToast({ message: 'Checking for updates...', type: 'info' });
-            await window.swRegistration.update();
 
-            // Check if an update is waiting
-            if (window.swRegistration.waiting) {
+            // Set up a listener for the updatefound event
+            const updatePromise = new Promise((resolve) => {
+                const timeout = setTimeout(() => resolve('no-update'), 3000);
+
+                window.swRegistration.addEventListener('updatefound', () => {
+                    clearTimeout(timeout);
+                    resolve('update-found');
+                }, { once: true });
+
+                // Trigger the update check
+                window.swRegistration.update().then(() => {
+                    // Give the browser a moment to fire updatefound if there's an update
+                    setTimeout(() => {
+                        clearTimeout(timeout);
+                        resolve('checked');
+                    }, 1500);
+                });
+            });
+
+            const result = await updatePromise;
+
+            if (result === 'update-found' || window.swRegistration.waiting || window.swRegistration.installing) {
                 addToast({ message: 'Update found! Installing...', type: 'success' });
-                // Tell it to skip waiting and activate
-                window.swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-            } else if (window.swRegistration.installing) {
-                addToast({ message: 'Update found! Installing...', type: 'success' });
+
+                // If there's a waiting service worker, tell it to activate
+                if (window.swRegistration.waiting) {
+                    window.swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
             } else {
                 addToast({ message: `You're running the latest version (v${packageJson.version})`, type: 'success' });
             }
