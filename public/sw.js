@@ -39,18 +39,50 @@ const STATIC_CACHE_FILES = [
   OFFLINE_URL
 ];
 
-// Install event - cache additional files
+// Install event - cache all app assets for complete offline support
 self.addEventListener('install', (event) => {
   console.log('🔔 [SW] Service Worker installing...', CACHE_NAME);
 
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('🔔 [SW] Caching additional static files');
-        return cache.addAll(STATIC_CACHE_FILES);
+      .then(async (cache) => {
+        console.log('🔔 [SW] Caching static files');
+
+        // Cache the static files first
+        await cache.addAll(STATIC_CACHE_FILES).catch((error) => {
+          console.error('🔔 [SW] Failed to cache static files:', error);
+        });
+
+        // In production, cache all built JS/CSS assets
+        // This runs after build, so we fetch the index.html to discover all assets
+        try {
+          const indexResponse = await fetch('/index.html');
+          const indexText = await indexResponse.text();
+
+          // Extract all script and link tags to find assets to cache
+          const scriptMatches = indexText.matchAll(/<script[^>]+src="([^"]+)"/g);
+          const linkMatches = indexText.matchAll(/<link[^>]+href="([^"]+\.css)"/g);
+
+          const assetUrls = [
+            ...Array.from(scriptMatches, m => m[1]),
+            ...Array.from(linkMatches, m => m[1])
+          ].filter(url => url && !url.startsWith('http')); // Only cache our own assets
+
+          if (assetUrls.length > 0) {
+            console.log('🔔 [SW] Caching app assets:', assetUrls);
+            await Promise.allSettled(
+              assetUrls.map(url =>
+                cache.add(url).catch(err => console.warn('Failed to cache:', url, err))
+              )
+            );
+            console.log('🔔 [SW] App assets cached for offline use');
+          }
+        } catch (error) {
+          console.warn('🔔 [SW] Could not pre-cache assets (normal in dev):', error);
+        }
       })
       .catch((error) => {
-        console.error('🔔 [SW] Failed to cache additional static files:', error);
+        console.error('🔔 [SW] Cache installation failed:', error);
       })
   );
 

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { useOffline } from '../contexts/SimpleOfflineContext';
+import { cacheData, getCachedData } from '../utils/simpleOfflineCache';
 
 /**
  * Custom hook to manage dynamic privilege permissions from database
@@ -9,6 +11,7 @@ export const useDynamicPermissions = () => {
     const [permissions, setPermissions] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const { isOnline } = useOffline();
 
     /**
      * Fetch all permissions from the database
@@ -18,35 +21,66 @@ export const useDynamicPermissions = () => {
             setLoading(true);
             setError(null);
 
-            const { data, error: fetchError } = await supabase
-                .from('privilege_permissions')
-                .select('*')
-                .order('display_order', { ascending: true });
+            if (isOnline) {
+                // ONLINE: Fetch from Supabase
+                const { data, error: fetchError } = await supabase
+                    .from('privilege_permissions')
+                    .select('*')
+                    .order('display_order', { ascending: true });
 
-            if (fetchError) throw fetchError;
-
-            // Transform the flat array into the nested structure
-            // {permission_key: [privilege_level1, privilege_level2, ...]}
-            const permissionMap = {};
-
-            data.forEach(perm => {
-                if (!permissionMap[perm.permission_key]) {
-                    permissionMap[perm.permission_key] = [];
+                if (fetchError) {
+                    // Try cache as fallback
+                    const cached = await getCachedData('permissions');
+                    if (cached) {
+                        console.log('📦 Using cached permissions due to fetch error');
+                        setPermissions(cached);
+                    }
+                    throw fetchError;
                 }
 
-                if (perm.is_granted) {
-                    permissionMap[perm.permission_key].push(perm.privilege_level);
-                }
-            });
+                // Transform the flat array into the nested structure
+                // {permission_key: [privilege_level1, privilege_level2, ...]}
+                const permissionMap = {};
 
-            setPermissions(permissionMap);
+                data.forEach(perm => {
+                    if (!permissionMap[perm.permission_key]) {
+                        permissionMap[perm.permission_key] = [];
+                    }
+
+                    if (perm.is_granted) {
+                        permissionMap[perm.permission_key].push(perm.privilege_level);
+                    }
+                });
+
+                setPermissions(permissionMap);
+                await cacheData('permissions', permissionMap);
+                console.log('✅ Permissions cached for offline use');
+            } else {
+                // OFFLINE: Load from cache
+                const cached = await getCachedData('permissions');
+                if (cached) {
+                    setPermissions(cached);
+                    console.log('📦 Loaded permissions from cache (offline)');
+                } else {
+                    setPermissions(null);
+                    console.log('📦 No cached permissions available (offline)');
+                }
+            }
+
             setLoading(false);
         } catch (err) {
             console.error('Error fetching permissions:', err);
-            setError(err.message);
+            // Try cache as fallback
+            const cached = await getCachedData('permissions');
+            if (cached) {
+                console.log('📦 Using cached permissions due to error');
+                setPermissions(cached);
+            } else {
+                setError(err.message);
+            }
             setLoading(false);
         }
-    }, []);
+    }, [isOnline]);
 
     /**
      * Check if a privilege level has a specific permission
@@ -68,6 +102,12 @@ export const useDynamicPermissions = () => {
      * @param {boolean} isGranted - Whether to grant or revoke the permission
      */
     const updatePermission = useCallback(async (permissionKey, privilegeLevel, isGranted) => {
+        // Block if offline
+        if (!isOnline) {
+            console.warn('Cannot update permissions while offline');
+            return { success: false, error: 'Cannot update permissions while offline' };
+        }
+
         try {
             const { error: updateError } = await supabase
                 .from('privilege_permissions')
@@ -85,7 +125,7 @@ export const useDynamicPermissions = () => {
             console.error('Error updating permission:', err);
             return { success: false, error: err.message };
         }
-    }, [fetchPermissions]);
+    }, [isOnline, fetchPermissions]);
 
     /**
      * Get all permissions for a specific privilege level
@@ -127,6 +167,12 @@ export const useDynamicPermissions = () => {
      * @param {Array} updates - Array of {permissionKey, privilegeLevel, isGranted}
      */
     const bulkUpdatePermissions = useCallback(async (updates) => {
+        // Block if offline
+        if (!isOnline) {
+            console.warn('Cannot update permissions while offline');
+            return { success: false, error: 'Cannot update permissions while offline' };
+        }
+
         try {
             // Perform all updates
             const promises = updates.map(({ permissionKey, privilegeLevel, isGranted }) =>
@@ -153,7 +199,7 @@ export const useDynamicPermissions = () => {
             console.error('Error bulk updating permissions:', err);
             return { success: false, error: err.message };
         }
-    }, [fetchPermissions]);
+    }, [isOnline, fetchPermissions]);
 
     // Fetch permissions on mount
     useEffect(() => {

@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { useOffline } from './SimpleOfflineContext';
+import { cacheData, getCachedData } from '../utils/simpleOfflineCache';
 
 const AuditTrailContext = createContext(null);
 
@@ -23,42 +25,86 @@ export const AuditTrailProvider = ({ children }) => {
     const [auditLogs, setAuditLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [lastSync, setLastSync] = useState(null);
+    const { isOnline } = useOffline();
 
     useEffect(() => {
         const getAuditLogs = async () => {
             setLoading(true);
             setError(null);
 
-            try {
-                const { data, error: fetchError } = await supabase
-                    .from('audit_logs')
-                    .select('*')
-                    .order('timestamp', { ascending: false });
+            if (isOnline) {
+                // ONLINE: Fetch from Supabase
+                try {
+                    const { data, error: fetchError } = await supabase
+                        .from('audit_logs')
+                        .select('*')
+                        .order('timestamp', { ascending: false });
 
-                if (fetchError) {
-                    // If table doesn't exist, fall back to mock data
-                    if (fetchError.code === 'PGRST116' || fetchError.message.includes('does not exist')) {
-                        console.warn('audit_logs table not found, using mock data');
-                        setAuditLogs(mockAuditTrail);
+                    if (fetchError) {
+                        // If table doesn't exist, fall back to mock data
+                        if (fetchError.code === 'PGRST116' || fetchError.message.includes('does not exist')) {
+                            console.warn('audit_logs table not found, using mock data');
+                            setAuditLogs(mockAuditTrail);
+                            await cacheData('audit_logs', mockAuditTrail);
+                        } else {
+                            setError(fetchError.message);
+                            // Try cache as fallback
+                            const cached = await getCachedData('audit_logs');
+                            if (cached) {
+                                console.log('📦 Using cached audit logs due to fetch error');
+                                setAuditLogs(cached);
+                            } else {
+                                setAuditLogs(mockAuditTrail);
+                            }
+                        }
                     } else {
-                        setError(fetchError.message);
-                        setAuditLogs([]);
+                        const logs = data || [];
+                        setAuditLogs(logs);
+                        setLastSync(Date.now());
+                        await cacheData('audit_logs', logs);
+                        console.log('✅ Audit logs cached for offline use');
                     }
-                } else {
-                    setAuditLogs(data || []);
+                } catch (e) {
+                    console.warn('Error fetching audit logs, trying cache:', e);
+                    const cached = await getCachedData('audit_logs');
+                    if (cached) {
+                        console.log('📦 Using cached audit logs due to error');
+                        setAuditLogs(cached);
+                    } else {
+                        setAuditLogs(mockAuditTrail);
+                    }
                 }
-            } catch (e) {
-                console.warn('Error fetching audit logs, using mock data:', e);
-                setAuditLogs(mockAuditTrail);
-            } finally {
-                setLoading(false);
+            } else {
+                // OFFLINE: Load from cache
+                try {
+                    const cached = await getCachedData('audit_logs');
+                    if (cached) {
+                        setAuditLogs(cached);
+                        console.log('📦 Loaded audit logs from cache (offline)');
+                    } else {
+                        setAuditLogs(mockAuditTrail);
+                        console.log('📦 Using mock audit logs (offline, no cache)');
+                    }
+                } catch (e) {
+                    console.warn('Failed to load cached audit logs, using mock data');
+                    setAuditLogs(mockAuditTrail);
+                }
             }
+
+            setLoading(false);
         };
 
         getAuditLogs();
-    }, []);
+    }, [isOnline]);
 
     const addAuditLog = async (logData) => {
+        // Block if offline - audit logs are not created offline
+        if (!isOnline) {
+            console.warn('Cannot create audit logs while offline');
+            return;
+        }
+
         try {
             // Create timestamp in UK timezone
             const ukTimestamp = new Date().toLocaleString("en-CA", {
@@ -87,13 +133,16 @@ export const AuditTrailProvider = ({ children }) => {
 
             if (data) {
                 setAuditLogs(prev => [data[0], ...prev]);
+                // Update cache
+                const updatedLogs = [data[0], ...auditLogs];
+                await cacheData('audit_logs', updatedLogs);
             }
         } catch (e) {
             console.error('Error adding audit log:', e);
         }
     };
 
-    const value = { auditLogs, addAuditLog, loading, error };
+    const value = { auditLogs, addAuditLog, loading, error, isOnline, lastSync };
 
     return <AuditTrailContext.Provider value={value}>{children}</AuditTrailContext.Provider>;
 };

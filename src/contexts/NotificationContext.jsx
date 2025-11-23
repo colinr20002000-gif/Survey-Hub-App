@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../supabaseClient';
+import { useOffline } from './SimpleOfflineContext';
+import { cacheData, getCachedData } from '../utils/simpleOfflineCache';
 
 const NotificationContext = createContext(null);
 
@@ -19,6 +21,8 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [announcementRefreshTrigger, setAnnouncementRefreshTrigger] = useState(0);
+  const [lastSync, setLastSync] = useState(null);
+  const { isOnline } = useOffline();
 
   // Fetch both announcements and task notifications for current user
   const fetchNotifications = async () => {
@@ -31,104 +35,135 @@ export const NotificationProvider = ({ children }) => {
     try {
       setIsLoading(true);
 
-      // Fetch task/system notifications from notifications table
-      const { data: taskNotifications, error: taskError } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('read', false)
-        .eq('dismissed', false)
-        .order('created_at', { ascending: false });
+      if (isOnline) {
+        // ONLINE: Fetch from Supabase
+        // Fetch task/system notifications from notifications table
+        const { data: taskNotifications, error: taskError } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('read', false)
+          .eq('dismissed', false)
+          .order('created_at', { ascending: false });
 
-      if (taskError) {
-        console.error('Error fetching task notifications:', taskError);
-      }
-
-      // Get announcements with left join to announcement_reads to check read status
-      const { data: announcements, error: announcementError } = await supabase
-        .from('announcements')
-        .select(`
-          id,
-          title,
-          content,
-          priority,
-          category,
-          created_at,
-          expires_at,
-          target_roles,
-          author_id,
-          announcement_reads!left (
-            read_at,
-            dismissed_at,
-            user_id
-          )
-        `)
-        .or(`target_roles.is.null,target_roles.cs.{${user.department || ''}}${user.privilege ? ',target_roles.cs.{' + user.privilege + '}' : ''}${user.email === 'colin.rogers@inorail.co.uk' ? ',target_roles.cs.{SuperAdmin}' : ''}`)
-        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-        .neq('author_id', user.id)  // Exclude announcements created by current user
-        .order('created_at', { ascending: false });
-
-      if (announcementError) {
-        console.error('Error fetching announcements:', announcementError);
-
-        // Check if it's a table not found error
-        if (announcementError.code === 'PGRST116' || announcementError.message?.includes('relation "announcements" does not exist')) {
-          console.warn('Announcements table does not exist.');
+        if (taskError) {
+          console.error('Error fetching task notifications:', taskError);
+          // Try cache as fallback
+          const cached = await getCachedData('notifications');
+          if (cached) {
+            console.log('📦 Using cached notifications due to fetch error');
+            setNotifications(cached);
+            setIsLoading(false);
+            return;
+          }
         }
-      }
 
-      // Transform task notifications
-      const formattedTaskNotifications = (taskNotifications || []).map(notification => {
-        const timeAgo = getTimeAgo(notification.created_at);
+        // Get announcements with left join to announcement_reads to check read status
+        const { data: announcements, error: announcementError } = await supabase
+          .from('announcements')
+          .select(`
+            id,
+            title,
+            content,
+            priority,
+            category,
+            created_at,
+            expires_at,
+            target_roles,
+            author_id,
+            announcement_reads!left (
+              read_at,
+              dismissed_at,
+              user_id
+            )
+          `)
+          .or(`target_roles.is.null,target_roles.cs.{${user.department || ''}}${user.privilege ? ',target_roles.cs.{' + user.privilege + '}' : ''}${user.email === 'colin.rogers@inorail.co.uk' ? ',target_roles.cs.{SuperAdmin}' : ''}`)
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+          .neq('author_id', user.id)  // Exclude announcements created by current user
+          .order('created_at', { ascending: false });
 
-        return {
-          id: notification.id,
-          type: notification.type,
-          message: notification.title || notification.message,
-          content: notification.message,
-          time: timeAgo,
-          read: notification.read,
-          priority: 'medium',
-          created_at: notification.created_at,
-          data: notification.data,
-          source: 'notifications' // Mark source for different handling
-        };
-      });
+        if (announcementError) {
+          console.error('Error fetching announcements:', announcementError);
 
-      // Transform announcements to notification format
-      const formattedAnnouncements = (announcements || [])
-        .filter(announcement => {
-          const userRead = announcement.announcement_reads?.find(read => read.user_id === user.id);
-          const isDismissed = !!userRead?.dismissed_at;
-          const isRead = !!userRead?.read_at;
+          // Check if it's a table not found error
+          if (announcementError.code === 'PGRST116' || announcementError.message?.includes('relation "announcements" does not exist')) {
+            console.warn('Announcements table does not exist.');
+          }
+        }
 
-          // Don't include dismissed notifications OR read notifications
-          return !isDismissed && !isRead;
-        })
-        .map(announcement => {
-          const timeAgo = getTimeAgo(announcement.created_at);
+        // Transform task notifications
+        const formattedTaskNotifications = (taskNotifications || []).map(notification => {
+          const timeAgo = getTimeAgo(notification.created_at);
 
           return {
-            id: announcement.id,
-            type: announcement.category?.toLowerCase() || 'system',
-            message: announcement.title,
-            content: announcement.content,
+            id: notification.id,
+            type: notification.type,
+            message: notification.title || notification.message,
+            content: notification.message,
             time: timeAgo,
-            read: false,
-            priority: announcement.priority,
-            created_at: announcement.created_at,
-            source: 'announcements' // Mark source for different handling
+            read: notification.read,
+            priority: 'medium',
+            created_at: notification.created_at,
+            data: notification.data,
+            source: 'notifications' // Mark source for different handling
           };
         });
 
-      // Combine and sort all notifications by created_at
-      const allNotifications = [...formattedTaskNotifications, ...formattedAnnouncements]
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        // Transform announcements to notification format
+        const formattedAnnouncements = (announcements || [])
+          .filter(announcement => {
+            const userRead = announcement.announcement_reads?.find(read => read.user_id === user.id);
+            const isDismissed = !!userRead?.dismissed_at;
+            const isRead = !!userRead?.read_at;
 
-      setNotifications(allNotifications);
+            // Don't include dismissed notifications OR read notifications
+            return !isDismissed && !isRead;
+          })
+          .map(announcement => {
+            const timeAgo = getTimeAgo(announcement.created_at);
+
+            return {
+              id: announcement.id,
+              type: announcement.category?.toLowerCase() || 'system',
+              message: announcement.title,
+              content: announcement.content,
+              time: timeAgo,
+              read: false,
+              priority: announcement.priority,
+              created_at: announcement.created_at,
+              source: 'announcements' // Mark source for different handling
+            };
+          });
+
+        // Combine and sort all notifications by created_at
+        const allNotifications = [...formattedTaskNotifications, ...formattedAnnouncements]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        setNotifications(allNotifications);
+        setLastSync(Date.now());
+        await cacheData('notifications', allNotifications);
+        console.log('✅ Notifications cached for offline use');
+      } else {
+        // OFFLINE: Load from cache
+        const cached = await getCachedData('notifications');
+        if (cached) {
+          setNotifications(cached);
+          console.log('📦 Loaded notifications from cache (offline)');
+        } else {
+          setNotifications([]);
+          console.log('📦 No cached notifications available (offline)');
+        }
+      }
     } catch (error) {
       console.error('Error in fetchNotifications:', error);
-      setNotifications([]);
+      // Try cache as fallback
+      const cached = await getCachedData('notifications');
+      if (cached) {
+        console.log('📦 Using cached notifications due to error');
+        setNotifications(cached);
+      } else {
+        setNotifications([]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -178,6 +213,12 @@ export const NotificationProvider = ({ children }) => {
   // Mark a notification as read for current user
   const markAsRead = async (notificationId) => {
     if (!user?.id) return;
+
+    // Block if offline
+    if (!isOnline) {
+      console.warn('Cannot mark notifications as read while offline');
+      return;
+    }
 
     try {
       // Find the notification to determine its source
@@ -265,6 +306,12 @@ export const NotificationProvider = ({ children }) => {
   const markAllAsRead = async () => {
     if (!user?.id) return;
 
+    // Block if offline
+    if (!isOnline) {
+      console.warn('Cannot mark notifications as read while offline');
+      return;
+    }
+
     try {
       const unreadNotifications = notifications.filter(n => !n.read);
 
@@ -290,6 +337,12 @@ export const NotificationProvider = ({ children }) => {
   // Clear a notification for current user (mark as dismissed)
   const clearNotification = async (notificationId) => {
     if (!user?.id) return;
+
+    // Block if offline
+    if (!isOnline) {
+      console.warn('Cannot clear notifications while offline');
+      return;
+    }
 
     try {
       // Find the notification to determine its source
@@ -377,6 +430,12 @@ export const NotificationProvider = ({ children }) => {
   // Clear all notifications for current user
   const clearAllNotifications = async () => {
     if (!user?.id) return;
+
+    // Block if offline
+    if (!isOnline) {
+      console.warn('Cannot clear notifications while offline');
+      return;
+    }
 
     try {
       console.log('Clearing all notifications for user:', user.id);
@@ -513,7 +572,9 @@ export const NotificationProvider = ({ children }) => {
     clearNotification,
     clearAllNotifications,
     refreshNotifications: fetchNotifications,
-    announcementRefreshTrigger
+    announcementRefreshTrigger,
+    isOnline,
+    lastSync
   };
 
   return (
