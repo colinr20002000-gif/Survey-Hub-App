@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { getMessaging, deleteToken } from 'firebase/messaging';
 import firebaseApp from '../firebaseConfig';
 import { getFCMToken } from '../firebaseConfig';
+import { useOffline } from './SimpleOfflineContext';
 
 // Helper function to create audit log entries for authentication events
 const createAuditLog = async (user, action, details) => {
@@ -51,15 +52,18 @@ export const useAuth = () => {
 // Any component inside this provider can use the useAuth hook
 export const AuthProvider = ({ children }) => {
   console.log('🚀 AuthProvider component rendered');
-  
+
   // Keep track of the currently logged-in user (null = not logged in)
   const [user, setUser] = useState(null);
-  
+
   // Keep track of whether we're in the middle of logging in
   const [isLoading, setIsLoading] = useState(true);
 
   // Track if push notification subscription has been attempted for current user
   const [pushSubscriptionAttempted, setPushSubscriptionAttempted] = useState(false);
+
+  // Check online/offline status to skip security checks when offline
+  const { isOnline } = useOffline();
 
   // Function to fetch or create user data from users table
   const fetchUserData = async (authUser) => {
@@ -440,7 +444,23 @@ export const AuthProvider = ({ children }) => {
         // Stop loading immediately - user can now use the app
         setIsLoading(false);
 
+        // OFFLINE MODE: Skip security checks when offline to prevent logout
+        if (!isOnline) {
+          console.log('📴 Offline mode - skipping security checks');
+          // Fetch user data from cache/session without security checks
+          fetchUserData(session.user).then(userData => {
+            if (userData && !userData._isTemporary) {
+              console.log('✅ Full user data loaded in offline mode');
+              setUser(userData);
+            }
+          }).catch(err => {
+            console.warn('⚠️ Could not load full user data offline:', err);
+          });
+          return; // Skip security checks
+        }
+
         // Run security checks in parallel in the background (non-blocking)
+        // ONLY WHEN ONLINE to prevent logout due to network failures
         Promise.all([
           // Check if backup code was just verified
           (async () => {
@@ -672,6 +692,22 @@ export const AuthProvider = ({ children }) => {
 
         // Stop loading immediately
         setIsLoading(false);
+
+        // OFFLINE MODE: Skip security checks when offline to prevent logout
+        if (!isOnline) {
+          console.log('📴 Offline mode - skipping security checks (auth state change)');
+          // Fetch user data from cache/session without security checks
+          fetchUserData(session.user).then(userData => {
+            if (userData && !userData._isTemporary) {
+              console.log('✅ Full user data loaded in offline mode');
+              setUser(userData);
+              autoSubscribePushNotifications(userData);
+            }
+          }).catch(err => {
+            console.warn('⚠️ Could not load full user data offline:', err);
+          });
+          return; // Skip security checks
+        }
 
         // Run security checks in parallel in the background (non-blocking)
         // Skip checks for MFA_CHALLENGE_VERIFIED event since that event proves MFA was just verified
