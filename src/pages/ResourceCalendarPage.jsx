@@ -578,6 +578,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             }
             realtimeDebounceTimer = setTimeout(() => {
                 console.log('🔄 Reloading resource allocations (debounced, silent)...');
+                // Invalidate cache for current week to force fresh data fetch
+                const currentWeekKey = formatDateForKey(currentWeekStart);
+                if (weekCacheRef.current[currentWeekKey]) {
+                    console.log('🗑️ Invalidating cache for current week due to real-time update');
+                    delete weekCacheRef.current[currentWeekKey];
+                }
                 getResourceAllocations(true);
             }, 500); // 500ms debounce to batch multiple rapid changes
         };
@@ -1300,11 +1306,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 if (error) throw error;
             }
 
-            // Clear the saving flag after successful database operation
-            // Use setTimeout to allow realtime to catch up
-            setTimeout(() => {
-                isSavingRef.current = false;
-            }, 1000);
+            // Clear the saving flag immediately after successful database operation
+            isSavingRef.current = false;
         } catch (err) {
             console.error('Error saving allocation to Supabase:', err);
             const errorMessage = handleSupabaseError(err, tableName, 'insert', recordData);

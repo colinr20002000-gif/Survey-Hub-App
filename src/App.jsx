@@ -336,33 +336,16 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
 
         try {
             addToast({ message: 'Checking for updates...', type: 'info' });
-
-            // Force the service worker to check for updates
             await window.swRegistration.update();
 
-            // Wait a moment for the update to be processed
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // Check if an update is waiting or installing
+            // Check if an update is waiting
             if (window.swRegistration.waiting) {
-                console.log('🔄 Update found in waiting state, activating...');
                 addToast({ message: 'Update found! Installing...', type: 'success' });
                 // Tell it to skip waiting and activate
                 window.swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                // The page will reload automatically when the new SW activates
             } else if (window.swRegistration.installing) {
-                console.log('🔄 Update found in installing state...');
                 addToast({ message: 'Update found! Installing...', type: 'success' });
-
-                // Listen for when it finishes installing
-                window.swRegistration.installing.addEventListener('statechange', function(e) {
-                    if (e.target.state === 'installed') {
-                        console.log('🔄 Update installed, activating...');
-                        e.target.postMessage({ type: 'SKIP_WAITING' });
-                    }
-                });
             } else {
-                // No update found
                 addToast({ message: `You're running the latest version (v${packageJson.version})`, type: 'success' });
             }
         } catch (error) {

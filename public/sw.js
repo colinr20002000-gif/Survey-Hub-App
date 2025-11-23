@@ -1,9 +1,9 @@
 /* eslint-env serviceworker */
 /* global clients, firebase */
 
-// Service Worker for Survey Hub PWA + Firebase Cloud Messaging
-// IMPORTANT: Version is set during build by Vite, not dynamically
-const CACHE_VERSION = 'v11-offline-first'; // Increment this manually for major updates
+// Service Worker for Survey Hub + Firebase Cloud Messaging
+// NO OFFLINE CACHING - Only Firebase push notifications
+const CACHE_VERSION = 'v11-no-cache'; // Incremented to clear old caches
 const CACHE_NAME = `survey-hub-${CACHE_VERSION}-fcm`;
 const OFFLINE_URL = '/offline.html';
 
@@ -32,63 +32,13 @@ firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 console.log('🔔 [SW] Firebase messaging initialized');
 
-// Files to cache for offline functionality
-const STATIC_CACHE_FILES = [
-  '/',
-  '/index.html',
-  OFFLINE_URL
-];
-
-// Install event - cache all app assets for complete offline support
+// Install event - no caching, just activate immediately
 self.addEventListener('install', (event) => {
   console.log('🔔 [SW] Service Worker installing...', CACHE_NAME);
+  console.log('🔔 [SW] No caching - Firebase messaging only');
 
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(async (cache) => {
-        console.log('🔔 [SW] Caching static files');
-
-        // Cache the static files first
-        await cache.addAll(STATIC_CACHE_FILES).catch((error) => {
-          console.error('🔔 [SW] Failed to cache static files:', error);
-        });
-
-        // In production, cache all built JS/CSS assets
-        // This runs after build, so we fetch the index.html to discover all assets
-        try {
-          const indexResponse = await fetch('/index.html');
-          const indexText = await indexResponse.text();
-
-          // Extract all script and link tags to find assets to cache
-          const scriptMatches = indexText.matchAll(/<script[^>]+src="([^"]+)"/g);
-          const linkMatches = indexText.matchAll(/<link[^>]+href="([^"]+\.css)"/g);
-
-          const assetUrls = [
-            ...Array.from(scriptMatches, m => m[1]),
-            ...Array.from(linkMatches, m => m[1])
-          ].filter(url => url && !url.startsWith('http')); // Only cache our own assets
-
-          if (assetUrls.length > 0) {
-            console.log('🔔 [SW] Caching app assets:', assetUrls);
-            await Promise.allSettled(
-              assetUrls.map(url =>
-                cache.add(url).catch(err => console.warn('Failed to cache:', url, err))
-              )
-            );
-            console.log('🔔 [SW] App assets cached for offline use');
-          }
-        } catch (error) {
-          console.warn('🔔 [SW] Could not pre-cache assets (normal in dev):', error);
-        }
-      })
-      .catch((error) => {
-        console.error('🔔 [SW] Cache installation failed:', error);
-      })
-  );
-
-  // Don't automatically activate - wait for user confirmation or SKIP_WAITING message
-  // This allows manual update checks to detect waiting service workers
-  console.log('🔔 [SW] New service worker installed, waiting for activation...');
+  // Automatically activate new version
+  self.skipWaiting();
 });
 
 // Listen for SKIP_WAITING message from client (for manual update checks)
@@ -129,117 +79,12 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache when offline
+// Fetch event - NO CACHING, just pass through to network
+// This service worker only handles Firebase push notifications
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
-  if (event.request.method !== 'GET') {
-    return;
-  }
-
-  const url = new URL(event.request.url);
-
-  // Skip chrome extensions, localhost, and non-http(s) schemes
-  if (
-    url.protocol === 'chrome-extension:' ||
-    url.protocol === 'moz-extension:' ||
-    url.hostname === 'localhost' ||
-    url.hostname === '127.0.0.1' ||
-    (!url.protocol.startsWith('http'))
-  ) {
-    return;
-  }
-
-  // Skip Supabase requests - always fetch fresh
-  if (event.request.url.includes('supabase.co')) {
-    return;
-  }
-
-  // Handle navigation requests (HTML pages)
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      caches.match(event.request)
-        .then((cachedResponse) => {
-          if (cachedResponse) {
-            console.log('🔔 [SW] Serving navigation from cache:', event.request.url);
-            // Cache hit - serve from cache first, update in background
-            fetch(event.request)
-              .then((response) => {
-                if (response.status === 200) {
-                  caches.open(CACHE_NAME).then((cache) => {
-                    cache.put(event.request, response);
-                  });
-                }
-              })
-              .catch(() => {
-                // Network failed, but we have cache so it's ok
-              });
-            return cachedResponse;
-          }
-
-          // Not in cache, try network
-          return fetch(event.request)
-            .then((response) => {
-              // Cache the response for next time
-              if (response.status === 200) {
-                const responseToCache = response.clone();
-                caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(event.request, responseToCache);
-                });
-              }
-              return response;
-            })
-            .catch(() => {
-              // Network failed and no cache - show offline page
-              return caches.match(OFFLINE_URL);
-            });
-        })
-    );
-    return;
-  }
-
-  // For asset requests (JS, CSS, images), use cache-first for offline support
-  event.respondWith(
-    caches.match(event.request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          // Cache hit - serve from cache, update in background
-          fetch(event.request)
-            .then((response) => {
-              if (response.status === 200) {
-                caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(event.request, response).catch(() => {
-                    // Silently ignore caching errors
-                  });
-                });
-              }
-            })
-            .catch(() => {
-              // Network failed, but we have cache so it's ok
-            });
-          return cachedResponse;
-        }
-
-        // Not in cache, try network
-        return fetch(event.request)
-          .then((response) => {
-            // Cache successful responses
-            if (response.status === 200) {
-              const responseToCache = response.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, responseToCache).catch(() => {
-                  // Silently ignore caching errors
-                });
-              });
-            }
-            return response;
-          })
-          .catch((error) => {
-            // Network failed and not in cache
-            console.log('🔔 [SW] Asset not available offline:', event.request.url);
-            throw error;
-          });
-      })
-  );
+  // Don't intercept any requests - let them go directly to the network
+  // This ensures no caching behavior interferes with live data
+  return;
 });
 
 // === FIREBASE CLOUD MESSAGING ===

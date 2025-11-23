@@ -549,6 +549,12 @@ const EquipmentCalendarPage = () => {
                 },
                 (payload) => {
                     console.log('📅 Equipment calendar changed:', payload.eventType);
+                    // Invalidate cache for current week to force fresh data fetch
+                    const currentWeekKey = formatDateForKey(currentWeekStart);
+                    if (weekCacheRef.current[currentWeekKey]) {
+                        console.log('🗑️ Invalidating equipment cache for current week due to real-time update');
+                        delete weekCacheRef.current[currentWeekKey];
+                    }
                     getEquipmentAllocations(true);
                 }
             )

@@ -3,8 +3,6 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import UpdateNotification from './components/UpdateNotification.jsx'
-import { OfflineProvider } from './contexts/SimpleOfflineContext.jsx'
-import SimpleOfflineIndicator from './components/SimpleOfflineIndicator.jsx'
 
 // CRITICAL: Check for password recovery BEFORE Supabase processes the hash
 // This needs to happen before ANY other code runs
@@ -24,28 +22,6 @@ if ('serviceWorker' in navigator) {
 
         // Store registration globally for manual update checks
         window.swRegistration = registration;
-
-        // Listen for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          console.log('🔍 New service worker found, installing...');
-
-          newWorker.addEventListener('statechange', () => {
-            console.log('🔍 Service worker state changed to:', newWorker.state);
-
-            // When the new service worker is installed and waiting
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('✅ New service worker installed and waiting');
-
-              // Store a flag to indicate an update is available
-              sessionStorage.setItem('updateAvailable', 'true');
-
-              // Automatically activate the update (skipWaiting)
-              console.log('🔄 Automatically activating new service worker...');
-              newWorker.postMessage({ type: 'SKIP_WAITING' });
-            }
-          });
-        });
 
         // Check for updates every 5 minutes
         setInterval(() => {
@@ -84,10 +60,7 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <OfflineProvider>
-      <SimpleOfflineIndicator />
-      <App />
-      <UpdateNotification />
-    </OfflineProvider>
+    <App />
+    <UpdateNotification />
   </StrictMode>,
 )

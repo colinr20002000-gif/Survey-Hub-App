@@ -1,10 +1,8 @@
-import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { sendProjectTaskAssignmentNotification, sendProjectTaskCompletionNotification } from '../utils/fcmNotifications';
-import { useOffline } from './SimpleOfflineContext';
-import { cacheData, getCachedData } from '../utils/simpleOfflineCache';
 
 const ProjectTaskContext = createContext(null);
 
@@ -14,8 +12,6 @@ export const ProjectTaskProvider = ({ children }) => {
     const [projectTasks, setProjectTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [lastSync, setLastSync] = useState(null);
-    const { isOnline } = useOffline();
 
     // Map database snake_case to component camelCase
     const mapToCamelCase = (task) => ({
@@ -43,67 +39,25 @@ export const ProjectTaskProvider = ({ children }) => {
         archived: task.archived,
     });
 
-    const getProjectTasks = useCallback(async () => {
+    const getProjectTasks = async () => {
         setLoading(true);
         setError(null);
+        try {
+            const { data, error: fetchError } = await supabase
+                .from('project_tasks')
+                .select('*')
+                .order('created_at', { ascending: false });
 
-        if (isOnline) {
-            // ONLINE: Fetch from Supabase
-            try {
-                const { data, error: fetchError } = await supabase
-                    .from('project_tasks')
-                    .select('*')
-                    .order('created_at', { ascending: false });
+            if (fetchError) throw fetchError;
 
-                if (fetchError) {
-                    console.error("Supabase project tasks fetch error:", fetchError);
-                    setError(fetchError.message);
-                    // Try cache as fallback
-                    const cached = await getCachedData('project_tasks');
-                    if (cached) {
-                        console.log('📦 Using cached project tasks due to fetch error');
-                        setProjectTasks(cached);
-                    } else {
-                        setProjectTasks([]);
-                    }
-                } else {
-                    const mappedData = data.map(mapToCamelCase) || [];
-                    setProjectTasks(mappedData);
-                    setLastSync(Date.now());
-                    await cacheData('project_tasks', mappedData);
-                    console.log('✅ Project tasks cached for offline use');
-                }
-            } catch (e) {
-                console.error("Unexpected JS error fetching project tasks:", e);
-                setError(e.message);
-                // Try cache as fallback
-                const cached = await getCachedData('project_tasks');
-                if (cached) {
-                    console.log('📦 Using cached project tasks due to error');
-                    setProjectTasks(cached);
-                } else {
-                    setProjectTasks([]);
-                }
-            }
-        } else {
-            // OFFLINE: Load from cache
-            try {
-                const cached = await getCachedData('project_tasks');
-                if (cached) {
-                    setProjectTasks(cached);
-                    console.log('📦 Loaded project tasks from cache (offline)');
-                } else {
-                    setProjectTasks([]);
-                    setError('No cached data available. Please connect to the internet.');
-                }
-            } catch (e) {
-                setError('Failed to load cached data.');
-                setProjectTasks([]);
-            }
+            setProjectTasks(data.map(mapToCamelCase) || []);
+        } catch (err) {
+            console.error("Error fetching project tasks:", err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
-    }, [isOnline]);
+    };
 
     useEffect(() => {
         getProjectTasks();
@@ -139,15 +93,9 @@ export const ProjectTaskProvider = ({ children }) => {
         return () => {
             subscription.unsubscribe();
         };
-    }, [getProjectTasks]);
+    }, []);
 
-    const addProjectTask = useCallback(async (taskData) => {
-        // Block if offline
-        if (!isOnline) {
-            alert('Cannot create project tasks while offline. Please connect to the internet.');
-            throw new Error('Cannot create project tasks while offline');
-        }
-
+    const addProjectTask = async (taskData) => {
         const taskRecord = mapToSnakeCase(taskData);
         const { data, error } = await supabase
             .from('project_tasks')
@@ -234,16 +182,10 @@ export const ProjectTaskProvider = ({ children }) => {
                 showSuccessModal('Project task created successfully!', 'Success');
             }
         }
-    }, [isOnline, user, showSuccessModal, showErrorModal]);
+    };
 
-    const updateProjectTask = useCallback(async (updatedTask) => {
+    const updateProjectTask = async (updatedTask) => {
         console.log('updateProjectTask called with:', updatedTask);
-
-        // Block if offline
-        if (!isOnline) {
-            alert('Cannot update project tasks while offline. Please connect to the internet.');
-            throw new Error('Cannot update project tasks while offline');
-        }
 
         // Get the old task to check if it's being marked as complete
         const oldTask = projectTasks.find(t => t.id === updatedTask.id);
@@ -311,15 +253,9 @@ export const ProjectTaskProvider = ({ children }) => {
                 }
             }
         }
-    }, [isOnline, projectTasks, user]);
+    };
 
-    const deleteProjectTask = useCallback(async (taskId) => {
-        // Block if offline
-        if (!isOnline) {
-            alert('Cannot delete project tasks while offline. Please connect to the internet.');
-            throw new Error('Cannot delete project tasks while offline');
-        }
-
+    const deleteProjectTask = async (taskId) => {
         const { error } = await supabase
             .from('project_tasks')
             .delete()
@@ -330,15 +266,9 @@ export const ProjectTaskProvider = ({ children }) => {
             alert(`Error deleting project task: ${error.message}`);
         }
         // Don't manually update state - realtime subscription handles it
-    }, [isOnline]);
+    };
 
-    const deleteAllArchivedProjectTasks = useCallback(async () => {
-        // Block if offline
-        if (!isOnline) {
-            alert('Cannot delete project tasks while offline. Please connect to the internet.');
-            throw new Error('Cannot delete project tasks while offline');
-        }
-
+    const deleteAllArchivedProjectTasks = async () => {
         const archivedTaskIds = projectTasks.filter(t => t.archived === true).map(t => t.id);
 
         if (archivedTaskIds.length === 0) {
@@ -357,20 +287,9 @@ export const ProjectTaskProvider = ({ children }) => {
             // Don't manually update state - realtime subscription handles it
             showSuccessModal('All archived project tasks have been deleted');
         }
-    }, [isOnline, projectTasks, showSuccessModal]);
+    };
 
-    // Memoize the context value to prevent unnecessary re-renders
-    const value = useMemo(() => ({
-        projectTasks,
-        addProjectTask,
-        updateProjectTask,
-        deleteProjectTask,
-        deleteAllArchivedProjectTasks,
-        loading,
-        error,
-        isOnline,
-        lastSync
-    }), [projectTasks, addProjectTask, updateProjectTask, deleteProjectTask, deleteAllArchivedProjectTasks, loading, error, isOnline, lastSync]);
+    const value = { projectTasks, addProjectTask, updateProjectTask, deleteProjectTask, deleteAllArchivedProjectTasks, loading, error };
 
     return <ProjectTaskContext.Provider value={value}>{children}</ProjectTaskContext.Provider>;
 };

@@ -4,7 +4,6 @@ import { supabase } from '../supabaseClient';
 import { getMessaging, deleteToken } from 'firebase/messaging';
 import firebaseApp from '../firebaseConfig';
 import { getFCMToken } from '../firebaseConfig';
-import { useOffline } from './SimpleOfflineContext';
 
 // Helper function to create audit log entries for authentication events
 const createAuditLog = async (user, action, details) => {
@@ -52,18 +51,15 @@ export const useAuth = () => {
 // Any component inside this provider can use the useAuth hook
 export const AuthProvider = ({ children }) => {
   console.log('🚀 AuthProvider component rendered');
-
+  
   // Keep track of the currently logged-in user (null = not logged in)
   const [user, setUser] = useState(null);
-
+  
   // Keep track of whether we're in the middle of logging in
   const [isLoading, setIsLoading] = useState(true);
 
   // Track if push notification subscription has been attempted for current user
   const [pushSubscriptionAttempted, setPushSubscriptionAttempted] = useState(false);
-
-  // Check online/offline status to skip security checks when offline
-  const { isOnline } = useOffline();
 
   // Function to fetch or create user data from users table
   const fetchUserData = async (authUser) => {
@@ -425,7 +421,124 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         console.log('🔐 Found existing session for:', session.user.email);
 
-        // INSTANT LOGIN: Set user immediately with session data
+        // Check if backup code was just verified
+        const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
+
+        // If backup code was used, skip MFA checks and allow login
+        if (backupCodeVerified) {
+          console.log('🔐 Backup code verification detected - skipping AAL check and allowing login');
+          sessionStorage.removeItem('backupCodeVerified');
+          // Continue to user data fetch below
+        } else {
+          // Normal MFA check for TOTP
+          try {
+            // Add timeout to prevent hanging
+            const mfaCheckPromise = (async () => {
+              const { data: { currentLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+              const { data: factors } = await supabase.auth.mfa.listFactors();
+              const hasMFA = factors?.totp && factors.totp.length > 0;
+              return { currentLevel, hasMFA };
+            })();
+
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('MFA check timeout')), 5000)
+            );
+
+            const { currentLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
+
+            console.log('🔐 Initial MFA check:', { currentLevel, hasMFA });
+
+            // If user has MFA enabled but hasn't completed verification (AAL1), don't log them in
+            if (hasMFA && currentLevel !== 'aal2') {
+              console.log('🔐 MFA required but not verified - staying on login page');
+              setUser(null);
+              setIsLoading(false);
+              return;
+            }
+
+            console.log('🔐 Initial MFA check passed - proceeding with login');
+          } catch (mfaError) {
+            console.warn('🔐 Initial MFA check failed:', mfaError);
+            // Continue with login if MFA check fails
+          }
+        }
+
+        // Quick check: verify user still exists in Supabase Auth and is not deleted
+        // Add timeout to prevent hanging on mobile/slow connections
+        try {
+          // First, verify the user actually exists in Supabase Auth
+          console.log('🔐 Verifying auth user exists (initial session)...');
+          const authUserCheckPromise = supabase.auth.getUser();
+          const authTimeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Auth user check timeout')), 3000)
+          );
+
+          const { data: authData, error: authError } = await Promise.race([
+            authUserCheckPromise,
+            authTimeoutPromise
+          ]);
+
+          // If the auth user doesn't exist or there's an auth error, sign them out
+          if (authError || !authData?.user) {
+            console.error('🚫 Auth user does not exist or error occurred (initial session):', authError);
+            setUser(null);
+            setIsLoading(false);
+            setPushSubscriptionAttempted(false);
+
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              console.error('Sign out error:', signOutError);
+            }
+
+            alert('Your account no longer exists. Please contact an administrator if you believe this is an error.');
+            return;
+          }
+
+          console.log('✅ Auth user exists (initial session), checking deletion status...');
+
+          // Now check if user is soft-deleted in users table
+          const deletionCheckPromise = supabase
+            .from('users')
+            .select('id, deleted_at')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Deletion check timeout')), 3000)
+          );
+
+          const { data: quickCheck, error: checkError } = await Promise.race([
+            deletionCheckPromise,
+            timeoutPromise
+          ]);
+
+          if (checkError) {
+            console.warn('🔐 Could not check deletion status:', checkError.message);
+            // Continue with login if check fails - will be caught by background fetch
+          } else if (quickCheck && quickCheck.deleted_at !== null) {
+            console.error('🚫 User account is deactivated, preventing login');
+            // Clear user state immediately
+            setUser(null);
+            setIsLoading(false);
+            setPushSubscriptionAttempted(false);
+
+            // Sign out and show alert
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              console.error('Sign out error:', signOutError);
+            }
+
+            alert('Your account has been deactivated. Please contact an administrator.');
+            return;
+          }
+        } catch (err) {
+          console.warn('🔐 Deletion check failed:', err.message);
+          // Continue with login if check fails - will be caught by background fetch
+        }
+
+        // INSTANT LOGIN: Set user immediately with session data (only if not deleted)
         const email = session.user.email;
         const name = session.user.user_metadata?.name ||
                      session.user.user_metadata?.full_name ||
@@ -443,156 +556,6 @@ export const AuthProvider = ({ children }) => {
 
         // Stop loading immediately - user can now use the app
         setIsLoading(false);
-
-        // OFFLINE MODE: Skip security checks when offline to prevent logout
-        if (!isOnline) {
-          console.log('📴 Offline mode - skipping security checks');
-          // Fetch user data from cache/session without security checks
-          fetchUserData(session.user).then(userData => {
-            if (userData && !userData._isTemporary) {
-              console.log('✅ Full user data loaded in offline mode');
-              setUser(userData);
-            }
-          }).catch(err => {
-            console.warn('⚠️ Could not load full user data offline:', err);
-          });
-          return; // Skip security checks
-        }
-
-        // Run security checks in parallel in the background (non-blocking)
-        // ONLY WHEN ONLINE to prevent logout due to network failures
-        Promise.all([
-          // Check if backup code was just verified
-          (async () => {
-            const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
-
-            // If backup code was used, skip MFA checks and allow login
-            if (backupCodeVerified) {
-              console.log('🔐 Backup code verification detected - skipping AAL check and allowing login');
-              sessionStorage.removeItem('backupCodeVerified');
-              return { mfaCheckPassed: true };
-            }
-
-            // Normal MFA check for TOTP
-            try {
-              const mfaCheckPromise = (async () => {
-                const { data: { currentLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-                const { data: factors } = await supabase.auth.mfa.listFactors();
-                const hasMFA = factors?.totp && factors.totp.length > 0;
-                return { currentLevel, hasMFA };
-              })();
-
-              const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('MFA check timeout')), 5000)
-              );
-
-              const { currentLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
-
-              console.log('🔐 Background MFA check:', { currentLevel, hasMFA });
-
-              // If user has MFA enabled but hasn't completed verification (AAL1), sign them out
-              if (hasMFA && currentLevel !== 'aal2') {
-                console.log('🔐 MFA required but not verified - signing out');
-                return { mfaCheckPassed: false };
-              }
-
-              console.log('🔐 Background MFA check passed');
-              return { mfaCheckPassed: true };
-            } catch (mfaError) {
-              console.warn('🔐 Background MFA check failed:', mfaError);
-              return { mfaCheckPassed: true }; // Continue with login if MFA check fails
-            }
-          })(),
-
-          // Verify user still exists in Supabase Auth
-          (async () => {
-            try {
-              console.log('🔐 Verifying auth user exists (background)...');
-              const authUserCheckPromise = supabase.auth.getUser();
-              const authTimeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Auth user check timeout')), 3000)
-              );
-
-              const { data: authData, error: authError } = await Promise.race([
-                authUserCheckPromise,
-                authTimeoutPromise
-              ]);
-
-              if (authError || !authData?.user) {
-                console.error('🚫 Auth user does not exist (background check):', authError);
-                return { authUserExists: false };
-              }
-
-              console.log('✅ Auth user exists (background check)');
-              return { authUserExists: true };
-            } catch (err) {
-              console.warn('🔐 Auth user check failed (background):', err.message);
-              return { authUserExists: true }; // Assume user exists if check fails
-            }
-          })(),
-
-          // Check if user is soft-deleted in users table
-          (async () => {
-            try {
-              console.log('🔐 Checking deletion status (background)...');
-              const deletionCheckPromise = supabase
-                .from('users')
-                .select('id, deleted_at')
-                .eq('id', session.user.id)
-                .maybeSingle();
-
-              const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Deletion check timeout')), 3000)
-              );
-
-              const { data: quickCheck, error: checkError } = await Promise.race([
-                deletionCheckPromise,
-                timeoutPromise
-              ]);
-
-              if (checkError) {
-                console.warn('🔐 Could not check deletion status (background):', checkError.message);
-                return { userDeleted: false };
-              }
-
-              if (quickCheck && quickCheck.deleted_at !== null) {
-                console.error('🚫 User account is deactivated (background check)');
-                return { userDeleted: true };
-              }
-
-              console.log('✅ User not deleted (background check)');
-              return { userDeleted: false };
-            } catch (err) {
-              console.warn('🔐 Deletion check failed (background):', err.message);
-              return { userDeleted: false };
-            }
-          })()
-        ]).then(([mfaResult, authResult, deletionResult]) => {
-          // If any security check failed, sign out the user
-          if (!mfaResult.mfaCheckPassed || !authResult.authUserExists || deletionResult.userDeleted) {
-            console.error('🚫 Security check failed, signing out user');
-            setUser(null);
-            setPushSubscriptionAttempted(false);
-
-            supabase.auth.signOut().catch((signOutError) => {
-              console.error('Sign out error:', signOutError);
-            });
-
-            if (!mfaResult.mfaCheckPassed) {
-              // Don't show alert for MFA - just return to login
-              return;
-            } else if (!authResult.authUserExists) {
-              alert('Your account no longer exists. Please contact an administrator if you believe this is an error.');
-            } else if (deletionResult.userDeleted) {
-              alert('Your account has been deactivated. Please contact an administrator.');
-            }
-            return;
-          }
-
-          console.log('✅ All background security checks passed');
-        }).catch((err) => {
-          console.error('🔐 Background security checks error:', err);
-        });
 
         // Fetch full user data in background (non-blocking)
         fetchUserData(session.user).then(userData => {
@@ -674,7 +637,135 @@ export const AuthProvider = ({ children }) => {
         console.log('Auth change - loading user data for:', session.user.email);
         console.log('🔐 Event type:', event);
 
-        // INSTANT LOGIN: Set user immediately with session data
+        // Check MFA status before allowing login
+        // Skip this check if event is MFA_CHALLENGE_VERIFIED because that event proves MFA was just verified
+        if (event !== 'MFA_CHALLENGE_VERIFIED') {
+          console.log('🔐 Starting MFA check...');
+
+          // Check if backup code was just verified
+          const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
+
+          // If backup code was used, skip MFA checks and allow login
+          if (backupCodeVerified) {
+            console.log('🔐 Backup code verification detected - skipping AAL check and allowing login');
+            // Don't remove the flag yet - it needs to persist across SIGNED_IN and INITIAL_SESSION events
+            // Continue to user data fetch below
+          } else {
+            // Normal MFA check for TOTP
+            try {
+              console.log('🔐 Getting AAL level...');
+
+              // Add timeout to prevent hanging
+              const mfaCheckPromise = (async () => {
+                const { data: { currentLevel, nextLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+                console.log('🔐 Getting MFA factors...');
+                const { data: factors } = await supabase.auth.mfa.listFactors();
+                const hasMFA = factors?.totp && factors.totp.length > 0;
+                return { currentLevel, nextLevel, hasMFA };
+              })();
+
+              const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('MFA check timeout')), 5000)
+              );
+
+              const { currentLevel, nextLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
+
+              console.log('🔐 MFA check:', { currentLevel, nextLevel, hasMFA });
+
+              // If user has MFA enabled but hasn't completed verification (AAL1), don't log them in
+              if (hasMFA && currentLevel !== 'aal2') {
+                console.log('🔐 MFA required but not verified - staying on login page');
+                setUser(null);
+                setIsLoading(false);
+                return;
+              }
+
+              console.log('🔐 MFA check passed - proceeding with login');
+            } catch (mfaError) {
+              console.warn('🔐 MFA check failed:', mfaError);
+              // Continue with login if MFA check fails
+            }
+          }
+        } else {
+          console.log('🔐 MFA_CHALLENGE_VERIFIED event - skipping AAL check, MFA already verified');
+        }
+
+        // Quick check: verify user still exists in Supabase Auth and is not deleted
+        // Add timeout to prevent hanging on mobile/slow connections
+        try {
+          // First, verify the user actually exists in Supabase Auth
+          console.log('🔐 Verifying auth user exists...');
+          const authUserCheckPromise = supabase.auth.getUser();
+          const authTimeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Auth user check timeout')), 3000)
+          );
+
+          const { data: authData, error: authError } = await Promise.race([
+            authUserCheckPromise,
+            authTimeoutPromise
+          ]);
+
+          // If the auth user doesn't exist or there's an auth error, sign them out
+          if (authError || !authData?.user) {
+            console.error('🚫 Auth user does not exist or error occurred:', authError);
+            setUser(null);
+            setIsLoading(false);
+            setPushSubscriptionAttempted(false);
+
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              console.error('Sign out error:', signOutError);
+            }
+
+            alert('Your account no longer exists. Please contact an administrator if you believe this is an error.');
+            return;
+          }
+
+          console.log('✅ Auth user exists, checking deletion status...');
+
+          // Now check if user is soft-deleted in users table
+          const deletionCheckPromise = supabase
+            .from('users')
+            .select('id, deleted_at')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Deletion check timeout')), 3000)
+          );
+
+          const { data: quickCheck, error: checkError } = await Promise.race([
+            deletionCheckPromise,
+            timeoutPromise
+          ]);
+
+          if (checkError) {
+            console.warn('🔐 Could not check deletion status:', checkError.message);
+            // Continue with login if check fails - will be caught by background fetch
+          } else if (quickCheck && quickCheck.deleted_at !== null) {
+            console.error('🚫 User account is deactivated, preventing login');
+            // Clear user state immediately
+            setUser(null);
+            setIsLoading(false);
+            setPushSubscriptionAttempted(false);
+
+            // Sign out and show alert
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              console.error('Sign out error:', signOutError);
+            }
+
+            alert('Your account has been deactivated. Please contact an administrator.');
+            return;
+          }
+        } catch (err) {
+          console.warn('🔐 Deletion check failed:', err.message);
+          // Continue with login if check fails - will be caught by background fetch
+        }
+
+        // INSTANT LOGIN: Set user immediately with session data (only if not deleted)
         const email = session.user.email;
         const name = session.user.user_metadata?.name ||
                      session.user.user_metadata?.full_name ||
@@ -692,158 +783,6 @@ export const AuthProvider = ({ children }) => {
 
         // Stop loading immediately
         setIsLoading(false);
-
-        // OFFLINE MODE: Skip security checks when offline to prevent logout
-        if (!isOnline) {
-          console.log('📴 Offline mode - skipping security checks (auth state change)');
-          // Fetch user data from cache/session without security checks
-          fetchUserData(session.user).then(userData => {
-            if (userData && !userData._isTemporary) {
-              console.log('✅ Full user data loaded in offline mode');
-              setUser(userData);
-              autoSubscribePushNotifications(userData);
-            }
-          }).catch(err => {
-            console.warn('⚠️ Could not load full user data offline:', err);
-          });
-          return; // Skip security checks
-        }
-
-        // Run security checks in parallel in the background (non-blocking)
-        // Skip checks for MFA_CHALLENGE_VERIFIED event since that event proves MFA was just verified
-        if (event !== 'MFA_CHALLENGE_VERIFIED') {
-          Promise.all([
-            // Check MFA status
-            (async () => {
-              console.log('🔐 Starting background MFA check...');
-              const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
-
-              if (backupCodeVerified) {
-                console.log('🔐 Backup code verification detected - skipping AAL check');
-                return { mfaCheckPassed: true };
-              }
-
-              try {
-                const mfaCheckPromise = (async () => {
-                  const { data: { currentLevel, nextLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-                  const { data: factors } = await supabase.auth.mfa.listFactors();
-                  const hasMFA = factors?.totp && factors.totp.length > 0;
-                  return { currentLevel, nextLevel, hasMFA };
-                })();
-
-                const timeoutPromise = new Promise((_, reject) =>
-                  setTimeout(() => reject(new Error('MFA check timeout')), 5000)
-                );
-
-                const { currentLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
-
-                console.log('🔐 Background MFA check:', { currentLevel, hasMFA });
-
-                if (hasMFA && currentLevel !== 'aal2') {
-                  console.log('🔐 MFA required but not verified - will sign out');
-                  return { mfaCheckPassed: false };
-                }
-
-                console.log('🔐 Background MFA check passed');
-                return { mfaCheckPassed: true };
-              } catch (mfaError) {
-                console.warn('🔐 Background MFA check failed:', mfaError);
-                return { mfaCheckPassed: true };
-              }
-            })(),
-
-            // Verify auth user exists
-            (async () => {
-              try {
-                console.log('🔐 Verifying auth user exists (background)...');
-                const authUserCheckPromise = supabase.auth.getUser();
-                const authTimeoutPromise = new Promise((_, reject) =>
-                  setTimeout(() => reject(new Error('Auth user check timeout')), 3000)
-                );
-
-                const { data: authData, error: authError } = await Promise.race([
-                  authUserCheckPromise,
-                  authTimeoutPromise
-                ]);
-
-                if (authError || !authData?.user) {
-                  console.error('🚫 Auth user does not exist (background check):', authError);
-                  return { authUserExists: false };
-                }
-
-                console.log('✅ Auth user exists (background check)');
-                return { authUserExists: true };
-              } catch (err) {
-                console.warn('🔐 Auth user check failed (background):', err.message);
-                return { authUserExists: true };
-              }
-            })(),
-
-            // Check deletion status
-            (async () => {
-              try {
-                console.log('🔐 Checking deletion status (background)...');
-                const deletionCheckPromise = supabase
-                  .from('users')
-                  .select('id, deleted_at')
-                  .eq('id', session.user.id)
-                  .maybeSingle();
-
-                const timeoutPromise = new Promise((_, reject) =>
-                  setTimeout(() => reject(new Error('Deletion check timeout')), 3000)
-                );
-
-                const { data: quickCheck, error: checkError } = await Promise.race([
-                  deletionCheckPromise,
-                  timeoutPromise
-                ]);
-
-                if (checkError) {
-                  console.warn('🔐 Could not check deletion status (background):', checkError.message);
-                  return { userDeleted: false };
-                }
-
-                if (quickCheck && quickCheck.deleted_at !== null) {
-                  console.error('🚫 User account is deactivated (background check)');
-                  return { userDeleted: true };
-                }
-
-                console.log('✅ User not deleted (background check)');
-                return { userDeleted: false };
-              } catch (err) {
-                console.warn('🔐 Deletion check failed (background):', err.message);
-                return { userDeleted: false };
-              }
-            })()
-          ]).then(([mfaResult, authResult, deletionResult]) => {
-            // If any security check failed, sign out the user
-            if (!mfaResult.mfaCheckPassed || !authResult.authUserExists || deletionResult.userDeleted) {
-              console.error('🚫 Security check failed, signing out user');
-              setUser(null);
-              setPushSubscriptionAttempted(false);
-
-              supabase.auth.signOut().catch((signOutError) => {
-                console.error('Sign out error:', signOutError);
-              });
-
-              if (!mfaResult.mfaCheckPassed) {
-                // Don't show alert for MFA - just return to login
-                return;
-              } else if (!authResult.authUserExists) {
-                alert('Your account no longer exists. Please contact an administrator if you believe this is an error.');
-              } else if (deletionResult.userDeleted) {
-                alert('Your account has been deactivated. Please contact an administrator.');
-              }
-              return;
-            }
-
-            console.log('✅ All background security checks passed');
-          }).catch((err) => {
-            console.error('🔐 Background security checks error:', err);
-          });
-        } else {
-          console.log('🔐 MFA_CHALLENGE_VERIFIED event - skipping background security checks');
-        }
 
         // Fetch full user data in background (non-blocking)
         fetchUserData(session.user).then(userData => {
