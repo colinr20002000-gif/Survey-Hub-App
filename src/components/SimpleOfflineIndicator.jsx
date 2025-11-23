@@ -18,18 +18,15 @@ const SimpleOfflineIndicator = () => {
     <AnimatePresence>
       {!isOnline && (
         <motion.div
-          initial={{ y: -50, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -50, opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-white shadow-md"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.2 }}
+          className="fixed bottom-4 right-4 z-50 bg-yellow-500 text-white shadow-lg rounded-full px-3 py-2 flex items-center gap-2 text-xs font-medium"
+          style={{ zIndex: 9999 }}
         >
-          <div className="px-3 py-1.5">
-            <div className="flex items-center justify-center gap-2 text-xs">
-              <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="font-medium">Offline - Viewing cached data</span>
-            </div>
-          </div>
+          <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
+          <span>Offline</span>
         </motion.div>
       )}
     </AnimatePresence>

@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { useOffline } from './SimpleOfflineContext';
+import { cacheData, getCachedData } from '../utils/simpleOfflineCache';
 
 const JobContext = createContext(null);
 
@@ -7,6 +9,8 @@ export const JobProvider = ({ children }) => {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [lastSync, setLastSync] = useState(null);
+    const { isOnline } = useOffline();
 
     // Map database snake_case to component camelCase
     const mapToCamelCase = useCallback((job) => ({
@@ -51,28 +55,76 @@ export const JobProvider = ({ children }) => {
     const getJobs = useCallback(async () => {
         setLoading(true);
         setError(null);
-        try {
-            const { data, error: fetchError } = await supabase
-                .from('jobs')
-                .select('*')
-                .order('planned_delivery_date', { ascending: true });
 
-            if (fetchError) throw fetchError;
+        if (isOnline) {
+            // ONLINE: Fetch from Supabase
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('jobs')
+                    .select('*')
+                    .order('planned_delivery_date', { ascending: true });
 
-            setJobs(data.map(mapToCamelCase) || []);
-        } catch (err) {
-            console.error("Error fetching jobs:", err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
+                if (fetchError) {
+                    setError(fetchError.message);
+                    // Try to load from cache as fallback
+                    const cached = await getCachedData('jobs');
+                    if (cached) {
+                        console.log('📦 Using cached jobs due to fetch error');
+                        setJobs(cached);
+                    } else {
+                        setJobs([]);
+                    }
+                } else {
+                    const mappedJobs = data.map(mapToCamelCase) || [];
+                    setJobs(mappedJobs);
+                    setLastSync(Date.now());
+                    // Cache for offline use
+                    await cacheData('jobs', mappedJobs);
+                    console.log('✅ Jobs cached for offline use');
+                }
+            } catch (err) {
+                console.error("Error fetching jobs:", err);
+                setError(err.message);
+                // Try to load from cache as fallback
+                const cached = await getCachedData('jobs');
+                if (cached) {
+                    console.log('📦 Using cached jobs due to error');
+                    setJobs(cached);
+                } else {
+                    setJobs([]);
+                }
+            }
+        } else {
+            // OFFLINE: Load from cache
+            try {
+                const cached = await getCachedData('jobs');
+                if (cached) {
+                    setJobs(cached);
+                    console.log('📦 Loaded jobs from cache (offline)');
+                } else {
+                    setJobs([]);
+                    setError('No cached data available. Please connect to the internet.');
+                }
+            } catch (err) {
+                setError('Failed to load cached data.');
+                setJobs([]);
+            }
         }
-    }, [mapToCamelCase]);
+
+        setLoading(false);
+    }, [isOnline, mapToCamelCase]);
 
     useEffect(() => {
         getJobs();
     }, [getJobs]);
 
     const addJob = useCallback(async (jobData) => {
+        // Block if offline
+        if (!isOnline) {
+            alert('Cannot create jobs while offline. Please connect to the internet.');
+            throw new Error('Cannot create jobs while offline');
+        }
+
         const jobRecord = mapToSnakeCase(jobData);
         const { data, error } = await supabase
             .from('jobs')
@@ -84,10 +136,21 @@ export const JobProvider = ({ children }) => {
              alert(`Error adding job: ${error.message}`);
              return;
         }
-        if (data) setJobs(prev => [...prev, mapToCamelCase(data[0])]);
-    }, [mapToSnakeCase, mapToCamelCase]);
+        if (data) {
+            setJobs(prev => [...prev, mapToCamelCase(data[0])]);
+            // Update cache
+            const updatedJobs = [...jobs, mapToCamelCase(data[0])];
+            await cacheData('jobs', updatedJobs);
+        }
+    }, [isOnline, mapToSnakeCase, mapToCamelCase, jobs]);
 
     const updateJob = useCallback(async (updatedJob) => {
+        // Block if offline
+        if (!isOnline) {
+            alert('Cannot update jobs while offline. Please connect to the internet.');
+            throw new Error('Cannot update jobs while offline');
+        }
+
         const jobRecord = mapToSnakeCase(updatedJob);
         const { data, error } = await supabase
             .from('jobs')
@@ -100,10 +163,19 @@ export const JobProvider = ({ children }) => {
             alert(`Error updating job: ${error.message}`);
         } else if (data) {
             setJobs(prev => prev.map(j => (j.id === updatedJob.id ? mapToCamelCase(data[0]) : j)));
+            // Update cache
+            const updatedJobs = jobs.map(j => (j.id === updatedJob.id ? mapToCamelCase(data[0]) : j));
+            await cacheData('jobs', updatedJobs);
         }
-    }, [mapToSnakeCase, mapToCamelCase]);
+    }, [isOnline, mapToSnakeCase, mapToCamelCase, jobs]);
 
     const deleteJob = useCallback(async (jobId) => {
+        // Block if offline
+        if (!isOnline) {
+            alert('Cannot delete jobs while offline. Please connect to the internet.');
+            throw new Error('Cannot delete jobs while offline');
+        }
+
         const { error } = await supabase
             .from('jobs')
             .delete()
@@ -114,8 +186,11 @@ export const JobProvider = ({ children }) => {
             alert(`Error deleting job: ${error.message}`);
         } else {
             setJobs(prev => prev.filter(j => j.id !== jobId));
+            // Update cache
+            const updatedJobs = jobs.filter(j => j.id !== jobId);
+            await cacheData('jobs', updatedJobs);
         }
-    }, []);
+    }, [isOnline, jobs]);
 
     // Memoize the context value to prevent unnecessary re-renders
     const value = useMemo(() => ({
@@ -124,8 +199,10 @@ export const JobProvider = ({ children }) => {
         updateJob,
         deleteJob,
         loading,
-        error
-    }), [jobs, addJob, updateJob, deleteJob, loading, error]);
+        error,
+        isOnline,
+        lastSync
+    }), [jobs, addJob, updateJob, deleteJob, loading, error, isOnline, lastSync]);
 
     return <JobContext.Provider value={value}>{children}</JobContext.Provider>;
 };

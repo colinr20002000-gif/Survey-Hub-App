@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { useOffline } from './SimpleOfflineContext';
+import { cacheData, getCachedData } from '../utils/simpleOfflineCache';
 
 const UserContext = createContext(null);
 
@@ -7,59 +9,100 @@ export const UserProvider = ({ children }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [lastSync, setLastSync] = useState(null);
+    const { isOnline } = useOffline();
 
     const getUsers = useCallback(async () => {
         setLoading(true);
         setError(null);
-        try {
-            // Fetch only active real users (not deleted)
-            const { data: realUsers, error: realUsersError} = await supabase
-                .from('users')
-                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status')
-                .is('deleted_at', null)
-                .order('name', { ascending: true });
 
-            // Fetch only active dummy users (not deleted and is_active = true)
-            const { data: dummyUsers, error: dummyUsersError } = await supabase
-                .from('dummy_users')
-                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, is_active')
-                .eq('is_active', true)
-                .is('deleted_at', null)
-                .order('name', { ascending: true });
+        if (isOnline) {
+            // ONLINE: Fetch from Supabase
+            try {
+                // Fetch only active real users (not deleted)
+                const { data: realUsers, error: realUsersError} = await supabase
+                    .from('users')
+                    .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status')
+                    .is('deleted_at', null)
+                    .order('name', { ascending: true });
 
-            if (realUsersError && dummyUsersError) {
-                throw new Error(`Failed to fetch users: ${realUsersError.message} and ${dummyUsersError.message}`);
+                // Fetch only active dummy users (not deleted and is_active = true)
+                const { data: dummyUsers, error: dummyUsersError } = await supabase
+                    .from('dummy_users')
+                    .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, is_active')
+                    .eq('is_active', true)
+                    .is('deleted_at', null)
+                    .order('name', { ascending: true });
+
+                if (realUsersError && dummyUsersError) {
+                    setError(`Failed to fetch users: ${realUsersError.message} and ${dummyUsersError.message}`);
+                    // Try to load from cache as fallback
+                    const cached = await getCachedData('users');
+                    if (cached) {
+                        console.log('📦 Using cached users due to fetch error');
+                        setUsers(cached);
+                    } else {
+                        setUsers([]);
+                    }
+                } else {
+                    // Combine real users and dummy users
+                    const allUsers = [];
+
+                    // Add real users (mark them as real users)
+                    if (realUsers) {
+                        allUsers.push(...realUsers.map(user => ({ ...user, isDummy: false })));
+                    }
+
+                    // Add dummy users (mark them as dummy users and normalize fields)
+                    if (dummyUsers) {
+                        allUsers.push(...dummyUsers.map(dummyUser => ({
+                            ...dummyUser,
+                            isDummy: true,
+                            privilege: 'Dummy', // Special privilege for dummy users
+                            last_login: null // Dummy users don't login
+                        })));
+                    }
+
+                    // Sort combined list by name
+                    allUsers.sort((a, b) => a.name.localeCompare(b.name));
+
+                    setUsers(allUsers);
+                    setLastSync(Date.now());
+                    // Cache for offline use
+                    await cacheData('users', allUsers);
+                    console.log('✅ Users cached for offline use');
+                }
+            } catch (err) {
+                console.error("Error fetching users:", err);
+                setError(err.message);
+                // Try to load from cache as fallback
+                const cached = await getCachedData('users');
+                if (cached) {
+                    console.log('📦 Using cached users due to error');
+                    setUsers(cached);
+                } else {
+                    setUsers([]);
+                }
             }
-
-            // Combine real users and dummy users
-            const allUsers = [];
-
-            // Add real users (mark them as real users)
-            if (realUsers) {
-                allUsers.push(...realUsers.map(user => ({ ...user, isDummy: false })));
+        } else {
+            // OFFLINE: Load from cache
+            try {
+                const cached = await getCachedData('users');
+                if (cached) {
+                    setUsers(cached);
+                    console.log('📦 Loaded users from cache (offline)');
+                } else {
+                    setUsers([]);
+                    setError('No cached data available. Please connect to the internet.');
+                }
+            } catch (err) {
+                setError('Failed to load cached data.');
+                setUsers([]);
             }
-
-            // Add dummy users (mark them as dummy users and normalize fields)
-            if (dummyUsers) {
-                allUsers.push(...dummyUsers.map(dummyUser => ({
-                    ...dummyUser,
-                    isDummy: true,
-                    privilege: 'Dummy', // Special privilege for dummy users
-                    last_login: null // Dummy users don't login
-                })));
-            }
-
-            // Sort combined list by name
-            allUsers.sort((a, b) => a.name.localeCompare(b.name));
-
-            setUsers(allUsers);
-        } catch (err) {
-            console.error("Error fetching users:", err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
         }
-    }, []);
+
+        setLoading(false);
+    }, [isOnline]);
 
     useEffect(() => {
         getUsers();
@@ -243,8 +286,10 @@ export const UserProvider = ({ children }) => {
         deleteUser,
         loading,
         error,
+        isOnline,
+        lastSync,
         refreshUsers: getUsers
-    }), [users, addUser, addAuthUser, inviteUser, updateUser, deleteUser, loading, error, getUsers]);
+    }), [users, addUser, addAuthUser, inviteUser, updateUser, deleteUser, loading, error, isOnline, lastSync, getUsers]);
 
     return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 };
