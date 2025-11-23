@@ -3,7 +3,7 @@
 
 // Service Worker for Survey Hub PWA + Firebase Cloud Messaging
 // IMPORTANT: Version is set during build by Vite, not dynamically
-const CACHE_VERSION = 'v10'; // Increment this manually for major updates
+const CACHE_VERSION = 'v11-offline-first'; // Increment this manually for major updates
 const CACHE_NAME = `survey-hub-${CACHE_VERSION}-fcm`;
 const OFFLINE_URL = '/offline.html';
 
@@ -34,6 +34,8 @@ console.log('🔔 [SW] Firebase messaging initialized');
 
 // Files to cache for offline functionality
 const STATIC_CACHE_FILES = [
+  '/',
+  '/index.html',
   OFFLINE_URL
 ];
 
@@ -123,39 +125,87 @@ self.addEventListener('fetch', (event) => {
   // Handle navigation requests (HTML pages)
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
-        .catch(() => {
-          // If network fails, try cache, fall back to offline page
-          return caches.match(event.request).then((response) => {
-            return response || caches.match(OFFLINE_URL);
-          });
+      caches.match(event.request)
+        .then((cachedResponse) => {
+          if (cachedResponse) {
+            console.log('🔔 [SW] Serving navigation from cache:', event.request.url);
+            // Cache hit - serve from cache first, update in background
+            fetch(event.request)
+              .then((response) => {
+                if (response.status === 200) {
+                  caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(event.request, response);
+                  });
+                }
+              })
+              .catch(() => {
+                // Network failed, but we have cache so it's ok
+              });
+            return cachedResponse;
+          }
+
+          // Not in cache, try network
+          return fetch(event.request)
+            .then((response) => {
+              // Cache the response for next time
+              if (response.status === 200) {
+                const responseToCache = response.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                  cache.put(event.request, responseToCache);
+                });
+              }
+              return response;
+            })
+            .catch(() => {
+              // Network failed and no cache - show offline page
+              return caches.match(OFFLINE_URL);
+            });
         })
     );
     return;
   }
 
-  // For asset requests (JS, CSS, images), try network first, fall back to cache
+  // For asset requests (JS, CSS, images), use cache-first for offline support
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Clone the response before caching
-        const responseToCache = response.clone();
-
-        // Cache successful responses
-        if (response.status === 200) {
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache).catch((err) => {
-              // Silently ignore caching errors (e.g., for unsupported schemes)
-              console.log('🔔 [SW] Skipping cache for:', event.request.url);
+    caches.match(event.request)
+      .then((cachedResponse) => {
+        if (cachedResponse) {
+          // Cache hit - serve from cache, update in background
+          fetch(event.request)
+            .then((response) => {
+              if (response.status === 200) {
+                caches.open(CACHE_NAME).then((cache) => {
+                  cache.put(event.request, response).catch(() => {
+                    // Silently ignore caching errors
+                  });
+                });
+              }
+            })
+            .catch(() => {
+              // Network failed, but we have cache so it's ok
             });
-          });
+          return cachedResponse;
         }
 
-        return response;
-      })
-      .catch(() => {
-        // If network fails, try cache
-        return caches.match(event.request);
+        // Not in cache, try network
+        return fetch(event.request)
+          .then((response) => {
+            // Cache successful responses
+            if (response.status === 200) {
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseToCache).catch(() => {
+                  // Silently ignore caching errors
+                });
+              });
+            }
+            return response;
+          })
+          .catch((error) => {
+            // Network failed and not in cache
+            console.log('🔔 [SW] Asset not available offline:', event.request.url);
+            throw error;
+          });
       })
   );
 });
