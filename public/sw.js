@@ -52,8 +52,9 @@ self.addEventListener('install', (event) => {
       })
   );
 
-  // Automatically activate new version
-  self.skipWaiting();
+  // Don't automatically activate - wait for user confirmation or SKIP_WAITING message
+  // This allows manual update checks to detect waiting service workers
+  console.log('🔔 [SW] New service worker installed, waiting for activation...');
 });
 
 // Listen for SKIP_WAITING message from client (for manual update checks)

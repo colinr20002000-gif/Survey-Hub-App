@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Filter, PlusCircle, Edit, Trash2, MoreVertical, Copy, Archive, ArchiveRestore } from 'lucide-react';
+import { Search, Filter, PlusCircle, Edit, Trash2, MoreVertical, Copy, Archive, ArchiveRestore, WifiOff } from 'lucide-react';
 import { useProjects } from '../contexts/ProjectContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Select, Button, Switch, Pagination, ConfirmationModal } from '../components/ui';
@@ -7,7 +7,7 @@ import ProjectModal from '../components/modals/ProjectModal';
 import { useDebouncedValue } from '../utils/debounce';
 
 const ProjectsPage = ({ onViewProject }) => {
-    const { projects, addProject, updateProject, deleteProject, loading, error } = useProjects();
+    const { projects, addProject, updateProject, deleteProject, loading, error, isOnline, lastSync } = useProjects();
     const { canCreateProjects, canEditProjects, canDeleteProjects, can } = usePermissions();
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
@@ -182,6 +182,23 @@ const ProjectsPage = ({ onViewProject }) => {
 
     return (
         <div className="p-4 md:p-6">
+            {/* Offline indicator */}
+            {!isOnline && (
+                <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4 rounded">
+                    <div className="flex items-center">
+                        <WifiOff className="h-5 w-5 text-yellow-700 mr-3 flex-shrink-0" />
+                        <div className="flex-1">
+                            <p className="font-semibold text-yellow-700">Viewing cached data (offline mode)</p>
+                            <p className="text-sm text-yellow-600 mt-1">
+                                {lastSync
+                                    ? `Last updated: ${new Date(lastSync).toLocaleString()}`
+                                    : 'Connect to internet to create or edit projects'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Projects</h1>
                 <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
@@ -217,8 +234,18 @@ const ProjectsPage = ({ onViewProject }) => {
                             )}
                         </div>
                         {canCreateProjects && (
-                            <button onClick={() => { setProjectToManage(null); setIsEditModalOpen(true); }} className="flex-1 sm:flex-none flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600">
+                            <button
+                                onClick={() => { setProjectToManage(null); setIsEditModalOpen(true); }}
+                                disabled={!isOnline}
+                                className={`flex-1 sm:flex-none flex items-center justify-center px-4 py-2 text-sm font-medium text-white rounded-lg ${
+                                    !isOnline
+                                        ? 'bg-gray-400 cursor-not-allowed opacity-60'
+                                        : 'bg-orange-500 hover:bg-orange-600'
+                                }`}
+                                title={!isOnline ? 'Connect to internet to create projects' : ''}
+                            >
                                 <PlusCircle size={16} className="mr-2" /> New Project
+                                {!isOnline && ' 🔒'}
                             </button>
                         )}
                     </div>
@@ -276,15 +303,48 @@ const ProjectsPage = ({ onViewProject }) => {
                                 <td className="px-6 py-4">
                                     <div className="flex items-center space-x-1">
                                         {canEditProjects && (
-                                            <button onClick={() => { setProjectToManage(project); setIsEditModalOpen(true); }} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={16} /></button>
+                                            <button
+                                                onClick={() => { setProjectToManage(project); setIsEditModalOpen(true); }}
+                                                disabled={!isOnline}
+                                                className={`p-1.5 rounded-md ${
+                                                    !isOnline
+                                                        ? 'text-gray-300 cursor-not-allowed opacity-50'
+                                                        : 'text-gray-500 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                }`}
+                                                title={!isOnline ? 'Connect to internet to edit' : ''}
+                                            >
+                                                <Edit size={16} />
+                                            </button>
                                         )}
                                         {canDeleteProjects && (
-                                            <button onClick={() => handleDeleteClick(project)} className="p-1.5 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={16} /></button>
+                                            <button
+                                                onClick={() => handleDeleteClick(project)}
+                                                disabled={!isOnline}
+                                                className={`p-1.5 rounded-md ${
+                                                    !isOnline
+                                                        ? 'text-gray-300 cursor-not-allowed opacity-50'
+                                                        : 'text-gray-500 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                }`}
+                                                title={!isOnline ? 'Connect to internet to delete' : ''}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
                                         )}
                                         {(canEditProjects || canDeleteProjects) && (
                                             <div className="relative" ref={openDropdownId === project.id ? dropdownRef : null}>
-                                                <button onClick={() => setOpenDropdownId(openDropdownId === project.id ? null : project.id)} className="p-1.5 text-gray-500 hover:text-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><MoreVertical size={16} /></button>
-                                                {openDropdownId === project.id && (
+                                                <button
+                                                    onClick={() => setOpenDropdownId(openDropdownId === project.id ? null : project.id)}
+                                                    disabled={!isOnline}
+                                                    className={`p-1.5 rounded-md ${
+                                                        !isOnline
+                                                            ? 'text-gray-300 cursor-not-allowed opacity-50'
+                                                            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                    }`}
+                                                    title={!isOnline ? 'Actions available when online' : ''}
+                                                >
+                                                    <MoreVertical size={16} />
+                                                </button>
+                                                {openDropdownId === project.id && isOnline && (
                                                     <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10">
                                                         {canCreateProjects && (
                                                             <button onClick={() => handleDuplicateProject(project)} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2"/>Duplicate</button>
