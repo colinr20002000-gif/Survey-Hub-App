@@ -1,9 +1,11 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { sendDeliveryTaskAssignmentNotification, sendDeliveryTaskCompletionNotification } from '../utils/fcmNotifications';
 import { handleSupabaseError, isRLSError } from '../utils/rlsErrorHandler';
+import { useOffline } from './SimpleOfflineContext';
+import { cacheData, getCachedData } from '../utils/simpleOfflineCache';
 
 const DeliveryTaskContext = createContext(null);
 
@@ -13,6 +15,8 @@ export const DeliveryTaskProvider = ({ children }) => {
     const [deliveryTasks, setDeliveryTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [lastSync, setLastSync] = useState(null);
+    const { isOnline } = useOffline();
 
     // Map database snake_case to component camelCase
     const mapToCamelCase = (task) => {
@@ -43,25 +47,67 @@ export const DeliveryTaskProvider = ({ children }) => {
         archived: task.archived,
     });
 
-    const getDeliveryTasks = async () => {
+    const getDeliveryTasks = useCallback(async () => {
         setLoading(true);
         setError(null);
-        try {
-            const { data, error: fetchError } = await supabase
-                .from('delivery_tasks')
-                .select('*')
-                .order('created_at', { ascending: false });
 
-            if (fetchError) throw fetchError;
+        if (isOnline) {
+            // ONLINE: Fetch from Supabase
+            try {
+                const { data, error: fetchError } = await supabase
+                    .from('delivery_tasks')
+                    .select('*')
+                    .order('created_at', { ascending: false });
 
-            setDeliveryTasks(data?.map(mapToCamelCase).filter(Boolean) || []);
-        } catch (err) {
-            console.error("Error fetching delivery tasks:", err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
+                if (fetchError) {
+                    console.error("Supabase delivery tasks fetch error:", fetchError);
+                    setError(fetchError.message);
+                    // Try cache as fallback
+                    const cached = await getCachedData('delivery_tasks');
+                    if (cached) {
+                        console.log('📦 Using cached delivery tasks due to fetch error');
+                        setDeliveryTasks(cached);
+                    } else {
+                        setDeliveryTasks([]);
+                    }
+                } else {
+                    const mappedData = data?.map(mapToCamelCase).filter(Boolean) || [];
+                    setDeliveryTasks(mappedData);
+                    setLastSync(Date.now());
+                    await cacheData('delivery_tasks', mappedData);
+                    console.log('✅ Delivery tasks cached for offline use');
+                }
+            } catch (e) {
+                console.error("Unexpected JS error fetching delivery tasks:", e);
+                setError(e.message);
+                // Try cache as fallback
+                const cached = await getCachedData('delivery_tasks');
+                if (cached) {
+                    console.log('📦 Using cached delivery tasks due to error');
+                    setDeliveryTasks(cached);
+                } else {
+                    setDeliveryTasks([]);
+                }
+            }
+        } else {
+            // OFFLINE: Load from cache
+            try {
+                const cached = await getCachedData('delivery_tasks');
+                if (cached) {
+                    setDeliveryTasks(cached);
+                    console.log('📦 Loaded delivery tasks from cache (offline)');
+                } else {
+                    setDeliveryTasks([]);
+                    setError('No cached data available. Please connect to the internet.');
+                }
+            } catch (e) {
+                setError('Failed to load cached data.');
+                setDeliveryTasks([]);
+            }
         }
-    };
+
+        setLoading(false);
+    }, [isOnline]);
 
     useEffect(() => {
         getDeliveryTasks();
@@ -103,9 +149,15 @@ export const DeliveryTaskProvider = ({ children }) => {
         return () => {
             subscription.unsubscribe();
         };
-    }, []);
+    }, [getDeliveryTasks]);
 
-    const addDeliveryTask = async (taskData) => {
+    const addDeliveryTask = useCallback(async (taskData) => {
+        // Block if offline
+        if (!isOnline) {
+            alert('Cannot create delivery tasks while offline. Please connect to the internet.');
+            throw new Error('Cannot create delivery tasks while offline');
+        }
+
         const taskRecord = mapToSnakeCase(taskData);
         const { data, error } = await supabase
             .from('delivery_tasks')
@@ -197,9 +249,15 @@ export const DeliveryTaskProvider = ({ children }) => {
                 showSuccessModal('Delivery task created successfully!', 'Success');
             }
         }
-    };
+    }, [isOnline, user, showSuccessModal, showErrorModal, showPrivilegeError]);
 
-    const updateDeliveryTask = async (updatedTask) => {
+    const updateDeliveryTask = useCallback(async (updatedTask) => {
+        // Block if offline
+        if (!isOnline) {
+            alert('Cannot update delivery tasks while offline. Please connect to the internet.');
+            throw new Error('Cannot update delivery tasks while offline');
+        }
+
         // Get the old task to check if it's being marked as complete
         const oldTask = deliveryTasks.find(t => t.id === updatedTask.id);
         const isBeingCompleted = !oldTask?.completed && updatedTask.completed;
@@ -270,9 +328,15 @@ export const DeliveryTaskProvider = ({ children }) => {
             console.error('No data returned from delivery task update - possibly blocked by RLS');
             showPrivilegeError('You need Editor privileges or higher to modify delivery tasks.');
         }
-    };
+    }, [isOnline, deliveryTasks, user, showErrorModal, showPrivilegeError]);
 
-    const deleteDeliveryTask = async (taskId) => {
+    const deleteDeliveryTask = useCallback(async (taskId) => {
+        // Block if offline
+        if (!isOnline) {
+            alert('Cannot delete delivery tasks while offline. Please connect to the internet.');
+            throw new Error('Cannot delete delivery tasks while offline');
+        }
+
         const { error } = await supabase
             .from('delivery_tasks')
             .delete()
@@ -288,9 +352,15 @@ export const DeliveryTaskProvider = ({ children }) => {
             }
         }
         // Don't manually update state - realtime subscription handles it
-    };
+    }, [isOnline, showErrorModal, showPrivilegeError]);
 
-    const deleteAllArchivedDeliveryTasks = async () => {
+    const deleteAllArchivedDeliveryTasks = useCallback(async () => {
+        // Block if offline
+        if (!isOnline) {
+            alert('Cannot delete delivery tasks while offline. Please connect to the internet.');
+            throw new Error('Cannot delete delivery tasks while offline');
+        }
+
         const archivedTaskIds = deliveryTasks.filter(t => t.archived === true).map(t => t.id);
 
         if (archivedTaskIds.length === 0) {
@@ -309,9 +379,20 @@ export const DeliveryTaskProvider = ({ children }) => {
             // Don't manually update state - realtime subscription handles it
             showSuccessModal('All archived delivery tasks have been deleted');
         }
-    };
+    }, [isOnline, deliveryTasks, showSuccessModal]);
 
-    const value = { deliveryTasks, addDeliveryTask, updateDeliveryTask, deleteDeliveryTask, deleteAllArchivedDeliveryTasks, loading, error };
+    // Memoize the context value to prevent unnecessary re-renders
+    const value = useMemo(() => ({
+        deliveryTasks,
+        addDeliveryTask,
+        updateDeliveryTask,
+        deleteDeliveryTask,
+        deleteAllArchivedDeliveryTasks,
+        loading,
+        error,
+        isOnline,
+        lastSync
+    }), [deliveryTasks, addDeliveryTask, updateDeliveryTask, deleteDeliveryTask, deleteAllArchivedDeliveryTasks, loading, error, isOnline, lastSync]);
 
     return <DeliveryTaskContext.Provider value={value}>{children}</DeliveryTaskContext.Provider>;
 };
