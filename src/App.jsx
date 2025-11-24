@@ -449,9 +449,9 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
                                                 if (notif.source === 'announcements') {
                                                     targetTab = 'Announcements';
                                                 } else if (notif.type?.includes('delivery_task')) {
-                                                    targetTab = 'Delivery Tasks';
+                                                    targetTab = 'Delivery Team - To Do List';
                                                 } else if (notif.type?.includes('project_task')) {
-                                                    targetTab = 'Project Tasks';
+                                                    targetTab = 'To Do List';
                                                 }
 
                                                 console.log('Navigating to:', targetTab, 'for notification:', notif);
@@ -616,9 +616,17 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Resource Calendar', parent: 'Project Team', show: can('VIEW_RESOURCE_CALENDAR') },
-                { name: 'Equipment Calendar', parent: 'Project Team', show: can('VIEW_EQUIPMENT_CALENDAR') },
-                { name: 'Project Tasks', parent: 'Project Team', show: can('VIEW_TASKS') },
-                { name: 'Equipment', parent: 'Project Team', show: can('VIEW_EQUIPMENT') }
+                { name: 'To Do List', parent: 'Project Team', show: can('VIEW_TASKS') }
+            ]
+        },
+        {
+            name: 'Equipment',
+            icon: Wrench,
+            show: true,
+            isGroup: true,
+            subItems: [
+                { name: 'Equipment Calendar', parent: 'Equipment', show: can('VIEW_EQUIPMENT_CALENDAR') },
+                { name: 'Equipment Management', parent: 'Equipment', show: can('VIEW_EQUIPMENT') }
             ]
         },
         {
@@ -628,7 +636,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Delivery Tracker', parent: 'Delivery Team' },
-                { name: 'Delivery Tasks', parent: 'Delivery Team' }
+                { name: 'Delivery Team - To Do List', displayName: 'To Do List', parent: 'Delivery Team' }
             ]
         },
         {
@@ -708,8 +716,9 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         if(window.innerWidth < 768) setIsOpen(false);
     };
 
-    const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Tasks';
-    const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'Equipment Calendar' || activeTab === 'Project Tasks' || activeTab === 'Equipment';
+    const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Team - To Do List';
+    const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'To Do List';
+    const isEquipmentActive = activeTab === 'Equipment Calendar' || activeTab === 'Equipment Management';
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
     const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
     const isVehiclesActive = activeTab === 'Vehicle Management' || activeTab === 'Vehicle Inspection';
@@ -776,6 +785,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                 <div className={`flex items-center px-4 py-2.5 my-1 text-sm font-medium rounded-lg ${
                                     (item.name === 'Delivery Team' && isDeliveryTeamActive) ||
                                     (item.name === 'Project Team' && isProjectTeamActive) ||
+                                    (item.name === 'Equipment' && isEquipmentActive) ||
                                     (item.name === 'Training Centre' && isTrainingCentreActive) ||
                                     (item.name === 'Contact Details' && isContactDetailsActive)
                                         ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
@@ -812,7 +822,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                                 }`}
                                             >
                                                 <span className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full mr-3"></span>
-                                                {subItem.name}
+                                                {subItem.displayName || subItem.name}
                                             </a>
                                         </li>
                                     ))}
@@ -4252,12 +4262,12 @@ const MainLayout = () => {
             case 'Feedback': return <FeedbackPage />;
             case 'Resource Calendar': return can('VIEW_RESOURCE_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><ResourceCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
             case 'Equipment Calendar': return can('VIEW_EQUIPMENT_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
-            case 'Project Tasks': return can('VIEW_TASKS') ? <ProjectTasksPage /> : <AccessDenied />;
-            case 'Equipment': return can('VIEW_EQUIPMENT') ? <EquipmentPage /> : <AccessDenied />;
+            case 'To Do List': return can('VIEW_TASKS') ? <ProjectTasksPage /> : <AccessDenied />;
+            case 'Equipment Management': return can('VIEW_EQUIPMENT') ? <EquipmentPage /> : <AccessDenied />;
             case 'Vehicle Management': return can('VIEW_VEHICLES') ? <VehiclesPage /> : <AccessDenied />;
             case 'Vehicle Inspection': return can('VIEW_VEHICLES') ? <Suspense fallback={<LoadingFallback />}><VehicleMileageLogsPage /></Suspense> : <AccessDenied />;
             case 'Delivery Tracker': return <DeliveryTrackerPage />;
-            case 'Delivery Tasks': return <DeliveryTasksPage />;
+            case 'Delivery Team - To Do List': return <DeliveryTasksPage />;
             case 'Project Logs': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><ProjectLogsPage /></Suspense> : <AccessDenied />;
             case 'Resource': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><ResourceAnalyticsPage /></Suspense> : <AccessDenied />;
             case 'AFV': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><AFVPage /></Suspense> : <AccessDenied />;
@@ -4538,15 +4548,15 @@ const MainAppLayout = () => {
         return <ProjectsPage onViewProject={setSelectedProject} />;
       case 'Resource Calendar':
         return <ResourceCalendarPage onViewProject={setSelectedProject} />;
-      case 'Project Tasks':
+      case 'To Do List':
         return <ProjectTasksPage />;
-      case 'Equipment':
+      case 'Equipment Management':
         return <EquipmentPage />;
       case 'Vehicles':
         return <VehiclesPage />;
       case 'Delivery Tracker':
         return <DeliveryTrackerPage />;
-      case 'Delivery Tasks':
+      case 'Delivery Team - To Do List':
         return <DeliveryTasksPage />;
       case 'User Admin':
         return <UserAdmin />;

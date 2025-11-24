@@ -102,7 +102,7 @@ const DeliveryTasksPage = () => {
             alert('There are no archived tasks to delete.');
             return;
         }
-        if (window.confirm(`Are you sure you want to delete all ${archivedCount} archived delivery tasks? This action cannot be undone.`)) {
+        if (window.confirm(`Are you sure you want to delete all ${archivedCount} archived tasks? This action cannot be undone.`)) {
             await deleteAllArchivedDeliveryTasks();
         }
     };
@@ -126,14 +126,14 @@ const DeliveryTasksPage = () => {
     };
 
     if (loading) {
-        return <div className="p-8 text-2xl font-semibold text-center">Loading Delivery Tasks...</div>;
+        return <div className="p-8 text-2xl font-semibold text-center">Loading To Do List...</div>;
     }
 
     if (error) {
         return (
             <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                <h2 className="font-bold text-xl mb-2">Error Loading Delivery Tasks</h2>
-                <p>There was a problem fetching delivery task data from the database.</p>
+                <h2 className="font-bold text-xl mb-2">Error Loading To Do List</h2>
+                <p>There was a problem fetching task data from the database.</p>
                 <p className="mt-4 font-bold">Error Message:</p>
                 <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
             </div>
@@ -150,10 +150,10 @@ const DeliveryTasksPage = () => {
         <div className="p-4 md:p-6">
             <div className="flex flex-col gap-4 mb-6">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">Delivery Tasks</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">To Do List</h1>
                     {canCreateTasks && (
                         <Button onClick={openNewTaskModal} className="w-full sm:w-auto">
-                            <PlusCircle size={16} className="mr-2"/>Add Delivery Task
+                            <PlusCircle size={16} className="mr-2"/>Add Task
                         </Button>
                     )}
                 </div>
@@ -187,7 +187,7 @@ const DeliveryTasksPage = () => {
                             <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} onArchive={handleArchiveTask} users={users} canComplete={canCompleteTasks} canEdit={canEditProjects} canDelete={canDeleteProjects} />
                         ))}
                         {incompleteTasks.length === 0 && (
-                            <li className="text-gray-500 dark:text-gray-400 text-center py-4">{showArchived ? 'No pending archived tasks' : 'No pending delivery tasks'}</li>
+                            <li className="text-gray-500 dark:text-gray-400 text-center py-4">{showArchived ? 'No pending archived tasks' : 'No pending tasks'}</li>
                         )}
                     </ul>
                 </div>

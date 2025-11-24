@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { supabase } from '../supabaseClient';
 import { getMessaging, deleteToken } from 'firebase/messaging';
@@ -51,15 +51,18 @@ export const useAuth = () => {
 // Any component inside this provider can use the useAuth hook
 export const AuthProvider = ({ children }) => {
   console.log('🚀 AuthProvider component rendered');
-  
+
   // Keep track of the currently logged-in user (null = not logged in)
   const [user, setUser] = useState(null);
-  
+
   // Keep track of whether we're in the middle of logging in
   const [isLoading, setIsLoading] = useState(true);
 
   // Track if push notification subscription has been attempted for current user
   const [pushSubscriptionAttempted, setPushSubscriptionAttempted] = useState(false);
+
+  // Track if user was already logged in (to detect HMR vs real login)
+  const wasLoggedInRef = useRef(false);
 
   // Function to fetch or create user data from users table
   const fetchUserData = async (authUser) => {
@@ -421,71 +424,29 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         console.log('🔐 Found existing session for:', session.user.email);
 
-        // SECURITY FIRST: Check MFA status BEFORE allowing access
-        try {
-          // Check if backup code was just verified
-          const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
+        // For INITIAL_SESSION (page reload), trust the existing session
+        // Only perform strict MFA checks on SIGNED_IN events (actual login)
+        const email = session.user.email;
+        const name = session.user.user_metadata?.name ||
+                     session.user.user_metadata?.full_name ||
+                     email.split('@')[0].replace(/[._]/g, ' ');
 
-          let mfaVerified = true; // Assume verified unless we find otherwise
+        // Set temporary user for instant access
+        setUser({
+          id: session.user.id,
+          email: email,
+          name: name,
+          privilege: 'Viewer', // Temporary - will be updated when DB loads
+          last_sign_in_at: session.user.last_sign_in_at,
+          auth_user: session.user,
+          _isTemporary: true
+        });
 
-          // If backup code was used, skip MFA checks
-          if (!backupCodeVerified) {
-            // Check MFA status
-            const mfaCheckPromise = (async () => {
-              const { data: { currentLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-              const { data: factors } = await supabase.auth.mfa.listFactors();
-              const hasMFA = factors?.totp && factors.totp.length > 0;
-              return { currentLevel, hasMFA };
-            })();
+        // Mark user as logged in (for HMR detection)
+        wasLoggedInRef.current = true;
 
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('MFA check timeout')), 3000)
-            );
-
-            const { currentLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
-
-            console.log('🔐 MFA check:', { currentLevel, hasMFA });
-
-            // If user has MFA enabled but hasn't completed verification (AAL1), block access
-            if (hasMFA && currentLevel !== 'aal2') {
-              console.log('🔐 MFA required but not verified - blocking access');
-              mfaVerified = false;
-              setUser(null);
-              setIsLoading(false);
-              return;
-            }
-          } else {
-            sessionStorage.removeItem('backupCodeVerified');
-          }
-
-          // Only allow instant login if MFA is verified (or not required)
-          if (mfaVerified) {
-            const email = session.user.email;
-            const name = session.user.user_metadata?.name ||
-                         session.user.user_metadata?.full_name ||
-                         email.split('@')[0].replace(/[._]/g, ' ');
-
-            // Set temporary user for instant access
-            setUser({
-              id: session.user.id,
-              email: email,
-              name: name,
-              privilege: 'Viewer', // Temporary - will be updated when DB loads
-              last_sign_in_at: session.user.last_sign_in_at,
-              auth_user: session.user,
-              _isTemporary: true
-            });
-
-            // Stop loading - user can now use the app
-            setIsLoading(false);
-          }
-        } catch (mfaError) {
-          console.error('🔐 MFA check failed:', mfaError);
-          // On MFA check failure, block access
-          setUser(null);
-          setIsLoading(false);
-          return;
-        }
+        // Stop loading - user can now use the app
+        setIsLoading(false);
 
         // Run background checks (non-blocking) for user existence and deletion status
         (async () => {
@@ -505,6 +466,7 @@ export const AuthProvider = ({ children }) => {
               setUser(null);
               setIsLoading(false);
               setPushSubscriptionAttempted(false);
+              wasLoggedInRef.current = false;
               await supabase.auth.signOut();
               alert('Your account no longer exists. Please contact an administrator if you believe this is an error.');
               return;
@@ -531,6 +493,7 @@ export const AuthProvider = ({ children }) => {
               setUser(null);
               setIsLoading(false);
               setPushSubscriptionAttempted(false);
+              wasLoggedInRef.current = false;
               await supabase.auth.signOut();
               alert('Your account has been deactivated. Please contact an administrator.');
               return;
@@ -571,6 +534,7 @@ export const AuthProvider = ({ children }) => {
             console.error('🚫 Logging out deactivated user from session check');
             setUser(null);
             setIsLoading(false);
+            wasLoggedInRef.current = false;
             supabase.auth.signOut().then(() => {
               alert(err.message);
             });
@@ -624,56 +588,70 @@ export const AuthProvider = ({ children }) => {
         // SECURITY FIRST: Run all security checks BEFORE allowing access
         // Returns true if checks pass, false if they fail
         const runSecurityChecks = async () => {
-          // Check MFA status before allowing login
-          // Skip this check if event is MFA_CHALLENGE_VERIFIED because that event proves MFA was just verified
-          if (event !== 'MFA_CHALLENGE_VERIFIED') {
-            console.log('🔐 Starting MFA check...');
+          // Only check MFA on SIGNED_IN events (actual login)
+          // For INITIAL_SESSION (page reload) and TOKEN_REFRESHED, trust the existing session
+          if (event === 'SIGNED_IN') {
+            // Check if user was already logged in (HMR scenario vs real login)
+            const wasAlreadyLoggedIn = wasLoggedInRef.current === true;
+
+            if (wasAlreadyLoggedIn) {
+              console.log('🔐 SIGNED_IN event from HMR (user already logged in) - trusting existing session, skipping MFA check');
+            } else {
+              console.log('🔐 SIGNED_IN event - performing strict MFA check...');
+            }
 
             // Check if backup code was just verified
             const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
 
-            // If backup code was used, skip MFA checks and allow login
-            if (!backupCodeVerified) {
-              // Normal MFA check for TOTP
-              try {
-                console.log('🔐 Getting AAL level...');
+            // Skip MFA check if this is HMR (user already logged in)
+            if (!wasAlreadyLoggedIn) {
+              // If backup code was used, skip MFA checks and allow login
+              if (!backupCodeVerified) {
+                // Normal MFA check for TOTP
+                try {
+                  console.log('🔐 Getting AAL level...');
 
-                // Add timeout to prevent hanging
-                const mfaCheckPromise = (async () => {
-                  const { data: { currentLevel, nextLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-                  console.log('🔐 Getting MFA factors...');
-                  const { data: factors } = await supabase.auth.mfa.listFactors();
-                  const hasMFA = factors?.totp && factors.totp.length > 0;
-                  return { currentLevel, nextLevel, hasMFA };
-                })();
+                  // Add timeout to prevent hanging
+                  const mfaCheckPromise = (async () => {
+                    const { data: { currentLevel, nextLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+                    console.log('🔐 Getting MFA factors...');
+                    const { data: factors } = await supabase.auth.mfa.listFactors();
+                    const hasMFA = factors?.totp && factors.totp.length > 0;
+                    return { currentLevel, nextLevel, hasMFA };
+                  })();
 
-                const timeoutPromise = new Promise((_, reject) =>
-                  setTimeout(() => reject(new Error('MFA check timeout')), 5000)
-                );
+                  const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('MFA check timeout')), 5000)
+                  );
 
-                const { currentLevel, nextLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
+                  const { currentLevel, nextLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
 
-                console.log('🔐 MFA check:', { currentLevel, nextLevel, hasMFA });
+                  console.log('🔐 MFA check:', { currentLevel, nextLevel, hasMFA });
 
-                // If user has MFA enabled but hasn't completed verification (AAL1), don't log them in
-                if (hasMFA && currentLevel !== 'aal2') {
-                  console.log('🔐 MFA required but not verified - staying on login page');
+                  // If user has MFA enabled but hasn't completed verification (AAL1), don't log them in
+                  if (hasMFA && currentLevel !== 'aal2') {
+                    console.log('🔐 MFA required but not verified - staying on login page');
+                    setUser(null);
+                    setIsLoading(false);
+                    wasLoggedInRef.current = false;
+                    return false; // Security check failed
+                  }
+
+                  console.log('🔐 MFA check passed - proceeding with login');
+                } catch (mfaError) {
+                  console.error('🔐 MFA check failed:', mfaError);
+                  // BLOCK login on MFA check failure
                   setUser(null);
                   setIsLoading(false);
+                  wasLoggedInRef.current = false;
                   return false; // Security check failed
                 }
-
-                console.log('🔐 MFA check passed - proceeding with login');
-              } catch (mfaError) {
-                console.error('🔐 MFA check failed:', mfaError);
-                // BLOCK login on MFA check failure
-                setUser(null);
-                setIsLoading(false);
-                return false; // Security check failed
+              } else {
+                sessionStorage.removeItem('backupCodeVerified');
               }
             }
           } else {
-            console.log('🔐 MFA_CHALLENGE_VERIFIED event - skipping AAL check, MFA already verified');
+            console.log(`🔐 ${event} event - trusting existing session, skipping MFA check`);
           }
 
           // MFA check passed - now set temporary user for fast access
@@ -691,6 +669,9 @@ export const AuthProvider = ({ children }) => {
             auth_user: session.user,
             _isTemporary: true
           });
+
+          // Mark user as logged in (for HMR detection)
+          wasLoggedInRef.current = true;
 
           setIsLoading(false);
 
@@ -714,6 +695,7 @@ export const AuthProvider = ({ children }) => {
               setUser(null);
               setIsLoading(false);
               setPushSubscriptionAttempted(false);
+              wasLoggedInRef.current = false;
 
               try {
                 await supabase.auth.signOut();
@@ -752,6 +734,7 @@ export const AuthProvider = ({ children }) => {
               setUser(null);
               setIsLoading(false);
               setPushSubscriptionAttempted(false);
+              wasLoggedInRef.current = false;
 
               // Sign out and show alert
               try {
@@ -833,6 +816,7 @@ export const AuthProvider = ({ children }) => {
             console.error('🚫 Logging out deactivated user immediately');
             setUser(null);
             setIsLoading(false);
+            wasLoggedInRef.current = false;
             supabase.auth.signOut().then(() => {
               alert(err.message);
             });
@@ -880,6 +864,7 @@ export const AuthProvider = ({ children }) => {
           console.error('🚫 Logging out deactivated user from retry');
           setUser(null);
           setIsLoading(false);
+          wasLoggedInRef.current = false;
           supabase.auth.signOut().then(() => {
             alert(err.message);
           });
@@ -956,6 +941,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsLoading(false);
     setPushSubscriptionAttempted(false);
+    wasLoggedInRef.current = false; // Reset login state for HMR detection
 
     // ALWAYS sign out, regardless of cleanup success/failure
     try {

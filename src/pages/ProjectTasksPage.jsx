@@ -122,13 +122,13 @@ const ProjectTasksPage = () => {
 
     // Loading and error states
     if (loading) {
-        return <div className="p-8 text-2xl font-semibold text-center">Loading Project Tasks...</div>;
+        return <div className="p-8 text-2xl font-semibold text-center">Loading To Do List...</div>;
     }
 
     if (error) {
         return (
             <div className="p-6 m-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                <h2 className="font-bold text-xl mb-2">Error Loading Project Tasks</h2>
+                <h2 className="font-bold text-xl mb-2">Error Loading To Do List</h2>
                 <p>There was a problem fetching project task data from the database.</p>
                 <p className="mt-4 font-bold">Error Message:</p>
                 <pre className="font-mono bg-red-50 p-2 rounded mt-1 text-sm">{error}</pre>
@@ -146,10 +146,10 @@ const ProjectTasksPage = () => {
         <div className="p-4 md:p-6">
             <div className="flex flex-col gap-4 mb-6">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">Project Tasks</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">To Do List</h1>
                     {canCreateTasks && (
                         <Button onClick={openNewTaskModal} className="w-full sm:w-auto">
-                            <PlusCircle size={16} className="mr-2"/>Add Project Task
+                            <PlusCircle size={16} className="mr-2"/>Add Task
                         </Button>
                     )}
                 </div>
