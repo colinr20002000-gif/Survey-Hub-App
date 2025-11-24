@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -599,10 +599,29 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         canAccessCalendarColours
     } = usePermissions();
     const [isAdminMode, setIsAdminMode] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [expandedGroups, setExpandedGroups] = useState({
+        'Project Team': false,
+        'Equipment': false,
+        'Vehicles': false,
+        'Delivery Team': false,
+        'Training Centre': false,
+        'Contact Details': false,
+        'Analytics': false,
+        'Admin': false
+    });
     const sidebarRef = useRef(null);
 
     // Check if user can access admin mode
     const isAdminUser = canAccessAdmin();
+
+    // Toggle group expansion
+    const toggleGroup = (groupName) => {
+        setExpandedGroups(prev => ({
+            ...prev,
+            [groupName]: !prev[groupName]
+        }));
+    };
 
     // Regular navigation items (visible to all users)
     const regularNavItems = [
@@ -702,8 +721,14 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
 
     const handleItemClick = (item, e) => {
         e.preventDefault();
-        // For group items (Project Team, Delivery Team, Training Centre), do nothing as they're just headers
-        if (!item.isGroup) {
+        // For group items, expand sidebar if collapsed
+        if (item.isGroup) {
+            // If sidebar is collapsed, expand it first so user can see subitems
+            if (isCollapsed) {
+                setIsCollapsed(false);
+            }
+            // Hover will handle group expansion, so do nothing else
+        } else {
             setActiveTab(item.name);
             // Only close sidebar in mobile when navigating to a page
             if(window.innerWidth < 768) setIsOpen(false);
@@ -722,6 +747,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
     const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
     const isVehiclesActive = activeTab === 'Vehicle Management' || activeTab === 'Vehicle Inspection';
+    const isAnalyticsActive = activeTab === 'Project Logs' || activeTab === 'Resource' || activeTab === 'AFV';
 
     // Close sidebar when clicking outside in mobile mode
     useEffect(() => {
@@ -737,78 +763,100 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     }, [isOpen, setIsOpen]);
 
     return (
-        <aside ref={sidebarRef} className={`fixed md:relative z-40 md:z-auto inset-y-0 left-0 w-64 bg-gray-100 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col`}>
+        <aside ref={sidebarRef} className={`fixed md:relative z-40 md:z-auto inset-y-0 left-0 ${isCollapsed ? 'md:w-20 w-64' : 'w-64'} bg-gray-100 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-all duration-300 ease-in-out flex flex-col`}>
             <div className="border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-                <div className="flex items-center justify-between h-16 px-6">
-                    {isAdminUser ? (
+                <div className={`flex items-center h-16 ${isCollapsed ? 'md:justify-center md:px-2 justify-between px-6' : 'justify-between px-6'}`}>
+                    <div className="flex items-center gap-3">
                         <button
-                            onClick={() => {
-                                const newAdminMode = !isAdminMode;
-                                setIsAdminMode(newAdminMode);
-
-                                // Check if current tab exists in the new mode
-                                const newNavItems = newAdminMode ? adminNavItems : regularNavItems;
-                                const filteredNewNavItems = newNavItems.filter(item => item.show);
-                                const currentTabExists = filteredNewNavItems.some(item => item.name === activeTab);
-
-                                // If current tab doesn't exist in new mode, switch to appropriate default
-                                if (!currentTabExists) {
-                                    if (newAdminMode) {
-                                        // Switching to admin mode, go to first available admin item (likely Feedback or User Admin)
-                                        const firstAdminItem = filteredNewNavItems[0];
-                                        setActiveTab(firstAdminItem ? firstAdminItem.name : 'Feedback');
-                                    } else {
-                                        // Switching to regular mode, go to Dashboard
-                                        setActiveTab('Dashboard');
-                                    }
-                                }
-                            }}
-                            className="flex items-center hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors duration-200 rounded-lg px-2 py-1"
-                            title={`Switch to ${isAdminMode ? 'Regular' : 'Admin'} Mode`}
+                            onClick={() => setIsCollapsed(!isCollapsed)}
+                            className="hidden md:flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors duration-200"
+                            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
                         >
-                            <RetroTargetIcon className="w-8 h-8 text-orange-500" />
-                            <span className="ml-3 text-xl font-bold text-gray-800 dark:text-white">Survey Hub</span>
+                            <Menu size={20} />
                         </button>
-                    ) : (
-                        <div className="flex items-center">
-                            <RetroTargetIcon className="w-8 h-8 text-orange-500" />
-                            <span className="ml-3 text-xl font-bold text-gray-800 dark:text-white">Survey Hub</span>
-                        </div>
-                    )}
+                        {!isCollapsed && (
+                            isAdminUser ? (
+                                <button
+                                    onClick={() => {
+                                        const newAdminMode = !isAdminMode;
+                                        setIsAdminMode(newAdminMode);
+
+                                        // Check if current tab exists in the new mode
+                                        const newNavItems = newAdminMode ? adminNavItems : regularNavItems;
+                                        const filteredNewNavItems = newNavItems.filter(item => item.show);
+                                        const currentTabExists = filteredNewNavItems.some(item => item.name === activeTab);
+
+                                        // If current tab doesn't exist in new mode, switch to appropriate default
+                                        if (!currentTabExists) {
+                                            if (newAdminMode) {
+                                                // Switching to admin mode, go to first available admin item (likely Feedback or User Admin)
+                                                const firstAdminItem = filteredNewNavItems[0];
+                                                setActiveTab(firstAdminItem ? firstAdminItem.name : 'Feedback');
+                                            } else {
+                                                // Switching to regular mode, go to Dashboard
+                                                setActiveTab('Dashboard');
+                                            }
+                                        }
+                                    }}
+                                    className="flex items-center hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors duration-200 rounded-lg px-2 py-1"
+                                    title={`Switch to ${isAdminMode ? 'Regular' : 'Admin'} Mode`}
+                                >
+                                    <span className="text-xl font-bold text-gray-800 dark:text-white whitespace-nowrap">Survey Hub</span>
+                                    <RetroTargetIcon className="w-8 h-8 text-orange-500 ml-3" />
+                                </button>
+                            ) : (
+                                <div className="flex items-center">
+                                    <span className="text-xl font-bold text-gray-800 dark:text-white whitespace-nowrap">Survey Hub</span>
+                                    <RetroTargetIcon className="w-8 h-8 text-orange-500 ml-3" />
+                                </div>
+                            )
+                        )}
+                    </div>
                 </div>
             </div>
-            <nav className="p-4 overflow-y-auto flex-1 min-h-0 scroll-smooth">
+            <nav className={`${isCollapsed ? 'p-2' : 'p-4'} overflow-y-auto flex-1 min-h-0 scroll-smooth`}>
                 <ul className="pb-4">
                     {navItems.map(item => (
-                        <li key={item.name}>
+                        <li
+                            key={item.name}
+                            onMouseEnter={() => item.isGroup && setExpandedGroups(prev => ({ ...prev, [item.name]: true }))}
+                            onMouseLeave={() => item.isGroup && setExpandedGroups(prev => ({ ...prev, [item.name]: false }))}
+                        >
                             {item.isGroup ? (
-                                <div className={`flex items-center px-4 py-2.5 my-1 text-sm font-medium rounded-lg ${
-                                    (item.name === 'Delivery Team' && isDeliveryTeamActive) ||
-                                    (item.name === 'Project Team' && isProjectTeamActive) ||
-                                    (item.name === 'Equipment' && isEquipmentActive) ||
-                                    (item.name === 'Training Centre' && isTrainingCentreActive) ||
-                                    (item.name === 'Contact Details' && isContactDetailsActive)
-                                        ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
-                                        : 'text-gray-700 dark:text-gray-300'
-                                }`}>
-                                    <item.icon size={20} className="mr-3" />
-                                    <span className="flex-1">{item.name}</span>
-                                </div>
+                                <button
+                                    onClick={(e) => handleItemClick(item, e)}
+                                    className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                                        (item.name === 'Delivery Team' && isDeliveryTeamActive) ||
+                                        (item.name === 'Project Team' && isProjectTeamActive) ||
+                                        (item.name === 'Equipment' && isEquipmentActive) ||
+                                        (item.name === 'Training Centre' && isTrainingCentreActive) ||
+                                        (item.name === 'Contact Details' && isContactDetailsActive) ||
+                                        (item.name === 'Vehicles' && isVehiclesActive) ||
+                                        (item.name === 'Analytics' && isAnalyticsActive)
+                                            ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
+                                            : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800'
+                                    }`}
+                                    title={isCollapsed ? item.name : ''}
+                                >
+                                    <item.icon size={20} className={isCollapsed ? '' : 'mr-3'} />
+                                    {!isCollapsed && <span className="flex-1 text-left">{item.name}</span>}
+                                </button>
                             ) : (
                                 <a
                                     href="#"
                                     onClick={(e) => handleItemClick(item, e)}
-                                    className={`flex items-center px-4 py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                                    className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
                                         activeTab === item.name
                                             ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
                                             : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
                                     }`}
+                                    title={isCollapsed ? item.name : ''}
                                 >
-                                    <item.icon size={20} className="mr-3" />
-                                    <span className="flex-1">{item.name}</span>
+                                    <item.icon size={20} className={isCollapsed ? '' : 'mr-3'} />
+                                    {!isCollapsed && <span className="flex-1">{item.name}</span>}
                                 </a>
                             )}
-                            {item.isGroup && (
+                            {!isCollapsed && item.isGroup && expandedGroups[item.name] && (
                                 <ul className="ml-4 mt-1 space-y-1">
                                     {item.subItems.filter(subItem => subItem.show !== false).map(subItem => (
                                         <li key={subItem.name}>
@@ -834,10 +882,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             </nav>
 
             {/* Version Display */}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className={`${isCollapsed ? 'p-2' : 'p-4'} border-t border-gray-200 dark:border-gray-700`}>
                 <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <Shield size={14} />
-                    <span>v{packageJson.version}</span>
+                    {!isCollapsed && <span>v{packageJson.version}</span>}
                 </div>
             </div>
         </aside>
