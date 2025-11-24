@@ -60,7 +60,10 @@ export const ProjectTaskProvider = ({ children }) => {
     };
 
     useEffect(() => {
-        getProjectTasks();
+        // Defer loading by 400ms to avoid overwhelming browser on initial load
+        const loadTimer = setTimeout(() => {
+            getProjectTasks();
+        }, 400);
 
         // Set up real-time subscription for project tasks
         const subscription = supabase
@@ -91,6 +94,7 @@ export const ProjectTaskProvider = ({ children }) => {
             .subscribe();
 
         return () => {
+            clearTimeout(loadTimer);
             subscription.unsubscribe();
         };
     }, []);

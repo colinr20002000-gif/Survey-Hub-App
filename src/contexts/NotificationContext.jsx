@@ -409,7 +409,12 @@ export const NotificationProvider = ({ children }) => {
 
   // Fetch notifications when user changes or component mounts
   useEffect(() => {
-    fetchNotifications();
+    // Defer loading by 150ms to avoid overwhelming browser on initial load
+    const loadTimer = setTimeout(() => {
+      fetchNotifications();
+    }, 150);
+
+    return () => clearTimeout(loadTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 

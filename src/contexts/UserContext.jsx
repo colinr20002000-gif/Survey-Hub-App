@@ -62,7 +62,10 @@ export const UserProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
-        getUsers();
+        // Defer loading by 50ms to avoid overwhelming browser on initial load
+        const loadTimer = setTimeout(() => {
+            getUsers();
+        }, 50);
 
         // Set up real-time subscription to refresh when users change
         const subscription = supabase
@@ -94,6 +97,7 @@ export const UserProvider = ({ children }) => {
             .subscribe();
 
         return () => {
+            clearTimeout(loadTimer);
             subscription.unsubscribe();
         };
     }, [getUsers]);

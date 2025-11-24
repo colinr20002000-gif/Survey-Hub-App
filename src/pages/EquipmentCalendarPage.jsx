@@ -2085,7 +2085,7 @@ const EquipmentCalendarPage = () => {
                             <Calendar size={16} />
                         </Button>
                         {isDatePickerOpen && (
-                            <div className="absolute left-0 top-full mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50" style={{ minWidth: '280px' }}>
+                            <div className="fixed md:absolute left-auto right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 top-auto md:top-full mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50" style={{ minWidth: '280px', top: window.innerWidth >= 768 ? undefined : `${datePickerRef.current?.getBoundingClientRect().bottom + 8}px` }}>
                                 <div className="flex items-center justify-between mb-4">
                                     <button
                                         onClick={() => handlePickerMonthChange(-1)}

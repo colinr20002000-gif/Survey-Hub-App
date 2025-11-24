@@ -55,7 +55,12 @@ export const AuditTrailProvider = ({ children }) => {
             }
         };
 
-        getAuditLogs();
+        // Defer loading by 500ms to avoid overwhelming browser on initial load
+        const loadTimer = setTimeout(() => {
+            getAuditLogs();
+        }, 500);
+
+        return () => clearTimeout(loadTimer);
     }, []);
 
     const addAuditLog = async (logData) => {

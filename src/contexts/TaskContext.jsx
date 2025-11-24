@@ -32,7 +32,10 @@ export const TaskProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
-        getTasks();
+        // Defer loading by 200ms to avoid overwhelming browser on initial load
+        const loadTimer = setTimeout(() => {
+            getTasks();
+        }, 200);
 
         // Set up real-time subscription for tasks
         const subscription = supabase
@@ -63,6 +66,7 @@ export const TaskProvider = ({ children }) => {
             .subscribe();
 
         return () => {
+            clearTimeout(loadTimer);
             subscription.unsubscribe();
         };
     }, [getTasks]);

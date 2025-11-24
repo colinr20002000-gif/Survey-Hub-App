@@ -69,7 +69,12 @@ export const JobProvider = ({ children }) => {
     }, [mapToCamelCase]);
 
     useEffect(() => {
-        getJobs();
+        // Defer loading by 100ms to avoid overwhelming browser on initial load
+        const loadTimer = setTimeout(() => {
+            getJobs();
+        }, 100);
+
+        return () => clearTimeout(loadTimer);
     }, [getJobs]);
 
     const addJob = useCallback(async (jobData) => {
