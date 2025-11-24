@@ -421,34 +421,17 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         console.log('🔐 Found existing session for:', session.user.email);
 
-        // INSTANT LOGIN FIRST - Set user immediately to reduce load time
-        const email = session.user.email;
-        const name = session.user.user_metadata?.name ||
-                     session.user.user_metadata?.full_name ||
-                     email.split('@')[0].replace(/[._]/g, ' ');
-
-        setUser({
-          id: session.user.id,
-          email: email,
-          name: name,
-          privilege: 'Viewer', // Temporary - will be updated when DB loads
-          last_sign_in_at: session.user.last_sign_in_at,
-          auth_user: session.user,
-          _isTemporary: true
-        });
-
-        // Stop loading immediately - user can now use the app
-        setIsLoading(false);
-
-        // Run security checks in background (non-blocking)
+        // SECURITY FIRST: Check MFA status BEFORE allowing access
         (async () => {
-          // Check if backup code was just verified
-          const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
+          try {
+            // Check if backup code was just verified
+            const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
 
-          // If backup code was used, skip MFA checks
-          if (!backupCodeVerified) {
-            // Normal MFA check for TOTP
-            try {
+            let mfaVerified = true; // Assume verified unless we find otherwise
+
+            // If backup code was used, skip MFA checks
+            if (!backupCodeVerified) {
+              // Check MFA status
               const mfaCheckPromise = (async () => {
                 const { data: { currentLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
                 const { data: factors } = await supabase.auth.mfa.listFactors();
@@ -457,26 +440,52 @@ export const AuthProvider = ({ children }) => {
               })();
 
               const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('MFA check timeout')), 5000)
+                setTimeout(() => reject(new Error('MFA check timeout')), 3000)
               );
 
               const { currentLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
 
-              console.log('🔐 Background MFA check:', { currentLevel, hasMFA });
+              console.log('🔐 MFA check:', { currentLevel, hasMFA });
 
-              // If user has MFA enabled but hasn't completed verification (AAL1), sign them out
+              // If user has MFA enabled but hasn't completed verification (AAL1), block access
               if (hasMFA && currentLevel !== 'aal2') {
-                console.log('🔐 MFA required but not verified - signing out');
+                console.log('🔐 MFA required but not verified - blocking access');
+                mfaVerified = false;
                 setUser(null);
                 setIsLoading(false);
                 return;
               }
-            } catch (mfaError) {
-              console.warn('🔐 Background MFA check failed:', mfaError);
-              // Continue if MFA check fails
+            } else {
+              sessionStorage.removeItem('backupCodeVerified');
             }
-          } else {
-            sessionStorage.removeItem('backupCodeVerified');
+
+            // Only allow instant login if MFA is verified (or not required)
+            if (mfaVerified) {
+              const email = session.user.email;
+              const name = session.user.user_metadata?.name ||
+                           session.user.user_metadata?.full_name ||
+                           email.split('@')[0].replace(/[._]/g, ' ');
+
+              // Set temporary user for instant access
+              setUser({
+                id: session.user.id,
+                email: email,
+                name: name,
+                privilege: 'Viewer', // Temporary - will be updated when DB loads
+                last_sign_in_at: session.user.last_sign_in_at,
+                auth_user: session.user,
+                _isTemporary: true
+              });
+
+              // Stop loading - user can now use the app
+              setIsLoading(false);
+            }
+          } catch (mfaError) {
+            console.error('🔐 MFA check failed:', mfaError);
+            // On MFA check failure, block access
+            setUser(null);
+            setIsLoading(false);
+            return;
           }
 
           // Background check: verify user still exists in Supabase Auth
@@ -612,27 +621,7 @@ export const AuthProvider = ({ children }) => {
         console.log('Auth change - loading user data for:', session.user.email);
         console.log('🔐 Event type:', event);
 
-        // INSTANT LOGIN FIRST for fast app load (except for SIGNED_IN which needs MFA check first)
-        if (event !== 'SIGNED_IN') {
-          const email = session.user.email;
-          const name = session.user.user_metadata?.name ||
-                       session.user.user_metadata?.full_name ||
-                       email.split('@')[0].replace(/[._]/g, ' ');
-
-          setUser({
-            id: session.user.id,
-            email: email,
-            name: name,
-            privilege: 'Viewer', // Temporary - will be updated when DB loads
-            last_sign_in_at: session.user.last_sign_in_at,
-            auth_user: session.user,
-            _isTemporary: true
-          });
-
-          setIsLoading(false);
-        }
-
-        // Run security checks in background (or blocking for SIGNED_IN events)
+        // SECURITY FIRST: Run all security checks BEFORE allowing access
         const runSecurityChecks = async () => {
           // Check MFA status before allowing login
           // Skip this check if event is MFA_CHALLENGE_VERIFIED because that event proves MFA was just verified
@@ -682,6 +671,24 @@ export const AuthProvider = ({ children }) => {
           } else {
             console.log('🔐 MFA_CHALLENGE_VERIFIED event - skipping AAL check, MFA already verified');
           }
+
+          // MFA check passed - now set temporary user for fast access
+          const email = session.user.email;
+          const name = session.user.user_metadata?.name ||
+                       session.user.user_metadata?.full_name ||
+                       email.split('@')[0].replace(/[._]/g, ' ');
+
+          setUser({
+            id: session.user.id,
+            email: email,
+            name: name,
+            privilege: 'Viewer', // Temporary - will be updated when DB loads
+            last_sign_in_at: session.user.last_sign_in_at,
+            auth_user: session.user,
+            _isTemporary: true
+          });
+
+          setIsLoading(false);
 
           // Quick check: verify user still exists in Supabase Auth and is not deleted
           try {
