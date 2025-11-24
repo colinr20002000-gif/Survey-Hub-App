@@ -422,73 +422,73 @@ export const AuthProvider = ({ children }) => {
         console.log('🔐 Found existing session for:', session.user.email);
 
         // SECURITY FIRST: Check MFA status BEFORE allowing access
-        (async () => {
-          try {
-            // Check if backup code was just verified
-            const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
+        try {
+          // Check if backup code was just verified
+          const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
 
-            let mfaVerified = true; // Assume verified unless we find otherwise
+          let mfaVerified = true; // Assume verified unless we find otherwise
 
-            // If backup code was used, skip MFA checks
-            if (!backupCodeVerified) {
-              // Check MFA status
-              const mfaCheckPromise = (async () => {
-                const { data: { currentLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-                const { data: factors } = await supabase.auth.mfa.listFactors();
-                const hasMFA = factors?.totp && factors.totp.length > 0;
-                return { currentLevel, hasMFA };
-              })();
+          // If backup code was used, skip MFA checks
+          if (!backupCodeVerified) {
+            // Check MFA status
+            const mfaCheckPromise = (async () => {
+              const { data: { currentLevel } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+              const { data: factors } = await supabase.auth.mfa.listFactors();
+              const hasMFA = factors?.totp && factors.totp.length > 0;
+              return { currentLevel, hasMFA };
+            })();
 
-              const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('MFA check timeout')), 3000)
-              );
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('MFA check timeout')), 3000)
+            );
 
-              const { currentLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
+            const { currentLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
 
-              console.log('🔐 MFA check:', { currentLevel, hasMFA });
+            console.log('🔐 MFA check:', { currentLevel, hasMFA });
 
-              // If user has MFA enabled but hasn't completed verification (AAL1), block access
-              if (hasMFA && currentLevel !== 'aal2') {
-                console.log('🔐 MFA required but not verified - blocking access');
-                mfaVerified = false;
-                setUser(null);
-                setIsLoading(false);
-                return;
-              }
-            } else {
-              sessionStorage.removeItem('backupCodeVerified');
-            }
-
-            // Only allow instant login if MFA is verified (or not required)
-            if (mfaVerified) {
-              const email = session.user.email;
-              const name = session.user.user_metadata?.name ||
-                           session.user.user_metadata?.full_name ||
-                           email.split('@')[0].replace(/[._]/g, ' ');
-
-              // Set temporary user for instant access
-              setUser({
-                id: session.user.id,
-                email: email,
-                name: name,
-                privilege: 'Viewer', // Temporary - will be updated when DB loads
-                last_sign_in_at: session.user.last_sign_in_at,
-                auth_user: session.user,
-                _isTemporary: true
-              });
-
-              // Stop loading - user can now use the app
+            // If user has MFA enabled but hasn't completed verification (AAL1), block access
+            if (hasMFA && currentLevel !== 'aal2') {
+              console.log('🔐 MFA required but not verified - blocking access');
+              mfaVerified = false;
+              setUser(null);
               setIsLoading(false);
+              return;
             }
-          } catch (mfaError) {
-            console.error('🔐 MFA check failed:', mfaError);
-            // On MFA check failure, block access
-            setUser(null);
-            setIsLoading(false);
-            return;
+          } else {
+            sessionStorage.removeItem('backupCodeVerified');
           }
 
-          // Background check: verify user still exists in Supabase Auth
+          // Only allow instant login if MFA is verified (or not required)
+          if (mfaVerified) {
+            const email = session.user.email;
+            const name = session.user.user_metadata?.name ||
+                         session.user.user_metadata?.full_name ||
+                         email.split('@')[0].replace(/[._]/g, ' ');
+
+            // Set temporary user for instant access
+            setUser({
+              id: session.user.id,
+              email: email,
+              name: name,
+              privilege: 'Viewer', // Temporary - will be updated when DB loads
+              last_sign_in_at: session.user.last_sign_in_at,
+              auth_user: session.user,
+              _isTemporary: true
+            });
+
+            // Stop loading - user can now use the app
+            setIsLoading(false);
+          }
+        } catch (mfaError) {
+          console.error('🔐 MFA check failed:', mfaError);
+          // On MFA check failure, block access
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // Run background checks (non-blocking) for user existence and deletion status
+        (async () => {
           try {
             const authUserCheckPromise = supabase.auth.getUser();
             const authTimeoutPromise = new Promise((_, reject) =>
@@ -622,6 +622,7 @@ export const AuthProvider = ({ children }) => {
         console.log('🔐 Event type:', event);
 
         // SECURITY FIRST: Run all security checks BEFORE allowing access
+        // Returns true if checks pass, false if they fail
         const runSecurityChecks = async () => {
           // Check MFA status before allowing login
           // Skip this check if event is MFA_CHALLENGE_VERIFIED because that event proves MFA was just verified
@@ -659,13 +660,16 @@ export const AuthProvider = ({ children }) => {
                   console.log('🔐 MFA required but not verified - staying on login page');
                   setUser(null);
                   setIsLoading(false);
-                  return;
+                  return false; // Security check failed
                 }
 
                 console.log('🔐 MFA check passed - proceeding with login');
               } catch (mfaError) {
-                console.warn('🔐 MFA check failed:', mfaError);
-                // Continue with login if MFA check fails
+                console.error('🔐 MFA check failed:', mfaError);
+                // BLOCK login on MFA check failure
+                setUser(null);
+                setIsLoading(false);
+                return false; // Security check failed
               }
             }
           } else {
@@ -783,16 +787,20 @@ export const AuthProvider = ({ children }) => {
 
             setIsLoading(false);
           }
+
+          return true; // Security checks passed
         };
 
-        // For SIGNED_IN, run checks synchronously (blocking). For INITIAL_SESSION, run in background
-        if (event === 'SIGNED_IN') {
-          await runSecurityChecks();
-        } else {
-          runSecurityChecks(); // Fire and forget for INITIAL_SESSION
+        // Run security checks synchronously (blocking) for ALL events to enforce MFA
+        const securityCheckPassed = await runSecurityChecks();
+
+        // Only continue if security checks passed
+        if (!securityCheckPassed) {
+          console.log('🚫 Security checks failed - blocking login');
+          return;
         }
 
-        // Stop loading immediately (already done above for non-SIGNED_IN events)
+        // Stop loading only after security checks complete
         setIsLoading(false);
 
         // Fetch full user data in background (non-blocking)
