@@ -2037,6 +2037,124 @@ const ResourceAnalyticsPage = () => {
                     </ResponsiveContainer>
                 </div>
 
+                {/* Project Statistics Table */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                        <TrendingUp size={20} className="mr-2 text-orange-500" />
+                        Project Statistics
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                                <tr>
+                                    <th
+                                        className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('projectNumber')}
+                                    >
+                                        Project Number {getProjectSortIndicator('projectNumber')}
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('projectName')}
+                                    >
+                                        Project Name {getProjectSortIndicator('projectName')}
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('client')}
+                                    >
+                                        Client {getProjectSortIndicator('client')}
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('totalAllocations')}
+                                    >
+                                        Total Allocations {getProjectSortIndicator('totalAllocations')}
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        onClick={() => requestProjectSort('uniqueUsers')}
+                                    >
+                                        Unique Users {getProjectSortIndicator('uniqueUsers')}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {paginatedProjects.map((project, index) => (
+                                    <tr key={project.projectNumber} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
+                                        <td className="px-4 py-3 font-medium text-blue-500">{project.projectNumber}</td>
+                                        <td className="px-4 py-3">{project.projectName}</td>
+                                        <td className="px-4 py-3">{project.client}</td>
+                                        <td className="px-4 py-3 text-center">
+                                            <button
+                                                onClick={() => openProjectDetails(project.projectNumber, project.projectName)}
+                                                className="text-orange-500 hover:text-orange-600 font-semibold hover:underline cursor-pointer"
+                                                title="Click to view project allocation details"
+                                            >
+                                                {project.totalAllocations}
+                                            </button>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">{project.uniqueUsers}</td>
+                                    </tr>
+                                ))}
+                                {projectBreakdown.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                            No project data available for the selected filters
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalProjectPages > 1 && (
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                                Showing {((projectTablePage - 1) * projectsPerPage) + 1} to {Math.min(projectTablePage * projectsPerPage, projectBreakdown.length)} of {projectBreakdown.length} projects
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={() => setProjectTablePage(1)}
+                                    disabled={projectTablePage === 1}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    First
+                                </Button>
+                                <Button
+                                    onClick={() => setProjectTablePage(prev => Math.max(1, prev - 1))}
+                                    disabled={projectTablePage === 1}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Previous
+                                </Button>
+                                <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+                                    Page {projectTablePage} of {totalProjectPages}
+                                </span>
+                                <Button
+                                    onClick={() => setProjectTablePage(prev => Math.min(totalProjectPages, prev + 1))}
+                                    disabled={projectTablePage === totalProjectPages}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Next
+                                </Button>
+                                <Button
+                                    onClick={() => setProjectTablePage(totalProjectPages)}
+                                    disabled={projectTablePage === totalProjectPages}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Last
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 {/* Individual User Statistics Table */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
                     <h3 className="text-lg font-semibold mb-4 flex items-center">
@@ -2198,131 +2316,12 @@ const ResourceAnalyticsPage = () => {
                                     onClick={() => setUserTablePage(prev => Math.min(totalUserPages, prev + 1))}
                                     disabled={userTablePage === totalUserPages}
                                     variant="outline"
-                                    size="sm"
-                                >
+                                    size="sm">
                                     Next
                                 </Button>
                                 <Button
                                     onClick={() => setUserTablePage(totalUserPages)}
                                     disabled={userTablePage === totalUserPages}
-                                    variant="outline"
-                                    size="sm"
-                                >
-                                    Last
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Project Statistics Table */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center">
-                        <TrendingUp size={20} className="mr-2 text-orange-500" />
-                        Project Statistics
-                    </h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                                <tr>
-                                    <th
-                                        className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                                        onClick={() => requestProjectSort('projectNumber')}
-                                    >
-                                        Project Number {getProjectSortIndicator('projectNumber')}
-                                    </th>
-                                    <th
-                                        className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                                        onClick={() => requestProjectSort('projectName')}
-                                    >
-                                        Project Name {getProjectSortIndicator('projectName')}
-                                    </th>
-                                    <th
-                                        className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                                        onClick={() => requestProjectSort('client')}
-                                    >
-                                        Client {getProjectSortIndicator('client')}
-                                    </th>
-                                    <th
-                                        className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                                        onClick={() => requestProjectSort('totalAllocations')}
-                                    >
-                                        Total Allocations {getProjectSortIndicator('totalAllocations')}
-                                    </th>
-                                    <th
-                                        className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                                        onClick={() => requestProjectSort('uniqueUsers')}
-                                    >
-                                        Unique Users {getProjectSortIndicator('uniqueUsers')}
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {paginatedProjects.map((project, index) => (
-                                    <tr key={project.projectNumber} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
-                                        <td className="px-4 py-3 font-medium text-blue-500">{project.projectNumber}</td>
-                                        <td className="px-4 py-3">{project.projectName}</td>
-                                        <td className="px-4 py-3">{project.client}</td>
-                                        <td className="px-4 py-3 text-center">
-                                            <button
-                                                onClick={() => openProjectDetails(project.projectNumber, project.projectName)}
-                                                className="text-orange-500 hover:text-orange-600 font-semibold hover:underline cursor-pointer"
-                                                title="Click to view project allocation details"
-                                            >
-                                                {project.totalAllocations}
-                                            </button>
-                                        </td>
-                                        <td className="px-4 py-3 text-center">{project.uniqueUsers}</td>
-                                    </tr>
-                                ))}
-                                {projectBreakdown.length === 0 && (
-                                    <tr>
-                                        <td colSpan="5" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                            No project data available for the selected filters
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Pagination Controls */}
-                    {totalProjectPages > 1 && (
-                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                                Showing {((projectTablePage - 1) * projectsPerPage) + 1} to {Math.min(projectTablePage * projectsPerPage, projectBreakdown.length)} of {projectBreakdown.length} projects
-                            </div>
-                            <div className="flex gap-2">
-                                <Button
-                                    onClick={() => setProjectTablePage(1)}
-                                    disabled={projectTablePage === 1}
-                                    variant="outline"
-                                    size="sm"
-                                >
-                                    First
-                                </Button>
-                                <Button
-                                    onClick={() => setProjectTablePage(prev => Math.max(1, prev - 1))}
-                                    disabled={projectTablePage === 1}
-                                    variant="outline"
-                                    size="sm"
-                                >
-                                    Previous
-                                </Button>
-                                <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
-                                    Page {projectTablePage} of {totalProjectPages}
-                                </span>
-                                <Button
-                                    onClick={() => setProjectTablePage(prev => Math.min(totalProjectPages, prev + 1))}
-                                    disabled={projectTablePage === totalProjectPages}
-                                    variant="outline"
-                                    size="sm"
-                                >
-                                    Next
-                                </Button>
-                                <Button
-                                    onClick={() => setProjectTablePage(totalProjectPages)}
-                                    disabled={projectTablePage === totalProjectPages}
                                     variant="outline"
                                     size="sm"
                                 >

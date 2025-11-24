@@ -630,6 +630,16 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             ]
         },
         {
+            name: 'Vehicles',
+            icon: Car,
+            show: can('VIEW_VEHICLES'),
+            isGroup: true,
+            subItems: [
+                { name: 'Vehicle Management', parent: 'Vehicles', show: can('VIEW_VEHICLES') },
+                { name: 'Vehicle Inspection', parent: 'Vehicles', show: can('VIEW_VEHICLES') }
+            ]
+        },
+        {
             name: 'Delivery Team',
             icon: ClipboardPaste,
             show: true,
@@ -670,16 +680,6 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                 { name: 'Project Logs', parent: 'Analytics' },
                 { name: 'Resource', parent: 'Analytics' },
                 { name: 'AFV', parent: 'Analytics' }
-            ]
-        },
-        {
-            name: 'Vehicles',
-            icon: Car,
-            show: can('VIEW_VEHICLES'),
-            isGroup: true,
-            subItems: [
-                { name: 'Vehicle Management', parent: 'Vehicles', show: can('VIEW_VEHICLES') },
-                { name: 'Vehicle Inspection', parent: 'Vehicles', show: can('VIEW_VEHICLES') }
             ]
         },
         { name: 'Settings', icon: Settings, show: true },
