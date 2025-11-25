@@ -155,6 +155,130 @@ export const useDynamicPermissions = () => {
         }
     }, [fetchPermissions]);
 
+    /**
+     * Get permission statistics by category for a privilege level
+     * @param {string} privilegeLevel - The privilege level to analyze
+     * @returns {Promise<Object>} Statistics object with category breakdowns
+     */
+    const getPermissionStats = useCallback(async (privilegeLevel) => {
+        try {
+            const { data, error: fetchError } = await supabase
+                .from('privilege_permissions')
+                .select('permission_category, is_granted')
+                .eq('privilege_level', privilegeLevel);
+
+            if (fetchError) throw fetchError;
+
+            const stats = {};
+
+            data.forEach(perm => {
+                if (!stats[perm.permission_category]) {
+                    stats[perm.permission_category] = {
+                        total: 0,
+                        granted: 0,
+                        denied: 0
+                    };
+                }
+
+                stats[perm.permission_category].total++;
+
+                if (perm.is_granted) {
+                    stats[perm.permission_category].granted++;
+                } else {
+                    stats[perm.permission_category].denied++;
+                }
+            });
+
+            return stats;
+
+        } catch (err) {
+            console.error('Error getting permission stats:', err);
+            return {};
+        }
+    }, []);
+
+    /**
+     * Bulk update entire category - enable or disable all permissions in a category
+     * @param {string} privilegeLevel - The privilege level
+     * @param {string} category - The permission category
+     * @param {boolean} isGranted - Whether to grant or revoke all permissions
+     * @returns {Promise<{success: boolean, updated: number}>}
+     */
+    const bulkUpdateCategory = useCallback(async (privilegeLevel, category, isGranted) => {
+        try {
+            // Get all permissions in the category
+            const { data: permissions, error: fetchError } = await supabase
+                .from('privilege_permissions')
+                .select('permission_key')
+                .eq('privilege_level', privilegeLevel)
+                .eq('permission_category', category);
+
+            if (fetchError) throw fetchError;
+
+            // Update all permissions in parallel
+            const updates = permissions.map(perm =>
+                supabase
+                    .from('privilege_permissions')
+                    .update({ is_granted: isGranted })
+                    .eq('permission_key', perm.permission_key)
+                    .eq('privilege_level', privilegeLevel)
+            );
+
+            const results = await Promise.all(updates);
+
+            // Check if any failed
+            const failed = results.filter(r => r.error);
+            if (failed.length > 0) {
+                throw new Error(`${failed.length} updates failed`);
+            }
+
+            // Refresh permissions after update
+            await fetchPermissions();
+
+            return { success: true, updated: permissions.length };
+
+        } catch (err) {
+            console.error('Error bulk updating category:', err);
+            return { success: false, updated: 0, error: err.message };
+        }
+    }, [fetchPermissions]);
+
+    /**
+     * Get audit trail for permission changes
+     * @param {Object} filters - Filter options
+     * @param {string} filters.privilegeLevel - Filter by privilege level
+     * @param {number} filters.limit - Maximum number of records to return (default: 50)
+     * @returns {Promise<Array>} Array of audit records
+     */
+    const getAuditTrail = useCallback(async (filters = {}) => {
+        try {
+            let query = supabase
+                .from('privilege_permission_audit')
+                .select('*')
+                .order('changed_at', { ascending: false });
+
+            if (filters.privilegeLevel) {
+                query = query.eq('privilege_level', filters.privilegeLevel);
+            }
+
+            if (filters.limit) {
+                query = query.limit(filters.limit);
+            } else {
+                query = query.limit(50); // Default limit
+            }
+
+            const { data, error: fetchError } = await query;
+
+            if (fetchError) throw fetchError;
+
+            return data || [];
+
+        } catch (err) {
+            console.error('Error getting audit trail:', err);
+            return [];
+        }
+    }, []);
+
     // Fetch permissions on mount
     useEffect(() => {
         fetchPermissions();
@@ -168,6 +292,9 @@ export const useDynamicPermissions = () => {
         updatePermission,
         bulkUpdatePermissions,
         getPermissionsForPrivilege,
+        getPermissionStats,
+        bulkUpdateCategory,
+        getAuditTrail,
         refreshPermissions: fetchPermissions
     };
 };
