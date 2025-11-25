@@ -2830,27 +2830,157 @@ const ShowHideUsersModal = ({ isOpen, onClose, onSave, allUsers, visibleUserIds 
 };
 
 const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignment, projects, isSecondProject = false, isSecondLeave = false, editingSpecificItem = null, editItemIndex = null }) => {
+    const { addProject } = useProjects();
     const [isManual, setIsManual] = useState(false);
     const [leaveType, setLeaveType] = useState('');
     const [projectSearch, setProjectSearch] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isCreatingNewProject, setIsCreatingNewProject] = useState(false);
+    const [newProjectData, setNewProjectData] = useState({ project_name: '', project_number: '', client: '', year: '' });
+    const [yearOptions, setYearOptions] = useState([]);
+    const [jobTypeOptions, setJobTypeOptions] = useState([]);
     const dropdownRef = useRef(null);
     const [formData, setFormData] = useState({
-        projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null
+        projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null, startTime: '', endTime: ''
     });
 
     useEffect(() => {
-        // Clear search when modal opens
+        // Fetch year and job type options when modal opens
+        const fetchDropdownOptions = async () => {
+            try {
+                // Fetch all categories first to debug
+                const { data: allCategories, error: allCatError } = await supabase
+                    .from('dropdown_categories')
+                    .select('id, name');
+
+                console.log('📋 All dropdown categories:', allCategories);
+
+                if (allCatError) {
+                    console.error('Error fetching all categories:', allCatError);
+                }
+
+                // Fetch Year options
+                const { data: yearCategories, error: yearCatError } = await supabase
+                    .from('dropdown_categories')
+                    .select('id')
+                    .ilike('name', 'year')
+                    .limit(1);
+
+                console.log('📅 Year categories found:', yearCategories);
+
+                if (!yearCatError && yearCategories && yearCategories.length > 0) {
+                    const { data: yearItems, error: yearItemError } = await supabase
+                        .from('dropdown_items')
+                        .select('id, display_text, sort_order')
+                        .eq('category_id', yearCategories[0].id)
+                        .eq('is_active', true)
+                        .order('sort_order', { ascending: true });
+
+                    console.log('📅 Year items:', yearItems);
+
+                    if (!yearItemError) {
+                        setYearOptions(yearItems || []);
+                    }
+                }
+
+                // Fetch Job Type options - try multiple possible names
+                const jobTypeNames = ['job type', 'Job Type', 'job_type', 'Job_Type'];
+                let jobTypeCategory = null;
+
+                for (const name of jobTypeNames) {
+                    const { data, error } = await supabase
+                        .from('dropdown_categories')
+                        .select('id, name')
+                        .ilike('name', name)
+                        .limit(1);
+
+                    if (!error && data && data.length > 0) {
+                        jobTypeCategory = data[0];
+                        console.log('🔧 Found Job Type category with name:', data[0].name);
+                        break;
+                    }
+                }
+
+                if (jobTypeCategory) {
+                    const { data: jobTypeItems, error: jobTypeItemError } = await supabase
+                        .from('dropdown_items')
+                        .select('id, display_text, sort_order')
+                        .eq('category_id', jobTypeCategory.id)
+                        .eq('is_active', true)
+                        .order('sort_order', { ascending: true });
+
+                    console.log('🔧 Job Type items:', jobTypeItems);
+
+                    if (!jobTypeItemError && jobTypeItems) {
+                        setJobTypeOptions(jobTypeItems);
+                    } else if (jobTypeItemError) {
+                        console.error('Error fetching job type items:', jobTypeItemError);
+                    }
+                } else {
+                    console.warn('⚠️ Job Type category not found. Please create it in Dropdown Menu Management.');
+                }
+            } catch (error) {
+                console.error('Error fetching dropdown options:', error);
+            }
+        };
+
+        if (isOpen) {
+            fetchDropdownOptions();
+        }
+    }, [isOpen]);
+
+    // Helper function to round time to nearest 5 minutes
+    const roundToNearest5Minutes = (timeStr) => {
+        if (!timeStr) return '';
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        if (isNaN(hours) || isNaN(minutes)) return timeStr;
+
+        const roundedMinutes = Math.round(minutes / 5) * 5;
+        const adjustedMinutes = roundedMinutes === 60 ? 0 : roundedMinutes;
+        const adjustedHours = roundedMinutes === 60 ? (hours + 1) % 24 : hours;
+
+        return `${String(adjustedHours).padStart(2, '0')}:${String(adjustedMinutes).padStart(2, '0')}`;
+    };
+
+    // Helper function to parse time string (e.g., "09:00 - 17:00") into separate start and end times
+    const parseTimeString = (timeStr) => {
+        if (!timeStr) return { startTime: '', endTime: '' };
+        const parts = timeStr.split('-').map(t => t.trim());
+        return {
+            startTime: roundToNearest5Minutes(parts[0] || ''),
+            endTime: roundToNearest5Minutes(parts[1] || '')
+        };
+    };
+
+    // Generate time options in 5-minute intervals
+    const generateTimeOptions = () => {
+        const times = [];
+        for (let hour = 0; hour < 24; hour++) {
+            for (let minute = 0; minute < 60; minute += 5) {
+                const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+                times.push(timeStr);
+            }
+        }
+        return times;
+    };
+
+    const timeOptions = generateTimeOptions();
+
+    useEffect(() => {
+        // Clear search and create mode when modal opens
         setProjectSearch('');
+        setIsCreatingNewProject(false);
+        setNewProjectData({ project_name: '', project_number: '', client: '', year: '' });
 
         // If editing a specific item from a multi-item cell, pre-fill with that item's data
         if (editingSpecificItem) {
             if (editingSpecificItem.type === 'leave') {
                 setLeaveType(editingSpecificItem.leaveType);
-                setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: editingSpecificItem.comment || '', shift: 'Nights', projectId: null });
+                setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: editingSpecificItem.comment || '', shift: 'Nights', projectId: null, startTime: '', endTime: '' });
                 setIsManual(false);
             } else {
                 setLeaveType('');
+                const { startTime, endTime } = parseTimeString(editingSpecificItem.time);
                 setFormData({
                     projectNumber: editingSpecificItem.projectNumber || '',
                     projectName: editingSpecificItem.projectName || '',
@@ -2859,7 +2989,9 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                     task: editingSpecificItem.task || '',
                     comment: editingSpecificItem.comment || '',
                     shift: editingSpecificItem.shift || 'Nights',
-                    projectId: editingSpecificItem.projectId || null
+                    projectId: editingSpecificItem.projectId || null,
+                    startTime,
+                    endTime
                 });
                 const isProjectInList = projects?.some(p => p.project_number === editingSpecificItem.projectNumber) || false;
                 setIsManual(!isProjectInList && !!editingSpecificItem.projectNumber);
@@ -2867,16 +2999,17 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
         }
         // If adding to a multi-item cell (isSecondProject/isSecondLeave) or currentAssignment is an array, show blank form
         else if (isSecondProject || isSecondLeave || Array.isArray(currentAssignment)) {
-            setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null });
+            setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null, startTime: '', endTime: '' });
             setIsManual(false);
             setLeaveType('');
         } else if (currentAssignment) {
             if (currentAssignment.type === 'leave') {
                 setLeaveType(currentAssignment.leaveType);
-                setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: currentAssignment.comment || '', shift: 'Nights', projectId: null });
+                setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: currentAssignment.comment || '', shift: 'Nights', projectId: null, startTime: '', endTime: '' });
                 setIsManual(false);
             } else {
                 setLeaveType('');
+                const { startTime, endTime } = parseTimeString(currentAssignment.time);
                 setFormData({
                     projectNumber: currentAssignment.projectNumber || '',
                     projectName: currentAssignment.projectName || '',
@@ -2885,13 +3018,15 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                     task: currentAssignment.task || '',
                     comment: currentAssignment.comment || '',
                     shift: currentAssignment.shift || 'Nights',
-                    projectId: currentAssignment.projectId || null
+                    projectId: currentAssignment.projectId || null,
+                    startTime,
+                    endTime
                 });
                 const isProjectInList = projects?.some(p => p.project_number === currentAssignment.projectNumber) || false;
                 setIsManual(!isProjectInList && !!currentAssignment.projectNumber);
             }
         } else {
-            setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null });
+            setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null, startTime: '', endTime: '' });
             setIsManual(false);
             setLeaveType('');
         }
@@ -2920,6 +3055,15 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
             // try to look up the project to get its UUID
             let dataToSave = { ...formData };
 
+            // Combine startTime and endTime into the time field
+            if (formData.startTime && formData.endTime) {
+                dataToSave.time = `${formData.startTime} - ${formData.endTime}`;
+            } else if (formData.startTime) {
+                dataToSave.time = formData.startTime;
+            } else if (formData.endTime) {
+                dataToSave.time = formData.endTime;
+            }
+
             console.log('📝 AllocationModal handleSave - formData:', formData);
 
             if (formData.projectNumber && !formData.projectId) {
@@ -2930,6 +3074,10 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                     console.log('✅ Set projectId to:', matchingProject.id);
                 }
             }
+
+            // Remove startTime and endTime from the data being saved (they were just for the UI)
+            delete dataToSave.startTime;
+            delete dataToSave.endTime;
 
             console.log('💾 AllocationModal sending to onSave:', dataToSave);
             onSave(dataToSave);
@@ -2970,6 +3118,58 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
         setFormData(prev => ({ ...prev, projectNumber: project.project_number, projectName: project.project_name, client: project.client, projectId: project.id }));
         setIsDropdownOpen(false);
         setProjectSearch('');
+    };
+
+    const handleNewProjectInputChange = (e) => {
+        const { name, value } = e.target;
+        setNewProjectData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleCreateNewProject = async () => {
+        // Validate the new project data
+        if (!newProjectData.project_name || !newProjectData.project_number || !newProjectData.client || !newProjectData.year) {
+            alert('Please fill in all required fields for the new project');
+            return;
+        }
+
+        try {
+            // Add the project to the database
+            await addProject(newProjectData);
+
+            // Wait a moment for the real-time subscription to update the projects list
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Find the newly created project in the projects list
+            const newProject = projects?.find(p => p.project_number === newProjectData.project_number);
+
+            if (newProject) {
+                // Auto-select the newly created project
+                setFormData(prev => ({
+                    ...prev,
+                    projectNumber: newProject.project_number,
+                    projectName: newProject.project_name,
+                    client: newProject.client,
+                    projectId: newProject.id
+                }));
+            } else {
+                // Fallback: fill in the data manually
+                setFormData(prev => ({
+                    ...prev,
+                    projectNumber: newProjectData.project_number,
+                    projectName: newProjectData.project_name,
+                    client: newProjectData.client,
+                    projectId: null
+                }));
+            }
+
+            // Close the create form and dropdown
+            setIsCreatingNewProject(false);
+            setIsDropdownOpen(false);
+            setNewProjectData({ project_name: '', project_number: '', client: '', year: '' });
+        } catch (error) {
+            console.error('Error creating project:', error);
+            alert('Failed to create project. Please try again.');
+        }
     };
 
     return (
@@ -3028,42 +3228,125 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                                         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" ref={dropdownRef}>
                                             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                                                <h3 className="text-lg font-semibold mb-3">Select Project</h3>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search by project number or name..."
-                                                    value={projectSearch}
-                                                    onChange={(e) => setProjectSearch(e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                                    autoFocus
-                                                />
+                                                <h3 className="text-lg font-semibold mb-3">
+                                                    {isCreatingNewProject ? 'Create New Project' : 'Select Project'}
+                                                </h3>
+                                                {!isCreatingNewProject && (
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search by project number or name..."
+                                                        value={projectSearch}
+                                                        onChange={(e) => setProjectSearch(e.target.value)}
+                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                                        autoFocus
+                                                    />
+                                                )}
                                             </div>
-                                            <div className="flex-1 overflow-y-auto p-2">
-                                                {filteredProjects.length === 0 ? (
-                                                    <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                                                        {projectSearch ? 'No projects match your search' : 'No projects available'}
+                                            <div className="flex-1 overflow-y-auto p-4">
+                                                {isCreatingNewProject ? (
+                                                    <div className="space-y-4">
+                                                        <Input
+                                                            label="Project Name"
+                                                            name="project_name"
+                                                            value={newProjectData.project_name}
+                                                            onChange={handleNewProjectInputChange}
+                                                            required
+                                                        />
+                                                        <Input
+                                                            label="Project Number"
+                                                            name="project_number"
+                                                            value={newProjectData.project_number}
+                                                            onChange={handleNewProjectInputChange}
+                                                            required
+                                                        />
+                                                        <Input
+                                                            label="Client"
+                                                            name="client"
+                                                            value={newProjectData.client}
+                                                            onChange={handleNewProjectInputChange}
+                                                            required
+                                                        />
+                                                        <Select
+                                                            label="Year"
+                                                            name="year"
+                                                            value={newProjectData.year}
+                                                            onChange={handleNewProjectInputChange}
+                                                            required
+                                                        >
+                                                            <option value="">Select Year</option>
+                                                            {yearOptions.map(option => (
+                                                                <option key={option.id} value={option.display_text}>
+                                                                    {option.display_text}
+                                                                </option>
+                                                            ))}
+                                                        </Select>
                                                     </div>
                                                 ) : (
-                                                    <div className="space-y-1">
-                                                        {filteredProjects.map(p => (
-                                                            <button
-                                                                key={p.id}
-                                                                type="button"
-                                                                onClick={() => handleProjectSelectFromDropdown(p)}
-                                                                className="w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                                            >
-                                                                <div className="text-sm text-gray-900 dark:text-gray-100">
-                                                                    {p.project_number} - {p.project_name}
-                                                                </div>
-                                                            </button>
-                                                        ))}
-                                                    </div>
+                                                    <>
+                                                        {filteredProjects.length === 0 ? (
+                                                            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                                                {projectSearch ? 'No projects match your search' : 'No projects available'}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-1">
+                                                                {filteredProjects.map(p => (
+                                                                    <button
+                                                                        key={p.id}
+                                                                        type="button"
+                                                                        onClick={() => handleProjectSelectFromDropdown(p)}
+                                                                        className="w-full text-left px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                                                    >
+                                                                        <div className="text-sm text-gray-900 dark:text-gray-100">
+                                                                            {p.project_number} - {p.project_name}
+                                                                        </div>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
                                             <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                                                <Button variant="outline" onClick={() => { setIsDropdownOpen(false); setProjectSearch(''); }} className="w-full">
-                                                    Cancel
-                                                </Button>
+                                                {isCreatingNewProject ? (
+                                                    <div className="flex space-x-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                setIsCreatingNewProject(false);
+                                                                setNewProjectData({ project_name: '', project_number: '', client: '', year: '' });
+                                                            }}
+                                                            className="flex-1"
+                                                        >
+                                                            Back
+                                                        </Button>
+                                                        <Button
+                                                            onClick={handleCreateNewProject}
+                                                            className="flex-1"
+                                                        >
+                                                            Create Project
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col space-y-2">
+                                                        <Button
+                                                            variant="primary"
+                                                            onClick={() => setIsCreatingNewProject(true)}
+                                                            className="w-full"
+                                                        >
+                                                            Create New Project
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                setIsDropdownOpen(false);
+                                                                setProjectSearch('');
+                                                            }}
+                                                            className="w-full"
+                                                        >
+                                                            Cancel
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -3082,9 +3365,29 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                             <option>Evening</option>
                         </Select>
 
-                        <Input label="Task" name="task" value={formData.task} onChange={handleInputChange} placeholder="e.g., Survey, Monitoring..."/>
-                        
-                        <Input label="Start/End Time" name="time" value={formData.time} onChange={handleInputChange} placeholder="e.g., 09:00 - 17:00"/>
+                        <Select label="Task" name="task" value={formData.task} onChange={handleInputChange}>
+                            <option value="">Select Task Type</option>
+                            {jobTypeOptions.map(option => (
+                                <option key={option.id} value={option.display_text}>
+                                    {option.display_text}
+                                </option>
+                            ))}
+                        </Select>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <Select label="Start Time" name="startTime" value={formData.startTime} onChange={handleInputChange}>
+                                <option value="">Select start time</option>
+                                {timeOptions.map(time => (
+                                    <option key={`start-${time}`} value={time}>{time}</option>
+                                ))}
+                            </Select>
+                            <Select label="End Time" name="endTime" value={formData.endTime} onChange={handleInputChange}>
+                                <option value="">Select end time</option>
+                                {timeOptions.map(time => (
+                                    <option key={`end-${time}`} value={time}>{time}</option>
+                                ))}
+                            </Select>
+                        </div>
                         <Input label="Comment" name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..."/>
                     </fieldset>}
 

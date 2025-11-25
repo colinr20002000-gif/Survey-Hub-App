@@ -1009,6 +1009,18 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
     const [uploadedImages, setUploadedImages] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [validationError, setValidationError] = useState(null);
+    const errorMessageRef = useRef(null);
+    const modalContentRef = useRef(null);
+
+    // Scroll to error message when validation error appears
+    useEffect(() => {
+        if (validationError && errorMessageRef.current) {
+            errorMessageRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }
+    }, [validationError]);
 
     const handleCheckChange = (field, value) => {
         setFormData(prev => ({
@@ -1072,9 +1084,9 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
 
-        // Check if already have 3 photos
-        if (uploadedImages.length >= 3) {
-            setValidationError('Maximum 3 photos allowed. Please remove a photo before adding a new one.');
+        // Check if already have 4 photos
+        if (uploadedImages.length >= 4) {
+            setValidationError('Maximum 4 photos allowed. Please remove a photo before adding a new one.');
             e.target.value = '';
             return;
         }
@@ -1240,9 +1252,9 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
             return;
         }
 
-        // Validate that exactly 3 photos are uploaded
-        if (uploadedImages.length < 3) {
-            setValidationError(`Please upload all 3 required vehicle photos. You have uploaded ${uploadedImages.length}/3 photos.`);
+        // Validate that exactly 4 photos are uploaded
+        if (uploadedImages.length < 4) {
+            setValidationError(`Please upload all 4 required vehicle photos. You have uploaded ${uploadedImages.length}/4 photos.`);
             return;
         }
 
@@ -1348,7 +1360,10 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
 
                 {/* Validation Error Message */}
                 {validationError && (
-                    <div className="mx-6 mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div
+                        ref={errorMessageRef}
+                        className="mx-6 mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+                    >
                         <div className="flex items-start">
                             <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 mr-3 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
@@ -1460,7 +1475,7 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                             Vehicle Photos (Mandatory) *
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                            Take exactly 3 photos of your vehicle to confirm you are present during inspection ({uploadedImages.length}/3 photos taken)
+                            Take exactly 4 photos of your vehicle to confirm you are present during inspection ({uploadedImages.length}/4 photos taken)
                         </p>
 
                         {/* Upload Button */}
