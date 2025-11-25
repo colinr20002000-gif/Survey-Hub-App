@@ -337,35 +337,60 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
         try {
             addToast({ message: 'Checking for updates...', type: 'info' });
 
-            // Set up a listener for the updatefound event
+            // Check current SW state before update
+            const hadWaitingBefore = !!window.swRegistration.waiting;
+            const hadInstallingBefore = !!window.swRegistration.installing;
+
+            // Set up a listener for the updatefound event with longer timeout
             const updatePromise = new Promise((resolve) => {
-                const timeout = setTimeout(() => resolve('no-update'), 3000);
+                const timeout = setTimeout(() => resolve('no-update'), 5000); // Increased from 3s to 5s
 
                 window.swRegistration.addEventListener('updatefound', () => {
                     clearTimeout(timeout);
+                    console.log('✅ Update found event fired');
                     resolve('update-found');
                 }, { once: true });
 
                 // Trigger the update check
                 window.swRegistration.update().then(() => {
-                    // Give the browser a moment to fire updatefound if there's an update
+                    console.log('🔍 Update check completed');
+                    // Give the browser more time to fire updatefound if there's an update
                     setTimeout(() => {
                         clearTimeout(timeout);
                         resolve('checked');
-                    }, 1500);
+                    }, 3000); // Increased from 1.5s to 3s
+                }).catch((error) => {
+                    clearTimeout(timeout);
+                    console.error('Update check error:', error);
+                    resolve('error');
                 });
             });
 
             const result = await updatePromise;
 
-            if (result === 'update-found' || window.swRegistration.waiting || window.swRegistration.installing) {
+            // Check all possible update states
+            const hasWaitingNow = !!window.swRegistration.waiting;
+            const hasInstallingNow = !!window.swRegistration.installing;
+            const newUpdateDetected = (hasWaitingNow && !hadWaitingBefore) ||
+                                      (hasInstallingNow && !hadInstallingBefore);
+
+            if (result === 'update-found' || newUpdateDetected || hasWaitingNow || hasInstallingNow) {
+                console.log('✅ Update available - triggering installation');
                 addToast({ message: 'Update found! Installing...', type: 'success' });
 
                 // If there's a waiting service worker, tell it to activate
                 if (window.swRegistration.waiting) {
                     window.swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                } else if (window.swRegistration.installing) {
+                    // Wait for installing to become waiting, then activate
+                    window.swRegistration.installing.addEventListener('statechange', function() {
+                        if (this.state === 'installed' && window.swRegistration.waiting) {
+                            window.swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    });
                 }
             } else {
+                console.log('✅ Already running latest version');
                 addToast({ message: `You're running the latest version (v${packageJson.version})`, type: 'success' });
             }
         } catch (error) {
@@ -601,10 +626,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const [isAdminMode, setIsAdminMode] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [expandedGroups, setExpandedGroups] = useState({
-        'Project Team': false,
+        'Resource': false,
         'Equipment': false,
         'Vehicles': false,
-        'Delivery Team': false,
+        'Delivery': false,
         'Training Centre': false,
         'Contact Details': false,
         'Analytics': false,
@@ -629,13 +654,13 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         { name: 'Projects', icon: FolderKanban, show: can('VIEW_PROJECTS') },
         { name: 'Announcements', icon: Megaphone, show: can('VIEW_ANNOUNCEMENTS') },
         {
-            name: 'Project Team',
+            name: 'Resource',
             icon: FolderOpen,
             show: true,
             isGroup: true,
             subItems: [
-                { name: 'Resource Calendar', parent: 'Project Team', show: can('VIEW_RESOURCE_CALENDAR') },
-                { name: 'To Do List', parent: 'Project Team', show: can('VIEW_TASKS') }
+                { name: 'Resource Calendar', parent: 'Resource', show: can('VIEW_RESOURCE_CALENDAR') },
+                { name: 'To Do List', parent: 'Resource', show: can('VIEW_TASKS') }
             ]
         },
         {
@@ -659,13 +684,13 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             ]
         },
         {
-            name: 'Delivery Team',
+            name: 'Delivery',
             icon: ClipboardPaste,
             show: true,
             isGroup: true,
             subItems: [
-                { name: 'Delivery Tracker', parent: 'Delivery Team' },
-                { name: 'Delivery Team - To Do List', displayName: 'To Do List', parent: 'Delivery Team' }
+                { name: 'Delivery Tracker', parent: 'Delivery' },
+                { name: 'Delivery Team - To Do List', displayName: 'To Do List', parent: 'Delivery' }
             ]
         },
         {
@@ -721,13 +746,14 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
 
     const handleItemClick = (item, e) => {
         e.preventDefault();
-        // For group items, expand sidebar if collapsed
+        // For group items, toggle expansion on click (both desktop and mobile)
         if (item.isGroup) {
-            // If sidebar is collapsed, expand it first so user can see subitems
+            // If sidebar is collapsed (desktop), expand it first so user can see subitems
             if (isCollapsed) {
                 setIsCollapsed(false);
             }
-            // Hover will handle group expansion, so do nothing else
+            // Toggle the group expansion on click for all devices
+            toggleGroup(item.name);
         } else {
             setActiveTab(item.name);
             // Only close sidebar in mobile when navigating to a page
@@ -741,8 +767,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         if(window.innerWidth < 768) setIsOpen(false);
     };
 
-    const isDeliveryTeamActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Team - To Do List';
-    const isProjectTeamActive = activeTab === 'Resource Calendar' || activeTab === 'To Do List';
+    const isDeliveryActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Team - To Do List';
+    const isResourceActive = activeTab === 'Resource Calendar' || activeTab === 'To Do List';
     const isEquipmentActive = activeTab === 'Equipment Calendar' || activeTab === 'Equipment Management';
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
     const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
@@ -817,23 +843,19 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             <nav className={`${isCollapsed ? 'p-2' : 'p-4'} overflow-y-auto flex-1 min-h-0 scroll-smooth`}>
                 <ul className="pb-4">
                     {navItems.map(item => (
-                        <li
-                            key={item.name}
-                            onMouseEnter={() => item.isGroup && setExpandedGroups(prev => ({ ...prev, [item.name]: true }))}
-                            onMouseLeave={() => item.isGroup && setExpandedGroups(prev => ({ ...prev, [item.name]: false }))}
-                        >
+                        <li key={item.name}>
                             {item.isGroup ? (
                                 <button
                                     onClick={(e) => handleItemClick(item, e)}
                                     className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                                        (item.name === 'Delivery Team' && isDeliveryTeamActive) ||
-                                        (item.name === 'Project Team' && isProjectTeamActive) ||
+                                        (item.name === 'Delivery' && isDeliveryActive) ||
+                                        (item.name === 'Resource' && isResourceActive) ||
                                         (item.name === 'Equipment' && isEquipmentActive) ||
                                         (item.name === 'Training Centre' && isTrainingCentreActive) ||
                                         (item.name === 'Contact Details' && isContactDetailsActive) ||
                                         (item.name === 'Vehicles' && isVehiclesActive) ||
                                         (item.name === 'Analytics' && isAnalyticsActive)
-                                            ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
+                                            ? 'bg-orange-100 text-orange-600 dark:bg-orange-600/40 dark:text-orange-200'
                                             : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800'
                                     }`}
                                     title={isCollapsed ? item.name : ''}
@@ -847,7 +869,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                     onClick={(e) => handleItemClick(item, e)}
                                     className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
                                         activeTab === item.name
-                                            ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
+                                            ? 'bg-orange-100 text-orange-600 dark:bg-orange-600/40 dark:text-orange-200'
                                             : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
                                     }`}
                                     title={isCollapsed ? item.name : ''}
@@ -865,7 +887,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                                 onClick={(e) => handleSubItemClick(subItem, e)}
                                                 className={`flex items-center px-4 py-2 text-sm rounded-lg transition-colors duration-200 ${
                                                     activeTab === subItem.name
-                                                        ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400'
+                                                        ? 'bg-orange-50 text-orange-600 dark:bg-orange-600/30 dark:text-orange-200'
                                                         : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
                                                 }`}
                                             >

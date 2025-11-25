@@ -4,5 +4,41 @@
       "source": "/:path((?!(?:assets|sw\\.js|manifest\\.json|favicon\\.ico|.*\\.(?:js|css|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|eot))$).*)",
       "destination": "/index.html"
     }
+  ],
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "max-age=0, no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        },
+        {
+          "key": "Expires",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "source": "/firebase-messaging-sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "max-age=0, no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        },
+        {
+          "key": "Expires",
+          "value": "0"
+        }
+      ]
+    }
   ]
 }
