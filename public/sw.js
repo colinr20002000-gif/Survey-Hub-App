@@ -3,12 +3,13 @@
 
 // Service Worker for Survey Hub + Firebase Cloud Messaging
 // NO OFFLINE CACHING - Only Firebase push notifications
-const CACHE_VERSION = 'v11-no-cache'; // Incremented to clear old caches
+const CACHE_VERSION = 'v12-update-fix'; // Incremented after fixing update detection
 const CACHE_NAME = `survey-hub-${CACHE_VERSION}-fcm`;
 const OFFLINE_URL = '/offline.html';
 
 console.log('🔔 [SW] Survey Hub service worker loading...');
 console.log('🔔 [SW] Cache version:', CACHE_NAME);
+console.log('🔔 [SW] Service worker file updated with update detection fix');
 
 // Import Firebase scripts for messaging
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');

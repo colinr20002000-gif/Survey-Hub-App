@@ -16,27 +16,56 @@ if (hash && (hash.includes('type=recovery') || hash.includes('type%3Drecovery'))
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/sw.js', {
+      updateViaCache: 'none' // Always fetch latest sw.js, bypass HTTP cache
+    })
       .then((registration) => {
         console.log('✅ Service Worker registered successfully');
+        console.log('📦 Current SW state:', {
+          installing: !!registration.installing,
+          waiting: !!registration.waiting,
+          active: !!registration.active
+        });
 
         // Store registration globally for manual update checks
         window.swRegistration = registration;
 
+        // Listen for updates
+        registration.addEventListener('updatefound', () => {
+          console.log('🆕 Service Worker update found! New version installing...');
+          const newWorker = registration.installing;
+
+          newWorker.addEventListener('statechange', () => {
+            console.log('🔄 New SW state:', newWorker.state);
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('✅ New Service Worker installed and ready to activate');
+            }
+          });
+        });
+
         // Check for updates every 5 minutes
         setInterval(() => {
           console.log('🔍 Checking for service worker updates...');
-          registration.update().catch((error) => {
-            console.error('❌ Service worker update check failed:', error);
-          });
+          registration.update()
+            .then(() => {
+              console.log('✅ Update check completed');
+            })
+            .catch((error) => {
+              console.error('❌ Service worker update check failed:', error);
+            });
         }, 5 * 60 * 1000); // 5 minutes
 
         // Also check for updates when the page gains focus
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) {
-            registration.update().catch((error) => {
-              console.error('❌ Service worker update check failed:', error);
-            });
+            console.log('👁️ Page visible again, checking for updates...');
+            registration.update()
+              .then(() => {
+                console.log('✅ Visibility update check completed');
+              })
+              .catch((error) => {
+                console.error('❌ Service worker update check failed:', error);
+              });
           }
         });
       })
