@@ -136,6 +136,10 @@ export const usePermissions = () => {
             canAccessCalendarColours: can('ACCESS_CALENDAR_COLOURS'),
 
             canSubmitFeedback: can('SUBMIT_FEEDBACK'),
+
+            canAddSubcontractors: can('ADD_SUBCONTRACTORS'),
+            canEditSubcontractors: can('EDIT_SUBCONTRACTORS'),
+            canDeleteSubcontractors: can('DELETE_SUBCONTRACTORS'),
         };
     }, [userPrivilege, dynamicPermissions]);
 

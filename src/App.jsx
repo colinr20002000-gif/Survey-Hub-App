@@ -47,6 +47,7 @@ import DashboardPage from './pages/DashboardPage';
 import AssignedTasksPage from './pages/AssignedTasksPage';
 import ProjectTasksPage from './pages/ProjectTasksPage';
 import UserContactsPage from './pages/UserContactsPage';
+import SubcontractorsPage from './pages/SubcontractorsPage';
 import UsefulContactsPage from './pages/UsefulContactsPage';
 import OnCallContactsPage from './pages/OnCallContactsPage';
 import FeedbackPage from './pages/FeedbackPage';
@@ -711,7 +712,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             show: true,
             isGroup: true,
             subItems: [
-                { name: 'User Contacts', parent: 'Contact Details' },
+                { name: 'Staff Contacts', parent: 'Contact Details' },
+                { name: 'Subcontractors', parent: 'Contact Details' },
                 { name: 'Useful Contacts', parent: 'Contact Details' },
                 { name: 'On-Call Contacts', parent: 'Contact Details' }
             ]
@@ -772,7 +774,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const isResourceActive = activeTab === 'Resource Calendar' || activeTab === 'To Do List';
     const isEquipmentActive = activeTab === 'Equipment Calendar' || activeTab === 'Equipment Management';
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
-    const isContactDetailsActive = activeTab === 'User Contacts' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
+    const isContactDetailsActive = activeTab === 'Staff Contacts' || activeTab === 'Subcontractors' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
     const isVehiclesActive = activeTab === 'Vehicle Management' || activeTab === 'Vehicle Inspection';
     const isAnalyticsActive = activeTab === 'Project Logs' || activeTab === 'Resource' || activeTab === 'AFV';
 
@@ -4030,7 +4032,8 @@ const MainLayout = () => {
             case 'Document Hub': return can('VIEW_DOCUMENT_HUB') ? <DocumentHubPage /> : <AccessDenied />;
             case 'Video Tutorials': return <VideoTutorialsPage />;
             case 'Rail Components': return <RailComponentsPage />;
-            case 'User Contacts': return <UserContactsPage />;
+            case 'Staff Contacts': return <UserContactsPage />;
+            case 'Subcontractors': return <SubcontractorsPage />;
             case 'Useful Contacts': return <UsefulContactsPage />;
             case 'On-Call Contacts': return <OnCallContactsPage />;
             case 'User Admin': return <UserAdmin />;

@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter } from 'lucide-react';
+import { Mail, Phone, Briefcase, Award, User, Users } from 'lucide-react';
 import { useUsers } from '../contexts/UserContext';
 import { supabase } from '../supabaseClient';
-import { Button } from '../components/ui';
-import { useDebouncedValue } from '../utils/debounce';
+import { getDepartmentColor } from '../utils/avatarColors';
 
 const UserContactsPage = () => {
-    const { users: allUsers, loading: usersLoading } = useUsers();
-    const [searchTerm, setSearchTerm] = useState('');
-    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
+    const { users: allUsersRaw, loading: usersLoading } = useUsers();
     const [competencies, setCompetencies] = useState([]);
-    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
-    const [selectedDepartments, setSelectedDepartments] = useState([]);
-    const [selectedUsers, setSelectedUsers] = useState([]);
-    const [showFilters, setShowFilters] = useState(false);
+
+    // Filter out Subcontractor and Track Handback departments
+    const allUsers = useMemo(() => {
+        return allUsersRaw.filter(user => {
+            const dept = user.department?.toLowerCase() || '';
+            return dept !== 'subcontractor' && dept !== 'track handback';
+        });
+    }, [allUsersRaw]);
 
     useEffect(() => {
         fetchCompetencies();
@@ -52,270 +53,179 @@ const UserContactsPage = () => {
         }).join(', ');
     };
 
-    const handleSort = (key) => {
-        let direction = 'ascending';
-        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
-        }
-        setSortConfig({ key, direction });
-    };
+    // Group users by department
+    const usersByDepartment = useMemo(() => {
+        const grouped = {};
 
-    const getSortIndicator = (key) => {
-        if (sortConfig.key !== key) return '↕';
-        return sortConfig.direction === 'ascending' ? '↑' : '↓';
-    };
+        // Sort users alphabetically by name first
+        const sortedUsers = [...allUsers].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-    // Get unique departments and user names
-    const departments = useMemo(() => {
-        const depts = [...new Set(allUsers.map(u => u.department).filter(Boolean))];
-        return depts.sort();
-    }, [allUsers]);
-
-    const userNames = useMemo(() => {
-        return allUsers.map(u => ({ id: u.id, name: u.name, isDummy: u.isDummy })).sort((a, b) => a.name.localeCompare(b.name));
-    }, [allUsers]);
-
-    const handleDepartmentToggle = (dept) => {
-        setSelectedDepartments(prev =>
-            prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
-        );
-    };
-
-    const handleSelectAllDepartments = () => {
-        if (selectedDepartments.length === departments.length) {
-            setSelectedDepartments([]);
-        } else {
-            setSelectedDepartments([...departments]);
-        }
-    };
-
-    const isAllDepartmentsSelected = departments.length > 0 && selectedDepartments.length === departments.length;
-
-    const handleUserToggle = (userId) => {
-        setSelectedUsers(prev =>
-            prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
-        );
-    };
-
-    const handleSelectAllUsers = () => {
-        if (selectedUsers.length === userNames.length) {
-            setSelectedUsers([]);
-        } else {
-            setSelectedUsers(userNames.map(u => u.id));
-        }
-    };
-
-    const isAllUsersSelected = userNames.length > 0 && selectedUsers.length === userNames.length;
-
-    const filteredUsers = useMemo(() => {
-        let filtered = allUsers.filter(user => {
-            // Search filter
-            const matchesSearch = !debouncedSearchTerm ||
-                (user.name && user.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
-                (user.email && user.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
-                (user.mobile_number && user.mobile_number.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
-                (user.department && user.department.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
-                (user.team_role && user.team_role.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
-
-            // Department filter
-            const matchesDepartment = selectedDepartments.length === 0 || selectedDepartments.includes(user.department);
-
-            // User filter
-            const matchesUser = selectedUsers.length === 0 || selectedUsers.includes(user.id);
-
-            return matchesSearch && matchesDepartment && matchesUser;
+        sortedUsers.forEach(user => {
+            const dept = user.department || 'No Department';
+            if (!grouped[dept]) {
+                grouped[dept] = [];
+            }
+            grouped[dept].push(user);
         });
 
-        // Sort the filtered users
-        filtered.sort((a, b) => {
-            const aValue = a[sortConfig.key] || '';
-            const bValue = b[sortConfig.key] || '';
-
-            if (aValue < bValue) {
-                return sortConfig.direction === 'ascending' ? -1 : 1;
-            }
-            if (aValue > bValue) {
-                return sortConfig.direction === 'ascending' ? 1 : -1;
-            }
-            return 0;
-        });
-
-        return filtered;
-    }, [allUsers, debouncedSearchTerm, sortConfig, selectedDepartments, selectedUsers]);
+        // Custom sort: Site Team first, then alphabetically
+        return Object.keys(grouped)
+            .sort((a, b) => {
+                // Site Team always comes first
+                if (a.toLowerCase() === 'site team') return -1;
+                if (b.toLowerCase() === 'site team') return 1;
+                // Everything else alphabetically
+                return a.localeCompare(b);
+            })
+            .reduce((acc, dept) => {
+                acc[dept] = grouped[dept];
+                return acc;
+            }, {});
+    }, [allUsers]);
 
     if (usersLoading) {
-        return <div className="p-8 text-2xl font-semibold text-center">Loading User Contacts...</div>;
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mb-4"></div>
+                    <p className="text-xl font-semibold text-gray-700 dark:text-gray-300">Loading User Contacts...</p>
+                </div>
+            </div>
+        );
     }
 
     return (
         <div className="p-4 md:p-6">
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">User Contacts</h1>
+            {/* Header */}
+            <div className="mb-6">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Staff Contacts</h1>
+                <p className="text-gray-600 dark:text-gray-400">Browse and connect with team members</p>
+            </div>
 
-            <div className="mb-4 flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Search by name, email, phone, department..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                </div>
-                <div className="relative">
-                    <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
-                        <Filter size={16} className="mr-2"/>Filter
-                    </Button>
-                    {showFilters && (
-                        <div className="absolute top-full mt-2 right-0 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4 space-y-4">
-                            {/* Department Filter */}
-                            <div>
-                                <h4 className="font-semibold mb-2 text-sm">Departments</h4>
-                                <div className="space-y-2 max-h-40 overflow-y-auto">
-                                    <label className="flex items-center space-x-2 text-sm font-medium border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={isAllDepartmentsSelected}
-                                            onChange={handleSelectAllDepartments}
-                                            className="rounded text-orange-500 focus:ring-orange-500"
-                                        />
-                                        <span>All Departments</span>
-                                    </label>
-                                    {departments.map(dept => (
-                                        <label key={dept} className="flex items-center space-x-2 text-sm">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedDepartments.includes(dept)}
-                                                onChange={() => handleDepartmentToggle(dept)}
-                                                className="rounded text-orange-500 focus:ring-orange-500"
-                                            />
-                                            <span>{dept}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                                <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setSelectedDepartments([])}>Clear Departments</Button>
-                            </div>
+            {/* User Cards Grouped by Department */}
+            <div className="space-y-8">
+                {Object.keys(usersByDepartment).map(department => (
+                    <div key={department}>
+                        {/* Department Header */}
+                        <div className="flex items-center gap-2 mb-4">
+                            <Users size={20} className="text-orange-500" />
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{department}</h2>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                ({usersByDepartment[department].length})
+                            </span>
+                        </div>
 
-                            {/* User Filter */}
-                            <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
-                                <h4 className="font-semibold mb-2 text-sm">Users</h4>
-                                <div className="space-y-2 max-h-40 overflow-y-auto">
-                                    <label className="flex items-center space-x-2 text-sm font-medium border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={isAllUsersSelected}
-                                            onChange={handleSelectAllUsers}
-                                            className="rounded text-orange-500 focus:ring-orange-500"
-                                        />
-                                        <span>All Users</span>
-                                    </label>
-                                    {userNames.map(user => (
-                                        <label key={user.id} className="flex items-center space-x-2 text-sm">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedUsers.includes(user.id)}
-                                                onChange={() => handleUserToggle(user.id)}
-                                                className="rounded text-orange-500 focus:ring-orange-500"
-                                            />
-                                            <span>
-                                                {user.name}
-                                                {user.isDummy && <span className="ml-1 text-xs text-gray-500">(Dummy)</span>}
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
-                                <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setSelectedUsers([])}>Clear Users</Button>
+                        {/* Department Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            {usersByDepartment[department].map(user => {
+                                const departmentColor = getDepartmentColor(user.department);
+                                return (
+                    <div
+                        key={`${user.isDummy ? 'dummy-' : ''}${user.id}`}
+                        className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow duration-200 overflow-hidden"
+                    >
+                        {/* Card Header */}
+                        <div className={`${departmentColor} p-3 text-white`}>
+                            <div className="flex items-center justify-between gap-2">
+                                <h3 className="font-semibold truncate text-sm leading-tight flex-1">{user.name}</h3>
+                                {user.isDummy && (
+                                    <span className="inline-block bg-white bg-opacity-25 text-xs px-1.5 py-0.5 rounded text-white flex-shrink-0">
+                                        Dummy
+                                    </span>
+                                )}
                             </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* Card Body */}
+                        <div className="p-3 space-y-2">
+                            {/* Contact Actions */}
+                            <div className="flex gap-1.5">
+                                {user.email && (
+                                    <a
+                                        href={`mailto:${user.email}`}
+                                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-xs font-medium"
+                                        title="Send email"
+                                    >
+                                        <Mail size={14} />
+                                        <span className="hidden sm:inline">Email</span>
+                                    </a>
+                                )}
+                                {user.mobile_number && (
+                                    <a
+                                        href={`tel:${user.mobile_number}`}
+                                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors text-xs font-medium"
+                                        title="Call"
+                                    >
+                                        <Phone size={14} />
+                                        <span className="hidden sm:inline">Call</span>
+                                    </a>
+                                )}
+                            </div>
+
+                            {/* User Details */}
+                            <div className="space-y-1.5 text-xs">
+                                {user.email && (
+                                    <div className="flex items-start gap-1.5">
+                                        <Mail size={13} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                                        <span className="text-gray-700 dark:text-gray-300 break-all leading-tight">{user.email}</span>
+                                    </div>
+                                )}
+
+                                {user.mobile_number && (
+                                    <div className="flex items-center gap-1.5">
+                                        <Phone size={13} className="text-gray-400 flex-shrink-0" />
+                                        <span className="text-gray-700 dark:text-gray-300 leading-tight">{user.mobile_number}</span>
+                                    </div>
+                                )}
+
+                                {user.team_role && (
+                                    <div className="flex items-center gap-1.5">
+                                        <Briefcase size={13} className="text-gray-400 flex-shrink-0" />
+                                        <span className="text-gray-700 dark:text-gray-300 leading-tight">{user.team_role}</span>
+                                    </div>
+                                )}
+
+                                {user.organisation && (
+                                    <div className="flex items-start gap-1.5">
+                                        <User size={13} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                                        <span className="text-gray-700 dark:text-gray-300 leading-tight">{user.organisation}</span>
+                                    </div>
+                                )}
+
+                                {user.competencies && (
+                                    <div className="flex items-start gap-1.5">
+                                        <Award size={13} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-gray-600 dark:text-gray-400 leading-tight block">
+                                                {getCompetencyDisplayText(user.competencies)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                            <tr>
-                                <th onClick={() => handleSort('name')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    Name {getSortIndicator('name')}
-                                </th>
-                                <th onClick={() => handleSort('email')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    Email {getSortIndicator('email')}
-                                </th>
-                                <th onClick={() => handleSort('mobile_number')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    Mobile Number {getSortIndicator('mobile_number')}
-                                </th>
-                                <th onClick={() => handleSort('privilege')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    Privilege {getSortIndicator('privilege')}
-                                </th>
-                                <th onClick={() => handleSort('team_role')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    Team Role {getSortIndicator('team_role')}
-                                </th>
-                                <th onClick={() => handleSort('department')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    Department {getSortIndicator('department')}
-                                </th>
-                                <th onClick={() => handleSort('organisation')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    Organisation {getSortIndicator('organisation')}
-                                </th>
-                                <th onClick={() => handleSort('competencies')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    Competencies {getSortIndicator('competencies')}
-                                </th>
-                                <th onClick={() => handleSort('pts_number')} className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                    PTS Number {getSortIndicator('pts_number')}
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {filteredUsers.map(user => (
-                                <tr key={`${user.isDummy ? 'dummy-' : ''}${user.id}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                                        {user.name}
-                                        {user.isDummy && <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(Dummy)</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm">
-                                        {user.email ? (
-                                            <a href={`mailto:${user.email}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-                                                {user.email}
-                                            </a>
-                                        ) : (
-                                            <span className="text-gray-500 dark:text-gray-400">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm">
-                                        {user.mobile_number ? (
-                                            <>
-                                                <a href={`tel:${user.mobile_number}`} className="md:hidden text-blue-600 dark:text-blue-400 hover:underline">
-                                                    {user.mobile_number}
-                                                </a>
-                                                <span className="hidden md:inline text-gray-900 dark:text-white">
-                                                    {user.mobile_number}
-                                                </span>
-                                            </>
-                                        ) : (
-                                            <span className="text-gray-500 dark:text-gray-400">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{user.privilege || '-'}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{user.team_role || '-'}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{user.department || '-'}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{user.organisation || '-'}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                                        {user.competencies ? getCompetencyDisplayText(user.competencies) : '-'}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{user.pts_number || '-'}</td>
-                                </tr>
-                            ))}
-                            {filteredUsers.length === 0 && (
-                                <tr>
-                                    <td colSpan="9" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                        No users found matching your search.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+            {/* Empty State */}
+            {allUsers.length === 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-12 text-center">
+                    <div className="max-w-sm mx-auto">
+                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Users size={32} className="text-gray-400" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No staff contacts</h3>
+                        <p className="text-gray-600 dark:text-gray-400">
+                            There are no staff contacts to display.
+                        </p>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
