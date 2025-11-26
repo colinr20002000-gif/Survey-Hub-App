@@ -54,16 +54,22 @@ const CalendarColoursPage = () => {
                 { value: 'Evening', display_text: 'Evening' }
             ];
 
-            const leaveTypes = [
-                { value: 'Annual Leave', display_text: 'Annual Leave' },
-                { value: 'Bank Holiday', display_text: 'Bank Holiday' },
-                { value: 'Office (Haydock)', display_text: 'Office (Haydock)' },
-                { value: 'Office (Home)', display_text: 'Office (Home)' },
-                { value: 'Training', display_text: 'Training' },
-                { value: 'Stand Down', display_text: 'Stand Down' },
-                { value: 'Sick Day', display_text: 'Sick Day' },
-                { value: 'Rest Day', display_text: 'Rest Day' }
-            ];
+            // Fetch unique leave types from calendar_colours table
+            const { data: leaveTypesData, error: leaveError } = await supabase
+                .from('calendar_colours')
+                .select('category_value, category_display')
+                .eq('calendar_type', 'resource')
+                .eq('category_type', 'leave')
+                .order('category_value');
+
+            if (leaveError) {
+                console.error('Error fetching leave types:', leaveError);
+            }
+
+            const leaveTypes = (leaveTypesData || []).map(item => ({
+                value: item.category_value,
+                display_text: item.category_display || item.category_value
+            }));
 
             // Fetch unique equipment categories from equipment table
             const { data: equipmentData, error: equipError } = await supabase

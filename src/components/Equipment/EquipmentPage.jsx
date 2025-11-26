@@ -18,7 +18,7 @@ import { useDebouncedValue } from '../../utils/debounce';
 // Equipment Management Page Component
 const EquipmentPage = () => {
     const { user: currentUser } = useAuth();
-    const { canAssignEquipment, canReturnEquipment, canAddEquipment, canAddEquipmentComments, isEditorOrAbove } = usePermissions();
+    const { canAssignEquipment, canReturnEquipment, canAddEquipment, canAddEquipmentComments, canDeleteEquipmentComments, isEditorOrAbove } = usePermissions();
     const [equipment, setEquipment] = useState([]);
     const [users, setUsers] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -1711,7 +1711,7 @@ CREATE TABLE equipment_audit_log (
                                                 <div className="space-y-1 mb-2 max-h-24 overflow-y-auto">
                                                     {equipmentComments.map(comment => {
                                                         const commentUser = getUserById(comment.user_id);
-                                                        const canDeleteComment = comment.user_id === currentUser.id || currentUser.privilege === 'Admin';
+                                                        const canDeleteComment = comment.user_id === currentUser.id || canDeleteEquipmentComments;
                                                         return (
                                                             <div key={comment.id} className="text-xs">
                                                                 <div className="flex justify-between items-start">

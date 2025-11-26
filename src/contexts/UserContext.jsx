@@ -12,19 +12,21 @@ export const UserProvider = ({ children }) => {
         setLoading(true);
         setError(null);
         try {
-            // Fetch only active real users (not deleted)
+            // Fetch active real users (not deleted) OR soft-deleted users with termination_date
+            // Soft-deleted users with termination dates should appear on calendars up to their termination date
             const { data: realUsers, error: realUsersError} = await supabase
                 .from('users')
-                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status')
-                .is('deleted_at', null)
+                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, deleted_at')
+                .or('deleted_at.is.null,and(deleted_at.not.is.null,termination_date.not.is.null)')
                 .order('name', { ascending: true });
 
-            // Fetch only active dummy users (not deleted and is_active = true)
+            // Fetch active dummy users (is_active = true and not deleted) OR soft-deleted dummy users with termination_date
+            // Soft-deleted dummy users with termination dates should appear on calendars up to their termination date
             const { data: dummyUsers, error: dummyUsersError } = await supabase
                 .from('dummy_users')
-                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, is_active')
+                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, is_active, deleted_at')
                 .eq('is_active', true)
-                .is('deleted_at', null)
+                .or('deleted_at.is.null,and(deleted_at.not.is.null,termination_date.not.is.null)')
                 .order('name', { ascending: true });
 
             if (realUsersError && dummyUsersError) {

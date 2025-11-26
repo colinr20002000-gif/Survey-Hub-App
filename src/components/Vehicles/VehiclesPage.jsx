@@ -18,7 +18,7 @@ import { useDebouncedValue } from '../../utils/debounce';
 // Vehicle Management Page Component
 const VehiclesPage = () => {
     const { user: currentUser } = useAuth();
-    const { canAssignVehicles, canReturnVehicles, canAddVehicles, canAddVehicleComments, isEditorOrAbove } = usePermissions();
+    const { canAssignVehicles, canReturnVehicles, canAddVehicles, canAddVehicleComments, canDeleteVehicleComments, isEditorOrAbove } = usePermissions();
     const [vehicles, setVehicles] = useState([]);
     const [users, setUsers] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -1296,7 +1296,7 @@ const VehiclesPage = () => {
                                                                                     })}
                                                                                 </p>
                                                                             </div>
-                                                                            {(currentUser.privilege === 'Admin' || comment.created_by === currentUser.id) && (
+                                                                            {(canDeleteVehicleComments || comment.created_by === currentUser.id) && (
                                                                                 <button
                                                                                     onClick={() => handleDeleteComment(comment.id)}
                                                                                     className="ml-2 text-red-500 hover:text-red-700 flex-shrink-0"

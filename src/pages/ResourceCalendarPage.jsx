@@ -55,9 +55,32 @@ const DroppableCell = ({ id, children, disabled }) => {
     );
 };
 
+// Helper function to check if a status record is within 24 hours of creation
+const isWithin24Hours = (createdAt) => {
+    if (!createdAt) return false;
+    const createdDate = new Date(createdAt);
+    const now = new Date();
+    const hoursDiff = (now - createdDate) / (1000 * 60 * 60);
+    return hoursDiff < 24;
+};
+
+// Helper function to check if user can edit/delete a status record
+const canEditStatus = (assignment, currentUserId, canEdit24H, canEditAny) => {
+    // Not a status record
+    if (assignment?.type !== 'status') return false;
+
+    // User has unrestricted edit permission
+    if (canEditAny) return true;
+
+    // User has 24h edit permission and record is within 24 hours
+    if (canEdit24H && isWithin24Hours(assignment.createdAt)) return true;
+
+    return false;
+};
+
 const ResourceCalendarPage = ({ onViewProject }) => {
     const { user: currentUser } = useAuth();
-    const { canAllocateResources, canSetAvailabilityStatus, can } = usePermissions();
+    const { canAllocateResources, canSetAvailabilityStatus, canEditAvailabilityStatus24H, canEditAnyAvailabilityStatus, can } = usePermissions();
     const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
     const { projects } = useProjects();
     const { showPrivilegeError, showErrorModal } = useToast();
@@ -396,7 +419,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             const fetchWithDateRange = async (tableName) => {
                 const { data, error } = await supabase
                     .from(tableName)
-                    .select('id, user_id, allocation_date, assignment_type, project_id, project_number, project_name, client, task, shift, time, comment, leave_type')
+                    .select('id, user_id, allocation_date, assignment_type, project_id, project_number, project_name, client, task, shift, time, comment, leave_type, created_at')
                     .gte('allocation_date', startDateString)
                     .lte('allocation_date', endDateString)
                     .order('allocation_date', { ascending: true });
@@ -459,12 +482,14 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                         assignmentData = {
                             type: 'leave',
                             leaveType: allocation.leave_type,
-                            comment: allocation.comment || ''
+                            comment: allocation.comment || '',
+                            createdAt: allocation.created_at
                         };
                     } else if (allocation.assignment_type === 'status') {
                         assignmentData = {
                             type: 'status',
-                            status: allocation.comment || ''
+                            status: allocation.comment || '',
+                            createdAt: allocation.created_at
                         };
                     } else if (allocation.assignment_type === 'project') {
                         assignmentData = {
@@ -476,7 +501,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                             shift: allocation.shift || '',
                             time: allocation.time || '',
                             comment: allocation.comment || '',
-                            projectId: allocation.project_id || null
+                            projectId: allocation.project_id || null,
+                            createdAt: allocation.created_at
                         };
                     }
 

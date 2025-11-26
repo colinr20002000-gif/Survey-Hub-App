@@ -111,14 +111,18 @@ export const usePermissions = () => {
             canReturnEquipment: can('RETURN_EQUIPMENT'),
             canAddEquipment: can('ADD_EQUIPMENT'),
             canAddEquipmentComments: can('ADD_EQUIPMENT_COMMENTS'),
+            canDeleteEquipmentComments: can('DELETE_EQUIPMENT_COMMENTS'),
 
             canAssignVehicles: can('ASSIGN_VEHICLES'),
             canReturnVehicles: can('RETURN_VEHICLES'),
             canAddVehicles: can('ADD_VEHICLES'),
             canAddVehicleComments: can('ADD_VEHICLE_COMMENTS'),
+            canDeleteVehicleComments: can('DELETE_VEHICLE_COMMENTS'),
 
             canAllocateResources: can('ALLOCATE_RESOURCES'),
             canSetAvailabilityStatus: can('SET_AVAILABILITY_STATUS'),
+            canEditAvailabilityStatus24H: can('EDIT_AVAILABILITY_STATUS_24H'),
+            canEditAnyAvailabilityStatus: can('EDIT_ANY_AVAILABILITY_STATUS'),
 
             canDownloadFiles: can('DOWNLOAD_PROJECT_FILES'),
             canUploadDocuments: can('UPLOAD_DOCUMENTS'),
