@@ -140,6 +140,10 @@ export const usePermissions = () => {
             canAddSubcontractors: can('ADD_SUBCONTRACTORS'),
             canEditSubcontractors: can('EDIT_SUBCONTRACTORS'),
             canDeleteSubcontractors: can('DELETE_SUBCONTRACTORS'),
+
+            canAddUsefulContacts: can('ADD_USEFUL_CONTACTS'),
+            canEditUsefulContacts: can('EDIT_USEFUL_CONTACTS'),
+            canDeleteUsefulContacts: can('DELETE_USEFUL_CONTACTS'),
         };
     }, [userPrivilege, dynamicPermissions]);
 

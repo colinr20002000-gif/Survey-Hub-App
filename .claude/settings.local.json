@@ -9,7 +9,10 @@
       "mcp__Supabase__execute_sql",
       "Bash(npm run build:*)",
       "Bash(npx supabase migration:*)",
-      "mcp__Supabase__list_tables"
+      "mcp__Supabase__list_tables",
+      "Bash(dir:*)",
+      "Bash(del \"E:\\Visual Studio\\survey-hub-app\\supabase\\migrations\\20251127072255_add_discipline_to_useful_contacts.sql\")",
+      "Bash(npx supabase:*)"
     ],
     "deny": [],
     "ask": []
