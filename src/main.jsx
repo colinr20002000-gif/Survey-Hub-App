@@ -16,8 +16,10 @@ if (hash && (hash.includes('type=recovery') || hash.includes('type%3Drecovery'))
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
+    // Use a stable URL for normal registration to avoid constant updates
+    // Only manual checks will use aggressive cache busting
     navigator.serviceWorker.register('/sw.js', {
-      updateViaCache: 'none' // Always fetch latest sw.js, bypass HTTP cache
+      updateViaCache: 'none' // Bypass service worker HTTP cache
     })
       .then((registration) => {
         console.log('✅ Service Worker registered successfully');
@@ -43,7 +45,7 @@ if ('serviceWorker' in navigator) {
           });
         });
 
-        // Check for updates every 5 minutes
+        // Check for updates every 5 minutes (using standard update method)
         setInterval(() => {
           console.log('🔍 Checking for service worker updates...');
           registration.update()
@@ -82,6 +84,8 @@ if ('serviceWorker' in navigator) {
       console.log('🔄 New service worker activated, reloading page...');
       // Set flag to show update notification after reload
       sessionStorage.setItem('appJustUpdated', 'true');
+      // Set flag to skip MFA check on reload (user is already authenticated)
+      sessionStorage.setItem('swUpdateReload', 'true');
       window.location.reload();
     }
   });

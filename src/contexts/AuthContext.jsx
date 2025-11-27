@@ -603,8 +603,15 @@ export const AuthProvider = ({ children }) => {
             // Check if backup code was just verified
             const backupCodeVerified = sessionStorage.getItem('backupCodeVerified') === 'true';
 
-            // Skip MFA check if this is HMR (user already logged in)
-            if (!wasAlreadyLoggedIn) {
+            // Check if this is a service worker update reload
+            const isSwUpdateReload = sessionStorage.getItem('swUpdateReload') === 'true';
+            if (isSwUpdateReload) {
+              console.log('🔄 Service worker update reload detected - skipping MFA check');
+              sessionStorage.removeItem('swUpdateReload'); // Clear flag
+            }
+
+            // Skip MFA check if this is HMR (user already logged in) or SW update reload
+            if (!wasAlreadyLoggedIn && !isSwUpdateReload) {
               // If backup code was used, skip MFA checks and allow login
               if (!backupCodeVerified) {
                 // Normal MFA check for TOTP

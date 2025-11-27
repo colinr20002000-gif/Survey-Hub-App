@@ -165,7 +165,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     // Week caching for performance optimization
     const weekCacheRef = useRef({}); // Stores fetched week data: { weekKey: { data, timestamp } }
     const fetchingWeeksRef = useRef(new Set()); // Track which weeks are currently being fetched
-    const MAX_CACHED_WEEKS = 20; // Keep last 20 weeks in cache (supports ±4 weeks + navigation buffer)
+    const MAX_CACHED_WEEKS = 24; // Keep last 24 weeks in cache (supports current + 8 weeks ahead + 4 weeks behind + buffer)
 
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
     const [customShiftColors, setCustomShiftColors] = useState({});
@@ -367,14 +367,17 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         const targetWeek = weekStartOverride || currentWeekStart;
         const cacheKey = formatDateForKey(targetWeek);
 
-        // Check if this week range is already cached
+        // CRITICAL: Check cache BEFORE any state updates to prevent loading flicker
+        // This ensures instant navigation when data is already cached
         if (weekCacheRef.current[cacheKey] && !weekStartOverride) {
             const cachedData = weekCacheRef.current[cacheKey];
             const cacheAge = Date.now() - cachedData.timestamp;
             const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
 
             if (cacheAge < MAX_CACHE_AGE) {
-                console.log(`💾 Using cached data for week ${cacheKey} (age: ${Math.round(cacheAge / 1000)}s)`);
+                console.log(`💾 Cache HIT for week ${cacheKey} (age: ${Math.round(cacheAge / 1000)}s) - instant load!`);
+                // Use React's batched updates to set both states together
+                // This prevents any loading flicker
                 setAllocations(cachedData.data);
                 setLoading(false);
                 return;
@@ -389,6 +392,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             return;
         }
 
+        // Only set loading state if we actually need to fetch (cache miss)
+        console.log(`🔍 Cache MISS for week ${cacheKey} - fetching from database...`);
+
         // Mark this week as being fetched
         fetchingWeeksRef.current.add(cacheKey);
 
@@ -397,20 +403,27 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             scrollPositionRef.current = window.scrollY || document.documentElement.scrollTop;
         }
 
+        // Only show loading spinner if this is not a silent/background fetch
         if (!silent && !weekStartOverride) {
             setLoading(true);
         }
         setError(null);
         try {
-            // Calculate date range: current week ± 4 weeks (9 weeks total = 63 days)
-            // This ensures smooth navigation without frequent refetches
-            const startDate = addDays(targetWeek, -28); // 4 weeks before
+            // Calculate date range: 4 weeks before + current week + 4 weeks after = 9 weeks total
+            // This ensures the 4 weeks ahead are always preloaded for smooth user experience
+            // Date range breakdown:
+            //   - 4 weeks before current week: -28 days
+            //   - Current week: 7 days (day 0 to day 6)
+            //   - 4 weeks after current week: 28 days
+            //   Total: 28 + 7 + 28 = 63 days = 9 weeks
+            const startDate = addDays(targetWeek, -28); // 4 weeks before current week
             const endDate = addDays(targetWeek, 34); // Current week (7 days) + 4 weeks after (28 days) - 1 = 34
             const startDateString = formatDateForKey(startDate);
             const endDateString = formatDateForKey(endDate);
 
             if (!weekStartOverride) {
-                console.log(`📅 Fetching allocations for date range: ${startDateString} to ${endDateString} (9 weeks)`);
+                console.log(`📅 Initial fetch: Loading current week + 4 weeks ahead + 4 weeks behind`);
+                console.log(`   Range: ${startDateString} to ${endDateString} (9 weeks total)`);
             } else {
                 console.log(`🔮 Prefetching allocations for week ${cacheKey}: ${startDateString} to ${endDateString}`);
             }
@@ -530,16 +543,27 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 setAllocations(formattedAllocations);
             }
 
-            // Store in cache - IMPORTANT: Cache under ALL week keys in the fetched range
-            // This prevents re-fetching when navigating to adjacent weeks
+            // Store in cache - CRITICAL: Cache ALL weeks in the fetched range, not just weeks with data
+            // This prevents cache misses when navigating to weeks with no allocations
             const timestamp = Date.now();
-            Object.keys(formattedAllocations).forEach(weekKey => {
+
+            // Generate week keys for ALL 9 weeks in the fetched range (±4 weeks)
+            const allWeekKeys = [];
+            for (let i = -4; i <= 4; i++) {
+                const weekDate = addDays(targetWeek, i * 7);
+                const weekKey = formatDateForKey(weekDate);
+                allWeekKeys.push(weekKey);
+            }
+
+            // Cache the full dataset under EVERY week key in the range
+            allWeekKeys.forEach(weekKey => {
                 weekCacheRef.current[weekKey] = {
                     data: formattedAllocations,
                     timestamp: timestamp
                 };
             });
-            console.log(`💾 Cached ${Object.keys(formattedAllocations).length} weeks (${cacheKey} and surrounding weeks)`);
+
+            console.log(`💾 Cached ${allWeekKeys.length} weeks (${formatDateForKey(addDays(targetWeek, -28))} to ${formatDateForKey(addDays(targetWeek, 28))})`);
 
             // Clean up old cache entries (keep only MAX_CACHED_WEEKS most recent)
             const cacheKeys = Object.keys(weekCacheRef.current);
@@ -564,26 +588,31 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 });
             }
 
-            // Prefetch extended range (weeks 5-6 on each side) in the background
-            // This provides buffer beyond the ±4 weeks already loaded
+            // Prefetch extended range (weeks 5-8 ahead) in the background
+            // This provides additional buffer beyond the 4 weeks already loaded
+            // Priority: Load weeks 5-6 ahead immediately, then 7-8 with slight delay
             if (!weekStartOverride) {
-                // Prefetch weeks 5-6 before current week
+                // Prefetch weeks 5-6 before current week (with minimal delay)
                 for (let i = 5; i <= 6; i++) {
                     const week = addDays(targetWeek, -7 * i);
                     const weekKey = formatDateForKey(week);
                     if (!weekCacheRef.current[weekKey] && !fetchingWeeksRef.current.has(weekKey)) {
                         console.log(`🔮 Prefetching week ${i} before: ${weekKey}`);
-                        setTimeout(() => getResourceAllocations(true, week), 100 * i);
+                        setTimeout(() => getResourceAllocations(true, week), 50 * i);
                     }
                 }
 
-                // Prefetch weeks 5-6 after current week
-                for (let i = 5; i <= 6; i++) {
+                // Prefetch weeks 5-8 after current week (prioritize weeks ahead)
+                // Weeks 5-6: Load quickly (50-100ms delay)
+                // Weeks 7-8: Load with more delay to not block initial render
+                for (let i = 5; i <= 8; i++) {
                     const week = addDays(targetWeek, 7 * i);
                     const weekKey = formatDateForKey(week);
                     if (!weekCacheRef.current[weekKey] && !fetchingWeeksRef.current.has(weekKey)) {
-                        console.log(`🔮 Prefetching week ${i} after: ${weekKey}`);
-                        setTimeout(() => getResourceAllocations(true, week), 100 * (i + 6));
+                        console.log(`🔮 Prefetching week ${i} ahead: ${weekKey}`);
+                        // Prioritize closer weeks with shorter delays
+                        const delay = i <= 6 ? 50 * i : 100 * (i - 2);
+                        setTimeout(() => getResourceAllocations(true, week), delay);
                     }
                 }
             }

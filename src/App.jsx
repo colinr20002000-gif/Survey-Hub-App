@@ -331,7 +331,7 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
     const handleCheckForUpdates = async () => {
         setIsProfileOpen(false);
 
-        if (!window.swRegistration) {
+        if (!navigator.serviceWorker) {
             addToast({ message: 'Service worker not available', type: 'error' });
             return;
         }
@@ -339,40 +339,50 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
         try {
             addToast({ message: 'Checking for updates...', type: 'info' });
 
+            // Force re-register service worker with cache bust parameter
+            // This bypasses all HTTP caching and forces a fresh download
+            const cacheBustUrl = `/sw.js?v=${Date.now()}`;
+            console.log('🔍 Manual update check - registering with cache bust:', cacheBustUrl);
+
+            const registration = await navigator.serviceWorker.register(cacheBustUrl, {
+                updateViaCache: 'none'
+            });
+
+            // Update global reference
+            window.swRegistration = registration;
+
             // Check current SW state before update
-            const hadWaitingBefore = !!window.swRegistration.waiting;
-            const hadInstallingBefore = !!window.swRegistration.installing;
+            const hadWaitingBefore = !!registration.waiting;
+            const hadInstallingBefore = !!registration.installing;
 
-            // Set up a listener for the updatefound event with longer timeout
+            console.log('📦 SW state after registration:', {
+                installing: !!registration.installing,
+                waiting: !!registration.waiting,
+                active: !!registration.active
+            });
+
+            // Set up a listener for the updatefound event
             const updatePromise = new Promise((resolve) => {
-                const timeout = setTimeout(() => resolve('no-update'), 5000); // Increased from 3s to 5s
+                const timeout = setTimeout(() => resolve('no-update'), 5000);
 
-                window.swRegistration.addEventListener('updatefound', () => {
+                registration.addEventListener('updatefound', () => {
                     clearTimeout(timeout);
                     console.log('✅ Update found event fired');
                     resolve('update-found');
                 }, { once: true });
 
-                // Trigger the update check
-                window.swRegistration.update().then(() => {
-                    console.log('🔍 Update check completed');
-                    // Give the browser more time to fire updatefound if there's an update
-                    setTimeout(() => {
-                        clearTimeout(timeout);
-                        resolve('checked');
-                    }, 3000); // Increased from 1.5s to 3s
-                }).catch((error) => {
+                // Give time for update to be detected
+                setTimeout(() => {
                     clearTimeout(timeout);
-                    console.error('Update check error:', error);
-                    resolve('error');
-                });
+                    resolve('checked');
+                }, 3000);
             });
 
             const result = await updatePromise;
 
             // Check all possible update states
-            const hasWaitingNow = !!window.swRegistration.waiting;
-            const hasInstallingNow = !!window.swRegistration.installing;
+            const hasWaitingNow = !!registration.waiting;
+            const hasInstallingNow = !!registration.installing;
             const newUpdateDetected = (hasWaitingNow && !hadWaitingBefore) ||
                                       (hasInstallingNow && !hadInstallingBefore);
 
@@ -381,13 +391,13 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
                 addToast({ message: 'Update found! Installing...', type: 'success' });
 
                 // If there's a waiting service worker, tell it to activate
-                if (window.swRegistration.waiting) {
-                    window.swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                } else if (window.swRegistration.installing) {
+                if (registration.waiting) {
+                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                } else if (registration.installing) {
                     // Wait for installing to become waiting, then activate
-                    window.swRegistration.installing.addEventListener('statechange', function() {
-                        if (this.state === 'installed' && window.swRegistration.waiting) {
-                            window.swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    registration.installing.addEventListener('statechange', function() {
+                        if (this.state === 'installed' && registration.waiting) {
+                            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
                         }
                     });
                 }
@@ -859,7 +869,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                         (item.name === 'Vehicles' && isVehiclesActive) ||
                                         (item.name === 'Analytics' && isAnalyticsActive)
                                             ? 'bg-orange-100 text-orange-800 dark:bg-orange-600/40 dark:text-orange-200'
-                                            : 'text-gray-700 hover:bg-blue-50 hover:text-blue-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100'
+                                            : 'text-gray-700 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100'
                                     }`}
                                     title={isCollapsed ? item.name : ''}
                                 >
@@ -873,7 +883,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                     className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
                                         activeTab === item.name
                                             ? 'bg-orange-100 text-orange-800 dark:bg-orange-600/40 dark:text-orange-200'
-                                            : 'text-gray-600 hover:bg-blue-50 hover:text-blue-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100'
+                                            : 'text-gray-600 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100'
                                     }`}
                                     title={isCollapsed ? item.name : ''}
                                 >
@@ -891,7 +901,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                                 className={`flex items-center px-4 py-2 text-sm rounded-lg transition-colors duration-200 ${
                                                     activeTab === subItem.name
                                                         ? 'bg-orange-50 text-orange-800 dark:bg-orange-600/30 dark:text-orange-200'
-                                                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                                                        : 'text-gray-600 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100'
                                                 }`}
                                             >
                                                 <span className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full mr-3"></span>

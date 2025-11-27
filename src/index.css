@@ -217,6 +217,9 @@ html, body {
 .light .bg-red-100,
 :root:not(.dark) .bg-red-100 { background-color: #fee2e2 !important; }
 
+.light .bg-orange-50,
+:root:not(.dark) .bg-orange-50 { background-color: #fff7ed !important; }
+
 .light .bg-orange-100,
 :root:not(.dark) .bg-orange-100 { background-color: #fed7aa !important; }
 
@@ -248,6 +251,9 @@ html, body {
 .light .text-red-800,
 :root:not(.dark) .text-red-800 { color: #991b1b !important; }
 
+.light .text-orange-700,
+:root:not(.dark) .text-orange-700 { color: #c2410c !important; }
+
 .light .text-orange-800,
 :root:not(.dark) .text-orange-800 { color: #9a3412 !important; }
 
@@ -278,6 +284,17 @@ html, body {
 :root:not(.dark) .bg-gray-100 input,
 :root:not(.dark) .bg-gray-100 textarea {
   color: #111827 !important;
+}
+
+/* Sidebar hover colors in light mode - explicit definitions to ensure they work */
+.light .hover\:bg-orange-50:hover,
+:root:not(.dark) .hover\:bg-orange-50:hover {
+  background-color: #fff7ed !important;
+}
+
+.light .hover\:text-orange-700:hover,
+:root:not(.dark) .hover\:text-orange-700:hover {
+  color: #c2410c !important;
 }
 
 /* Force dark mode styles */
