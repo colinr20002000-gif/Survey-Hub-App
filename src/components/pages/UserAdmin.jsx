@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Edit2, Trash2, ShieldAlert, X, Save, UserPlus, Mail, RefreshCw, Check, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -20,29 +21,12 @@ const UserAdmin = () => {
   const [competencies, setCompetencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editingUsername, setEditingUsername] = useState(null);
-  const [newUsername, setNewUsername] = useState('');
-  const [editingTeamRole, setEditingTeamRole] = useState(null);
-  const [newTeamRole, setNewTeamRole] = useState('');
-  const [editingDepartment, setEditingDepartment] = useState(null);
-  const [newDepartment, setNewDepartment] = useState('');
-  const [editingOrganisation, setEditingOrganisation] = useState(null);
-  const [newOrganisation, setNewOrganisation] = useState('');
-  const [editingCompetencies, setEditingCompetencies] = useState(null);
-  const [newCompetencies, setNewCompetencies] = useState('');
-  const [editingPtsNumber, setEditingPtsNumber] = useState(null);
-  const [newPtsNumber, setNewPtsNumber] = useState('');
-  const [editingAvatar, setEditingAvatar] = useState(null);
-  const [newAvatar, setNewAvatar] = useState('');
-  const [editingName, setEditingName] = useState(null);
-  const [newName, setNewName] = useState('');
-  const [editingMobileNumber, setEditingMobileNumber] = useState(null);
-  const [newMobileNumber, setNewMobileNumber] = useState('');
-  const [editingHireDate, setEditingHireDate] = useState(null);
-  const [newHireDate, setNewHireDate] = useState('');
-  const [editingTerminationDate, setEditingTerminationDate] = useState(null);
-  const [newTerminationDate, setNewTerminationDate] = useState('');
-  const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+
+  // Modern Editing State
+  const [editingUser, setEditingUser] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isDummyUserEdit, setIsDummyUserEdit] = useState(false);
 
   // MFA management states
   const [mfaStatuses, setMfaStatuses] = useState({});
@@ -104,32 +88,71 @@ const UserAdmin = () => {
     termination_date: ''
   });
 
-  // Dummy user editing states
-  const [editingDummyUsername, setEditingDummyUsername] = useState(null);
-  const [editingDummyName, setEditingDummyName] = useState(null);
-  const [editingDummyEmail, setEditingDummyEmail] = useState(null);
-  const [editingDummyAvatar, setEditingDummyAvatar] = useState(null);
-  const [editingDummyTeamRole, setEditingDummyTeamRole] = useState(null);
-  const [editingDummyDepartment, setEditingDummyDepartment] = useState(null);
-  const [editingDummyOrganisation, setEditingDummyOrganisation] = useState(null);
-  const [editingDummyMobileNumber, setEditingDummyMobileNumber] = useState(null);
-  const [editingDummyCompetencies, setEditingDummyCompetencies] = useState(null);
-  const [editingDummyPtsNumber, setEditingDummyPtsNumber] = useState(null);
+  const handleEditUser = (userItem, isDummy = false) => {
+    setEditingUser({
+      ...userItem,
+      competencies: userItem.competencies || '', // Ensure string for inputs
+      // Format dates for date inputs (YYYY-MM-DD)
+      hire_date: userItem.hire_date ? new Date(userItem.hire_date).toISOString().split('T')[0] : '',
+      termination_date: userItem.termination_date ? new Date(userItem.termination_date).toISOString().split('T')[0] : ''
+    });
+    setIsDummyUserEdit(isDummy);
+    setShowEditModal(true);
+  };
 
-  const [newDummyUsername, setNewDummyUsername] = useState('');
-  const [newDummyName, setNewDummyName] = useState('');
-  const [newDummyEmail, setNewDummyEmail] = useState('');
-  const [newDummyAvatar, setNewDummyAvatar] = useState('');
-  const [newDummyTeamRole, setNewDummyTeamRole] = useState('');
-  const [newDummyDepartment, setNewDummyDepartment] = useState('');
-  const [newDummyOrganisation, setNewDummyOrganisation] = useState('');
-  const [newDummyMobileNumber, setNewDummyMobileNumber] = useState('');
-  const [newDummyCompetencies, setNewDummyCompetencies] = useState('');
-  const [newDummyPtsNumber, setNewDummyPtsNumber] = useState('');
-  const [editingDummyHireDate, setEditingDummyHireDate] = useState(null);
-  const [newDummyHireDate, setNewDummyHireDate] = useState('');
-  const [editingDummyTerminationDate, setEditingDummyTerminationDate] = useState(null);
-  const [newDummyTerminationDate, setNewDummyTerminationDate] = useState('');
+  const handleSaveUser = async (e) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    try {
+      const table = isDummyUserEdit ? 'dummy_users' : 'users';
+      const updates = {
+        name: editingUser.name,
+        username: editingUser.username,
+        email: editingUser.email,
+        team_role: editingUser.team_role,
+        department: editingUser.department,
+        organisation: editingUser.organisation,
+        mobile_number: editingUser.mobile_number,
+        avatar: editingUser.avatar,
+        competencies: editingUser.competencies,
+        pts_number: editingUser.pts_number,
+        hire_date: editingUser.hire_date || null,
+        termination_date: editingUser.termination_date || null,
+        // Only update privilege if not dummy (or if dummy supports it, which it does)
+        privilege: editingUser.privilege
+      };
+
+      if (isDummyUserEdit) {
+        updates.updated_by = user.id;
+      }
+
+      const updateQuery = Promise.race([
+        supabase.from(table).update(updates).eq('id', editingUser.id).select(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database update timeout')), 8000)
+        )
+      ]);
+
+      const { data, error } = await updateQuery;
+
+      if (error) throw error;
+
+      if (data && data[0]) {
+        if (isDummyUserEdit) {
+          setDummyUsers(prev => prev.map(u => u.id === editingUser.id ? data[0] : u));
+        } else {
+          setUsers(prev => prev.map(u => u.id === editingUser.id ? data[0] : u));
+        }
+        alert('User updated successfully');
+        setShowEditModal(false);
+        setEditingUser(null);
+      }
+    } catch (err) {
+      console.error('Error updating user:', err);
+      alert(`Error updating user: ${err.message}`);
+    }
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -389,10 +412,10 @@ const UserAdmin = () => {
     setSortConfig({ key, direction });
   };
 
-  const getSortedUsers = () => {
-    const sortableUsers = [...users];
+  const getSortedData = (data) => {
+    const sortableData = [...data];
     if (sortConfig.key) {
-      sortableUsers.sort((a, b) => {
+      sortableData.sort((a, b) => {
         let aValue = a[sortConfig.key];
         let bValue = b[sortConfig.key];
 
@@ -405,7 +428,7 @@ const UserAdmin = () => {
         if (typeof bValue === 'string') bValue = bValue.toLowerCase();
 
         // Handle date fields
-        if (sortConfig.key === 'created_at' || sortConfig.key === 'last_login') {
+        if (sortConfig.key === 'created_at' || sortConfig.key === 'last_login' || sortConfig.key === 'hire_date' || sortConfig.key === 'termination_date' || sortConfig.key === 'deleted_at') {
           aValue = new Date(aValue || 0);
           bValue = new Date(bValue || 0);
         }
@@ -419,7 +442,7 @@ const UserAdmin = () => {
         return 0;
       });
     }
-    return sortableUsers;
+    return sortableData;
   };
 
   const getSortIcon = (columnKey) => {
@@ -517,516 +540,7 @@ const UserAdmin = () => {
     }
   };
 
-  const updateUserPrivilege = async (userId, newPrivilege) => {
-    if (!isAdmin) {
-      alert('Only administrators can modify user privileges');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ privilege: newPrivilege }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('User privilege updated successfully');
-      }
-    } catch (err) {
-      console.error('Error updating user privilege:', err);
-      alert(`Error updating user privilege: ${err.message}`);
-    }
-  };
-
-  const updateUsername = async (userId, username) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify usernames');
-      return;
-    }
-
-    if (!username || username.trim() === '') {
-      alert('Username cannot be empty');
-      return;
-    }
-
-    try {
-      // Check if username already exists
-      const { data: existingUser, error: checkError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('username', username.trim())
-        .neq('id', userId);
-
-      if (checkError) {
-        throw checkError;
-      }
-
-      if (existingUser && existingUser.length > 0) {
-        alert('Username already exists. Please choose a different username.');
-        return;
-      }
-
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ username: username.trim() }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Username updated successfully');
-        setEditingUsername(null);
-        setNewUsername('');
-      }
-    } catch (err) {
-      console.error('Error updating username:', err);
-      alert(`Error updating username: ${err.message}`);
-    }
-  };
-
-  const startEditingUsername = (userItem) => {
-    setEditingUsername(userItem.id);
-    setNewUsername(userItem.username);
-  };
-
-  const cancelEditingUsername = () => {
-    setEditingUsername(null);
-    setNewUsername('');
-  };
-
-  const updateTeamRole = async (userId, teamRole) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify team roles');
-      return;
-    }
-
-    if (!teamRole || teamRole.trim() === '') {
-      alert('Team role cannot be empty');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ team_role: teamRole.trim() }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Team role updated successfully');
-        setEditingTeamRole(null);
-        setNewTeamRole('');
-      }
-    } catch (err) {
-      console.error('Error updating team role:', err);
-      alert(`Error updating team role: ${err.message}`);
-    }
-  };
-
-  const startEditingTeamRole = (userItem) => {
-    setEditingTeamRole(userItem.id);
-    setNewTeamRole(userItem.team_role || '');
-  };
-
-  const cancelEditingTeamRole = () => {
-    setEditingTeamRole(null);
-    setNewTeamRole('');
-  };
-
-  const updateDepartment = async (userId, department) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify departments');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ department: department }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Department updated successfully');
-        setEditingDepartment(null);
-        setNewDepartment('');
-      }
-    } catch (err) {
-      console.error('Error updating department:', err);
-      alert(`Error updating department: ${err.message}`);
-    }
-  };
-
-  const startEditingDepartment = (userItem) => {
-    setEditingDepartment(userItem.id);
-    setNewDepartment(userItem.department || '');
-  };
-
-  const cancelEditingDepartment = () => {
-    setEditingDepartment(null);
-    setNewDepartment('');
-  };
-
-  const updateOrganisation = async (userId, organisation) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify organisations');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ organisation: organisation }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Organisation updated successfully');
-        setEditingOrganisation(null);
-        setNewOrganisation('');
-      }
-    } catch (err) {
-      console.error('Error updating organisation:', err);
-      alert(`Error updating organisation: ${err.message}`);
-    }
-  };
-
-  const startEditingOrganisation = (userItem) => {
-    setEditingOrganisation(userItem.id);
-    setNewOrganisation(userItem.organisation || '');
-  };
-
-  const cancelEditingOrganisation = () => {
-    setEditingOrganisation(null);
-    setNewOrganisation('');
-  };
-
-  const updateCompetencies = async (userId, competencies) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify competencies');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ competencies: competencies }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Competencies updated successfully');
-        setEditingCompetencies(null);
-        setNewCompetencies('');
-      }
-    } catch (err) {
-      console.error('Error updating competencies:', err);
-      alert(`Error updating competencies: ${err.message}`);
-    }
-  };
-
-  const startEditingCompetencies = (userItem) => {
-    setEditingCompetencies(userItem.id);
-    setNewCompetencies(userItem.competencies || '');
-  };
-
-  const cancelEditingCompetencies = () => {
-    setEditingCompetencies(null);
-    setNewCompetencies('');
-  };
-
-  const updatePtsNumber = async (userId, ptsNumber) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify PTS numbers');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ pts_number: ptsNumber }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('PTS Number updated successfully');
-        setEditingPtsNumber(null);
-        setNewPtsNumber('');
-      }
-    } catch (err) {
-      console.error('Error updating PTS number:', err);
-      alert(`Error updating PTS number: ${err.message}`);
-    }
-  };
-
-  const startEditingPtsNumber = (userItem) => {
-    setEditingPtsNumber(userItem.id);
-    setNewPtsNumber(userItem.pts_number || '');
-  };
-
-  const cancelEditingPtsNumber = () => {
-    setEditingPtsNumber(null);
-    setNewPtsNumber('');
-  };
-
-  const updateAvatar = async (userId, avatar) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify avatars');
-      return;
-    }
-
-    if (!avatar || avatar.trim() === '') {
-      alert('Avatar cannot be empty');
-      return;
-    }
-
-    // Limit avatar to 3 characters maximum for display purposes
-    const trimmedAvatar = avatar.trim().toUpperCase().substring(0, 3);
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ avatar: trimmedAvatar }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Avatar updated successfully');
-        setEditingAvatar(null);
-        setNewAvatar('');
-      }
-    } catch (err) {
-      console.error('Error updating avatar:', err);
-      alert(`Error updating avatar: ${err.message}`);
-    }
-  };
-
-  const startEditingAvatar = (userItem) => {
-    setEditingAvatar(userItem.id);
-    setNewAvatar(userItem.avatar || '');
-  };
-
-  const cancelEditingAvatar = () => {
-    setEditingAvatar(null);
-    setNewAvatar('');
-  };
-
-  const updateName = async (userId, name) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify names');
-      return;
-    }
-
-    if (!name || name.trim() === '') {
-      alert('Name cannot be empty');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ name: name.trim() }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Name updated successfully');
-        setEditingName(null);
-        setNewName('');
-      }
-    } catch (err) {
-      console.error('Error updating name:', err);
-      alert(`Error updating name: ${err.message}`);
-    }
-  };
-
-  const startEditingName = (userItem) => {
-    setEditingName(userItem.id);
-    setNewName(userItem.name || '');
-  };
-
-  const cancelEditingName = () => {
-    setEditingName(null);
-    setNewName('');
-  };
-
-  const updateMobileNumber = async (userId, mobileNumber) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify mobile numbers');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ mobile_number: mobileNumber }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Mobile number updated successfully');
-        setEditingMobileNumber(null);
-        setNewMobileNumber('');
-      }
-    } catch (err) {
-      console.error('Error updating mobile number:', err);
-      alert(`Error updating mobile number: ${err.message}`);
-    }
-  };
-
-  const startEditingMobileNumber = (userItem) => {
-    setEditingMobileNumber(userItem.id);
-    setNewMobileNumber(userItem.mobile_number || '');
-  };
-
-  const cancelEditingMobileNumber = () => {
-    setEditingMobileNumber(null);
-    setNewMobileNumber('');
-  };
-
-  const handleUpdateHireDate = async (userId) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify hire dates');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ hire_date: newHireDate || null }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Hire date updated successfully');
-        setEditingHireDate(null);
-        setNewHireDate('');
-      }
-    } catch (err) {
-      console.error('Error updating hire date:', err);
-      alert(`Error updating hire date: ${err.message}`);
-    }
-  };
-
-  const handleUpdateTerminationDate = async (userId) => {
-    if (!isSuperAdmin) {
-      alert('Only super administrators can modify termination dates');
-      return;
-    }
-
-    try {
-      const updateQuery = Promise.race([
-        supabase.from('users').update({ termination_date: newTerminationDate || null }).eq('id', userId).select(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database update timeout')), 8000)
-        )
-      ]);
-
-      const { data, error } = await updateQuery;
-
-      if (error) {
-        throw error;
-      }
-
-      if (data && data[0]) {
-        setUsers(prev => prev.map(u => u.id === userId ? data[0] : u));
-        alert('Termination date updated successfully');
-        setEditingTerminationDate(null);
-        setNewTerminationDate('');
-      }
-    } catch (err) {
-      console.error('Error updating termination date:', err);
-      alert(`Error updating termination date: ${err.message}`);
-    }
-  };
+  // [Deleted individual update functions to use unified modal editing]
 
   const deleteUser = async (userId, userEmail) => {
     if (!isAdmin) {
@@ -1623,135 +1137,7 @@ const UserAdmin = () => {
     }
   };
 
-  // Dummy user editing helper functions
-  const startEditingDummyField = (dummyUserId, field, currentValue) => {
-    switch (field) {
-      case 'username':
-        setEditingDummyUsername(dummyUserId);
-        setNewDummyUsername(currentValue || '');
-        break;
-      case 'name':
-        setEditingDummyName(dummyUserId);
-        setNewDummyName(currentValue || '');
-        break;
-      case 'email':
-        setEditingDummyEmail(dummyUserId);
-        setNewDummyEmail(currentValue || '');
-        break;
-      case 'avatar':
-        setEditingDummyAvatar(dummyUserId);
-        setNewDummyAvatar(currentValue || '');
-        break;
-      case 'team_role':
-        setEditingDummyTeamRole(dummyUserId);
-        setNewDummyTeamRole(currentValue || '');
-        break;
-      case 'department':
-        setEditingDummyDepartment(dummyUserId);
-        setNewDummyDepartment(currentValue || '');
-        break;
-      case 'organisation':
-        setEditingDummyOrganisation(dummyUserId);
-        setNewDummyOrganisation(currentValue || '');
-        break;
-      case 'mobile_number':
-        setEditingDummyMobileNumber(dummyUserId);
-        setNewDummyMobileNumber(currentValue || '');
-        break;
-      case 'competencies':
-        setEditingDummyCompetencies(dummyUserId);
-        setNewDummyCompetencies(currentValue || '');
-        break;
-      case 'pts_number':
-        setEditingDummyPtsNumber(dummyUserId);
-        setNewDummyPtsNumber(currentValue || '');
-        break;
-    }
-  };
-
-  const cancelEditingDummyField = (field) => {
-    switch (field) {
-      case 'username':
-        setEditingDummyUsername(null);
-        setNewDummyUsername('');
-        break;
-      case 'name':
-        setEditingDummyName(null);
-        setNewDummyName('');
-        break;
-      case 'email':
-        setEditingDummyEmail(null);
-        setNewDummyEmail('');
-        break;
-      case 'avatar':
-        setEditingDummyAvatar(null);
-        setNewDummyAvatar('');
-        break;
-      case 'team_role':
-        setEditingDummyTeamRole(null);
-        setNewDummyTeamRole('');
-        break;
-      case 'department':
-        setEditingDummyDepartment(null);
-        setNewDummyDepartment('');
-        break;
-      case 'organisation':
-        setEditingDummyOrganisation(null);
-        setNewDummyOrganisation('');
-        break;
-      case 'mobile_number':
-        setEditingDummyMobileNumber(null);
-        setNewDummyMobileNumber('');
-        break;
-      case 'competencies':
-        setEditingDummyCompetencies(null);
-        setNewDummyCompetencies('');
-        break;
-      case 'pts_number':
-        setEditingDummyPtsNumber(null);
-        setNewDummyPtsNumber('');
-        break;
-    }
-  };
-
-  const saveDummyField = async (dummyUserId, field) => {
-    let value;
-    switch (field) {
-      case 'username':
-        value = newDummyUsername;
-        break;
-      case 'name':
-        value = newDummyName;
-        break;
-      case 'email':
-        value = newDummyEmail;
-        break;
-      case 'avatar':
-        value = newDummyAvatar;
-        break;
-      case 'team_role':
-        value = newDummyTeamRole;
-        break;
-      case 'department':
-        value = newDummyDepartment;
-        break;
-      case 'organisation':
-        value = newDummyOrganisation;
-        break;
-      case 'mobile_number':
-        value = newDummyMobileNumber;
-        break;
-      case 'competencies':
-        value = newDummyCompetencies;
-        break;
-      case 'pts_number':
-        value = newDummyPtsNumber;
-        break;
-    }
-
-    await updateDummyUser(dummyUserId, field, value);
-    cancelEditingDummyField(field);
-  };
+  // [Deleted dummy field editing functions]
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Never';
@@ -1886,825 +1272,136 @@ const UserAdmin = () => {
       </div>
 
       {activeTab === 'real-users' ? (
-        <div className="bg-white shadow-sm rounded-lg border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Real Users</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleAddRealUserClick}
-                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 text-sm"
-                >
-                  Add Real User
-                </button>
-                <button
-                  onClick={() => setShowInviteUser(true)}
-                  className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 text-sm"
-                >
-                  Invite User
-                </button>
-                <button
-                  onClick={fetchUsers}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 text-sm"
-                >
-                  Refresh
-                </button>
-              </div>
+        <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+            <h2 className="text-lg font-medium text-gray-900">Real Users</h2>
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddRealUserClick}
+                className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors text-sm font-medium shadow-sm"
+              >
+                <UserPlus size={16} /> Add Real User
+              </button>
+              <button
+                onClick={() => setShowInviteUser(true)}
+                className="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors text-sm font-medium shadow-sm"
+              >
+                <Mail size={16} /> Invite User
+              </button>
+              <button
+                onClick={fetchUsers}
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
+              >
+                <RefreshCw size={16} /> Refresh
+              </button>
             </div>
           </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('avatar')}
-                >
-                  <div className="flex items-center">
-                    Avatar
-                    <span className="ml-1">{getSortIcon('avatar')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('name')}
-                >
-                  <div className="flex items-center">
-                    Name
-                    <span className="ml-1">{getSortIcon('name')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('username')}
-                >
-                  <div className="flex items-center">
-                    Username
-                    <span className="ml-1">{getSortIcon('username')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('email')}
-                >
-                  <div className="flex items-center">
-                    Email
-                    <span className="ml-1">{getSortIcon('email')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('mobile_number')}
-                >
-                  <div className="flex items-center">
-                    Mobile Number
-                    <span className="ml-1">{getSortIcon('mobile_number')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('privilege')}
-                >
-                  <div className="flex items-center">
-                    Privilege
-                    <span className="ml-1">{getSortIcon('privilege')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('team_role')}
-                >
-                  <div className="flex items-center">
-                    Team Role
-                    <span className="ml-1">{getSortIcon('team_role')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('department')}
-                >
-                  <div className="flex items-center">
-                    Department
-                    <span className="ml-1">{getSortIcon('department')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('organisation')}
-                >
-                  <div className="flex items-center">
-                    Organisation
-                    <span className="ml-1">{getSortIcon('organisation')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('competencies')}
-                >
-                  <div className="flex items-center">
-                    Competencies
-                    <span className="ml-1">{getSortIcon('competencies')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('pts_number')}
-                >
-                  <div className="flex items-center">
-                    PTS Number
-                    <span className="ml-1">{getSortIcon('pts_number')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('created_at')}
-                >
-                  <div className="flex items-center">
-                    Created
-                    <span className="ml-1">{getSortIcon('created_at')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('last_login')}
-                >
-                  <div className="flex items-center">
-                    Last Login
-                    <span className="ml-1">{getSortIcon('last_login')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('hire_date')}
-                >
-                  <div className="flex items-center">
-                    Hire Date
-                    <span className="ml-1">{getSortIcon('hire_date')}</span>
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('termination_date')}
-                >
-                  <div className="flex items-center">
-                    Termination Date
-                    <span className="ml-1">{getSortIcon('termination_date')}</span>
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  MFA Status
-                </th>
-                {isSuperAdmin && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {getSortedUsers().map((userItem) => (
-                <tr key={userItem.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex-shrink-0 h-10 w-10 relative">
-                      <div className={`h-10 w-10 rounded-full ${getDepartmentColor(userItem.department)} flex items-center justify-center text-white font-medium`}>
-                        {isSuperAdmin && editingAvatar === userItem.id ? (
-                          <input
-                            type="text"
-                            value={newAvatar}
-                            onChange={(e) => setNewAvatar(e.target.value)}
-                            className="w-8 h-8 text-center text-xs text-white bg-transparent border border-white rounded-full focus:outline-none focus:ring-1 focus:ring-white"
-                            maxLength="3"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                updateAvatar(userItem.id, newAvatar);
-                              } else if (e.key === 'Escape') {
-                                cancelEditingAvatar();
-                              }
-                            }}
-                            placeholder="ABC"
-                          />
-                        ) : (
-                          getAvatarText(userItem)
-                        )}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['Avatar', 'Name', 'Username', 'Email', 'Mobile', 'Privilege', 'Role & Dept', 'Organisation', 'Status', 'Actions'].map((header) => (
+                    <th
+                      key={header}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {getSortedData(users).map((userItem) => (
+                  <tr key={userItem.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className={`h-10 w-10 rounded-full ${getDepartmentColor(userItem.department)} flex items-center justify-center text-white font-medium shadow-sm`}>
+                        {getAvatarText(userItem)}
                       </div>
-                      {isSuperAdmin && editingAvatar !== userItem.id && (
-                        <button
-                          onClick={() => startEditingAvatar(userItem)}
-                          className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs hover:bg-blue-700"
-                          title="Edit avatar"
-                        >
-                          ✏️
-                        </button>
-                      )}
-                      {isSuperAdmin && editingAvatar === userItem.id && (
-                        <div className="absolute -bottom-1 -right-1 flex gap-1">
-                          <button
-                            onClick={() => updateAvatar(userItem.id, newAvatar)}
-                            className="w-4 h-4 bg-green-600 rounded-full flex items-center justify-center text-white text-xs hover:bg-green-700"
-                            title="Save"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={cancelEditingAvatar}
-                            className="w-4 h-4 bg-red-600 rounded-full flex items-center justify-center text-white text-xs hover:bg-red-700"
-                            title="Cancel"
-                          >
-                            ✗
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {isSuperAdmin && editingName === userItem.id ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={newName}
-                            onChange={(e) => setNewName(e.target.value)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 w-32"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                updateName(userItem.id, newName);
-                              } else if (e.key === 'Escape') {
-                                cancelEditingName();
-                              }
-                            }}
-                          />
-                          <button
-                            onClick={() => updateName(userItem.id, newName)}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                            title="Save"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={cancelEditingName}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                            title="Cancel"
-                          >
-                            ✗
-                          </button>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{userItem.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      @{userItem.username}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {userItem.email}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {userItem.mobile_number || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full ${getPrivilegeColor(userItem.privilege)}`}>
+                        {userItem.privilege}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-700">{userItem.team_role || '-'}</span>
+                        <span className="text-xs text-gray-400">{userItem.department || '-'}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {userItem.organisation || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {mfaStatuses[userItem.id] ? (
+                        <div className="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full w-fit">
+                          <Check size={14} className="mr-1" />
+                          <span className="text-xs font-medium">MFA On</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1">
-                          <span>{userItem.name}</span>
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => startEditingName(userItem)}
-                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                              title="Edit name"
-                            >
-                              ✏️
-                            </button>
-                          )}
-                        </div>
+                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">MFA Off</span>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">
-                      {isSuperAdmin && editingUsername === userItem.id ? (
-                        <div className="flex items-center gap-1">
-                          <span>@</span>
-                          <input
-                            type="text"
-                            value={newUsername}
-                            onChange={(e) => setNewUsername(e.target.value)}
-                            className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 w-20"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                updateUsername(userItem.id, newUsername);
-                              } else if (e.key === 'Escape') {
-                                cancelEditingUsername();
-                              }
-                            }}
-                          />
-                          <button
-                            onClick={() => updateUsername(userItem.id, newUsername)}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                            title="Save"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={cancelEditingUsername}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                            title="Cancel"
-                          >
-                            ✗
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span>@{userItem.username}</span>
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => startEditingUsername(userItem)}
-                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                              title="Edit username"
-                            >
-                              ✏️
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {userItem.email}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {isSuperAdmin && editingMobileNumber === userItem.id ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="tel"
-                          value={newMobileNumber}
-                          onChange={(e) => setNewMobileNumber(e.target.value)}
-                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 w-32"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              updateMobileNumber(userItem.id, newMobileNumber);
-                            } else if (e.key === 'Escape') {
-                              cancelEditingMobileNumber();
-                            }
-                          }}
-                          placeholder="Phone number"
-                        />
-                        <button
-                          onClick={() => updateMobileNumber(userItem.id, newMobileNumber)}
-                          className="text-green-600 hover:text-green-800 text-xs"
-                          title="Save"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={cancelEditingMobileNumber}
-                          className="text-red-600 hover:text-red-800 text-xs"
-                          title="Cancel"
-                        >
-                          ✗
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span>{userItem.mobile_number || 'Not set'}</span>
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => startEditingMobileNumber(userItem)}
-                            className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                            title="Edit mobile number"
-                          >
-                            ✏️
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPrivilegeColor(userItem.privilege)}`}>
-                      {userItem.email === 'colin.rogers@inorail.co.uk' ? 'Super Admin' : userItem.privilege}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {isSuperAdmin && editingTeamRole === userItem.id ? (
-                      <div className="flex items-center gap-1">
-                        <select
-                          value={newTeamRole}
-                          onChange={(e) => setNewTeamRole(e.target.value)}
-                          className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              updateTeamRole(userItem.id, newTeamRole);
-                            } else if (e.key === 'Escape') {
-                              cancelEditingTeamRole();
-                            }
-                          }}
-                          style={{
-                            backgroundColor: 'white',
-                            color: 'black'
-                          }}
-                        >
-                          {teamRoles.map(role => (
-                            <option key={role} value={role} style={{ backgroundColor: 'white', color: 'black' }}>
-                              {role}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => updateTeamRole(userItem.id, newTeamRole)}
-                          className="text-green-600 hover:text-green-800 text-xs"
-                          title="Save"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={cancelEditingTeamRole}
-                          className="text-red-600 hover:text-red-800 text-xs"
-                          title="Cancel"
-                        >
-                          ✗
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span>{userItem.team_role || 'Not assigned'}</span>
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => startEditingTeamRole(userItem)}
-                            className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                            title="Edit team role"
-                          >
-                            ✏️
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {isSuperAdmin && editingDepartment === userItem.id ? (
-                      <div className="flex items-center gap-1">
-                        <select
-                          value={newDepartment}
-                          onChange={(e) => setNewDepartment(e.target.value)}
-                          className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              updateDepartment(userItem.id, newDepartment);
-                            } else if (e.key === 'Escape') {
-                              cancelEditingDepartment();
-                            }
-                          }}
-                          style={{
-                            backgroundColor: 'white',
-                            color: 'black'
-                          }}
-                        >
-                          <option value="" style={{ backgroundColor: 'white', color: 'black' }}>Select Department</option>
-                          {departments.map(dept => (
-                            <option key={dept} value={dept} style={{ backgroundColor: 'white', color: 'black' }}>
-                              {dept}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => updateDepartment(userItem.id, newDepartment)}
-                          className="text-green-600 hover:text-green-800 text-xs"
-                          title="Save"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={cancelEditingDepartment}
-                          className="text-red-600 hover:text-red-800 text-xs"
-                          title="Cancel"
-                        >
-                          ✗
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span>{userItem.department || 'Not assigned'}</span>
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => startEditingDepartment(userItem)}
-                            className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                            title="Edit department"
-                          >
-                            ✏️
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {isSuperAdmin && editingOrganisation === userItem.id ? (
-                      <div className="flex items-center gap-1">
-                        <select
-                          value={newOrganisation}
-                          onChange={(e) => setNewOrganisation(e.target.value)}
-                          className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              updateOrganisation(userItem.id, newOrganisation);
-                            } else if (e.key === 'Escape') {
-                              cancelEditingOrganisation();
-                            }
-                          }}
-                          style={{
-                            backgroundColor: 'white',
-                            color: 'black'
-                          }}
-                        >
-                          <option value="" style={{ backgroundColor: 'white', color: 'black' }}>Select Organisation</option>
-                          {organisations.map(org => (
-                            <option key={org} value={org} style={{ backgroundColor: 'white', color: 'black' }}>
-                              {org}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => updateOrganisation(userItem.id, newOrganisation)}
-                          className="text-green-600 hover:text-green-800 text-xs"
-                          title="Save"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={cancelEditingOrganisation}
-                          className="text-red-600 hover:text-red-800 text-xs"
-                          title="Cancel"
-                        >
-                          ✗
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span>{userItem.organisation || 'Not assigned'}</span>
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => startEditingOrganisation(userItem)}
-                            className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                            title="Edit organisation"
-                          >
-                            ✏️
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {isSuperAdmin && editingCompetencies === userItem.id ? (
-                      <div className="flex flex-col gap-1 w-full">
-                        <div className="max-h-40 overflow-y-auto border border-gray-300 rounded p-2 bg-white">
-                          {competencies.map(comp => {
-                            const selectedCompetencies = newCompetencies ? newCompetencies.split(',').map(c => c.trim()) : [];
-                            return (
-                              <label key={comp} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedCompetencies.includes(comp)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      const updated = selectedCompetencies.length > 0
-                                        ? [...selectedCompetencies, comp].join(', ')
-                                        : comp;
-                                      setNewCompetencies(updated);
-                                    } else {
-                                      const updated = selectedCompetencies.filter(c => c !== comp);
-                                      setNewCompetencies(updated.join(', '));
-                                    }
-                                  }}
-                                  className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
-                                />
-                                <span className="text-xs">{comp}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => updateCompetencies(userItem.id, newCompetencies)}
-                            className="text-green-600 hover:text-green-800 text-xs px-2 py-1 border border-green-300 rounded bg-green-50"
-                            title="Save"
-                          >
-                            ✓ Save
-                          </button>
-                          <button
-                            onClick={cancelEditingCompetencies}
-                            className="text-red-600 hover:text-red-800 text-xs px-2 py-1 border border-red-300 rounded bg-red-50"
-                            title="Cancel"
-                          >
-                            ✗ Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs">{userItem.competencies || 'Not assigned'}</span>
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => startEditingCompetencies(userItem)}
-                            className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                            title="Edit competencies"
-                          >
-                            ✏️
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {isSuperAdmin && editingPtsNumber === userItem.id ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={newPtsNumber}
-                          onChange={(e) => setNewPtsNumber(e.target.value)}
-                          className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 w-32"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              updatePtsNumber(userItem.id, newPtsNumber);
-                            } else if (e.key === 'Escape') {
-                              cancelEditingPtsNumber();
-                            }
-                          }}
-                          placeholder="Enter PTS Number"
-                        />
-                        <button
-                          onClick={() => updatePtsNumber(userItem.id, newPtsNumber)}
-                          className="text-green-600 hover:text-green-800 text-xs"
-                          title="Save"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={cancelEditingPtsNumber}
-                          className="text-red-600 hover:text-red-800 text-xs"
-                          title="Cancel"
-                        >
-                          ✗
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <span>{userItem.pts_number || 'Not assigned'}</span>
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => startEditingPtsNumber(userItem)}
-                            className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                            title="Edit PTS number"
-                          >
-                            ✏️
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(userItem.created_at)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(userItem.last_login)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {isSuperAdmin && editingHireDate === userItem.id ? (
-                      <>
-                        <input
-                          type="date"
-                          value={newHireDate}
-                          onChange={(e) => setNewHireDate(e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              handleUpdateHireDate(userItem.id);
-                            }
-                          }}
-                        />
-                        <div className="flex gap-1 mt-1">
-                          <button
-                            onClick={() => handleUpdateHireDate(userItem.id)}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={() => setEditingHireDate(null)}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <span
-                        onClick={() => {
-                          if (isSuperAdmin) {
-                            setEditingHireDate(userItem.id);
-                            setNewHireDate(userItem.hire_date || '');
-                          }
-                        }}
-                        className={isSuperAdmin ? "cursor-pointer hover:bg-gray-100 px-2 py-1 rounded" : ""}
-                      >
-                        {userItem.hire_date ? formatDate(userItem.hire_date) : '-'}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {isSuperAdmin && editingTerminationDate === userItem.id ? (
-                      <>
-                        <input
-                          type="date"
-                          value={newTerminationDate}
-                          onChange={(e) => setNewTerminationDate(e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              handleUpdateTerminationDate(userItem.id);
-                            }
-                          }}
-                        />
-                        <div className="flex gap-1 mt-1">
-                          <button
-                            onClick={() => handleUpdateTerminationDate(userItem.id)}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={() => setEditingTerminationDate(null)}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <span
-                        onClick={() => {
-                          if (isSuperAdmin) {
-                            setEditingTerminationDate(userItem.id);
-                            setNewTerminationDate(userItem.termination_date || '');
-                          }
-                        }}
-                        className={isSuperAdmin ? "cursor-pointer hover:bg-gray-100 px-2 py-1 rounded" : ""}
-                      >
-                        {userItem.termination_date ? formatDate(userItem.termination_date) : '-'}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {mfaStatuses[userItem.id] ? (
-                      <div className="flex items-center">
-                        <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                          <svg className="inline w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
-                          Enabled
-                        </span>
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => { setUserToResetMFA(userItem); setIsResetMFAModalOpen(true); }}
-                            className="ml-2 p-1 text-orange-600 hover:text-orange-800"
-                            title="Reset MFA"
-                          >
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
-                        Disabled
-                      </span>
-                    )}
-                  </td>
-                  {isSuperAdmin && (
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <select
-                          value={userItem.privilege}
-                          onChange={(e) => updateUserPrivilege(userItem.id, e.target.value)}
-                          className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          disabled={!isSuperAdmin && userItem.privilege === 'Admin'}
-                          style={{
-                            backgroundColor: 'white',
-                            color: 'black'
-                          }}
-                        >
-                          <option value="Viewer" style={{ backgroundColor: 'white', color: 'black' }}>Viewer</option>
-                          <option value="Viewer+" style={{ backgroundColor: 'white', color: 'black' }}>Viewer+</option>
-                          <option value="Editor" style={{ backgroundColor: 'white', color: 'black' }}>Editor</option>
-                          <option value="Editor+" style={{ backgroundColor: 'white', color: 'black' }}>Editor+</option>
-                          {isSuperAdmin && <option value="Admin" style={{ backgroundColor: 'white', color: 'black' }}>Admin</option>}
-                        </select>
-                        {userItem.id !== user?.id && (
+                      <div className="flex items-center gap-2">
+                        {isSuperAdmin && (
+                          <>
+                            <button
+                              onClick={() => handleEditUser(userItem)}
+                              className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                              title="Edit User"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => { setUserToResetMFA(userItem); setIsResetMFAModalOpen(true); }}
+                              className="p-1.5 text-orange-600 hover:text-orange-900 hover:bg-orange-50 rounded transition-colors"
+                              title="Reset MFA"
+                            >
+                              <ShieldAlert size={18} />
+                            </button>
+                          </>
+                        )}
+                        {userItem.id !== user?.id && isSuperAdmin && (
                           <button
                             onClick={() => deleteUser(userItem.id, userItem.email)}
-                            className="text-red-600 hover:text-red-900 text-xs bg-red-50 px-2 py-1 rounded hover:bg-red-100"
+                            className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                            title="Delete User"
                           >
-                            Soft Delete
+                            <Trash2 size={18} />
                           </button>
                         )}
                       </div>
                     </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {users.length === 0 && (
-          <div className="text-center py-12">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
-            <p className="mt-1 text-sm text-gray-500">Get started by creating a new user account.</p>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+
+          {users.length === 0 && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <UserPlus size={32} className="text-gray-400" />
+              </div>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
+              <p className="mt-1 text-sm text-gray-500">Get started by creating a new user account.</p>
+            </div>
+          )}
+        </div>
       ) : activeTab === 'dummy-users' ? (
         // Dummy Users Tab
         <div className="bg-white shadow-sm rounded-lg border border-gray-200">
@@ -2732,42 +1429,30 @@ const UserAdmin = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Avatar
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Username
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Mobile Number
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Team Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Department
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Organisation
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Competencies
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    PTS Number
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
+                  {[
+                    { label: 'Avatar', key: 'avatar' },
+                    { label: 'Name', key: 'name' },
+                    { label: 'Username', key: 'username' },
+                    { label: 'Email', key: 'email' },
+                    { label: 'Mobile', key: 'mobile_number' },
+                    { label: 'Role & Dept', key: 'team_role' }, // Sort by team_role primarily
+                    { label: 'Organisation', key: 'organisation' },
+                    { label: 'Competencies', key: 'competencies' },
+                    { label: 'PTS', key: 'pts_number' },
+                    { label: 'Status', key: 'is_active' },
+                    { label: 'Created', key: 'created_at' }
+                  ].map((col) => (
+                    <th
+                      key={col.key}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort(col.key)}
+                    >
+                      <div className="flex items-center">
+                        {col.label}
+                        <span className="ml-1">{getSortIcon(col.key)}</span>
+                      </div>
+                    </th>
+                  ))}
                   {isAdmin && (
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -2776,549 +1461,81 @@ const UserAdmin = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {dummyUsers.map((dummyUser) => (
-                  <tr key={dummyUser.id}>
+                {getSortedData(dummyUsers).map((dummyUser) => (
+                  <tr key={dummyUser.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex-shrink-0 h-10 w-10 relative">
-                        <div className="h-10 w-10 rounded-full bg-green-500 flex items-center justify-center text-white font-medium">
-                          {isAdmin && editingDummyAvatar === dummyUser.id ? (
-                            <input
-                              type="text"
-                              value={newDummyAvatar}
-                              onChange={(e) => setNewDummyAvatar(e.target.value)}
-                              className="w-8 h-8 text-center text-xs text-white bg-transparent border border-white rounded-full focus:outline-none focus:ring-1 focus:ring-white"
-                              maxLength="3"
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  saveDummyField(dummyUser.id, 'avatar');
-                                } else if (e.key === 'Escape') {
-                                  cancelEditingDummyField('avatar');
-                                }
-                              }}
-                              placeholder="ABC"
-                            />
-                          ) : (
-                            dummyUser.avatar || 'DU'
-                          )}
-                        </div>
-                        {isAdmin && editingDummyAvatar !== dummyUser.id && (
-                          <button
-                            onClick={() => startEditingDummyField(dummyUser.id, 'avatar', dummyUser.avatar)}
-                            className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-600 rounded-full flex items-center justify-center text-white text-xs hover:bg-green-700"
-                            title="Edit avatar"
-                          >
-                            ✏️
-                          </button>
-                        )}
-                        {isAdmin && editingDummyAvatar === dummyUser.id && (
-                          <div className="absolute -bottom-1 -right-1 flex gap-1">
-                            <button
-                              onClick={() => saveDummyField(dummyUser.id, 'avatar')}
-                              className="w-4 h-4 bg-green-600 rounded-full flex items-center justify-center text-white text-xs hover:bg-green-700"
-                              title="Save"
-                            >
-                              ✓
-                            </button>
-                            <button
-                              onClick={() => cancelEditingDummyField('avatar')}
-                              className="w-4 h-4 bg-red-600 rounded-full flex items-center justify-center text-white text-xs hover:bg-red-700"
-                              title="Cancel"
-                            >
-                              ✗
-                            </button>
-                          </div>
-                        )}
+                      <div className="h-10 w-10 rounded-full bg-green-600 flex items-center justify-center text-white font-medium shadow-sm">
+                        {dummyUser.avatar || 'DU'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {isAdmin && editingDummyName === dummyUser.id ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="text"
-                              value={newDummyName}
-                              onChange={(e) => setNewDummyName(e.target.value)}
-                              className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 w-32"
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  saveDummyField(dummyUser.id, 'name');
-                                } else if (e.key === 'Escape') {
-                                  cancelEditingDummyField('name');
-                                }
-                              }}
-                            />
-                            <button
-                              onClick={() => saveDummyField(dummyUser.id, 'name')}
-                              className="text-green-600 hover:text-green-800 text-xs"
-                              title="Save"
-                            >
-                              ✓
-                            </button>
-                            <button
-                              onClick={() => cancelEditingDummyField('name')}
-                              className="text-red-600 hover:text-red-800 text-xs"
-                              title="Cancel"
-                            >
-                              ✗
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <span>{dummyUser.name}</span>
-                            {isAdmin && (
-                              <button
-                                onClick={() => startEditingDummyField(dummyUser.id, 'name', dummyUser.name)}
-                                className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                                title="Edit name"
-                              >
-                                ✏️
-                              </button>
-                            )}
-                          </div>
-                        )}
+                      <div className="text-sm font-medium text-gray-900">{dummyUser.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      @{dummyUser.username}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {dummyUser.email}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {dummyUser.mobile_number || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-700">{dummyUser.team_role || '-'}</span>
+                        <span className="text-xs text-gray-400">{dummyUser.department || '-'}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {isAdmin && editingDummyUsername === dummyUser.id ? (
-                          <div className="flex items-center gap-1">
-                            <span>@</span>
-                            <input
-                              type="text"
-                              value={newDummyUsername}
-                              onChange={(e) => setNewDummyUsername(e.target.value)}
-                              className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 w-20"
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  saveDummyField(dummyUser.id, 'username');
-                                } else if (e.key === 'Escape') {
-                                  cancelEditingDummyField('username');
-                                }
-                              }}
-                            />
-                            <button
-                              onClick={() => saveDummyField(dummyUser.id, 'username')}
-                              className="text-green-600 hover:text-green-800 text-xs"
-                              title="Save"
-                            >
-                              ✓
-                            </button>
-                            <button
-                              onClick={() => cancelEditingDummyField('username')}
-                              className="text-red-600 hover:text-red-800 text-xs"
-                              title="Cancel"
-                            >
-                              ✗
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <span>@{dummyUser.username}</span>
-                            {isAdmin && (
-                              <button
-                                onClick={() => startEditingDummyField(dummyUser.id, 'username', dummyUser.username)}
-                                className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                                title="Edit username"
-                              >
-                                ✏️
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {dummyUser.organisation || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {isAdmin && editingDummyEmail === dummyUser.id ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="email"
-                            value={newDummyEmail}
-                            onChange={(e) => setNewDummyEmail(e.target.value)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 w-40"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                saveDummyField(dummyUser.id, 'email');
-                              } else if (e.key === 'Escape') {
-                                cancelEditingDummyField('email');
-                              }
-                            }}
-                          />
-                          <button
-                            onClick={() => saveDummyField(dummyUser.id, 'email')}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                            title="Save"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={() => cancelEditingDummyField('email')}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                            title="Cancel"
-                          >
-                            ✗
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span>{dummyUser.email}</span>
-                          {isAdmin && (
-                            <button
-                              onClick={() => startEditingDummyField(dummyUser.id, 'email', dummyUser.email)}
-                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                              title="Edit email"
-                            >
-                              ✏️
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {isAdmin && editingDummyMobileNumber === dummyUser.id ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="tel"
-                            value={newDummyMobileNumber}
-                            onChange={(e) => setNewDummyMobileNumber(e.target.value)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 w-32"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                saveDummyField(dummyUser.id, 'mobile_number');
-                              } else if (e.key === 'Escape') {
-                                cancelEditingDummyField('mobile_number');
-                              }
-                            }}
-                            placeholder="Phone number"
-                          />
-                          <button
-                            onClick={() => saveDummyField(dummyUser.id, 'mobile_number')}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                            title="Save"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={() => cancelEditingDummyField('mobile_number')}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                            title="Cancel"
-                          >
-                            ✗
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span>{dummyUser.mobile_number || 'Not set'}</span>
-                          {isAdmin && (
-                            <button
-                              onClick={() => startEditingDummyField(dummyUser.id, 'mobile_number', dummyUser.mobile_number)}
-                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                              title="Edit mobile number"
-                            >
-                              ✏️
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {isAdmin && editingDummyTeamRole === dummyUser.id ? (
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={newDummyTeamRole}
-                            onChange={(e) => setNewDummyTeamRole(e.target.value)}
-                            className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                saveDummyField(dummyUser.id, 'team_role');
-                              } else if (e.key === 'Escape') {
-                                cancelEditingDummyField('team_role');
-                              }
-                            }}
-                            style={{ backgroundColor: 'white', color: 'black' }}
-                          >
-                            <option value="" style={{ backgroundColor: 'white', color: 'black' }}>Select Team Role</option>
-                            {teamRoles.map(role => (
-                              <option key={role} value={role} style={{ backgroundColor: 'white', color: 'black' }}>
-                                {role}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => saveDummyField(dummyUser.id, 'team_role')}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                            title="Save"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={() => cancelEditingDummyField('team_role')}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                            title="Cancel"
-                          >
-                            ✗
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span>{dummyUser.team_role || 'Not assigned'}</span>
-                          {isAdmin && (
-                            <button
-                              onClick={() => startEditingDummyField(dummyUser.id, 'team_role', dummyUser.team_role)}
-                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                              title="Edit team role"
-                            >
-                              ✏️
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {isAdmin && editingDummyDepartment === dummyUser.id ? (
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={newDummyDepartment}
-                            onChange={(e) => setNewDummyDepartment(e.target.value)}
-                            className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                saveDummyField(dummyUser.id, 'department');
-                              } else if (e.key === 'Escape') {
-                                cancelEditingDummyField('department');
-                              }
-                            }}
-                            style={{ backgroundColor: 'white', color: 'black' }}
-                          >
-                            <option value="" style={{ backgroundColor: 'white', color: 'black' }}>Select Department</option>
-                            {departments.map(dept => (
-                              <option key={dept} value={dept} style={{ backgroundColor: 'white', color: 'black' }}>
-                                {dept}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => saveDummyField(dummyUser.id, 'department')}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                            title="Save"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={() => cancelEditingDummyField('department')}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                            title="Cancel"
-                          >
-                            ✗
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span>{dummyUser.department || 'Not assigned'}</span>
-                          {isAdmin && (
-                            <button
-                              onClick={() => startEditingDummyField(dummyUser.id, 'department', dummyUser.department)}
-                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                              title="Edit department"
-                            >
-                              ✏️
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {isAdmin && editingDummyOrganisation === dummyUser.id ? (
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={newDummyOrganisation}
-                            onChange={(e) => setNewDummyOrganisation(e.target.value)}
-                            className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                saveDummyField(dummyUser.id, 'organisation');
-                              } else if (e.key === 'Escape') {
-                                cancelEditingDummyField('organisation');
-                              }
-                            }}
-                            style={{ backgroundColor: 'white', color: 'black' }}
-                          >
-                            <option value="" style={{ backgroundColor: 'white', color: 'black' }}>Select Organisation</option>
-                            {organisations.map(org => (
-                              <option key={org} value={org} style={{ backgroundColor: 'white', color: 'black' }}>
-                                {org}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => saveDummyField(dummyUser.id, 'organisation')}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                            title="Save"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={() => cancelEditingDummyField('organisation')}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                            title="Cancel"
-                          >
-                            ✗
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span>{dummyUser.organisation || 'Not assigned'}</span>
-                          {isAdmin && (
-                            <button
-                              onClick={() => startEditingDummyField(dummyUser.id, 'organisation', dummyUser.organisation)}
-                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                              title="Edit organisation"
-                            >
-                              ✏️
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {isAdmin && editingDummyCompetencies === dummyUser.id ? (
-                        <div className="flex flex-col gap-1 w-full">
-                          <div className="max-h-40 overflow-y-auto border border-gray-300 rounded p-2 bg-white">
-                            {competencies.map(comp => {
-                              const selectedCompetencies = newDummyCompetencies ? newDummyCompetencies.split(',').map(c => c.trim()) : [];
-                              return (
-                                <label key={comp} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedCompetencies.includes(comp)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        const updated = selectedCompetencies.length > 0
-                                          ? [...selectedCompetencies, comp].join(', ')
-                                          : comp;
-                                        setNewDummyCompetencies(updated);
-                                      } else {
-                                        const updated = selectedCompetencies.filter(c => c !== comp);
-                                        setNewDummyCompetencies(updated.join(', '));
-                                      }
-                                    }}
-                                    className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
-                                  />
-                                  <span className="text-xs">{comp}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => saveDummyField(dummyUser.id, 'competencies')}
-                              className="text-green-600 hover:text-green-800 text-xs px-2 py-1 border border-green-300 rounded bg-green-50"
-                              title="Save"
-                            >
-                              ✓ Save
-                            </button>
-                            <button
-                              onClick={() => cancelEditingDummyField('competencies')}
-                              className="text-red-600 hover:text-red-800 text-xs px-2 py-1 border border-red-300 rounded bg-red-50"
-                              title="Cancel"
-                            >
-                              ✗ Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs">{dummyUser.competencies || 'Not assigned'}</span>
-                          {isAdmin && (
-                            <button
-                              onClick={() => startEditingDummyField(dummyUser.id, 'competencies', dummyUser.competencies)}
-                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                              title="Edit competencies"
-                            >
-                              ✏️
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {isAdmin && editingDummyPtsNumber === dummyUser.id ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={newDummyPtsNumber}
-                            onChange={(e) => setNewDummyPtsNumber(e.target.value)}
-                            className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 w-32"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                saveDummyField(dummyUser.id, 'pts_number');
-                              } else if (e.key === 'Escape') {
-                                cancelEditingDummyField('pts_number');
-                              }
-                            }}
-                            placeholder="Enter PTS Number"
-                          />
-                          <button
-                            onClick={() => saveDummyField(dummyUser.id, 'pts_number')}
-                            className="text-green-600 hover:text-green-800 text-xs"
-                            title="Save"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={() => cancelEditingDummyField('pts_number')}
-                            className="text-red-600 hover:text-red-800 text-xs"
-                            title="Cancel"
-                          >
-                            ✗
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span>{dummyUser.pts_number || 'Not assigned'}</span>
-                          {isAdmin && (
-                            <button
-                              onClick={() => startEditingDummyField(dummyUser.id, 'pts_number', dummyUser.pts_number)}
-                              className="text-blue-600 hover:text-blue-800 text-xs ml-1"
-                              title="Edit PTS number"
-                            >
-                              ✏️
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        dummyUser.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {dummyUser.is_active ? 'Active' : 'Inactive'}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <span className="truncate max-w-[150px] block" title={dummyUser.competencies}>
+                        {dummyUser.competencies || '-'}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {dummyUser.pts_number || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => isAdmin && updateDummyUser(dummyUser.id, 'is_active', !dummyUser.is_active)}
+                        className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full transition-colors ${
+                          dummyUser.is_active
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                            : 'bg-red-100 text-red-800 hover:bg-red-200'
+                        }`}
+                        disabled={!isAdmin}
+                        title={isAdmin ? "Click to toggle status" : "Status"}
+                      >
+                        {dummyUser.is_active ? 'Active' : 'Inactive'}
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(dummyUser.created_at)}
                     </td>
-                    {isAdmin && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => updateDummyUser(dummyUser.id, 'is_active', !dummyUser.is_active)}
-                            className={`text-xs px-2 py-1 rounded ${
-                              dummyUser.is_active
-                                ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                                : 'bg-green-50 text-green-600 hover:bg-green-100'
-                            }`}
-                          >
-                            {dummyUser.is_active ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <button
-                            onClick={() => deleteDummyUser(dummyUser.id, dummyUser.name)}
-                            className="text-red-600 hover:text-red-900 text-xs bg-red-50 px-2 py-1 rounded hover:bg-red-100"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        {isAdmin && (
+                          <>
+                            <button
+                              onClick={() => handleEditUser(dummyUser, true)}
+                              className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                              title="Edit Dummy User"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => deleteDummyUser(dummyUser.id, dummyUser.name)}
+                              className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                              title="Delete Dummy User"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -3347,70 +1564,71 @@ const UserAdmin = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deleted At</th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center">Name <span className="ml-1">{getSortIcon('name')}</span></div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('email')}
+                    >
+                      <div className="flex items-center">Email <span className="ml-1">{getSortIcon('email')}</span></div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('type')}
+                    >
+                      <div className="flex items-center">Type <span className="ml-1">{getSortIcon('type')}</span></div>
+                    </th>
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('deleted_at')}
+                    >
+                      <div className="flex items-center">Deleted At <span className="ml-1">{getSortIcon('deleted_at')}</span></div>
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {/* Deleted Real Users */}
-                  {deletedUsers.map((deletedUser) => (
-                    <tr key={`real-${deletedUser.id}`} className="hover:bg-gray-50">
+                  {getSortedData([
+                    ...deletedUsers.map(u => ({ ...u, type: 'Real User' })),
+                    ...deletedDummyUsers.map(u => ({ ...u, type: 'Dummy User' }))
+                  ]).map((deletedUser) => (
+                    <tr key={`${deletedUser.type}-${deletedUser.id}`} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
-                            <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                              <span className="text-sm font-medium text-gray-700">{deletedUser.username?.substring(0, 2).toUpperCase()}</span>
+                            <div className={`h-10 w-10 rounded-full ${deletedUser.type === 'Real User' ? 'bg-gray-300' : 'bg-blue-300'} flex items-center justify-center`}>
+                              <span className={`text-sm font-medium ${deletedUser.type === 'Real User' ? 'text-gray-700' : 'text-white'}`}>
+                                {deletedUser.type === 'Real User'
+                                  ? deletedUser.username?.substring(0, 2).toUpperCase()
+                                  : (deletedUser.avatar || deletedUser.name?.substring(0, 2).toUpperCase())}
+                              </span>
                             </div>
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{deletedUser.username}</div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {deletedUser.type === 'Real User' ? deletedUser.username : deletedUser.name}
+                            </div>
+                            {deletedUser.type === 'Dummy User' && (
+                              <div className="text-sm text-gray-500">{deletedUser.username}</div>
+                            )}
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{deletedUser.email}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Real User</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{deletedUser.type}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(deletedUser.deleted_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
                           className="text-green-600 hover:text-green-900 text-xs bg-green-50 px-2 py-1 rounded hover:bg-green-100"
-                          onClick={() => restoreRealUser(deletedUser.id, deletedUser.username)}
-                        >
-                          Restore
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {/* Deleted Dummy Users */}
-                  {deletedDummyUsers.map((deletedDummyUser) => (
-                    <tr key={`dummy-${deletedDummyUser.id}`} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <div className="h-10 w-10 rounded-full bg-blue-300 flex items-center justify-center">
-                              <span className="text-sm font-medium text-white">{deletedDummyUser.avatar || deletedDummyUser.name?.substring(0, 2).toUpperCase()}</span>
-                            </div>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{deletedDummyUser.name}</div>
-                            <div className="text-sm text-gray-500">{deletedDummyUser.username}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{deletedDummyUser.email}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Dummy User</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(deletedDummyUser.deleted_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          className="text-green-600 hover:text-green-900 text-xs bg-green-50 px-2 py-1 rounded hover:bg-green-100"
-                          onClick={() => restoreDummyUser(deletedDummyUser.id, deletedDummyUser.name)}
+                          onClick={() => deletedUser.type === 'Real User' 
+                            ? restoreRealUser(deletedUser.id, deletedUser.username) 
+                            : restoreDummyUser(deletedUser.id, deletedUser.name)}
                         >
                           Restore
                         </button>
@@ -3941,6 +2159,222 @@ const UserAdmin = () => {
                 Create Dummy User
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditModal && editingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">
+                Edit {isDummyUserEdit ? 'Dummy' : 'Real'} User
+              </h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-400 hover:text-gray-500 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUser} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Basic Info */}
+                <div className="col-span-2">
+                  <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Basic Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={editingUser.name}
+                        onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                      <div className="relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <span className="text-gray-500 sm:text-sm">@</span>
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          value={editingUser.username}
+                          onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
+                          className="w-full border border-gray-300 rounded-md pl-7 py-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        required
+                        value={editingUser.email}
+                        onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                      <input
+                        type="tel"
+                        value={editingUser.mobile_number || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, mobile_number: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Role & Access */}
+                <div className="col-span-2 border-t border-gray-200 pt-4">
+                  <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Role & Access</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Team Role</label>
+                      <select
+                        value={editingUser.team_role || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, team_role: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      >
+                        <option value="">Select Role</option>
+                        {teamRoles.map(role => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Privilege</label>
+                      <select
+                        value={editingUser.privilege || 'Viewer'}
+                        onChange={(e) => setEditingUser({ ...editingUser, privilege: e.target.value })}
+                        disabled={editingUser.privilege === 'Admin' && !isSuperAdmin}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 bg-white disabled:bg-gray-100"
+                      >
+                        <option value="Viewer">Viewer</option>
+                        <option value="Viewer+">Viewer+</option>
+                        <option value="Editor">Editor</option>
+                        <option value="Editor+">Editor+</option>
+                        <option value="Admin">Admin</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                      <select
+                        value={editingUser.department || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, department: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      >
+                        <option value="">Select Department</option>
+                        {departments.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Organisation</label>
+                      <select
+                        value={editingUser.organisation || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, organisation: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      >
+                        <option value="">Select Organisation</option>
+                        {organisations.map(org => (
+                          <option key={org} value={org}>{org}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Employment Details */}
+                <div className="col-span-2 border-t border-gray-200 pt-4">
+                  <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Employment Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">PTS Number</label>
+                      <input
+                        type="text"
+                        value={editingUser.pts_number || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, pts_number: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Hire Date</label>
+                      <input
+                        type="date"
+                        value={editingUser.hire_date || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, hire_date: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Termination Date</label>
+                      <input
+                        type="date"
+                        value={editingUser.termination_date || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, termination_date: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Competencies */}
+                <div className="col-span-2 border-t border-gray-200 pt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Competencies</label>
+                  <div className="border border-gray-300 rounded-md p-3 max-h-40 overflow-y-auto bg-gray-50">
+                    <div className="grid grid-cols-2 gap-2">
+                      {competencies.map(comp => {
+                        const currentCompetencies = editingUser.competencies ? editingUser.competencies.split(',').map(c => c.trim()) : [];
+                        return (
+                          <label key={comp} className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={currentCompetencies.includes(comp)}
+                              onChange={(e) => {
+                                let newComps = [...currentCompetencies];
+                                if (e.target.checked) {
+                                  newComps.push(comp);
+                                } else {
+                                  newComps = newComps.filter(c => c !== comp);
+                                }
+                                setEditingUser({ ...editingUser, competencies: newComps.join(', ') });
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <span className="text-sm text-gray-700">{comp}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm"
+                >
+                  <Save size={16} /> Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
