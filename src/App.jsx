@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -49,6 +49,7 @@ import ProjectTasksPage from './pages/ProjectTasksPage';
 import UserContactsPage from './pages/UserContactsPage';
 import SubcontractorsPage from './pages/SubcontractorsPage';
 import UsefulContactsPage from './pages/UsefulContactsPage';
+import UsefulLinksPage from './pages/UsefulLinksPage';
 import OnCallContactsPage from './pages/OnCallContactsPage';
 import FeedbackPage from './pages/FeedbackPage';
 import DeliveryTasksPage from './pages/DeliveryTasksPage';
@@ -728,6 +729,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                 { name: 'On-Call Contacts', parent: 'Contact Details' }
             ]
         },
+        { name: 'Useful Links', icon: Link, show: true },
         {
             name: 'Analytics',
             icon: TrendingUp,
@@ -4045,6 +4047,7 @@ const MainLayout = () => {
             case 'Staff Contacts': return <UserContactsPage />;
             case 'Subcontractors': return <SubcontractorsPage />;
             case 'Useful Contacts': return <UsefulContactsPage />;
+            case 'Useful Links': return <UsefulLinksPage />;
             case 'On-Call Contacts': return <OnCallContactsPage />;
             case 'User Admin': return <UserAdmin />;
             case 'Privilege': return <PrivilegePage />;

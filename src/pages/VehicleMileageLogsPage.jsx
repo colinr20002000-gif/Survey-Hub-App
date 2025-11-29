@@ -23,6 +23,12 @@ const VehicleMileageLogsPage = () => {
     const [selectedInspectionDetail, setSelectedInspectionDetail] = useState(null);
     const [exportingAll, setExportingAll] = useState(false);
     const [cleaningUp, setCleaningUp] = useState(false);
+    const [summaryDateFilter, setSummaryDateFilter] = useState('all'); // all, today, week, month, custom
+    const [summaryStartDate, setSummaryStartDate] = useState('');
+    const [summaryEndDate, setSummaryEndDate] = useState('');
+    const [summaryCurrentPage, setSummaryCurrentPage] = useState(1);
+    const summaryItemsPerPage = 20;
+    const [exportingInspection, setExportingInspection] = useState(null);
 
     // Fetch vehicles from vehicles table
     const fetchVehicles = useCallback(async () => {
@@ -226,6 +232,100 @@ const VehicleMileageLogsPage = () => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     };
+
+    // Filter inspections based on date filter for summary table
+    const getFilteredInspections = () => {
+        let filtered = [...inspections];
+
+        // Apply user filter
+        if (filterUser !== 'all') {
+            filtered = filtered.filter(inspection => inspection.user_id === filterUser);
+        }
+
+        // Apply status filter (based on defects)
+        if (filterStatus !== 'all') {
+            if (filterStatus === 'defects') {
+                filtered = filtered.filter(inspection => inspection.has_defects);
+            } else {
+                // For other status filters, we need to check vehicle status
+                // This is more complex, so for now we'll just filter by defects
+                // You can extend this later for overdue/upcoming/compliant
+            }
+        }
+
+        // Apply date filter
+        if (summaryDateFilter !== 'all') {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            filtered = filtered.filter(inspection => {
+                const inspectionDate = new Date(inspection.inspection_date);
+                const inspectionDay = new Date(inspectionDate.getFullYear(), inspectionDate.getMonth(), inspectionDate.getDate());
+
+                switch (summaryDateFilter) {
+                    case 'today':
+                        return inspectionDay.getTime() === today.getTime();
+                    case 'week': {
+                        const weekAgo = new Date(today);
+                        weekAgo.setDate(weekAgo.getDate() - 7);
+                        return inspectionDay >= weekAgo;
+                    }
+                    case 'month': {
+                        const monthAgo = new Date(today);
+                        monthAgo.setMonth(monthAgo.getMonth() - 1);
+                        return inspectionDay >= monthAgo;
+                    }
+                    case 'custom': {
+                        if (!summaryStartDate && !summaryEndDate) return true;
+                        const start = summaryStartDate ? new Date(summaryStartDate) : null;
+                        const end = summaryEndDate ? new Date(summaryEndDate) : null;
+                        if (start && end) {
+                            return inspectionDay >= start && inspectionDay <= end;
+                        } else if (start) {
+                            return inspectionDay >= start;
+                        } else if (end) {
+                            return inspectionDay <= end;
+                        }
+                        return true;
+                    }
+                    default:
+                        return true;
+                }
+            });
+        }
+
+        return filtered;
+    };
+
+    // Calculate if inspection was overdue
+    const wasInspectionOverdue = (inspection) => {
+        if (!inspection.vehicle_id) return false;
+
+        // Get all inspections for this vehicle before this one
+        const vehicleInspections = inspections
+            .filter(i => i.vehicle_id === inspection.vehicle_id)
+            .sort((a, b) => new Date(a.inspection_date) - new Date(b.inspection_date));
+
+        const currentIndex = vehicleInspections.findIndex(i => i.id === inspection.id);
+        if (currentIndex === 0) return false; // First inspection can't be overdue
+
+        const previousInspection = vehicleInspections[currentIndex - 1];
+        if (!previousInspection) return false;
+
+        const previousDate = new Date(previousInspection.inspection_date);
+        const currentDate = new Date(inspection.inspection_date);
+        const daysDiff = Math.floor((currentDate - previousDate) / (1000 * 60 * 60 * 24));
+
+        return daysDiff > 7; // More than 7 days = overdue
+    };
+
+    // Get paginated inspections for summary table
+    const filteredSummaryInspections = getFilteredInspections();
+    const summaryTotalPages = Math.ceil(filteredSummaryInspections.length / summaryItemsPerPage);
+    const paginatedSummaryInspections = filteredSummaryInspections.slice(
+        (summaryCurrentPage - 1) * summaryItemsPerPage,
+        summaryCurrentPage * summaryItemsPerPage
+    );
 
     // Clean up old inspection photos (keep only last 3 inspections per vehicle)
     const cleanupOldInspectionPhotos = async (vehicleId) => {
@@ -729,6 +829,11 @@ const VehicleMileageLogsPage = () => {
         }
     };
 
+    // Handle quick export from summary table - open modal in hidden mode and auto-export
+    const handleQuickExport = (inspection) => {
+        setExportingInspection(inspection);
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full">
@@ -952,6 +1057,251 @@ const VehicleMileageLogsPage = () => {
                     </div>
                 )}
                 </div>
+
+                {/* Summary Table */}
+                <div className="p-4 md:p-6">
+                    <Card className="overflow-hidden">
+                        <div className="p-4 md:p-6 border-b border-gray-200 dark:border-gray-700">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                <div>
+                                    <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                                        <FileText className="w-5 h-5 md:w-6 md:h-6 mr-2 text-orange-500" />
+                                        Inspection Summary
+                                    </h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                        Complete list of all vehicle inspections
+                                    </p>
+                                </div>
+
+                                {/* Date Filter */}
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <Select
+                                        value={summaryDateFilter}
+                                        onChange={(e) => {
+                                            setSummaryDateFilter(e.target.value);
+                                            setSummaryCurrentPage(1);
+                                        }}
+                                        className="w-full sm:w-auto"
+                                    >
+                                        <option value="all">All Time</option>
+                                        <option value="today">Today</option>
+                                        <option value="week">Last 7 Days</option>
+                                        <option value="month">Last 30 Days</option>
+                                        <option value="custom">Custom Range</option>
+                                    </Select>
+
+                                    {summaryDateFilter === 'custom' && (
+                                        <div className="flex gap-2">
+                                            <Input
+                                                type="date"
+                                                value={summaryStartDate}
+                                                onChange={(e) => {
+                                                    setSummaryStartDate(e.target.value);
+                                                    setSummaryCurrentPage(1);
+                                                }}
+                                                placeholder="Start Date"
+                                                className="w-full sm:w-auto"
+                                            />
+                                            <Input
+                                                type="date"
+                                                value={summaryEndDate}
+                                                onChange={(e) => {
+                                                    setSummaryEndDate(e.target.value);
+                                                    setSummaryCurrentPage(1);
+                                                }}
+                                                placeholder="End Date"
+                                                className="w-full sm:w-auto"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Date
+                                        </th>
+                                        <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Vehicle
+                                        </th>
+                                        <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            User
+                                        </th>
+                                        <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Status
+                                        </th>
+                                        <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Overdue
+                                        </th>
+                                        <th className="px-4 md:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    {paginatedSummaryInspections.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="6" className="px-4 md:px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                                <FileText className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                                                <p className="text-sm">No inspections found</p>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        paginatedSummaryInspections.map((inspection) => {
+                                            const hasDefects = inspection.has_defects;
+                                            const statusBadge = hasDefects
+                                                ? { text: 'Defects Found', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: <AlertTriangle className="w-3 h-3" /> }
+                                                : { text: 'Passed', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: <CheckCircle className="w-3 h-3" /> };
+
+                                            return (
+                                                <tr key={inspection.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                    <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center text-sm text-gray-900 dark:text-white">
+                                                            <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                                                            {formatDate(inspection.inspection_date)}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                                                            {new Date(inspection.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 md:px-6 py-4">
+                                                        <div className="flex items-center">
+                                                            <Car className="w-4 h-4 mr-2 text-orange-500 flex-shrink-0" />
+                                                            <div>
+                                                                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                                    {inspection.vehicles?.name || 'Unknown Vehicle'}
+                                                                </div>
+                                                                {inspection.vehicles?.serial_number && (
+                                                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                                        {inspection.vehicles.serial_number}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm text-gray-900 dark:text-white">
+                                                            {inspection.users?.name || 'Unknown User'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                                                        <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold ${statusBadge.color}`}>
+                                                            {statusBadge.icon}
+                                                            <span>{statusBadge.text}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                                                        {wasInspectionOverdue(inspection) ? (
+                                                            <div className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                                                <AlertTriangle className="w-3 h-3" />
+                                                                <span>Yes</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                                                <CheckCircle className="w-3 h-3" />
+                                                                <span>No</span>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 md:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <div className="flex items-center justify-end space-x-2">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleViewInspectionDetail(inspection)}
+                                                                className="flex items-center space-x-1"
+                                                            >
+                                                                <Eye className="w-4 h-4" />
+                                                                <span className="hidden sm:inline">View</span>
+                                                            </Button>
+                                                            {hasPermission(user?.privilege, 'EXPORT_VEHICLE_INSPECTIONS') && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => handleQuickExport(inspection)}
+                                                                    disabled={exportingInspection?.id === inspection.id}
+                                                                    className="flex items-center space-x-1"
+                                                                >
+                                                                    {exportingInspection?.id === inspection.id ? (
+                                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                                    ) : (
+                                                                        <Download className="w-4 h-4" />
+                                                                    )}
+                                                                    <span className="hidden sm:inline">
+                                                                        {exportingInspection?.id === inspection.id ? 'Exporting...' : 'Download'}
+                                                                    </span>
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {filteredSummaryInspections.length > 0 && (
+                            <div className="px-4 md:px-6 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700">
+                                <div className="flex flex-col md:flex-row justify-between items-center gap-3">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Showing {((summaryCurrentPage - 1) * summaryItemsPerPage) + 1} to {Math.min(summaryCurrentPage * summaryItemsPerPage, filteredSummaryInspections.length)} of <span className="font-semibold text-gray-900 dark:text-white">{filteredSummaryInspections.length}</span> inspections
+                                    </p>
+
+                                    {/* Pagination Controls */}
+                                    {summaryTotalPages > 1 && (
+                                        <div className="flex items-center space-x-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setSummaryCurrentPage(1)}
+                                                disabled={summaryCurrentPage === 1}
+                                                className="px-2 py-1"
+                                            >
+                                                First
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setSummaryCurrentPage(p => Math.max(1, p - 1))}
+                                                disabled={summaryCurrentPage === 1}
+                                                className="px-2 py-1"
+                                            >
+                                                Previous
+                                            </Button>
+                                            <span className="text-sm text-gray-600 dark:text-gray-400 px-2">
+                                                Page {summaryCurrentPage} of {summaryTotalPages}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setSummaryCurrentPage(p => Math.min(summaryTotalPages, p + 1))}
+                                                disabled={summaryCurrentPage === summaryTotalPages}
+                                                className="px-2 py-1"
+                                            >
+                                                Next
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setSummaryCurrentPage(summaryTotalPages)}
+                                                disabled={summaryCurrentPage === summaryTotalPages}
+                                                className="px-2 py-1"
+                                            >
+                                                Last
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </Card>
+                </div>
             </div>
 
             {/* Inspection Modal */}
@@ -998,6 +1348,26 @@ const VehicleMileageLogsPage = () => {
                     }}
                 />
             )}
+
+            {/* Hidden Export Modal - renders inspection detail modal off-screen for auto-export */}
+            {exportingInspection && (
+                <div style={{
+                    position: 'fixed',
+                    left: '-9999px',
+                    top: '0',
+                    width: '800px',
+                    zIndex: -1,
+                    backgroundColor: '#ffffff'
+                }}>
+                    <InspectionDetailModal
+                        inspection={exportingInspection}
+                        autoExport={true}
+                        onClose={() => setExportingInspection(null)}
+                        onExportComplete={() => setExportingInspection(null)}
+                    />
+                </div>
+            )}
+
         </div>
     );
 };
@@ -1661,10 +2031,11 @@ const HistoryModal = ({ vehicle, inspections, onClose, onViewDetail, onDelete, u
 };
 
 // Inspection Detail Modal Component
-const InspectionDetailModal = ({ inspection, onClose }) => {
+const InspectionDetailModal = ({ inspection, onClose, autoExport = false, onExportComplete }) => {
     const [viewingImage, setViewingImage] = useState(null);
     const [exporting, setExporting] = useState(false);
     const contentRef = useRef(null);
+    const [hasAutoExported, setHasAutoExported] = useState(false);
 
     const formatDate = (dateString) => {
         const date = new Date(dateString);
@@ -1709,9 +2080,8 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             const vehicleName = inspection.vehicles?.name || 'vehicle';
-            const registration = inspection.vehicles?.registration || '';
             const date = formatDate(inspection.inspection_date).replace(/\s+/g, '-');
-            const result = await exportAsImage(contentRef.current, vehicleName, date, registration);
+            const result = await exportAsImage(contentRef.current, vehicleName, date, '');
 
             if (!result.success) {
                 alert(`Failed to export as image: ${result.error}`);
@@ -1726,8 +2096,26 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
             contentRef.current.style.height = originalHeight;
 
             setExporting(false);
+
+            // If auto-exporting, call completion callback
+            if (autoExport && onExportComplete) {
+                onExportComplete();
+            }
         }
     };
+
+    // Auto-export effect
+    useEffect(() => {
+        if (autoExport && contentRef.current && !hasAutoExported && !exporting) {
+            setHasAutoExported(true);
+            // Wait for component to fully render, including images
+            setTimeout(() => {
+                if (contentRef.current) {
+                    handleExportAsImage();
+                }
+            }, 800);
+        }
+    }, [autoExport, hasAutoExported, exporting]);
 
     const handleExportAsPDF = async () => {
         if (!contentRef.current) return;
@@ -1802,10 +2190,9 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
         </div>
     );
 
-    return (
-        <Modal isOpen={true} onClose={onClose} title="Inspection Details">
-            <div className="flex flex-col max-h-[80vh]">
-                <div ref={contentRef} className="flex-1 overflow-y-auto p-6">
+    // If auto-exporting, render content without Modal wrapper
+    const content = (
+        <div ref={contentRef} className={autoExport ? "p-6 bg-white" : "flex-1 overflow-y-auto p-6"}>
                     {/* Header Info */}
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
                         <div className="grid grid-cols-2 gap-4">
@@ -1937,16 +2324,18 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
                                             <img
                                                 src={imageUrl}
                                                 alt={`Vehicle photo ${index + 1}`}
-                                                className="w-full h-32 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 cursor-pointer"
+                                                className={`w-full h-32 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 ${!autoExport ? 'cursor-pointer' : ''}`}
                                                 style={{ opacity: 1, visibility: 'visible', display: 'block' }}
-                                                onClick={() => setViewingImage({ url: imageUrl, index })}
+                                                onClick={!autoExport ? () => setViewingImage({ url: imageUrl, index }) : undefined}
                                             />
-                                            <div
-                                                className="absolute inset-0 bg-transparent group-hover:bg-black group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center pointer-events-none cursor-pointer"
-                                                onClick={() => setViewingImage({ url: imageUrl, index })}
-                                            >
-                                                <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                                            </div>
+                                            {!autoExport && (
+                                                <div
+                                                    className="absolute inset-0 bg-transparent group-hover:bg-black group-hover:bg-opacity-30 transition-opacity rounded-lg flex items-center justify-center pointer-events-none cursor-pointer"
+                                                    onClick={() => setViewingImage({ url: imageUrl, index })}
+                                                >
+                                                    <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -1976,6 +2365,18 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
                         </div>
                     )}
                 </div>
+    );
+
+    // If auto-exporting, return just the content without Modal wrapper
+    if (autoExport) {
+        return content;
+    }
+
+    // Normal mode - return Modal with content and buttons
+    return (
+        <Modal isOpen={true} onClose={onClose} title="Inspection Details">
+            <div className="flex flex-col max-h-[80vh]">
+                {content}
 
                 {/* Footer */}
                 <div className="flex-shrink-0 p-6 border-t border-gray-200 dark:border-gray-700">
@@ -2030,5 +2431,6 @@ const InspectionDetailModal = ({ inspection, onClose }) => {
         </Modal>
     );
 };
+
 
 export default VehicleMileageLogsPage;
