@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link as LinkIcon, Plus, Trash2, Edit2, X, Save, ExternalLink, Folder } from 'lucide-react';
+import { Link as LinkIcon, Plus, Trash2, Edit2, X, Save, ExternalLink, Folder, Edit3 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { getDepartmentColor } from '../utils/avatarColors';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,6 +12,7 @@ const UsefulLinksPage = () => {
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingLink, setEditingLink] = useState(null);
+    const [editMode, setEditMode] = useState(false);
     const [formData, setFormData] = useState({
         display_name: '',
         url: '',
@@ -243,13 +244,23 @@ const UsefulLinksPage = () => {
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Useful Links</h1>
                     <p className="text-gray-600 dark:text-gray-400">Quick access to important websites and resources</p>
                 </div>
-                <Button
-                    onClick={handleOpenAddModal}
-                    className="flex items-center gap-2"
-                >
-                    <Plus size={20} />
-                    Add Link
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        onClick={() => setEditMode(!editMode)}
+                        variant={editMode ? "default" : "outline"}
+                        className="flex items-center gap-2"
+                    >
+                        <Edit3 size={20} />
+                        {editMode ? 'Exit Edit Mode' : 'Edit Mode'}
+                    </Button>
+                    <Button
+                        onClick={handleOpenAddModal}
+                        className="flex items-center gap-2"
+                    >
+                        <Plus size={20} />
+                        Add Link
+                    </Button>
+                </div>
             </div>
 
             {/* Link Cards Grouped by Category */}
@@ -266,7 +277,7 @@ const UsefulLinksPage = () => {
                         </div>
 
                         {/* Category Cards Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
                             {linksByCategory[category].map(link => {
                                 const categoryColor = getDepartmentColor(link.dropdown_items?.display_text);
                                 return (
@@ -280,22 +291,24 @@ const UsefulLinksPage = () => {
                                                 <h3 className="font-semibold truncate text-sm leading-tight flex-1">
                                                     {link.display_name}
                                                 </h3>
-                                                <div className="flex gap-1">
-                                                    <button
-                                                        onClick={() => handleOpenEditModal(link)}
-                                                        className="p-1 bg-white bg-opacity-25 rounded hover:bg-opacity-40 transition-colors"
-                                                        title="Edit"
-                                                    >
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteLink(link.id)}
-                                                        className="p-1 bg-white bg-opacity-25 rounded hover:bg-opacity-40 transition-colors"
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
+                                                {editMode && (
+                                                    <div className="flex gap-1">
+                                                        <button
+                                                            onClick={() => handleOpenEditModal(link)}
+                                                            className="p-1 bg-white bg-opacity-25 rounded hover:bg-opacity-40 transition-colors"
+                                                            title="Edit"
+                                                        >
+                                                            <Edit2 size={14} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteLink(link.id)}
+                                                            className="p-1 bg-white bg-opacity-25 rounded hover:bg-opacity-40 transition-colors"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
