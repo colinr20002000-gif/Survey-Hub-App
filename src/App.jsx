@@ -68,6 +68,7 @@ const CalendarColoursPage = lazy(() => import('./pages/CalendarColoursPage'));
 const VehicleMileageLogsPage = lazy(() => import('./pages/VehicleMileageLogsPage'));
 const CheckAdjustPage = lazy(() => import('./components/Equipment/CheckAdjustPage'));
 const EquipmentRegisterPage = lazy(() => import('./components/Equipment/EquipmentRegisterPage'));
+const CloseCallsPage = lazy(() => import('./pages/CloseCallsPage'));
 
 import { DeliveryTaskItem, DeliveryTaskModal } from './components/tasks/TaskComponents';
 import ProjectModal from './components/modals/ProjectModal';
@@ -675,7 +676,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Resource Calendar', parent: 'Resource', show: can('VIEW_RESOURCE_CALENDAR') },
-                { name: 'To Do List', parent: 'Resource', show: can('VIEW_TASKS') }
+                { name: 'To Do List', parent: 'Resource', show: can('VIEW_TASKS') },
+                { name: 'Close Calls', parent: 'Resource', show: can('VIEW_CLOSE_CALLS') }
             ]
         },
         {
@@ -4035,8 +4037,11 @@ const MainLayout = () => {
             case 'Announcements': return can('VIEW_ANNOUNCEMENTS') ? <Suspense fallback={<LoadingFallback />}><AnnouncementsPage /></Suspense> : <AccessDenied />;
             case 'Feedback': return <FeedbackPage />;
             case 'Resource Calendar': return can('VIEW_RESOURCE_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><ResourceCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
-            case 'Calendar': return can('VIEW_EQUIPMENT_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
             case 'To Do List': return can('VIEW_TASKS') ? <ProjectTasksPage /> : <AccessDenied />;
+            case 'Close Calls': return can('VIEW_CLOSE_CALLS') ? <Suspense fallback={<LoadingFallback />}><CloseCallsPage /></Suspense> : <AccessDenied />;
+            
+            // Equipment
+            case 'Calendar': return can('VIEW_EQUIPMENT_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
             case 'Assignments': return can('VIEW_EQUIPMENT') ? <EquipmentPage /> : <AccessDenied />;
             case 'Register': return can('VIEW_EQUIPMENT_REGISTER') ? <Suspense fallback={<LoadingFallback />}><EquipmentRegisterPage /></Suspense> : <AccessDenied />;
             case 'Check & Adjust': return can('VIEW_CHECK_ADJUST') ? <Suspense fallback={<LoadingFallback />}><CheckAdjustPage /></Suspense> : <AccessDenied />;
