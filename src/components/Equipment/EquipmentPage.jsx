@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Users,
     MessageSquare,
@@ -53,13 +53,14 @@ const EquipmentPage = () => {
     const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
     const [showOnlyUsersWithEquipment, setShowOnlyUsersWithEquipment] = useState(true);
     const [showDiscrepancies, setShowDiscrepancies] = useState(false);
-    const [discrepanciesData, setDiscrepanciesData] = useState([]);
-    const [loadingDiscrepancies, setLoadingDiscrepancies] = useState(false);
+    const [discrepanciesData, setDiscrepanciesData] = useState([]); // eslint-disable-line no-unused-vars
+    const [loadingDiscrepancies, setLoadingDiscrepancies] = useState(false); // eslint-disable-line no-unused-vars
     const [copied, setCopied] = useState(false);
 
     // Equipment form state
     const [equipmentForm, setEquipmentForm] = useState({
         name: '',
+        model: '',
         description: '',
         category: '',
         serial_number: '',
@@ -540,6 +541,7 @@ const EquipmentPage = () => {
         }
     };
 
+    /*
     const createAuditLogTable = async () => {
         try {
             console.log('🔧 Creating equipment_audit_log table...');
@@ -590,6 +592,7 @@ CREATE TABLE equipment_audit_log (
             return false;
         }
     };
+    */
 
     const logEquipmentAudit = async (action, equipmentId, details = {}) => {
         try {
@@ -736,6 +739,7 @@ CREATE TABLE equipment_audit_log (
             const formData = {
                 ...equipmentForm,
                 name: equipmentForm.name.trim(),
+                model: equipmentForm.model?.trim() || '',
                 description: equipmentForm.description?.trim() || '',
                 serial_number: equipmentForm.serial_number?.trim() || null,
                 purchase_date: equipmentForm.purchase_date || null,
@@ -768,6 +772,7 @@ CREATE TABLE equipment_audit_log (
             setEquipment([...equipment, ...data]);
             setEquipmentForm({
                 name: '',
+                model: '',
                 description: '',
                 category: '',
                 serial_number: '',
@@ -873,7 +878,12 @@ CREATE TABLE equipment_audit_log (
 
             // Prepare form data with proper null handling for dates and serial number
             const formData = {
-                ...equipmentForm,
+                name: equipmentForm.name.trim(),
+                model: equipmentForm.model?.trim() || '',
+                description: equipmentForm.description?.trim() || '',
+                category: equipmentForm.category,
+                status: equipmentForm.status,
+                location: equipmentForm.location?.trim() || '',
                 serial_number: equipmentForm.serial_number?.trim() || null, // Convert empty string to null
                 purchase_date: equipmentForm.purchase_date || null,
                 warranty_expiry: equipmentForm.warranty_expiry || null,
@@ -914,6 +924,7 @@ CREATE TABLE equipment_audit_log (
 
             setEquipmentForm({
                 name: '',
+                model: '',
                 description: '',
                 category: '',
                 serial_number: '',
@@ -926,207 +937,11 @@ CREATE TABLE equipment_audit_log (
             setEquipmentToEdit(null);
         } catch (err) {
             console.error('❌ Error in handleEditEquipment:', err);
-            if (err.message.includes('duplicate key value violates unique constraint')) {
+            if (err.message && err.message.includes('duplicate key value violates unique constraint')) {
                 setError('Serial number already exists. Please use a unique serial number.');
             } else {
                 setError(`Error updating equipment: ${err.message}`);
             }
-        }
-    };
-
-    // Handle equipment delete
-    const handleDeleteEquipment = async () => {
-        try {
-            const { error } = await supabase
-                .from('equipment')
-                .delete()
-                .eq('id', equipmentToDelete.id);
-
-            if (error) throw error;
-
-            // Remove equipment from state
-            const updatedEquipment = equipment.filter(eq => eq.id !== equipmentToDelete.id);
-            setEquipment(updatedEquipment);
-
-            // Close modal and clear state
-            setShowDeleteConfirm(false);
-            setEquipmentToDelete(null);
-            setShowEditEquipment(false); // Also close edit modal
-            setEquipmentToEdit(null);
-            setError(''); // Clear any previous errors
-        } catch (err) {
-            setError(err.message);
-            // Close modal even if there's an error
-            setShowDeleteConfirm(false);
-            setEquipmentToDelete(null);
-            setShowEditEquipment(false); // Also close edit modal
-            setEquipmentToEdit(null);
-        }
-    };
-
-    // Open edit modal with equipment data
-    const openEditModal = (equipmentItem) => {
-        setEquipmentToEdit(equipmentItem);
-        setEquipmentForm({
-            name: equipmentItem.name,
-            description: equipmentItem.description || '',
-            category: equipmentItem.category || '',
-            serial_number: equipmentItem.serial_number || '',
-            status: equipmentItem.status,
-            purchase_date: equipmentItem.purchase_date || '',
-            warranty_expiry: equipmentItem.warranty_expiry || '',
-            location: equipmentItem.location || ''
-        });
-        setShowEditEquipment(true);
-    };
-
-    // Open delete confirmation
-    const openDeleteConfirm = (equipmentItem) => {
-        setEquipmentToDelete(equipmentItem);
-        setShowDeleteConfirm(true);
-    };
-
-    // Open return confirmation
-    const openReturnConfirm = (equipmentId) => {
-        const equipmentItem = equipment.find(e => e.id === equipmentId);
-        setEquipmentToReturn(equipmentItem);
-        setShowReturnConfirm(true);
-    };
-
-    // Confirm equipment return
-    const confirmReturn = async () => {
-        if (equipmentToReturn) {
-            await handleReturnEquipment(equipmentToReturn.id);
-            setShowReturnConfirm(false);
-            setEquipmentToReturn(null);
-        }
-    };
-
-    // Handle equipment assignment (now supports direct transfer)
-    const handleAssignEquipment = async (equipmentId, userId) => {
-        try {
-            console.log('🔧 Assignment Debug - equipmentId:', equipmentId, 'userId:', userId, 'typeof userId:', typeof userId);
-
-            // Find the user to check if it's a dummy user
-            const user = users.find(u => u.id === userId);
-            console.log('🔧 Assignment Debug - user found:', user);
-            console.log('🔧 Assignment Debug - isDummy:', user?.isDummy);
-
-            // Check if equipment is currently assigned to another user
-            const currentAssignment = getCurrentAssignment(equipmentId);
-
-            if (currentAssignment) {
-                console.log('🔄 Transferring equipment from current assignment:', currentAssignment);
-
-                // Mark current assignment as returned (transfer)
-                const transferInfo = {
-                    message: 'Transferred to another user',
-                    returned_by_user_id: currentUser.id,
-                    returned_by_user_name: currentUser.name,
-                    returned_at: new Date().toISOString(),
-                    transfer_to_user_id: userId,
-                    transfer_to_user_name: user.name
-                };
-
-                // Update current assignment with return date (transfer)
-                let { error: returnError } = await supabase
-                    .from('equipment_assignments')
-                    .update({
-                        returned_at: new Date().toISOString(),
-                        returned_by: currentUser.id,
-                        return_notes: JSON.stringify(transferInfo)
-                    })
-                    .eq('id', currentAssignment.id);
-
-                // If returned_by field doesn't exist, try without it
-                if (returnError && returnError.message?.includes('returned_by')) {
-                    const { error: fallbackError } = await supabase
-                        .from('equipment_assignments')
-                        .update({
-                            returned_at: new Date().toISOString(),
-                            return_notes: JSON.stringify(transferInfo)
-                        })
-                        .eq('id', currentAssignment.id);
-
-                    if (fallbackError) throw fallbackError;
-                } else if (returnError) {
-                    throw returnError;
-                }
-            }
-
-            // Update equipment status to assigned (in case it wasn't already)
-            const { error: equipmentUpdateError } = await supabase
-                .from('equipment')
-                .update({
-                    status: 'assigned',
-                    updated_by: currentUser.id
-                })
-                .eq('id', equipmentId);
-
-            if (equipmentUpdateError) {
-                console.error('🚨 Equipment update error:', equipmentUpdateError);
-                throw equipmentUpdateError;
-            }
-
-            // Create new assignment record
-            const assignmentData = {
-                equipment_id: equipmentId,
-                user_id: userId,
-                assigned_at: new Date().toISOString(),
-                assigned_by: currentUser.id
-            };
-
-            console.log('🔧 Assignment Debug - assignment data:', assignmentData);
-
-            const { data: insertedAssignment, error: assignmentError } = await supabase
-                .from('equipment_assignments')
-                .insert([assignmentData])
-                .select();
-
-            if (assignmentError) {
-                console.error('🚨 Assignment insert error:', assignmentError);
-                throw assignmentError;
-            }
-
-            console.log('✅ Assignment created successfully:', insertedAssignment);
-
-            // Log audit trail
-            const equipmentName = equipment.find(e => e.id === equipmentId)?.name || 'Unknown Equipment';
-            const userName = user?.name || 'Unknown User';
-
-            if (currentAssignment) {
-                // This was a transfer
-                const previousUser = users.find(u => u.id === currentAssignment.user_id);
-                await logEquipmentAudit('transferred', equipmentId, {
-                    user_id: currentAssignment.user_id,
-                    assigned_to_user_id: userId,
-                    previous_user_id: currentAssignment.user_id,
-                    message: `Equipment transferred from ${previousUser?.name || 'Unknown User'} to ${userName}`,
-                    equipment_name: equipmentName,
-                    extra_data: {
-                        previous_assignment_id: currentAssignment.id,
-                        new_assignment_id: insertedAssignment[0]?.id
-                    }
-                });
-            } else {
-                // This was a new assignment
-                await logEquipmentAudit('assigned', equipmentId, {
-                    assigned_to_user_id: userId,
-                    message: `Equipment assigned to ${userName}`,
-                    equipment_name: equipmentName,
-                    extra_data: {
-                        assignment_id: insertedAssignment[0]?.id
-                    }
-                });
-            }
-
-            // Reload data
-            await loadData();
-            setShowAssignModal(false);
-            setSelectedEquipment(null);
-        } catch (err) {
-            console.error('🚨 Assignment error:', err);
-            setError(err.message);
         }
     };
 
@@ -1205,6 +1020,111 @@ CREATE TABLE equipment_audit_log (
         }
     };
 
+    // Handle equipment assignment
+    const handleAssignEquipment = async (equipmentId, userId) => {
+        try {
+            // Check for existing assignment and return/transfer if needed
+            const currentAssignment = getCurrentAssignment(equipmentId);
+            if (currentAssignment) {
+                 // Mark as returned (transfer logic)
+                 const { error: returnError } = await supabase
+                    .from('equipment_assignments')
+                    .update({
+                        returned_at: new Date().toISOString(),
+                        return_notes: JSON.stringify({
+                            message: 'Transferred via new assignment',
+                            transferred_to: userId,
+                            transferred_by: currentUser.id
+                        })
+                    })
+                    .eq('id', currentAssignment.id);
+                 if (returnError) throw returnError;
+            }
+
+            // Create new assignment
+            const { error } = await supabase
+                .from('equipment_assignments')
+                .insert([{
+                    equipment_id: equipmentId,
+                    user_id: userId,
+                    assigned_at: new Date().toISOString(),
+                    assigned_by: currentUser.id
+                }]);
+
+            if (error) throw error;
+
+            // Update equipment status
+            await supabase.from('equipment').update({ status: 'assigned', updated_by: currentUser.id }).eq('id', equipmentId);
+
+            // Audit log
+            await logEquipmentAudit('assigned', equipmentId, { assigned_to_user_id: userId });
+
+            setShowAssignModal(false);
+            setSelectedEquipment(null);
+            loadData();
+        } catch (err) {
+            console.error('Error assigning equipment:', err);
+            setError(err.message);
+        }
+    };
+
+    // Confirm return
+    const confirmReturn = async () => {
+        if (!equipmentToReturn) return;
+        await handleReturnEquipment(equipmentToReturn.id);
+        setShowReturnConfirm(false);
+        setEquipmentToReturn(null);
+    };
+
+    // Open edit modal
+    const openEditModal = (equipmentItem) => {
+        setEquipmentToEdit(equipmentItem);
+        setEquipmentForm({
+            name: equipmentItem.name,
+            model: equipmentItem.model || '',
+            description: equipmentItem.description || '',
+            category: equipmentItem.category || '',
+            serial_number: equipmentItem.serial_number || '',
+            status: equipmentItem.status,
+            purchase_date: equipmentItem.purchase_date || '',
+            warranty_expiry: equipmentItem.warranty_expiry || '',
+            location: equipmentItem.location || ''
+        });
+        setShowEditEquipment(true);
+    };
+
+    // Open delete confirmation
+    const openDeleteConfirm = (equipmentItem) => {
+        setEquipmentToDelete(equipmentItem);
+        setShowDeleteConfirm(true);
+    };
+
+    // Handle delete equipment
+    const handleDeleteEquipment = async () => {
+        if (!equipmentToDelete) return;
+        try {
+            const { error } = await supabase.from('equipment').delete().eq('id', equipmentToDelete.id);
+            if (error) throw error;
+            
+            await logEquipmentAudit('deleted', equipmentToDelete.id, { equipment_name: equipmentToDelete.name });
+            
+            setShowDeleteConfirm(false);
+            setEquipmentToDelete(null);
+            setShowEditEquipment(false);
+            loadData();
+        } catch (err) {
+            console.error('Error deleting equipment:', err);
+            setError(err.message);
+        }
+    };
+
+    // Open return confirmation
+    const openReturnConfirm = (equipmentId) => {
+        const item = equipment.find(e => e.id === equipmentId);
+        setEquipmentToReturn(item);
+        setShowReturnConfirm(true);
+    };
+
     // Handle adding comment
     const handleAddComment = async (equipmentId) => {
         if (!newComment.trim()) return;
@@ -1279,6 +1199,7 @@ CREATE TABLE equipment_audit_log (
     };
 
     // Check for discrepancies between calendar and assignments
+    /*
     const checkDiscrepancies = async () => {
         setLoadingDiscrepancies(true);
         try {
@@ -1338,6 +1259,7 @@ CREATE TABLE equipment_audit_log (
             setLoadingDiscrepancies(false);
         }
     };
+    */
 
     // Copy discrepancies to clipboard
     const copyDiscrepanciesToClipboard = async () => {
@@ -1399,7 +1321,7 @@ CREATE TABLE equipment_audit_log (
             <div className="mb-6">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Equipment Management</h1>
+                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Assignments</h1>
                         <p className="text-gray-600 dark:text-gray-400">Manage equipment assignments and track usage</p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1568,31 +1490,6 @@ CREATE TABLE equipment_audit_log (
                             </div>
                         )}
                     </div>
-                    {canAddEquipment && (
-                        <div>
-                            <button
-                                onClick={() => {
-                                    setError(''); // Clear any previous errors
-                                    // Reset form to blank values
-                                    setEquipmentForm({
-                                        name: '',
-                                        description: '',
-                                        category: '',
-                                        status: 'available',
-                                        serial_number: '',
-                                        purchase_date: '',
-                                        warranty_expiry: '',
-                                        location: ''
-                                    });
-                                    setShowAddEquipment(true);
-                                }}
-                                className="w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 flex items-center justify-center"
-                            >
-                                <PlusCircle className="w-4 h-4 mr-2" />
-                                Add Equipment
-                            </button>
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -1684,15 +1581,6 @@ CREATE TABLE equipment_audit_log (
                                                     className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
                                                 >
                                                     Assign
-                                                </button>
-                                            )}
-                                            {isEditorOrAbove && (
-                                                <button
-                                                    onClick={() => openEditModal(item)}
-                                                    className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center"
-                                                >
-                                                    <Edit className="w-3 h-3 mr-1" />
-                                                    Edit
                                                 </button>
                                             )}
                                             <button
@@ -1982,7 +1870,7 @@ CREATE TABLE equipment_audit_log (
                                                                             value={newComment}
                                                                             onChange={(e) => setNewComment(e.target.value)}
                                                                             className="flex-1 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-500"
-                                                                            onKeyPress={(e) => e.key === 'Enter' && handleAddComment(item.id)}
+                                                                            onKeyPress={(event) => event.key === 'Enter' && handleAddComment(item.id)}
                                                                         />
                                                                         <button
                                                                             onClick={() => handleAddComment(item.id)}
@@ -2031,6 +1919,16 @@ CREATE TABLE equipment_audit_log (
                                         value={equipmentForm.name}
                                         onChange={(e) => setEquipmentForm({...equipmentForm, name: e.target.value})}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Model (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={equipmentForm.model}
+                                        onChange={(e) => setEquipmentForm({...equipmentForm, model: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                        placeholder="Enter equipment model"
                                     />
                                 </div>
                                 <div>
@@ -2210,6 +2108,26 @@ CREATE TABLE equipment_audit_log (
                                         value={equipmentForm.name}
                                         onChange={(e) => setEquipmentForm({...equipmentForm, name: e.target.value})}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Model (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={equipmentForm.model}
+                                        onChange={(e) => setEquipmentForm({...equipmentForm, model: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                        placeholder="Enter equipment model"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Model (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={equipmentForm.model}
+                                        onChange={(e) => setEquipmentForm({...equipmentForm, model: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                        placeholder="Enter equipment model"
                                     />
                                 </div>
                                 <div>
@@ -2491,14 +2409,24 @@ ON equipment_audit_log(created_at DESC);`}
                                 ) : (
                                     <div className="space-y-3">
                                         {auditTrailData.map(entry => {
-                                            const actionColor = {
-                                                'assigned': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-                                                'returned': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-                                                'transferred': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
-                                                'created': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
-                                                'updated': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-                                                'deleted': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                                            }[entry.action_type] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+                                            const actionColor = (() => {
+                                                switch (entry.action_type) {
+                                                    case 'assigned':
+                                                        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+                                                    case 'returned':
+                                                        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+                                                    case 'transferred':
+                                                        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
+                                                    case 'created':
+                                                        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
+                                                    case 'updated':
+                                                        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+                                                    case 'deleted':
+                                                        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+                                                    default:
+                                                        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+                                                }
+                                            })();
 
                                             // Generate meaningful description based on action type
                                             const getActionDescription = (entry) => {
@@ -2506,19 +2434,19 @@ ON equipment_audit_log(created_at DESC);`}
                                                 const performedBy = entry.performed_by?.name || 'Unknown User';
 
                                                 switch (entry.action_type) {
-                                                    case 'assigned':
+                                                    case 'assigned': {
                                                         const assignedTo = entry.assigned_to_user?.name || 'Unknown User';
                                                         return `${equipmentName} was assigned to ${assignedTo} by ${performedBy}`;
-
-                                                    case 'returned':
+                                                    }
+                                                    case 'returned': {
                                                         const returnedFrom = entry.user?.name || entry.previous_user?.name || 'Unknown User';
                                                         return `${equipmentName} was returned from ${returnedFrom} by ${performedBy}`;
-
-                                                    case 'transferred':
+                                                    }
+                                                    case 'transferred': {
                                                         const transferredFrom = entry.previous_user?.name || 'Unknown User';
                                                         const transferredTo = entry.assigned_to_user?.name || 'Unknown User';
                                                         return `${equipmentName} was transferred from ${transferredFrom} to ${transferredTo} by ${performedBy}`;
-
+                                                    }
                                                     default:
                                                         return `${equipmentName} was ${entry.action_type} by ${performedBy}`;
                                                 }

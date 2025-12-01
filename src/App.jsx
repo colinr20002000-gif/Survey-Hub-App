@@ -66,6 +66,8 @@ const ResourceAnalyticsPage = lazy(() => import('./pages/ResourceAnalyticsPage')
 const AFVPage = lazy(() => import('./pages/AFVPage'));
 const CalendarColoursPage = lazy(() => import('./pages/CalendarColoursPage'));
 const VehicleMileageLogsPage = lazy(() => import('./pages/VehicleMileageLogsPage'));
+const CheckAdjustPage = lazy(() => import('./components/Equipment/CheckAdjustPage'));
+const EquipmentRegisterPage = lazy(() => import('./components/Equipment/EquipmentRegisterPage'));
 
 import { DeliveryTaskItem, DeliveryTaskModal } from './components/tasks/TaskComponents';
 import ProjectModal from './components/modals/ProjectModal';
@@ -682,8 +684,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             show: true,
             isGroup: true,
             subItems: [
-                { name: 'Equipment Calendar', parent: 'Equipment', show: can('VIEW_EQUIPMENT_CALENDAR') },
-                { name: 'Equipment Management', parent: 'Equipment', show: can('VIEW_EQUIPMENT') }
+                { name: 'Calendar', parent: 'Equipment', show: can('VIEW_EQUIPMENT_CALENDAR') },
+                { name: 'Assignments', parent: 'Equipment', show: can('VIEW_EQUIPMENT') },
+                { name: 'Register', parent: 'Equipment', show: can('VIEW_EQUIPMENT_REGISTER') },
+                { name: 'Check & Adjust', parent: 'Equipment', show: can('VIEW_CHECK_ADJUST') }
             ]
         },
         {
@@ -693,7 +697,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Vehicle Management', parent: 'Vehicles', show: can('VIEW_VEHICLES') },
-                { name: 'Vehicle Inspection', parent: 'Vehicles', show: can('VIEW_VEHICLES') }
+                { name: 'Vehicle Inspection', parent: 'Vehicles', show: can('VIEW_VEHICLE_INSPECTION') }
             ]
         },
         {
@@ -702,8 +706,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             show: true,
             isGroup: true,
             subItems: [
-                { name: 'Delivery Tracker', parent: 'Delivery' },
-                { name: 'Delivery Team - To Do List', displayName: 'To Do List', parent: 'Delivery' }
+                { name: 'Delivery Tracker', parent: 'Delivery', show: can('VIEW_DELIVERY_TRACKER') },
+                { name: 'Delivery Team - To Do List', displayName: 'To Do List', parent: 'Delivery', show: can('VIEW_DELIVERY_TODO') }
             ]
         },
         {
@@ -713,8 +717,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Document Hub', parent: 'Training Centre', show: can('VIEW_DOCUMENT_HUB') },
-                { name: 'Video Tutorials', parent: 'Training Centre' },
-                { name: 'Rail Components', parent: 'Training Centre' }
+                { name: 'Video Tutorials', parent: 'Training Centre', show: can('VIEW_VIDEO_TUTORIALS') },
+                { name: 'Rail Components', parent: 'Training Centre', show: can('VIEW_RAIL_COMPONENTS') }
             ]
         },
         {
@@ -736,9 +740,9 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             show: can('VIEW_ANALYTICS'),
             isGroup: true,
             subItems: [
-                { name: 'Project Logs', parent: 'Analytics' },
-                { name: 'Resource', parent: 'Analytics' },
-                { name: 'AFV', parent: 'Analytics' }
+                { name: 'Project Logs', parent: 'Analytics', show: can('VIEW_PROJECT_LOGS') },
+                { name: 'Resource', parent: 'Analytics', show: can('VIEW_RESOURCE_ANALYTICS') },
+                { name: 'AFV', parent: 'Analytics', show: can('VIEW_AFV') }
             ]
         },
         { name: 'Settings', icon: Settings, show: true },
@@ -784,7 +788,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
 
     const isDeliveryActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Team - To Do List';
     const isResourceActive = activeTab === 'Resource Calendar' || activeTab === 'To Do List';
-    const isEquipmentActive = activeTab === 'Equipment Calendar' || activeTab === 'Equipment Management';
+    const isEquipmentActive = activeTab === 'Calendar' || activeTab === 'Assignments' || activeTab === 'Register' || activeTab === 'Check & Adjust';
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
     const isContactDetailsActive = activeTab === 'Staff Contacts' || activeTab === 'Subcontractors' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
     const isVehiclesActive = activeTab === 'Vehicle Management' || activeTab === 'Vehicle Inspection';
@@ -4031,19 +4035,21 @@ const MainLayout = () => {
             case 'Announcements': return can('VIEW_ANNOUNCEMENTS') ? <Suspense fallback={<LoadingFallback />}><AnnouncementsPage /></Suspense> : <AccessDenied />;
             case 'Feedback': return <FeedbackPage />;
             case 'Resource Calendar': return can('VIEW_RESOURCE_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><ResourceCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
-            case 'Equipment Calendar': return can('VIEW_EQUIPMENT_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
+            case 'Calendar': return can('VIEW_EQUIPMENT_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
             case 'To Do List': return can('VIEW_TASKS') ? <ProjectTasksPage /> : <AccessDenied />;
-            case 'Equipment Management': return can('VIEW_EQUIPMENT') ? <EquipmentPage /> : <AccessDenied />;
+            case 'Assignments': return can('VIEW_EQUIPMENT') ? <EquipmentPage /> : <AccessDenied />;
+            case 'Register': return can('VIEW_EQUIPMENT_REGISTER') ? <Suspense fallback={<LoadingFallback />}><EquipmentRegisterPage /></Suspense> : <AccessDenied />;
+            case 'Check & Adjust': return can('VIEW_CHECK_ADJUST') ? <Suspense fallback={<LoadingFallback />}><CheckAdjustPage /></Suspense> : <AccessDenied />;
             case 'Vehicle Management': return can('VIEW_VEHICLES') ? <VehiclesPage /> : <AccessDenied />;
-            case 'Vehicle Inspection': return can('VIEW_VEHICLES') ? <Suspense fallback={<LoadingFallback />}><VehicleMileageLogsPage /></Suspense> : <AccessDenied />;
-            case 'Delivery Tracker': return <DeliveryTrackerPage />;
-            case 'Delivery Team - To Do List': return <DeliveryTasksPage />;
-            case 'Project Logs': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><ProjectLogsPage /></Suspense> : <AccessDenied />;
-            case 'Resource': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><ResourceAnalyticsPage /></Suspense> : <AccessDenied />;
-            case 'AFV': return can('VIEW_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><AFVPage /></Suspense> : <AccessDenied />;
+            case 'Vehicle Inspection': return can('VIEW_VEHICLE_INSPECTION') ? <Suspense fallback={<LoadingFallback />}><VehicleMileageLogsPage /></Suspense> : <AccessDenied />;
+            case 'Delivery Tracker': return can('VIEW_DELIVERY_TRACKER') ? <DeliveryTrackerPage /> : <AccessDenied />;
+            case 'Delivery Team - To Do List': return can('VIEW_DELIVERY_TODO') ? <DeliveryTasksPage /> : <AccessDenied />;
+            case 'Project Logs': return can('VIEW_PROJECT_LOGS') ? <Suspense fallback={<LoadingFallback />}><ProjectLogsPage /></Suspense> : <AccessDenied />;
+            case 'Resource': return can('VIEW_RESOURCE_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><ResourceAnalyticsPage /></Suspense> : <AccessDenied />;
+            case 'AFV': return can('VIEW_AFV') ? <Suspense fallback={<LoadingFallback />}><AFVPage /></Suspense> : <AccessDenied />;
             case 'Document Hub': return can('VIEW_DOCUMENT_HUB') ? <DocumentHubPage /> : <AccessDenied />;
-            case 'Video Tutorials': return <VideoTutorialsPage />;
-            case 'Rail Components': return <RailComponentsPage />;
+            case 'Video Tutorials': return can('VIEW_VIDEO_TUTORIALS') ? <VideoTutorialsPage /> : <AccessDenied />;
+            case 'Rail Components': return can('VIEW_RAIL_COMPONENTS') ? <RailComponentsPage /> : <AccessDenied />;
             case 'Staff Contacts': return <UserContactsPage />;
             case 'Subcontractors': return <SubcontractorsPage />;
             case 'Useful Contacts': return <UsefulContactsPage />;

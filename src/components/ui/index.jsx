@@ -3,8 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Card Component
-export const Card = ({ title, icon, children, className }) => (
-    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden ${className}`}>
+export const Card = ({ title, icon, children, className, ...props }) => (
+    <div 
+        className={`bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden ${className}`}
+        {...props}
+    >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
             {icon}
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white ml-2">{title}</h3>
