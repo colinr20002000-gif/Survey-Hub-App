@@ -96,7 +96,7 @@ const EquipmentRegisterPage = () => {
                     .from('dropdown_items')
                     .select('*')
                     .eq('category_id', categoryData.id)
-                    .order('value');
+                    .order('sort_order', { ascending: true });
                 
                 if (itemsError) {
                     console.error('Error fetching category items:', itemsError);
@@ -120,6 +120,15 @@ const EquipmentRegisterPage = () => {
         return assignedUser ? assignedUser.name : 'Unknown User';
     };
 
+    // Helper to get sort order map
+    const categoryOrder = useMemo(() => {
+        const map = {};
+        availableCategories.forEach(cat => {
+            map[cat.value] = cat.sort_order;
+        });
+        return map;
+    }, [availableCategories]);
+
     // Group equipment by category
     const groupedEquipment = useMemo(() => {
         const filtered = equipment.filter(item => 
@@ -135,6 +144,12 @@ const EquipmentRegisterPage = () => {
             if (catA === catB) {
                 return a.name.localeCompare(b.name);
             }
+            
+            const orderA = categoryOrder[catA] !== undefined ? categoryOrder[catA] : 9999;
+            const orderB = categoryOrder[catB] !== undefined ? categoryOrder[catB] : 9999;
+            
+            if (orderA !== orderB) return orderA - orderB;
+
             return catA.localeCompare(catB);
         });
 
@@ -152,17 +167,29 @@ const EquipmentRegisterPage = () => {
 
         // Sort keys (categories)
         const sortedGroups = {};
-        Object.keys(groups).sort().forEach(key => {
+        Object.keys(groups).sort((a, b) => {
+            const orderA = categoryOrder[a] !== undefined ? categoryOrder[a] : 9999;
+            const orderB = categoryOrder[b] !== undefined ? categoryOrder[b] : 9999;
+            
+            if (orderA !== orderB) return orderA - orderB;
+            return a.localeCompare(b);
+        }).forEach(key => {
             sortedGroups[key] = groups[key];
         });
 
         return sortedGroups;
-    }, [equipment, searchTerm, selectedCategoryFilter]);
+    }, [equipment, searchTerm, selectedCategoryFilter, categoryOrder]);
 
     const filterCategories = useMemo(() => {
         const cats = new Set(equipment.map(e => e.category || 'Uncategorized'));
-        return ['All', ...Array.from(cats).sort()];
-    }, [equipment]);
+        return ['All', ...Array.from(cats).sort((a, b) => {
+            const orderA = categoryOrder[a] !== undefined ? categoryOrder[a] : 9999;
+            const orderB = categoryOrder[b] !== undefined ? categoryOrder[b] : 9999;
+            
+            if (orderA !== orderB) return orderA - orderB;
+            return a.localeCompare(b);
+        })];
+    }, [equipment, categoryOrder]);
 
     const handleDownload = async (e, url, filename) => {
         e.preventDefault();

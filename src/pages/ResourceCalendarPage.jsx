@@ -2392,233 +2392,232 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             >
                 <div
                     ref={calendarRef}
-                    className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)]"
+                    className={`bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-auto max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-300px)] ${!isDesktop ? 'transform scale-75 origin-top-left w-[133.33%] h-[calc(133.33vh-266px)]' : 'w-full'}`}
                     onMouseDown={handlePanStart}
                     style={{ cursor: isDesktop && !isPanning ? 'grab' : isPanning ? 'grabbing' : undefined }}
                 >
                     <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-20">
-                        <tr>
-                            <th className="px-4 py-3 w-[250px] bg-gray-50 dark:bg-gray-700">Staff Member</th>
-                            {weekDates.map(date => (
-                                <th key={date.toISOString()} className="px-4 py-3 text-center w-72 bg-gray-50 dark:bg-gray-700">
-                                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                                    <br/>
-                                    {formatDateForDisplay(date)}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y-4 divide-gray-300 dark:divide-gray-600">
-                        {displayedUsers.map(user => (
-                            <tr key={user.id} className="border-spacing-2">
-                                <td className="px-4 py-3 font-medium">
-                                    <div className="flex items-center min-w-0">
-                                        <div className={`w-12 h-12 rounded-full ${getDepartmentColor(user.department)} text-white flex items-center justify-center font-bold text-base mr-3 flex-shrink-0`}>{getAvatarText(user)}</div>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="truncate font-semibold text-base">{user.name}</p>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.department || 'No Department'}</p>
-                                            {user.competencies && (
-                                                <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5" title={user.competencies}>
-                                                    {user.competencies}
-                                                </p>
-                                            )}
-                                            {user.pts_number && (
-                                                <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">
-                                                    <span className="font-medium">PTS:</span> {user.pts_number}
-                                                </p>
-                                            )}
-                                            {user.mobile_number && (
-                                                <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">
-                                                    <span className="font-medium">Mobile:</span> {user.mobile_number}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </td>
-                                {weekDates.map((date, dayIndex) => {
-                                    const assignment = currentWeekAllocations[user.id]?.assignments[dayIndex] || null;
-                                    let cellContent;
-                                    let cellColor = '';
-
-                                    if (assignment) {
-                                        if (Array.isArray(assignment)) {
-                                            // Multiple assignments - could be projects, leaves, or mixed
-                                            cellContent = (
-                                                <div className="flex-1 flex flex-col gap-1">
-                                                    {assignment.map((item, index) => {
-                                                        if (item.type === 'project') {
-                                                            // Render project
-                                                            const projColorStyle = getShiftColor(item.shift);
-                                                            const projColor = typeof projColorStyle === 'string' ? projColorStyle : '';
-                                                            const projInlineStyle = typeof projColorStyle === 'object' ? projColorStyle : {};
-
-                                                            return (
-                                                                <DraggableResourceItem
-                                                                    key={index}
-                                                                    id={`${user.id}::${dayIndex}::${index}`}
-                                                                    disabled={!isDesktop}
-                                                                >
-                                                                    <div
-                                                                        data-assignment="true"
-                                                                        className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
-                                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
-                                                                        style={projInlineStyle}
-                                                                    >
-                                                                        <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={item.projectName}>{item.projectName}</p>
-                                                                        <p className="font-semibold text-xs mb-0.5 truncate">{item.projectNumber}</p>
-                                                                        {item.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1" title={item.task}>{item.task}</p>}
-                                                                        <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof item.shift === 'string' ? item.shift : String(item.shift || '')}</p>
-                                                                        {item.time && <p className="text-xs leading-tight font-semibold truncate">{item.time}</p>}
-                                                                    </div>
-                                                                </DraggableResourceItem>
-                                                            );
-                                                        } else if (item.type === 'leave') {
-                                                            // Render leave
-                                                            const leaveColorStyle = getLeaveColor(item.leaveType);
-                                                            const leaveColor = typeof leaveColorStyle === 'string' ? leaveColorStyle : '';
-                                                            const leaveInlineStyle = typeof leaveColorStyle === 'object' ? leaveColorStyle : {};
-                                                            const hasComment = item.comment && item.comment.trim().length > 0;
-
-                                                            return (
-                                                                <DraggableResourceItem
-                                                                    key={index}
-                                                                    id={`${user.id}::${dayIndex}::${index}`}
-                                                                    disabled={!isDesktop}
-                                                                >
-                                                                    <div
-                                                                        data-assignment="true"
-                                                                        className={`p-1.5 rounded-md h-full flex flex-col justify-center font-bold ${leaveColor}`}
-                                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
-                                                                        style={leaveInlineStyle}
-                                                                    >
-                                                                        <div className={`text-center ${hasComment ? 'mb-0.5' : ''} text-sm truncate`}>{item.leaveType}</div>
-                                                                        {hasComment && (
-                                                                            <div className="text-center text-xs font-bold opacity-90 leading-tight line-clamp-2" title={item.comment}>
-                                                                                {item.comment}
+                                                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-20">
+                                                            <tr>
+                                                                <th className="px-4 py-3 w-[250px] bg-gray-50 dark:bg-gray-700">Staff Member</th>
+                                                                {weekDates.map(date => (
+                                                                    <th key={date.toISOString()} className="px-4 py-3 text-center w-72 bg-gray-50 dark:bg-gray-700">
+                                                                        {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                                        <br/>
+                                                                        {formatDateForDisplay(date)}
+                                                                    </th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y-4 divide-gray-300 dark:divide-gray-600">
+                                                            {displayedUsers.map(user => (
+                                                                <tr key={user.id} className="border-spacing-2">
+                                                                    <td className="px-4 py-3 font-medium">
+                                                                        <div className="flex items-center min-w-0">
+                                                                            <div className={`w-12 h-12 rounded-full ${getDepartmentColor(user.department)} text-white flex items-center justify-center font-bold text-base mr-3 flex-shrink-0`}>{getAvatarText(user)}</div>
+                                                                            <div className="min-w-0 flex-1">
+                                                                                <p className="truncate font-semibold text-base">{user.name}</p>
+                                                                                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.department || 'No Department'}</p>
+                                                                                {user.competencies && (
+                                                                                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5" title={user.competencies}>
+                                                                                        {user.competencies}
+                                                                                    </p>
+                                                                                )}
+                                                                                {user.pts_number && (
+                                                                                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">
+                                                                                        <span className="font-medium">PTS:</span> {user.pts_number}
+                                                                                    </p>
+                                                                                )}
+                                                                                {user.mobile_number && (
+                                                                                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">
+                                                                                        <span className="font-medium">Mobile:</span> {user.mobile_number}
+                                                                                    </p>
+                                                                                )}
                                                                             </div>
-                                                                        )}
-                                                                    </div>
-                                                                </DraggableResourceItem>
-                                                            );
-                                                        }
-                                                        return null;
-                                                    })}
-                                                </div>
-                                            );
-                                        } else if (assignment.type === 'leave') {
-                                            const leaveColorStyle = getLeaveColor(assignment.leaveType);
-                                            cellColor = typeof leaveColorStyle === 'string' ? leaveColorStyle : '';
-                                            const leaveInlineStyle = typeof leaveColorStyle === 'object' ? leaveColorStyle : {};
-
-                                            // Fixed text sizes for leave tiles
-                                            const hasComment = assignment.comment && assignment.comment.trim().length > 0;
-
-                                            cellContent = (
-                                                <DraggableResourceItem
-                                                    id={`${user.id}::${dayIndex}::0`}
-                                                    disabled={!isDesktop}
-                                                >
-                                                    <div
-                                                        data-assignment="true"
-                                                        className={`p-2 rounded-md h-full flex flex-col justify-center font-bold ${cellColor}`}
-                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                        style={leaveInlineStyle}
-                                                    >
-                                                        <div className={`text-center ${hasComment ? 'mb-1' : ''} text-lg truncate`}>{assignment.leaveType}</div>
-                                                        {hasComment && (
-                                                            <div className="text-center text-sm font-bold opacity-90 leading-tight line-clamp-3" title={assignment.comment}>
-                                                                {assignment.comment}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </DraggableResourceItem>
-                                            );
-                                        } else if (assignment.type === 'status') {
-                                            // Determine color based on availability status
-                                            let statusColor;
-                                            if (assignment.status === 'Available') {
-                                                statusColor = 'text-green-600 dark:text-green-400';
-                                            } else if (assignment.status === 'Available (D)') {
-                                                statusColor = 'text-green-600 dark:text-green-400';
-                                            } else if (assignment.status === 'Available (N)') {
-                                                statusColor = 'text-green-600 dark:text-green-400';
-                                            } else {
-                                                statusColor = 'text-red-600 dark:text-red-400';
-                                            }
-                                            // Fixed text size for status tiles
-                                            cellContent = (
-                                                <div
-                                                    data-assignment="true"
-                                                    className={`flex-1 flex items-center justify-center text-xl font-semibold ${statusColor}`}
-                                                    onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                >
-                                                    {assignment.status}
-                                                </div>
-                                            );
-                                        } else if (assignment.type === 'project') {
-                                            const projectColorStyle = getShiftColor(assignment.shift);
-                                            cellColor = typeof projectColorStyle === 'string' ? projectColorStyle : '';
-                                            const projectInlineStyle = typeof projectColorStyle === 'object' ? projectColorStyle : {};
-
-                                            // Fixed text sizes for single project tiles - project name at top
-                                            cellContent = (
-                                                <DraggableResourceItem
-                                                    id={`${user.id}::${dayIndex}::0`}
-                                                    disabled={!isDesktop}
-                                                >
-                                                    <div
-                                                        data-assignment="true"
-                                                        className={`p-2 rounded-md h-full flex flex-col justify-center text-center ${cellColor}`}
-                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                        style={projectInlineStyle}
-                                                    >
-                                                        {assignment.projectName && <p className="text-lg mb-1 font-bold leading-tight line-clamp-2" title={assignment.projectName}>{assignment.projectName}</p>}
-                                                        <p className="font-semibold text-sm mb-1 truncate">{assignment.projectNumber}</p>
-                                                        {assignment.client && <p className="text-sm mb-1 leading-tight line-clamp-1" title={assignment.client}>{assignment.client}</p>}
-                                                        {assignment.task && <p className="text-sm mb-1 font-semibold truncate">{assignment.task}</p>}
-                                                        {assignment.shift && <p className="text-sm mb-1 font-semibold truncate">{assignment.shift}</p>}
-                                                        {assignment.time && <p className="text-sm mb-1 font-semibold truncate">{assignment.time}</p>}
-                                                        {assignment.comment && <p className="text-sm font-bold leading-tight line-clamp-2" title={assignment.comment}>{assignment.comment}</p>}
-                                                    </div>
-                                                </DraggableResourceItem>
-                                            );
-                                        }
-                                    }
-
-                                    const isStatusAssignment = assignment && assignment.type === 'status';
-                                    const isLeaveAssignment = assignment && assignment.type === 'leave';
-                                    const hasProjectAssignmentInCell = assignment && (
-                                        (Array.isArray(assignment) && assignment.some(a => a.type === 'project' && a.projectNumber)) ||
-                                        (assignment.type === 'project' && assignment.projectNumber)
-                                    );
-                                    // Show button if: user can allocate resources, OR it's a status assignment and user can set status, OR it's a project and user wants to navigate, OR it's blank and user can set status
-                                    const showContextMenuButton = canAllocateResources ||
-                                                                  (isStatusAssignment && canSetAvailabilityStatus) ||
-                                                                  hasProjectAssignmentInCell ||
-                                                                  (!assignment && canSetAvailabilityStatus);
-
-                                    return (
-                                        <td key={date.toISOString()} className="p-2 relative group">
-                                            <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop}>
-                                                <div
-                                                    data-empty={!assignment ? "true" : undefined}
-                                                    onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                    onClick={!isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                    className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${!assignment && isDesktop ? 'cursor-grab hover:cursor-grab' : ''}`}
-                                                >
-                                                    {cellContent}
-                                                </div>
-                                            </DroppableCell>
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-                </div>
-                <DragOverlay dropAnimation={null}>
+                                                                        </div>
+                                                                    </td>
+                                                                    {weekDates.map((date, dayIndex) => {
+                                                                        const assignment = currentWeekAllocations[user.id]?.assignments[dayIndex] || null;
+                                                                        let cellContent;
+                                                                        let cellColor = '';
+                                
+                                                                        if (assignment) {
+                                                                            if (Array.isArray(assignment)) {
+                                                                                // Multiple assignments - could be projects, leaves, or mixed
+                                                                                cellContent = (
+                                                                                    <div className="flex-1 flex flex-col gap-1">
+                                                                                        {assignment.map((item, index) => {
+                                                                                            if (item.type === 'project') {
+                                                                                                // Render project
+                                                                                                const projColorStyle = getShiftColor(item.shift);
+                                                                                                const projColor = typeof projColorStyle === 'string' ? projColorStyle : '';
+                                                                                                const projInlineStyle = typeof projColorStyle === 'object' ? projColorStyle : {};
+                                
+                                                                                                return (
+                                                                                                    <DraggableResourceItem
+                                                                                                        key={index}
+                                                                                                        id={`${user.id}::${dayIndex}::${index}`}
+                                                                                                        disabled={!isDesktop}
+                                                                                                    >
+                                                                                                        <div
+                                                                                                            data-assignment="true"
+                                                                                                            className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
+                                                                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
+                                                                                                            style={projInlineStyle}
+                                                                                                        >
+                                                                                                            <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={item.projectName}>{item.projectName}</p>
+                                                                                                            <p className="font-semibold text-xs mb-0.5 truncate">{item.projectNumber}</p>
+                                                                                                            {item.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1" title={item.task}>{item.task}</p>}
+                                                                                                            <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof item.shift === 'string' ? item.shift : String(item.shift || '')}</p>
+                                                                                                            {item.time && <p className="text-xs leading-tight font-semibold truncate">{item.time}</p>}
+                                                                                                        </div>
+                                                                                                    </DraggableResourceItem>
+                                                                                                );
+                                                                                            } else if (item.type === 'leave') {
+                                                                                                // Render leave
+                                                                                                const leaveColorStyle = getLeaveColor(item.leaveType);
+                                                                                                const leaveColor = typeof leaveColorStyle === 'string' ? leaveColorStyle : '';
+                                                                                                const leaveInlineStyle = typeof leaveColorStyle === 'object' ? leaveColorStyle : {};
+                                                                                                const hasComment = item.comment && item.comment.trim().length > 0;
+                                
+                                                                                                return (
+                                                                                                    <DraggableResourceItem
+                                                                                                        key={index}
+                                                                                                        id={`${user.id}::${dayIndex}::${index}`}
+                                                                                                        disabled={!isDesktop}
+                                                                                                    >
+                                                                                                        <div
+                                                                                                            data-assignment="true"
+                                                                                                            className={`p-1.5 rounded-md h-full flex flex-col justify-center font-bold ${leaveColor}`}
+                                                                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
+                                                                                                            style={leaveInlineStyle}
+                                                                                                        >
+                                                                                                            <div className={`text-center ${hasComment ? 'mb-0.5' : ''} text-sm truncate`}>{item.leaveType}</div>
+                                                                                                            {hasComment && (
+                                                                                                                <div className="text-center text-xs font-bold opacity-90 leading-tight line-clamp-2" title={item.comment}>
+                                                                                                                    {item.comment}
+                                                                                                                </div>
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                    </DraggableResourceItem>
+                                                                                                );
+                                                                                            }
+                                                                                            return null;
+                                                                                        })}
+                                                                                    </div>
+                                                                                );
+                                                                            } else if (assignment.type === 'leave') {
+                                                                                const leaveColorStyle = getLeaveColor(assignment.leaveType);
+                                                                                cellColor = typeof leaveColorStyle === 'string' ? leaveColorStyle : '';
+                                                                                const leaveInlineStyle = typeof leaveColorStyle === 'object' ? leaveColorStyle : {};
+                                
+                                                                                // Fixed text sizes for leave tiles
+                                                                                const hasComment = assignment.comment && assignment.comment.trim().length > 0;
+                                
+                                                                                cellContent = (
+                                                                                    <DraggableResourceItem
+                                                                                        id={`${user.id}::${dayIndex}::0`}
+                                                                                        disabled={!isDesktop}
+                                                                                    >
+                                                                                        <div
+                                                                                            data-assignment="true"
+                                                                                            className={`p-2 rounded-md h-full flex flex-col justify-center font-bold ${cellColor}`}
+                                                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                                                            style={leaveInlineStyle}
+                                                                                        >
+                                                                                            <div className={`text-center ${hasComment ? 'mb-1' : ''} text-lg truncate`}>{assignment.leaveType}</div>
+                                                                                            {hasComment && (
+                                                                                                <div className="text-center text-sm font-bold opacity-90 leading-tight line-clamp-3" title={assignment.comment}>
+                                                                                                    {assignment.comment}
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </DraggableResourceItem>
+                                                                                );
+                                                                            } else if (assignment.type === 'status') {
+                                                                                // Determine color based on availability status
+                                                                                let statusColor;
+                                                                                if (assignment.status === 'Available') {
+                                                                                    statusColor = 'text-green-600 dark:text-green-400';
+                                                                                } else if (assignment.status === 'Available (D)') {
+                                                                                    statusColor = 'text-green-600 dark:text-green-400';
+                                                                                } else if (assignment.status === 'Available (N)') {
+                                                                                    statusColor = 'text-green-600 dark:text-green-400';
+                                                                                } else {
+                                                                                    statusColor = 'text-red-600 dark:text-red-400';
+                                                                                }
+                                                                                // Fixed text size for status tiles
+                                                                                cellContent = (
+                                                                                    <div
+                                                                                        data-assignment="true"
+                                                                                        className={`flex-1 flex items-center justify-center text-xl font-semibold ${statusColor}`}
+                                                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                                                    >
+                                                                                        {assignment.status}
+                                                                                    </div>
+                                                                                );
+                                                                            } else if (assignment.type === 'project') {
+                                                                                const projectColorStyle = getShiftColor(assignment.shift);
+                                                                                cellColor = typeof projectColorStyle === 'string' ? projectColorStyle : '';
+                                                                                const projectInlineStyle = typeof projectColorStyle === 'object' ? projectColorStyle : {};
+                                
+                                                                                // Fixed text sizes for single project tiles - project name at top
+                                                                                cellContent = (
+                                                                                    <DraggableResourceItem
+                                                                                        id={`${user.id}::${dayIndex}::0`}
+                                                                                        disabled={!isDesktop}
+                                                                                    >
+                                                                                        <div
+                                                                                            data-assignment="true"
+                                                                                            className={`p-2 rounded-md h-full flex flex-col justify-center text-center ${cellColor}`}
+                                                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                                                            style={projectInlineStyle}
+                                                                                        >
+                                                                                            {assignment.projectName && <p className="text-lg mb-1 font-bold leading-tight line-clamp-2" title={assignment.projectName}>{assignment.projectName}</p>}
+                                                                                            <p className="font-semibold text-sm mb-1 truncate">{assignment.projectNumber}</p>
+                                                                                            {assignment.client && <p className="text-sm mb-1 leading-tight line-clamp-1" title={assignment.client}>{assignment.client}</p>}
+                                                                                            {assignment.task && <p className="text-sm mb-1 font-semibold truncate">{assignment.task}</p>}
+                                                                                            {assignment.shift && <p className="text-sm mb-1 font-semibold truncate">{assignment.shift}</p>}
+                                                                                            {assignment.time && <p className="text-sm mb-1 font-semibold truncate">{assignment.time}</p>}
+                                                                                            {assignment.comment && <p className="text-sm font-bold leading-tight line-clamp-2" title={assignment.comment}>{assignment.comment}</p>}
+                                                                                        </div>
+                                                                                    </DraggableResourceItem>
+                                                                                );
+                                                                            }
+                                                                        }
+                                
+                                                                        const isStatusAssignment = assignment && assignment.type === 'status';
+                                                                        const isLeaveAssignment = assignment && assignment.type === 'leave';
+                                                                        const hasProjectAssignmentInCell = assignment && (
+                                                                            (Array.isArray(assignment) && assignment.some(a => a.type === 'project' && a.projectNumber)) ||
+                                                                            (assignment.type === 'project' && assignment.projectNumber)
+                                                                        );
+                                                                        // Show button if: user can allocate resources, OR it's a status assignment and user can set status, OR it's a project and user wants to navigate, OR it's blank and user can set status
+                                                                        const showContextMenuButton = canAllocateResources ||
+                                                                                                      (isStatusAssignment && canSetAvailabilityStatus) ||
+                                                                                                      hasProjectAssignmentInCell ||
+                                                                                                      (!assignment && canSetAvailabilityStatus);
+                                
+                                                                        return (
+                                                                            <td key={date.toISOString()} className="p-2 relative group">
+                                                                                <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop}>
+                                                                                    <div
+                                                                                        data-empty={!assignment ? "true" : undefined}
+                                                                                        onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                                                        onClick={!isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                                                        className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${!assignment && isDesktop ? 'cursor-grab hover:cursor-grab' : ''}`}
+                                                                                    >
+                                                                                        {cellContent}
+                                                                                    </div>
+                                                                                </DroppableCell>
+                                                                            </td>
+                                                                        );
+                                                                    })}
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>                <DragOverlay dropAnimation={null}>
                     {renderDragOverlay()}
                 </DragOverlay>
             </DndContext>
