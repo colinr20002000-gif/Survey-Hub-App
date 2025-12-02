@@ -271,6 +271,51 @@ const LogDetailModal = ({ log, isOpen, onClose }) => {
     );
 };
 
+// Image compression function
+const compressImage = (file, maxSizeKB = 500) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                // Calculate new dimensions (max 1920px width)
+                const maxWidth = 1920;
+                if (width > maxWidth) {
+                    height = (height * maxWidth) / width;
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Start with high quality and reduce if needed
+                let quality = 0.9;
+                const tryCompress = () => {
+                    canvas.toBlob((blob) => {
+                        if (blob.size / 1024 <= maxSizeKB || quality <= 0.1) {
+                            resolve(blob);
+                        } else {
+                            quality -= 0.1;
+                            tryCompress();
+                        }
+                    }, 'image/jpeg', quality);
+                };
+                tryCompress();
+            };
+            img.onerror = reject;
+        };
+        reader.onerror = reject;
+    });
+};
+
 const CheckAdjustPage = () => {
     const { user } = useAuth();
     const { addToast } = useToast();
@@ -283,6 +328,7 @@ const CheckAdjustPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [photoPreview, setPhotoPreview] = useState(null);
     
     // Form State
     const [formData, setFormData] = useState({
@@ -631,7 +677,9 @@ const CheckAdjustPage = () => {
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
-            setFormData(prev => ({ ...prev, evidence_file: e.target.files[0] }));
+            const file = e.target.files[0];
+            setFormData(prev => ({ ...prev, evidence_file: file }));
+            setPhotoPreview(URL.createObjectURL(file)); // Set preview URL
         }
     };
 
@@ -660,13 +708,21 @@ const CheckAdjustPage = () => {
             if (formData.evidence_file) {
                 setUploading(true);
                 const file = formData.evidence_file;
-                const fileExt = file.name.split('.').pop();
+                
+                // Compress image
+                const compressedBlob = await compressImage(file);
+                
+                // Use jpg extension for compressed image
+                const fileExt = 'jpg';
                 const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
                 const filePath = `check-adjust/${fileName}`;
 
                 const { error: uploadError } = await supabase.storage
                     .from('evidence') // Assuming 'evidence' bucket exists, otherwise need to create it or use 'public'
-                    .upload(filePath, file);
+                    .upload(filePath, compressedBlob, {
+                        contentType: 'image/jpeg',
+                        cacheControl: '3600'
+                    });
 
                 if (uploadError) {
                     // Fallback if bucket doesn't exist or other error
@@ -763,6 +819,7 @@ const CheckAdjustPage = () => {
             evidence_file: null, // Don't pre-fill file input
             photo_url: log.evidence_url
         });
+        setPhotoPreview(log.evidence_url || null); // Set photoPreview for existing image
         setIsModalOpen(true);
     };
 
@@ -1199,12 +1256,11 @@ const CheckAdjustPage = () => {
                                 id="evidence-upload"
                             />
                             <label htmlFor="evidence-upload" className="cursor-pointer flex flex-col items-center justify-center">
-                                {formData.evidence_file ? (
-                                    <>
-                                        <CheckCircle className="w-8 h-8 text-green-500 mb-2" />
-                                        <span className="text-sm text-green-600">{formData.evidence_file.name}</span>
-                                        <span className="text-xs text-gray-400 mt-1">Click to change</span>
-                                    </>
+                                {(photoPreview || formData.photo_url) ? (
+                                    <div className="flex flex-col items-center">
+                                        <img src={photoPreview || formData.photo_url} alt="Preview" className="h-32 object-contain mb-2 rounded" />
+                                        <span className="text-xs text-gray-500">Click to change</span>
+                                    </div>
                                 ) : (
                                     <>
                                         <Upload className="w-8 h-8 text-gray-400 mb-2" />

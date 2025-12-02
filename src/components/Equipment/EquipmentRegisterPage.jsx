@@ -674,23 +674,23 @@ const EquipmentRegisterPage = () => {
                     <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Equipment Register</h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Comprehensive list of all equipment by category</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap justify-end gap-2 md:flex-nowrap">
                     {canAddEquipment && (
-                        <Button onClick={handleAdd} className="flex items-center">
+                        <Button onClick={handleAdd} className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto">
                             <PlusCircle className="w-4 h-4 mr-2" /> Add
                         </Button>
                     )}
                     <Button 
                         variant={isManageMode ? 'primary' : 'outline'} 
                         onClick={() => setIsManageMode(!isManageMode)}
-                        className="flex items-center"
+                        className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto"
                     >
                         <Edit className="w-4 h-4 mr-2" /> {isManageMode ? 'Done' : 'Manage'}
                     </Button>
-                    <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center">
+                    <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto">
                         <Archive className="w-4 h-4 mr-2" /> Export Wizard
                     </Button>
-                    <Button onClick={handleExportPDF} variant="outline" className="flex items-center">
+                    <Button onClick={handleExportPDF} variant="outline" className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto">
                         <Download className="w-4 h-4 mr-2" /> Export PDF
                     </Button>
                 </div>

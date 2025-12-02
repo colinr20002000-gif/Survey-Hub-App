@@ -193,6 +193,7 @@ const CloseCallsPage = () => {
         photo_file: null,
         photo_url: ''
     });
+    const [photoPreview, setPhotoPreview] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [gettingLocation, setGettingLocation] = useState(false);
 
@@ -446,7 +447,12 @@ const CloseCallsPage = () => {
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
-            setFormData(prev => ({ ...prev, photo_file: e.target.files[0] }));
+            const file = e.target.files[0];
+            setFormData(prev => ({ ...prev, photo_file: file }));
+            
+            // Create preview URL
+            const objectUrl = URL.createObjectURL(file);
+            setPhotoPreview(objectUrl);
         }
     };
 
@@ -493,6 +499,7 @@ const CloseCallsPage = () => {
             photo_file: null,
             photo_url: ''
         });
+        setPhotoPreview(null);
         setSelectedItem(null);
         setIsModalOpen(true);
     };
@@ -536,6 +543,7 @@ const CloseCallsPage = () => {
             photo_file: null,
             photo_url: item.photo_url || ''
         });
+        setPhotoPreview(item.photo_url || null);
         setIsModalOpen(true);
     };
 
@@ -985,15 +993,10 @@ const CloseCallsPage = () => {
                                 id="cc-photo-upload"
                             />
                             <label htmlFor="cc-photo-upload" className="cursor-pointer flex flex-col items-center justify-center">
-                                {formData.photo_file ? (
-                                    <>
-                                        <span className="text-sm text-green-600 font-medium">{formData.photo_file.name}</span>
-                                        <span className="text-xs text-gray-400 mt-1">Click to change</span>
-                                    </>
-                                ) : formData.photo_url ? (
+                                {photoPreview ? (
                                     <div className="flex flex-col items-center">
-                                        <img src={formData.photo_url} alt="Current" className="h-20 object-contain mb-2 rounded" />
-                                        <span className="text-xs text-gray-500">Click to replace</span>
+                                        <img src={photoPreview} alt="Preview" className="h-32 object-contain mb-2 rounded" />
+                                        <span className="text-xs text-gray-500">Click to change</span>
                                     </div>
                                 ) : (
                                     <>
