@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Card, Button, Input, Select, Modal, ConfirmationModal, Pagination } from '../components/ui';
-import { Loader2, Search, Edit, Trash2, PlusCircle, MapPin, Camera, Upload, Eye, FileText, Download, Archive } from 'lucide-react';
+import { Loader2, Search, Edit, Trash2, PlusCircle, MapPin, Camera, Upload, Eye, FileText, Download, Archive, TrendingUp } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import JSZip from 'jszip';
 
@@ -171,6 +171,20 @@ const CloseCallsPage = () => {
     const [usersData, setUsersData] = useState({});
     const [projects, setProjects] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Leaderboard Calculation
+    const leaderboardData = useMemo(() => {
+        const userCounts = {};
+        closeCalls.forEach(item => {
+            const userName = usersData[item.user_id] || 'Unknown User';
+            userCounts[userName] = (userCounts[userName] || 0) + 1;
+        });
+
+        return Object.entries(userCounts)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5); // Top 5
+    }, [closeCalls, usersData]);
     
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -729,7 +743,7 @@ const CloseCallsPage = () => {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                     <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Close Call Records</h3>
                 </div>
@@ -805,6 +819,47 @@ const CloseCallsPage = () => {
                                                 </div>
                                             </td>
                                         )}
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Leaderboard Table */}
+            <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                        <TrendingUp className="w-5 h-5 mr-2 text-orange-500" />
+                        Top Reporters (Close Calls)
+                    </h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                            <tr>
+                                <th className="px-6 py-3">Rank</th>
+                                <th className="px-6 py-3">User</th>
+                                <th className="px-6 py-3 text-right">Reports Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {leaderboardData.length === 0 ? (
+                                <tr>
+                                    <td colSpan="3" className="px-6 py-4 text-center text-gray-500">No data available</td>
+                                </tr>
+                            ) : (
+                                leaderboardData.map((user, index) => (
+                                    <tr key={user.name} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-6 py-4 font-medium">
+                                            {index + 1 === 1 && <span className="text-xl mr-2">🥇</span>}
+                                            {index + 1 === 2 && <span className="text-xl mr-2">🥈</span>}
+                                            {index + 1 === 3 && <span className="text-xl mr-2">🥉</span>}
+                                            {index + 1 > 3 && <span className="ml-2 font-bold text-gray-500">#{index + 1}</span>}
+                                        </td>
+                                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{user.name}</td>
+                                        <td className="px-6 py-4 text-right font-bold text-orange-600 dark:text-orange-400">{user.count}</td>
                                     </tr>
                                 ))
                             )}

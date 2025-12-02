@@ -17,7 +17,8 @@ import {
     XCircle,
     Archive,
     Trash2,
-    Edit
+    Edit,
+    TrendingUp
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
@@ -326,6 +327,8 @@ const CheckAdjustPage = () => {
     const [usersData, setUsersData] = useState([]);
     const [logs, setLogs] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState('create');
+    const [isManageMode, setIsManageMode] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [photoPreview, setPhotoPreview] = useState(null);
@@ -344,7 +347,8 @@ const CheckAdjustPage = () => {
         compensator: false,
         comments: '',
         status: 'Pass',
-        evidence_file: null
+        evidence_file: null,
+        photo_url: ''
     });
 
     // Filters & Pagination
@@ -436,6 +440,20 @@ const CheckAdjustPage = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Leaderboard Calculation
+    const leaderboardData = useMemo(() => {
+        const userCounts = {};
+        logs.forEach(log => {
+            const userName = log.user?.name || 'Unknown';
+            userCounts[userName] = (userCounts[userName] || 0) + 1;
+        });
+
+        return Object.entries(userCounts)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5); // Top 5
+    }, [logs]);
 
     // KPI Calculations & Overdue List
     const { kpiData, overdueList } = useMemo(() => {
@@ -675,11 +693,18 @@ const CheckAdjustPage = () => {
         }));
     };
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            setFormData(prev => ({ ...prev, evidence_file: file }));
-            setPhotoPreview(URL.createObjectURL(file)); // Set preview URL
+            try {
+                // Compress immediately for preview and readiness
+                const compressedBlob = await compressImage(file);
+                setFormData(prev => ({ ...prev, evidence_file: compressedBlob }));
+                setPhotoPreview(URL.createObjectURL(compressedBlob));
+            } catch (error) {
+                console.error('Error processing image:', error);
+                addToast({ message: 'Failed to process image', type: 'error' });
+            }
         }
     };
 
@@ -704,37 +729,44 @@ const CheckAdjustPage = () => {
         try {
             let evidenceUrl = null;
 
-            // Upload Evidence if exists
+            // Upload Evidence if new file selected
             if (formData.evidence_file) {
                 setUploading(true);
-                const file = formData.evidence_file;
-                
-                // Compress image
-                const compressedBlob = await compressImage(file);
-                
-                // Use jpg extension for compressed image
-                const fileExt = 'jpg';
-                const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
-                const filePath = `check-adjust/${fileName}`;
+                try {
+                    // File is already compressed in handleFileChange
+                    const compressedBlob = formData.evidence_file;
+                    
+                    // Use jpg extension for compressed image
+                    const fileExt = 'jpg';
+                    const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+                    const filePath = `check-adjust/${fileName}`;
 
-                const { error: uploadError } = await supabase.storage
-                    .from('evidence') // Assuming 'evidence' bucket exists, otherwise need to create it or use 'public'
-                    .upload(filePath, compressedBlob, {
-                        contentType: 'image/jpeg',
-                        cacheControl: '3600'
-                    });
-
-                if (uploadError) {
-                    // Fallback if bucket doesn't exist or other error
-                    console.warn('Upload failed, proceeding without file:', uploadError);
-                    addToast({ message: 'Image upload failed (check storage bucket), saving log anyway.', type: 'warning' });
-                } else {
-                    const { data: { publicUrl } } = supabase.storage
+                    const { error: uploadError } = await supabase.storage
                         .from('evidence')
-                        .getPublicUrl(filePath);
-                    evidenceUrl = publicUrl;
+                        .upload(filePath, compressedBlob, {
+                            contentType: 'image/jpeg',
+                            cacheControl: '3600'
+                        });
+
+                    if (uploadError) {
+                        console.error('Supabase upload error:', uploadError);
+                        addToast({ message: `Image upload failed: ${uploadError.message}`, type: 'error' });
+                        throw new Error(`Image upload failed: ${uploadError.message}`); // Rethrow to stop saving log without photo
+                    } else {
+                        const { data: { publicUrl } } = supabase.storage
+                            .from('evidence')
+                            .getPublicUrl(filePath);
+                        evidenceUrl = publicUrl;
+                    }
+                } catch (imageError) {
+                    console.error('Error during image processing or upload:', imageError);
+                    addToast({ message: `Failed to process/upload image: ${imageError.message}`, type: 'error' });
+                    // Decide whether to proceed saving the log without the photo or stop entirely
+                    // For now, we'll rethrow to stop the log saving
+                    throw imageError;
+                } finally {
+                    setUploading(false);
                 }
-                setUploading(false);
             }
 
             // Calculate Next Due Date (7 days from now)
@@ -760,43 +792,68 @@ const CheckAdjustPage = () => {
                 next_due_date: nextDue.toISOString()
             };
 
-            const { data, error } = await supabase
-                .from('check_adjust_logs')
-                .insert([newLog])
-                .select(`
-                    *,
-                    equipment:equipment_id (name, serial_number),
-                    user:user_id (name)
-                `)
-                .single();
+            if (modalMode === 'create') {
+                const { data, error } = await supabase
+                    .from('check_adjust_logs')
+                    .insert([newLog])
+                    .select(`
+                        *,
+                        equipment:equipment_id (name, serial_number),
+                        user:user_id (name)
+                    `)
+                    .single();
 
-            if (error) throw error;
+                if (error) throw error;
 
-            setLogs([data, ...logs]);
-            addToast({ message: 'Check & Adjust log saved successfully', type: 'success' });
-            setIsModalOpen(false);
-            setFormData({
-                equipment_id: '',
-                ha_collimation: '',
-                va_collimation: '',
-                trunnion_axis_tilt: '',
-                auto_lock_collimation_hz: '',
-                auto_lock_collimation_vt: '',
-                tribrach_circular_level: false,
-                prism_precise_level: false,
-                prism_optical_plummet: false,
-                compensator: false,
-                comments: '',
-                status: 'Pass',
-                evidence_file: null
-            });
+                setLogs([data, ...logs]);
+                addToast({ message: 'Check & Adjust log saved successfully', type: 'success' });
+                setIsModalOpen(false);
+                setFormData({
+                    equipment_id: '',
+                    ha_collimation: '',
+                    va_collimation: '',
+                    trunnion_axis_tilt: '',
+                    auto_lock_collimation_hz: '',
+                    auto_lock_collimation_vt: '',
+                    tribrach_circular_level: false,
+                    prism_precise_level: false,
+                    prism_optical_plummet: false,
+                    compensator: false,
+                    comments: '',
+                    status: 'Pass',
+                    evidence_file: null,
+                    photo_url: ''
+                });
+                setPhotoPreview(null);
+
+            } else { // edit mode
+                const { data, error } = await supabase
+                    .from('check_adjust_logs')
+                    .update(newLog) // Note: this copies all fields, including user_id, check_date
+                    .eq('id', selectedLog.id)
+                    .select(`
+                        *,
+                        equipment:equipment_id (name, serial_number),
+                        user:user_id (name)
+                    `)
+                    .single();
+
+                if (error) throw error;
+                setLogs(prev => prev.map(log => log.id === selectedLog.id ? data : log));
+                addToast({ message: 'Check & Adjust log updated successfully', type: 'success' });
+                setIsModalOpen(false);
+                // Also update the selectedLog if it's currently open in view modal
+                if (selectedLog && selectedLog.id === data.id) {
+                    setSelectedLog(data);
+                }
+            }
 
         } catch (error) {
-            console.error('Error saving log:', error);
+            console.error('Error saving log:', error); // Log the full error for debugging
             addToast({ message: error.message || 'Failed to save log', type: 'error' });
         } finally {
             setSubmitting(false);
-            setUploading(false);
+            setPhotoPreview(null); // Clear photo preview after submission attempt
         }
     };
 
@@ -819,7 +876,7 @@ const CheckAdjustPage = () => {
             evidence_file: null, // Don't pre-fill file input
             photo_url: log.evidence_url
         });
-        setPhotoPreview(log.evidence_url || null); // Set photoPreview for existing image
+        setPhotoPreview(log.evidence_url || null);
         setIsModalOpen(true);
     };
 
@@ -881,13 +938,42 @@ const CheckAdjustPage = () => {
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Total Station Calibration & Compliance</p>
                 </div>
                 <div className="flex gap-2">
+                    {(can('EDIT_CHECK_ADJUST_LOG') || can('DELETE_CHECK_ADJUST_LOG')) && (
+                        <Button 
+                            onClick={() => setIsManageMode(!isManageMode)} 
+                            variant="outline"
+                            className="flex items-center"
+                        >
+                            {isManageMode ? 'Done' : 'Manage'}
+                        </Button>
+                    )}
                     {can('EXPORT_CHECK_ADJUST_REPORTS') && (
                         <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center">
                             <Archive className="w-4 h-4 mr-2" /> Export Wizard
                         </Button>
                     )}
                     {can('ADD_CHECK_ADJUST_LOG') && (
-                        <Button onClick={() => setIsModalOpen(true)}>
+                        <Button onClick={() => {
+                            setModalMode('create');
+                            setFormData({
+                                equipment_id: '',
+                                ha_collimation: '',
+                                va_collimation: '',
+                                trunnion_axis_tilt: '',
+                                auto_lock_collimation_hz: '',
+                                auto_lock_collimation_vt: '',
+                                tribrach_circular_level: false,
+                                prism_precise_level: false,
+                                prism_optical_plummet: false,
+                                compensator: false,
+                                comments: '',
+                                status: 'Pass',
+                                evidence_file: null,
+                                photo_url: ''
+                            });
+                            setPhotoPreview(null);
+                            setIsModalOpen(true);
+                        }}>
                             <PlusCircle className="w-4 h-4 mr-2" />
                             Perform Check
                         </Button>
@@ -940,7 +1026,7 @@ const CheckAdjustPage = () => {
             </div>
 
             {/* Recent Logs Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
                         <FileText className="w-5 h-5 mr-2" />
@@ -1018,12 +1104,7 @@ const CheckAdjustPage = () => {
                                                     >
                                                         <Eye className="w-4 h-4 mr-1" /> View
                                                     </button>
-                                                    {log.evidence_url && (
-                                                        <a href={log.evidence_url} target="_blank" rel="noreferrer" className="text-gray-500 hover:text-blue-600 ml-2" title="View Evidence">
-                                                            <Camera className="w-4 h-4" />
-                                                        </a>
-                                                    )}
-                                                    {can('EDIT_CHECK_ADJUST_LOG') && (
+                                                    {isManageMode && can('EDIT_CHECK_ADJUST_LOG') && (
                                                         <button 
                                                             onClick={() => handleEditLog(log)} 
                                                             className="p-1 text-blue-600 hover:bg-blue-50 rounded"
@@ -1032,7 +1113,7 @@ const CheckAdjustPage = () => {
                                                             <Edit className="w-4 h-4" />
                                                         </button>
                                                     )}
-                                                    {can('DELETE_CHECK_ADJUST_LOG') && (
+                                                    {isManageMode && can('DELETE_CHECK_ADJUST_LOG') && (
                                                         <button 
                                                             onClick={() => handleDeleteLog(log.id)} 
                                                             className="p-1 text-red-600 hover:bg-red-50 rounded"
@@ -1059,6 +1140,47 @@ const CheckAdjustPage = () => {
                         setItemsPerPage={setItemsPerPage}
                         totalItems={filteredLogs.length}
                     />
+                </div>
+            </div>
+
+            {/* Leaderboard Table */}
+            <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                        <TrendingUp className="w-5 h-5 mr-2 text-orange-500" />
+                        Top Performers (Check & Adjust)
+                    </h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                            <tr>
+                                <th className="px-6 py-3">Rank</th>
+                                <th className="px-6 py-3">Technician</th>
+                                <th className="px-6 py-3 text-right">Reports Completed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {leaderboardData.length === 0 ? (
+                                <tr>
+                                    <td colSpan="3" className="px-6 py-4 text-center text-gray-500">No data available</td>
+                                </tr>
+                            ) : (
+                                leaderboardData.map((user, index) => (
+                                    <tr key={user.name} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-6 py-4 font-medium">
+                                            {index + 1 === 1 && <span className="text-xl mr-2">🥇</span>}
+                                            {index + 1 === 2 && <span className="text-xl mr-2">🥈</span>}
+                                            {index + 1 === 3 && <span className="text-xl mr-2">🥉</span>}
+                                            {index + 1 > 3 && <span className="ml-2 font-bold text-gray-500">#{index + 1}</span>}
+                                        </td>
+                                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{user.name}</td>
+                                        <td className="px-6 py-4 text-right font-bold text-orange-600 dark:text-orange-400">{user.count}</td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

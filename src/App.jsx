@@ -407,7 +407,10 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
                 }
             } else {
                 console.log('✅ Already running latest version');
-                addToast({ message: `You're running the latest version (v${packageJson.version})`, type: 'success' });
+                addToast({ message: `You're running the latest version (v${packageJson.version}). Refreshing...`, type: 'success' });
+                setTimeout(() => {
+                    window.location.reload(true);
+                }, 1000);
             }
         } catch (error) {
             console.error('Update check failed:', error);
