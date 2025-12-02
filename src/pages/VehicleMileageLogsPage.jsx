@@ -901,161 +901,166 @@ const VehicleMileageLogsPage = () => {
             {/* Scrollable Content Area */}
             <div className="flex-1 overflow-auto">
                 <div className="bg-white dark:bg-gray-800 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 dark:border-gray-700">
-                    {/* Statistics Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-                    <Card className="p-2 md:p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus('compliant')}>
-                        <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Compliant</div>
-                        <div className="text-xl md:text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.compliant}/{stats.total}</div>
-                    </Card>
-                    <Card className="p-2 md:p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus('upcoming')}>
-                        <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Due Soon</div>
-                        <div className="text-xl md:text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{stats.upcoming}</div>
-                    </Card>
-                    <Card className="p-2 md:p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus('overdue')}>
-                        <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Overdue</div>
-                        <div className="text-xl md:text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{stats.overdue}</div>
-                    </Card>
-                    <Card className="p-2 md:p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus('defects')}>
-                        <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400">With Defects</div>
-                        <div className="text-xl md:text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">{stats.withDefects}</div>
-                    </Card>
-                    </div>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        {/* Filters */}
+                        <div className="flex flex-row gap-2 md:gap-3 w-full md:w-auto">
+                            <div className="flex items-center space-x-2 w-full md:w-auto">
+                                <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
+                                <Select value={filterUser} onChange={(e) => setFilterUser(e.target.value)} className="flex-1 md:w-48">
+                                    <option value="all">All Users</option>
+                                    {users
+                                        .filter(u => assignments.some(a => (a.user_id === u.id || a.dummy_user_id === u.id) && !a.returned_at))
+                                        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                                        .map(u => (
+                                            <option key={u.id} value={u.id}>{u.name}</option>
+                                        ))
+                                    }
+                                </Select>
+                            </div>
+                            <div className="flex items-center space-x-2 w-full md:w-auto">
+                                <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
+                                <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="flex-1 md:w-48">
+                                    <option value="all">All Status</option>
+                                    <option value="compliant">Compliant</option>
+                                    <option value="upcoming">Due Soon</option>
+                                    <option value="overdue">Overdue</option>
+                                    <option value="never">Never Inspected</option>
+                                    <option value="defects">With Defects</option>
+                                </Select>
+                            </div>
+                            <Button
+                                onClick={() => setFilterUser(filterUser === user.id ? 'all' : user.id)}
+                                className={`flex items-center space-x-2 whitespace-nowrap ${filterUser === user.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-700'}`}
+                            >
+                                <Car className="w-4 h-4" />
+                                <span>{filterUser === user.id ? 'Show All' : 'My Vehicles'}</span>
+                            </Button>
+                        </div>
 
-                    {/* Filters */}
-                    <div className="flex flex-row gap-2 md:gap-3 mt-3 md:mt-4">
-                    <div className="flex items-center space-x-2 w-full md:w-auto">
-                        <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
-                        <Select value={filterUser} onChange={(e) => setFilterUser(e.target.value)} className="flex-1 md:w-48">
-                            <option value="all">All Users</option>
-                            {users
-                                .filter(u => assignments.some(a => (a.user_id === u.id || a.dummy_user_id === u.id) && !a.returned_at))
-                                .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-                                .map(u => (
-                                    <option key={u.id} value={u.id}>{u.name}</option>
-                                ))
-                            }
-                        </Select>
-                    </div>
-                    <div className="flex items-center space-x-2 w-full md:w-auto">
-                        <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
-                        <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="flex-1 md:w-48">
-                            <option value="all">All Status</option>
-                            <option value="compliant">Compliant</option>
-                            <option value="upcoming">Due Soon</option>
-                            <option value="overdue">Overdue</option>
-                            <option value="never">Never Inspected</option>
-                            <option value="defects">With Defects</option>
-                        </Select>
-                    </div>
-                    <Button
-                        onClick={() => setFilterUser(filterUser === user.id ? 'all' : user.id)}
-                        className={`flex items-center space-x-2 whitespace-nowrap ${filterUser === user.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-700'}`}
-                    >
-                        <Car className="w-4 h-4" />
-                        <span>{filterUser === user.id ? 'Show All' : 'My Vehicles'}</span>
-                    </Button>
+                        {/* New Inspection Button */}
+                        {hasPermission(user?.privilege, 'CREATE_VEHICLE_INSPECTIONS') && (
+                            <Button
+                                onClick={() => {
+                                    setSelectedVehicle(null); // No vehicle selected initially
+                                    setCurrentInspection({
+                                        vehicle_id: '', // Empty initially
+                                        user_id: user.id,
+                                        inspection_date: new Date().toISOString().split('T')[0],
+                                        mileage: '',
+                                        // Initialize all checks to null
+                                        check_engine_oil: null,
+                                        check_brake: null,
+                                        check_clutch: null,
+                                        check_power_steering: null,
+                                        check_auto_transmission: null,
+                                        check_screen_wash: null,
+                                        check_fuel: null,
+                                        check_coolant: null,
+                                        check_indicators: null,
+                                        check_side_lights: null,
+                                        check_headlights_dipped: null,
+                                        check_headlights_main: null,
+                                        check_number_plate_light: null,
+                                        check_reversing_light: null,
+                                        check_warning_lights: null,
+                                        check_horn: null,
+                                        check_door_wing_mirrors: null,
+                                        check_wiper_blades: null,
+                                        check_screen_washers: null,
+                                        check_tyre_pressure: null,
+                                        check_tyre_condition: null,
+                                        check_windscreen_wipers: null,
+                                        check_spare_wheel: null,
+                                        check_cleanliness: null,
+                                        check_seat_belts: null,
+                                        check_first_aid_kit: null,
+                                        check_fire_extinguisher: null,
+                                        check_head_restraint: null,
+                                        check_torch: null,
+                                        check_general_bodywork: null,
+                                        check_spill_kit: null,
+                                        check_door_locking: null,
+                                        comments: '',
+                                        damage_notes: '',
+                                        photos: [],
+                                    });
+                                    setShowInspectionModal(true);
+                                }}
+                                className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" />
+                                New Inspection
+                            </Button>
+                        )}
                     </div>
                 </div>
 
-                {/* Vehicle Grid */}
+                {/* Vehicle Status Table */}
                 <div className="p-4 md:p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                    {filteredVehicles.map(vehicle => {
-                        const vehicleStatus = getVehicleStatus(vehicle.id);
-                        const badge = getStatusBadge(vehicleStatus.status);
+                    <Card className="overflow-hidden mb-6">
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Vehicle Status Summary</h2>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vehicle</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Registration</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Assigned To</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Inspection</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Next Due</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    {filteredVehicles.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="7" className="px-4 py-8 text-center text-gray-500">No vehicles found</td>
+                                        </tr>
+                                    ) : (
+                                        filteredVehicles.map(vehicle => {
+                                            const status = getVehicleStatus(vehicle.id);
+                                            const badge = getStatusBadge(status.status);
+                                            const assignedUser = getAssignedUser(vehicle.id);
 
-                        return (
-                            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow cursor-pointer group">
-                                <div className="p-6">
-                                    {/* Status Badge */}
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${badge.color}`}>
-                                            {badge.icon}
-                                            <span className="text-xs font-semibold">{badge.text}</span>
-                                        </div>
-                                        {vehicleStatus.daysOverdue && (
-                                            <span className="text-xs text-red-600 dark:text-red-400 font-semibold">
-                                                {vehicleStatus.daysOverdue}d overdue
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Vehicle Info */}
-                                    <div className="flex items-start space-x-3 mb-4">
-                                        <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                                            <Car className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                                                {vehicle.name}
-                                            </h3>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                                {vehicle.serial_number || 'No Serial Number'}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Last Inspection */}
-                                    <div className="space-y-2 mb-4">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-gray-500 dark:text-gray-400">Last Inspection:</span>
-                                            <span className="text-gray-900 dark:text-white font-medium">
-                                                {vehicleStatus.lastInspection ? formatDate(vehicleStatus.lastInspection.inspection_date) : 'Never'}
-                                            </span>
-                                        </div>
-                                        {vehicleStatus.nextInspectionDate && (
-                                            <div className="flex items-center justify-between text-sm">
-                                                <span className="text-gray-500 dark:text-gray-400">Next Inspection:</span>
-                                                <span className="text-gray-900 dark:text-white font-medium">
-                                                    {formatDate(vehicleStatus.nextInspectionDate)}
-                                                </span>
-                                            </div>
-                                        )}
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-gray-500 dark:text-gray-400">Assigned To:</span>
-                                            <span className={`font-medium ${getAssignedUser(vehicle.id) ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-                                                {getAssignedUser(vehicle.id)?.name || 'Not Assigned'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex gap-2">
-                                        <Button
-                                            onClick={() => handleViewHistory(vehicle)}
-                                            variant="outline"
-                                            className="flex-1"
-                                        >
-                                            <Eye className="w-4 h-4 mr-2" />
-                                            History
-                                        </Button>
-                                        {hasPermission(user?.privilege, 'CREATE_VEHICLE_INSPECTIONS') && (
-                                            <Button
-                                                onClick={() => handleStartInspection(vehicle)}
-                                                className="flex-1 group-hover:bg-orange-600 transition-colors"
-                                            >
-                                                <Plus className="w-4 h-4 mr-2" />
-                                                Inspect
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
-                            </Card>
-                        );
-                    })}
-                </div>
-
-                {filteredVehicles.length === 0 && (
-                    <div className="text-center py-12">
-                        <Car className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No vehicles found</h3>
-                        <p className="text-gray-500 dark:text-gray-400">
-                            {filterUser !== 'all' || filterStatus !== 'all'
-                                ? 'Try adjusting your filters'
-                                : 'No vehicles are currently tracked in the system'}
-                        </p>
-                    </div>
-                )}
+                                            return (
+                                                <tr key={vehicle.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                    <td className="px-4 py-4 whitespace-nowrap font-medium text-gray-900 dark:text-white">{vehicle.name}</td>
+                                                    <td className="px-4 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">{vehicle.serial_number || '-'}</td>
+                                                    <td className="px-4 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">{assignedUser?.name || 'Unassigned'}</td>
+                                                    <td className="px-4 py-4 whitespace-nowrap text-gray-900 dark:text-white">
+                                                        {status.lastInspection ? formatDate(status.lastInspection.inspection_date) : 'Never'}
+                                                    </td>
+                                                    <td className="px-4 py-4 whitespace-nowrap text-gray-900 dark:text-white">
+                                                        {status.nextInspectionDate ? formatDate(status.nextInspectionDate) : '-'}
+                                                    </td>
+                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                        <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold ${badge.color}`}>
+                                                            {badge.icon}
+                                                            <span>{badge.text}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 whitespace-nowrap text-right">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => handleViewHistory(vehicle)}
+                                                            className="flex items-center gap-1 ml-auto"
+                                                        >
+                                                            <Eye className="w-3 h-3" />
+                                                            History
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
                 </div>
 
                 {/* Summary Table */}
@@ -1374,6 +1379,8 @@ const VehicleMileageLogsPage = () => {
 
 // Inspection Modal Component
 const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
+    const [vehicles, setVehicles] = useState([]);
+    const [selectedVehicle, setSelectedVehicle] = useState(vehicle);
     const [formData, setFormData] = useState(inspection);
     const [saving, setSaving] = useState(false);
     const [uploadedImages, setUploadedImages] = useState([]);
@@ -1381,6 +1388,24 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
     const [validationError, setValidationError] = useState(null);
     const errorMessageRef = useRef(null);
     const modalContentRef = useRef(null);
+
+    // Fetch vehicles if not provided
+    useEffect(() => {
+        if (!vehicle) {
+            const fetchVehiclesList = async () => {
+                const { data } = await supabase.from('vehicles').select('*').order('name');
+                setVehicles(data || []);
+            };
+            fetchVehiclesList();
+        }
+    }, [vehicle]);
+
+    // Update formData when vehicle is selected
+    useEffect(() => {
+        if (selectedVehicle) {
+            setFormData(prev => ({ ...prev, vehicle_id: selectedVehicle.id }));
+        }
+    }, [selectedVehicle]);
 
     // Scroll to error message when validation error appears
     useEffect(() => {
@@ -1471,7 +1496,10 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
             // Generate unique filename
             const fileExt = file.name.split('.').pop() || 'jpg';
             const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-            const filePath = `vehicle-inspections/${vehicle.id}/${fileName}`;
+            
+            // Use selected vehicle ID for path
+            if (!formData.vehicle_id) throw new Error("Please select a vehicle first");
+            const filePath = `vehicle-inspections/${formData.vehicle_id}/${fileName}`;
 
             // Upload to Supabase Storage
             const { data, error } = await supabase.storage
@@ -1602,6 +1630,11 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
         // Clear previous errors
         setValidationError(null);
 
+        if (!formData.vehicle_id) {
+            setValidationError('Please select a vehicle');
+            return;
+        }
+
         if (!formData.mileage) {
             setValidationError('Please enter the current mileage');
             return;
@@ -1687,18 +1720,34 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
     );
 
     return (
-        <Modal isOpen={true} onClose={onClose} title={`Vehicle Inspection - ${vehicle.name}`}>
+        <Modal isOpen={true} onClose={onClose} title={selectedVehicle ? `Vehicle Inspection - ${selectedVehicle.name}` : 'New Vehicle Inspection'}>
             <div className="max-h-[80vh] overflow-y-auto">
                 {/* Header Info */}
                 <div className="bg-gray-50 dark:bg-gray-800 p-4 space-y-3 border-b border-gray-200 dark:border-gray-700">
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs text-gray-500 dark:text-gray-400">Vehicle</label>
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{vehicle.name}</p>
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="text-xs text-gray-500 dark:text-gray-400">Vehicle *</label>
+                            {vehicle ? (
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white">{vehicle.name}</p>
+                            ) : (
+                                <Select
+                                    value={formData.vehicle_id}
+                                    onChange={(e) => {
+                                        const v = vehicles.find(v => v.id === e.target.value);
+                                        setSelectedVehicle(v);
+                                    }}
+                                    className="mt-1"
+                                >
+                                    <option value="">Select Vehicle</option>
+                                    {vehicles.map(v => (
+                                        <option key={v.id} value={v.id}>{v.name} ({v.serial_number || 'No Reg'})</option>
+                                    ))}
+                                </Select>
+                            )}
                         </div>
-                        <div>
+                        <div className="col-span-2 md:col-span-1">
                             <label className="text-xs text-gray-500 dark:text-gray-400">Registration</label>
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{vehicle.serial_number || 'N/A'}</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedVehicle?.serial_number || 'N/A'}</p>
                         </div>
                         <div>
                             <label className="text-xs text-gray-500 dark:text-gray-400">Date</label>

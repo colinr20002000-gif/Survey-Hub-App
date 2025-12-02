@@ -508,6 +508,64 @@ const CheckAdjustPage = () => {
         };
     }, [equipment, logs, assignments, usersData]);
 
+    // Total Station Summary List Calculation
+    const totalStationSummary = useMemo(() => {
+        const assignmentMap = {};
+        assignments.forEach(a => {
+            assignmentMap[a.equipment_id] = a.user_id;
+        });
+
+        const userMap = {};
+        usersData.forEach(u => {
+            userMap[u.id] = u.name;
+        });
+
+        const latestLogs = {};
+        logs.forEach(log => {
+            if (!latestLogs[log.equipment_id] || new Date(log.check_date) > new Date(latestLogs[log.equipment_id].check_date)) {
+                latestLogs[log.equipment_id] = log;
+            }
+        });
+
+        return equipment.map(unit => {
+            const assignedUserId = assignmentMap[unit.id];
+            const assignedUserName = assignedUserId ? userMap[assignedUserId] : 'Unassigned';
+            const lastLog = latestLogs[unit.id];
+            
+            // Calculate status
+            let status = 'Never Checked';
+            let nextDue = null;
+            
+            if (lastLog) {
+                const lastDate = new Date(lastLog.check_date);
+                const nextDate = new Date(lastLog.next_due_date || new Date(lastDate.getTime() + 7 * 24 * 60 * 60 * 1000));
+                nextDue = nextDate;
+                
+                const now = new Date();
+                if (lastLog.status === 'Fail') {
+                    status = 'Fail';
+                } else if (nextDate < now) {
+                    status = 'Overdue';
+                } else {
+                    status = 'Compliant';
+                }
+            }
+
+            return {
+                id: unit.id,
+                name: unit.name,
+                serial_number: unit.serial_number,
+                model: unit.model,
+                assignedTo: assignedUserName,
+                lastCheck: lastLog ? lastLog.check_date : null,
+                nextDue: nextDue,
+                status: status
+            };
+        }).sort((a, b) => {
+            return a.name.localeCompare(b.name); // Sort by equipment name
+        });
+    }, [equipment, logs, assignments, usersData]);
+
     const toggleExportSelection = (id) => {
         setSelectedExportIds(prev => 
             prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
@@ -741,11 +799,15 @@ const CheckAdjustPage = () => {
                     const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
                     const filePath = `check-adjust/${fileName}`;
 
+                    // Convert Blob to File for better compatibility with Supabase Storage (fixes mobile access denied)
+                    const fileToUpload = new File([compressedBlob], fileName, { type: 'image/jpeg' });
+
                     const { error: uploadError } = await supabase.storage
                         .from('evidence')
-                        .upload(filePath, compressedBlob, {
+                        .upload(filePath, fileToUpload, {
                             contentType: 'image/jpeg',
-                            cacheControl: '3600'
+                            cacheControl: '3600',
+                            upsert: false
                         });
 
                     if (uploadError) {
@@ -1025,6 +1087,62 @@ const CheckAdjustPage = () => {
                 </Card>
             </div>
 
+            {/* Total Station Summary Table */}
+            <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                        <TrendingUp className="w-5 h-5 mr-2 text-orange-500" />
+                        Total Station Summary
+                    </h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                        <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
+                            <tr>
+                                <th className="px-6 py-3">Equipment</th>
+                                <th className="px-6 py-3">Assigned To</th>
+                                <th className="px-6 py-3">Last Check</th>
+                                <th className="px-6 py-3">Next Due</th>
+                                <th className="px-6 py-3 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {totalStationSummary.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-4 text-center text-gray-500">No total stations found</td>
+                                </tr>
+                            ) : (
+                                totalStationSummary.map((unit) => (
+                                    <tr key={unit.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-6 py-4">
+                                            <div className="font-medium text-gray-900 dark:text-white">{unit.name}</div>
+                                            <div className="text-xs text-gray-500">{unit.model} - {unit.serial_number}</div>
+                                        </td>
+                                        <td className="px-6 py-4">{unit.assignedTo}</td>
+                                        <td className="px-6 py-4">
+                                            {unit.lastCheck ? new Date(unit.lastCheck).toLocaleDateString() : 'Never'}
+                                        </td>
+                                        <td className={`px-6 py-4 ${unit.status === 'Overdue' ? 'text-red-600 font-bold' : ''}`}>
+                                            {unit.nextDue ? new Date(unit.nextDue).toLocaleDateString() : 'N/A'}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                unit.status === 'Compliant' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                                                unit.status === 'Overdue' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
+                                                unit.status === 'Fail' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
+                                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                            }`}>
+                                                {unit.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             {/* Recent Logs Table */}
             <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -1046,7 +1164,7 @@ const CheckAdjustPage = () => {
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                        <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
                             <tr>
                                 <th className="px-6 py-3">Date</th>
                                 <th className="px-6 py-3">Model</th>
@@ -1153,7 +1271,7 @@ const CheckAdjustPage = () => {
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                        <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
                             <tr>
                                 <th className="px-6 py-3">Rank</th>
                                 <th className="px-6 py-3">Technician</th>
