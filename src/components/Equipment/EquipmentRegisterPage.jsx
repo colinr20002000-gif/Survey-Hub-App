@@ -788,8 +788,8 @@ const EquipmentRegisterPage = () => {
                                                         now.setHours(0,0,0,0);
                                                         warningDate.setHours(0,0,0,0);
 
-                                                        if (expiry < now) return 'text-red-600 font-bold';
-                                                        if (expiry <= warningDate) return 'text-yellow-600 font-bold';
+                                                        if (expiry < now) return 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+                                                        if (expiry <= warningDate) return 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
                                                         return '';
                                                     })()}>
                                                         {item.warranty_expiry ? new Date(item.warranty_expiry).toLocaleDateString() : '-'}

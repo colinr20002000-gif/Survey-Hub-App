@@ -181,7 +181,7 @@ const ProjectsPage = ({ onViewProject }) => {
     };
 
     return (
-        <div className="p-4 md:p-6">
+        <div className="p-4 md:p-6 max-w-[1600px] mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Projects</h1>
                 <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
@@ -233,27 +233,27 @@ const ProjectsPage = ({ onViewProject }) => {
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto w-full">
                 <table className="text-sm text-left text-gray-500 dark:text-gray-400 min-w-full">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                    <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
                         <tr>
-                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('project_number')}>
+                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors" onClick={() => requestSort('project_number')}>
                                 <div className="flex items-center">
                                     project number
                                     <span className="ml-2">{getSortIndicator('project_number')}</span>
                                 </div>
                             </th>
-                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('project_name')}>
+                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors" onClick={() => requestSort('project_name')}>
                                 <div className="flex items-center">
                                     project name
                                     <span className="ml-2">{getSortIndicator('project_name')}</span>
                                 </div>
                             </th>
-                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('client')}>
+                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors" onClick={() => requestSort('client')}>
                                 <div className="flex items-center">
                                     client
                                     <span className="ml-2">{getSortIndicator('client')}</span>
                                 </div>
                             </th>
-                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort('year')}>
+                            <th scope="col" className="px-6 py-3 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors" onClick={() => requestSort('year')}>
                                 <div className="flex items-center">
                                     year
                                     <span className="ml-2">{getSortIndicator('year')}</span>

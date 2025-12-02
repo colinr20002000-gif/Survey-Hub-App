@@ -921,7 +921,10 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             } else if (hasProjectAssignment) {
                 wouldHaveItems = true; // Can view project
             } else if (isStatusAssignment && canSetAvailabilityStatus) {
-                wouldHaveItems = true; // Can delete status
+                // Check specific edit permissions for status
+                if (canEditStatus(assignment, currentUser?.id, canEditAvailabilityStatus24H, canEditAnyAvailabilityStatus)) {
+                    wouldHaveItems = true; // Can delete status
+                }
             } else if (isLeaveAssignment && canAllocateResources) {
                 wouldHaveItems = true; // Can edit/delete leave
             }
@@ -1524,6 +1527,15 @@ const ResourceCalendarPage = ({ onViewProject }) => {
             }
             setClipboard({ type: action, data: dataToCopy, sourceCell: cellToUpdate, sourceItemIndex });
         } else if (action === 'delete') {
+            // If it's a status assignment, check permissions again (security check)
+            const isStatusAssignment = cellData.assignment && cellData.assignment.type === 'status';
+            if (isStatusAssignment) {
+                 if (!canEditStatus(cellData.assignment, currentUser?.id, canEditAvailabilityStatus24H, canEditAnyAvailabilityStatus)) {
+                     alert("You cannot delete this status (24h window expired or no permission).");
+                     return;
+                 }
+            }
+
             // If itemIndex is provided, delete only that specific item from multi-item array
             if (cellData.itemIndex !== null && cellData.itemIndex !== undefined) {
                 handleDeleteIndividualItem(cellData.userId, cellData.dayIndex, cellData.itemIndex, cellData.date);
@@ -2637,6 +2649,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     }}
                     canAllocate={canAllocateResources}
                     canSetStatus={canSetAvailabilityStatus}
+                    canEditStatus24H={canEditAvailabilityStatus24H}
+                    canEditStatusAny={canEditAnyAvailabilityStatus}
                 />
             )}
             {selectedCell && (
@@ -2666,7 +2680,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 };
 
 
-const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate, canSetStatus }) => {
+const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate, canSetStatus, canEditStatus24H, canEditStatusAny }) => {
     const menuRef = useRef(null);
     const [position, setPosition] = useState({ top: y, left: x });
 
@@ -2731,6 +2745,9 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
     const canMoveUp = isArrayItemOperation && isMultiItemTile && cellData.itemIndex > 0;
     const canMoveDown = isArrayItemOperation && isMultiItemTile && cellData.itemIndex < cellData.assignment.length - 1;
 
+    // Check if user can delete status (Admin or within 24h)
+    const canDeleteStatus = isStatusAssignment && canSetStatus && canEditStatus(cellData.assignment, null, canEditStatus24H, canEditStatusAny);
+
     // Show context menu for viewers if there's a project to navigate to
     const canViewProject = hasProjectAssignment;
     if (!canAllocate && !canSetStatus && !canViewProject) {
@@ -2791,7 +2808,7 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                     {hasProjectAssignment && (
                         <button onClick={() => onAction('goToProject')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><FolderKanban size={14} className="mr-2"/>Go to Project</button>
                     )}
-                    {(canAllocate || (isStatusAssignment && canSetStatus)) && (
+                    {(canAllocate || canDeleteStatus) && (
                         <button onClick={() => onAction('delete')} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={14} className="mr-2"/>Delete</button>
                     )}
                 </>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { Card, Button, Input, Select, Modal, ConfirmationModal, Pagination } from '../components/ui';
 import { Loader2, Search, Edit, Trash2, PlusCircle, MapPin, Camera, Upload, Eye, FileText, Download, Archive } from 'lucide-react';
 import { toPng } from 'html-to-image';
@@ -164,6 +165,7 @@ const CloseCallReportModal = ({ item, isOpen, onClose, usersData, projects }) =>
 
 const CloseCallsPage = () => {
     const { user } = useAuth();
+    const { can } = usePermissions();
     const [loading, setLoading] = useState(true);
     const [closeCalls, setCloseCalls] = useState([]);
     const [usersData, setUsersData] = useState({});
@@ -547,7 +549,26 @@ const CloseCallsPage = () => {
             if (formData.photo_file) {
                 const file = formData.photo_file;
                 const fileExt = file.name.split('.').pop();
-                const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+
+                // Get project info
+                let projectIdentifier = 'NoProject';
+                if (formData.project_id) {
+                    const project = projects.find(p => p.id === formData.project_id);
+                    projectIdentifier = project ? project.project_number : 'UnknownProject';
+                } else if (isManualProject && formData.project_name) {
+                    projectIdentifier = formData.project_name;
+                }
+                
+                // Get date
+                const datePart = new Date(formData.date_time).toISOString().split('T')[0];
+
+                // Sanitize title
+                const sanitizedTitle = (formData.title || 'CloseCall').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_').substring(0, 50);
+                const sanitizedProjectIdentifier = projectIdentifier.replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_');
+
+
+                // Construct filename: YYYY-MM-DD_PROJECT_TITLE_TIMESTAMP.ext
+                const fileName = `${datePart}_${sanitizedProjectIdentifier}_${sanitizedTitle}_${Date.now()}.${fileExt}`;
                 const filePath = `${fileName}`;
 
                 const { error: uploadError } = await supabase.storage
@@ -665,19 +686,25 @@ const CloseCallsPage = () => {
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Register and track safety close calls</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center">
-                        <Archive className="w-4 h-4 mr-2" /> Export Wizard
-                    </Button>
-                    <Button onClick={handleOpenCreate} className="flex items-center">
-                        <PlusCircle className="w-4 h-4 mr-2" /> Add New
-                    </Button>
-                    <Button 
-                        variant={isManageMode ? 'primary' : 'outline'} 
-                        onClick={() => setIsManageMode(!isManageMode)}
-                        className="flex items-center"
-                    >
-                        <Edit className="w-4 h-4 mr-2" /> {isManageMode ? 'Done' : 'Manage'}
-                    </Button>
+                    {can('EXPORT_CLOSE_CALLS') && (
+                        <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center">
+                            <Archive className="w-4 h-4 mr-2" /> Export Wizard
+                        </Button>
+                    )}
+                    {can('ADD_CLOSE_CALL') && (
+                        <Button onClick={handleOpenCreate} className="flex items-center">
+                            <PlusCircle className="w-4 h-4 mr-2" /> Add New
+                        </Button>
+                    )}
+                    {can('MANAGE_CLOSE_CALLS') && (
+                        <Button 
+                            variant={isManageMode ? 'primary' : 'outline'} 
+                            onClick={() => setIsManageMode(!isManageMode)}
+                            className="flex items-center"
+                        >
+                            <Edit className="w-4 h-4 mr-2" /> {isManageMode ? 'Done' : 'Manage'}
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -780,7 +807,7 @@ const CloseCallsPage = () => {
 
             {/* Create/Edit Modal */}
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalMode === 'create' ? 'Log Close Call' : 'Edit Close Call'}>
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                     <div>
                         <div className="flex justify-between items-center mb-1">
                             <label className="block text-sm font-medium">Project</label>

@@ -15,7 +15,9 @@ import {
     Download,
     Check,
     XCircle,
-    Archive
+    Archive,
+    Trash2,
+    Edit
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
@@ -24,6 +26,7 @@ import JSZip from 'jszip';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { Card, Button, Input, Select, Modal, Pagination } from '../ui';
 
 const LogCertificateView = React.forwardRef(({ log }, ref) => {
@@ -139,6 +142,7 @@ const LogCertificateView = React.forwardRef(({ log }, ref) => {
 
 const LogDetailModal = ({ log, isOpen, onClose }) => {
     const modalRef = useRef(null);
+    const { can } = usePermissions();
 
     const handleExportImage = async () => {
         if (!modalRef.current) return;
@@ -257,9 +261,11 @@ const LogDetailModal = ({ log, isOpen, onClose }) => {
             {/* Actions */}
             <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
                 <Button variant="outline" onClick={onClose}>Close</Button>
-                <Button onClick={handleExportImage} className="flex items-center gap-2">
-                    <Download size={16} /> Export Certificate
-                </Button>
+                {can('EXPORT_CHECK_ADJUST_CERTIFICATE') && (
+                    <Button onClick={handleExportImage} className="flex items-center gap-2">
+                        <Download size={16} /> Export Certificate
+                    </Button>
+                )}
             </div>
         </Modal>
     );
@@ -268,6 +274,7 @@ const LogDetailModal = ({ log, isOpen, onClose }) => {
 const CheckAdjustPage = () => {
     const { user } = useAuth();
     const { addToast } = useToast();
+    const { can } = usePermissions();
     const [loading, setLoading] = useState(true);
     const [equipment, setEquipment] = useState([]);
     const [assignments, setAssignments] = useState([]);
@@ -635,6 +642,16 @@ const CheckAdjustPage = () => {
             return;
         }
 
+        // Check permissions before submitting
+        if (modalMode === 'create' && !can('ADD_CHECK_ADJUST_LOG')) {
+            addToast({ message: 'You do not have permission to add check & adjust logs.', type: 'error' });
+            return;
+        }
+        if (modalMode === 'edit' && !can('EDIT_CHECK_ADJUST_LOG')) {
+            addToast({ message: 'You do not have permission to edit check & adjust logs.', type: 'error' });
+            return;
+        }
+
         setSubmitting(true);
         try {
             let evidenceUrl = null;
@@ -727,6 +744,65 @@ const CheckAdjustPage = () => {
         }
     };
 
+    const handleEditLog = (log) => {
+        setSelectedLog(log); // Set selectedLog for reference in handleSubmit
+        setModalMode('edit');
+        setFormData({
+            equipment_id: log.equipment_id,
+            ha_collimation: log.ha_collimation,
+            va_collimation: log.va_collimation,
+            trunnion_axis_tilt: log.trunnion_axis_tilt,
+            auto_lock_collimation_hz: log.auto_lock_collimation_hz,
+            auto_lock_collimation_vt: log.auto_lock_collimation_vt,
+            tribrach_circular_level: log.tribrach_circular_level,
+            prism_precise_level: log.prism_precise_level,
+            prism_optical_plummet: log.prism_optical_plummet,
+            compensator: log.compensator,
+            comments: log.comments,
+            status: log.status,
+            evidence_file: null, // Don't pre-fill file input
+            photo_url: log.evidence_url
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteLog = async (logId) => {
+        if (!can('DELETE_CHECK_ADJUST_LOG')) {
+            addToast({ message: 'You do not have permission to delete check & adjust logs.', type: 'error' });
+            return;
+        }
+        if (!window.confirm('Are you sure you want to delete this log? This action cannot be undone.')) {
+            return;
+        }
+
+        setSubmitting(true); // Re-using submitting state
+        try {
+            // Logic to delete log and associated evidence photo
+            const logToDelete = logs.find(log => log.id === logId);
+            if (logToDelete && logToDelete.evidence_url) {
+                const path = logToDelete.evidence_url.split('evidence/').pop();
+                if (path) {
+                    await supabase.storage.from('evidence').remove([path]);
+                }
+            }
+            
+            const { error } = await supabase
+                .from('check_adjust_logs')
+                .delete()
+                .eq('id', logId);
+
+            if (error) throw error;
+
+            setLogs(prev => prev.filter(log => log.id !== logId));
+            addToast({ message: 'Check & Adjust log deleted successfully', type: 'success' });
+        } catch (error) {
+            console.error('Error deleting log:', error);
+            addToast({ message: error.message || 'Failed to delete log', type: 'error' });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     // Pagination Logic
     const filteredLogs = logs.filter(log => 
         (log.equipment?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -748,13 +824,17 @@ const CheckAdjustPage = () => {
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Total Station Calibration & Compliance</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center">
-                        <Archive className="w-4 h-4 mr-2" /> Export Wizard
-                    </Button>
-                    <Button onClick={() => setIsModalOpen(true)}>
-                        <PlusCircle className="w-4 h-4 mr-2" />
-                        Perform Check
-                    </Button>
+                    {can('EXPORT_CHECK_ADJUST_REPORTS') && (
+                        <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center">
+                            <Archive className="w-4 h-4 mr-2" /> Export Wizard
+                        </Button>
+                    )}
+                    {can('ADD_CHECK_ADJUST_LOG') && (
+                        <Button onClick={() => setIsModalOpen(true)}>
+                            <PlusCircle className="w-4 h-4 mr-2" />
+                            Perform Check
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -885,6 +965,24 @@ const CheckAdjustPage = () => {
                                                         <a href={log.evidence_url} target="_blank" rel="noreferrer" className="text-gray-500 hover:text-blue-600 ml-2" title="View Evidence">
                                                             <Camera className="w-4 h-4" />
                                                         </a>
+                                                    )}
+                                                    {can('EDIT_CHECK_ADJUST_LOG') && (
+                                                        <button 
+                                                            onClick={() => handleEditLog(log)} 
+                                                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                                            title="Edit Log"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {can('DELETE_CHECK_ADJUST_LOG') && (
+                                                        <button 
+                                                            onClick={() => handleDeleteLog(log.id)} 
+                                                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                                            title="Delete Log"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
                                                     )}
                                                 </div>
                                             </td>
