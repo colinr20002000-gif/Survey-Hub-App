@@ -965,29 +965,57 @@ const DeliveryTrackerContent = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [jobToEdit, setJobToEdit] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
-    const [sortConfig, setSortConfig] = useState({ key: 'plannedDeliveryDate', direction: 'ascending' });
+    
+    // Sort Config State with localStorage
+    const [sortConfig, setSortConfig] = useState(() => {
+        const saved = localStorage.getItem('deliveryTracker_jobs_sortConfig');
+        return saved ? JSON.parse(saved) : { key: 'plannedDeliveryDate', direction: 'ascending' };
+    });
+
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [jobToDelete, setJobToDelete] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [jobToArchive, setJobToArchive] = useState(null);
     const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+
+    // Persist sortConfig to localStorage
+    useEffect(() => {
+        localStorage.setItem('deliveryTracker_jobs_sortConfig', JSON.stringify(sortConfig));
+    }, [sortConfig]);
     
     // New Filter State
-    const [showFilters, setShowFilters] = useState(false);
-    const [filters, setFilters] = useState({
-        projectName: [],
-        projectNumber: [],
-        itemName: [],
-        projectManager: [],
-        client: [],
-        discipline: [],
-        siteStartDate: [],
-        siteCompletionDate: [],
-        plannedDeliveryDate: [],
-        actualDeliveryDate: [],
-        status: []
+    const [showFilters, setShowFilters] = useState(() => {
+        const saved = localStorage.getItem('deliveryTracker_jobs_showFilters');
+        return saved ? JSON.parse(saved) : false;
     });
+
+    const [filters, setFilters] = useState(() => {
+        const saved = localStorage.getItem('deliveryTracker_jobs_filters');
+        return saved ? JSON.parse(saved) : {
+            projectName: [],
+            projectNumber: [],
+            itemName: [],
+            projectManager: [],
+            client: [],
+            discipline: [],
+            siteStartDate: [],
+            siteCompletionDate: [],
+            plannedDeliveryDate: [],
+            actualDeliveryDate: [],
+            status: []
+        };
+    });
+
+    // Persist showFilters to localStorage
+    useEffect(() => {
+        localStorage.setItem('deliveryTracker_jobs_showFilters', JSON.stringify(showFilters));
+    }, [showFilters]);
+
+    // Persist filters to localStorage
+    useEffect(() => {
+        localStorage.setItem('deliveryTracker_jobs_filters', JSON.stringify(filters));
+    }, [filters]);
 
     const handleSaveJob = async (jobData) => {
         if (jobToEdit) {
@@ -1179,7 +1207,7 @@ const DeliveryTrackerContent = () => {
             </div>
             
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-visible">
-                <div className="overflow-x-auto pb-32">
+                <div className="overflow-x-auto pb-4">
                     <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                         <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
                             <tr>

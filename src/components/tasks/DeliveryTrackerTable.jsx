@@ -2,90 +2,42 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button, Input, Select } from '../ui';
 import { Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Archive, X, CheckCircle } from 'lucide-react';
 import { DeliveryTaskItem } from '../tasks/TaskComponents';
-
-// Reusable MultiSelect Filter Component (duplicated here for portability, normally would be in a shared component)
-const MultiSelectFilter = ({ options, selectedValues, onChange }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef(null);
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (containerRef.current && !containerRef.current.contains(event.target)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    const toggleOption = (value) => {
-        const newSelected = selectedValues.includes(value)
-            ? selectedValues.filter(v => v !== value)
-            : [...selectedValues, value];
-        onChange(newSelected);
-    };
-
-    const selectAll = () => onChange(options);
-    const clearAll = () => onChange([]);
-
-    return (
-        <div className="relative" ref={containerRef}>
-            <button 
-                onClick={() => setIsOpen(!isOpen)}
-                className={`flex items-center justify-between w-full h-8 px-2 text-xs border rounded-md bg-white dark:bg-gray-700 dark:text-white ${
-                    selectedValues.length > 0 ? 'border-orange-500 ring-1 ring-orange-500' : 'border-gray-300 dark:border-gray-600'
-                }`}
-            >
-                <span className="truncate">
-                    {selectedValues.length === 0 
-                        ? 'All' 
-                        : selectedValues.length === options.length 
-                            ? 'All' 
-                            : `${selectedValues.length} selected`}
-                </span>
-                <Filter className="w-3 h-3 ml-1 opacity-50" />
-            </button>
-
-            {isOpen && (
-                <div className="absolute z-10 w-48 mt-1 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700">
-                    <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex justify-between">
-                        <button onClick={selectAll} className="text-xs text-blue-600 hover:underline">Select All</button>
-                        <button onClick={clearAll} className="text-xs text-blue-600 hover:underline">Clear</button>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto p-1">
-                        {options.map(option => (
-                            <label key={option} className="flex items-center px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer rounded">
-                                <input 
-                                    type="checkbox" 
-                                    checked={selectedValues.includes(option)}
-                                    onChange={() => toggleOption(option)}
-                                    className="w-3 h-3 mr-2 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                />
-                                <span className="text-xs text-gray-700 dark:text-gray-200 truncate">{option === '' ? '(Blanks)' : option}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
+import MultiSelectFilter from '../ui/MultiSelectFilter';
 
 const DeliveryTrackerTable = ({ tasks, users, onToggle, onEdit, onDelete, onArchive, canComplete, canEdit, canDelete }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(20);
     const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
-    const [showFilters, setShowFilters] = useState(false);
-    const [filters, setFilters] = useState({
-        text: [],
-        project: [],
-        createdBy: [],
-        assignedTo: [],
-        status: [],
-        createdAt: [],
-        completedAt: []
+    
+    // Initialize showFilters from localStorage
+    const [showFilters, setShowFilters] = useState(() => {
+        const saved = localStorage.getItem('deliveryTracker_showFilters');
+        return saved ? JSON.parse(saved) : false;
     });
+
+    // Initialize filters from localStorage
+    const [filters, setFilters] = useState(() => {
+        const saved = localStorage.getItem('deliveryTracker_filters');
+        return saved ? JSON.parse(saved) : {
+            text: [],
+            project: [],
+            createdBy: [],
+            assignedTo: [],
+            status: [],
+            createdAt: [],
+            completedAt: []
+        };
+    });
+
+    // Persist showFilters to localStorage
+    useEffect(() => {
+        localStorage.setItem('deliveryTracker_showFilters', JSON.stringify(showFilters));
+    }, [showFilters]);
+
+    // Persist filters to localStorage
+    useEffect(() => {
+        localStorage.setItem('deliveryTracker_filters', JSON.stringify(filters));
+    }, [filters]);
 
     // Helper to get assigned user names string
     const getAssignedNames = (task) => {
@@ -117,9 +69,6 @@ const DeliveryTrackerTable = ({ tasks, users, onToggle, onEdit, onDelete, onArch
             }
             return val;
         });
-        // assignedTo might return "Name1, Name2", we might want to split and unique individual names?
-        // For MultiSelect to work simply, let's treat the whole string as the option for now, 
-        // or we can complicate it by flattening. Let's flatten for assignedTo to allow filtering by individual user.
         
         if (key === 'assignedTo') {
             const allNames = new Set();
@@ -146,7 +95,6 @@ const DeliveryTrackerTable = ({ tasks, users, onToggle, onEdit, onDelete, onArch
                 let taskVal = task[key];
                 
                 if (key === 'assignedTo') {
-                    // Check if ANY of the assigned users match ANY of the selected filters
                     const assignedNames = task.assignedTo?.map(id => users.find(u => u.id === id)?.name || 'Unknown') || [];
                     return filters[key].some(filter => assignedNames.includes(filter));
                 }
@@ -174,7 +122,6 @@ const DeliveryTrackerTable = ({ tasks, users, onToggle, onEdit, onDelete, onArch
                 let aVal = a[sortConfig.key];
                 let bVal = b[sortConfig.key];
 
-                // Special handling for computed columns
                 if (sortConfig.key === 'assignedTo') {
                     aVal = getAssignedNames(a);
                     bVal = getAssignedNames(b);
@@ -186,7 +133,6 @@ const DeliveryTrackerTable = ({ tasks, users, onToggle, onEdit, onDelete, onArch
                     bVal = b.completed ? 1 : 0;
                 }
 
-                // Null handling
                 if (aVal === null || aVal === undefined) aVal = '';
                 if (bVal === null || bVal === undefined) bVal = '';
 
@@ -262,11 +208,12 @@ const DeliveryTrackerTable = ({ tasks, users, onToggle, onEdit, onDelete, onArch
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-visible">
-                <div className="overflow-x-auto pb-32">
+                {/* Reduced padding-bottom from pb-32 to pb-4 to remove large gap */}
+                <div className="overflow-x-auto pb-4 min-h-[200px]">
                     <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                         <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
                             <tr>
-                                <th className="px-6 py-3 w-8"></th> {/* Checkbox col */}
+                                <th className="px-6 py-3 w-8"></th> 
                                 <th className="px-6 py-3 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700" onClick={() => requestSort('text')}>
                                     <div className="flex items-center">Task Description {getSortIcon('text')}</div>
                                 </th>

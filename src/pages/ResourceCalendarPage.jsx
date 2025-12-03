@@ -496,7 +496,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                             type: 'leave',
                             leaveType: allocation.leave_type,
                             comment: allocation.comment || '',
-                            createdAt: allocation.created_at
+                            createdAt: allocation.created_at,
+                            time: allocation.time || null
                         };
                     } else if (allocation.assignment_type === 'status') {
                         assignmentData = {
@@ -979,7 +980,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                             client: null,
                             task: null,
                             shift: null,
-                            time: null
+                            time: item.time || null
                         };
                     } else if (item.type === 'status') {
                         return {
@@ -1215,15 +1216,15 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                 user_id: userId,
                                 allocation_date: allocationDateString,
                                 assignment_type: 'leave',
-                                leave_type: allocationData.leaveType,
-                                comment: allocationData.comment || null,
+                                leave_type: record.leaveType,
+                                comment: record.comment || null,
+                                time: record.time || null,
                                 project_id: null,
                                 project_number: null,
                                 project_name: null,
                                 client: null,
                                 task: null,
-                                shift: null,
-                                time: null
+                                shift: null
                             };
                         } else {
                             return {
@@ -1313,7 +1314,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     client: null,
                     task: null,
                     shift: null,
-                    time: null
+                    time: allocationData.time || null
                 };
 
                 const { error } = await supabase
@@ -1333,7 +1334,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                         assignment_type: 'leave',
                         leave_type: allocationData.leaveType,
                         comment: allocationData.comment || null,
-                        project_id: null, project_number: null, project_name: null, client: null, task: null, shift: null, time: null
+                        time: allocationData.time || null,
+                        project_id: null, project_number: null, project_name: null, client: null, task: null, shift: null
                     };
                 } else if (allocationData.type === 'status') {
                     recordData = {
@@ -1441,7 +1443,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                             client: null,
                             task: null,
                             shift: null,
-                            time: null
+                            time: item.time || null
                         };
                     } else {
                         return {
@@ -1632,7 +1634,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                 client: null,
                                 task: null,
                                 shift: null,
-                                time: null
+                                time: item.time || null
                             };
                         } else {
                             return {
@@ -1962,7 +1964,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     client: null,
                     task: null,
                     shift: null,
-                    time: null
+                    time: draggedAssignment.time || null
                 };
             } else {
                 recordToInsert = {
@@ -2045,7 +2047,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                             client: null,
                             task: null,
                             shift: null,
-                            time: null
+                            time: item.time || null
                         };
                     } else {
                         return {
@@ -2190,7 +2192,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                         boxSizing: 'border-box',
                     }}
                 >
-                    <div className={`text-center ${hasComment ? 'mb-1' : ''} text-lg truncate`}>{draggedItem.leaveType}</div>
+                    <div className={`text-center ${hasComment || draggedItem.time ? 'mb-1' : ''} text-lg truncate`}>{draggedItem.leaveType}</div>
+                    {draggedItem.time && <p className="text-xs leading-tight font-semibold truncate mb-0.5 text-center">{draggedItem.time}</p>}
                     {hasComment && (
                         <div className="text-center text-sm font-bold opacity-90 leading-tight line-clamp-3">
                             {draggedItem.comment}
@@ -2537,7 +2540,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                             onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                                                             style={leaveInlineStyle}
                                                                                         >
-                                                                                            <div className={`text-center ${hasComment ? 'mb-1' : ''} text-lg truncate`}>{assignment.leaveType}</div>
+                                                                                            <div className={`text-center ${hasComment || assignment.time ? 'mb-1' : ''} text-lg truncate`}>{assignment.leaveType}</div>
+                                                                                            {assignment.time && <p className="text-xs leading-tight font-semibold truncate mb-0.5 text-center">{assignment.time}</p>}
                                                                                             {hasComment && (
                                                                                                 <div className="text-center text-sm font-bold opacity-90 leading-tight line-clamp-3" title={assignment.comment}>
                                                                                                     {assignment.comment}
@@ -3047,7 +3051,19 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
         if (editingSpecificItem) {
             if (editingSpecificItem.type === 'leave') {
                 setLeaveType(editingSpecificItem.leaveType);
-                setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: editingSpecificItem.comment || '', shift: 'Nights', projectId: null, startTime: '', endTime: '' });
+                const { startTime, endTime } = parseTimeString(editingSpecificItem.time);
+                setFormData({ 
+                    projectNumber: '', 
+                    projectName: '', 
+                    client: '', 
+                    time: editingSpecificItem.time || '', 
+                    task: '', 
+                    comment: editingSpecificItem.comment || '', 
+                    shift: 'Nights', 
+                    projectId: null, 
+                    startTime, 
+                    endTime 
+                });
                 setIsManual(false);
             } else {
                 setLeaveType('');
@@ -3076,7 +3092,19 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
         } else if (currentAssignment) {
             if (currentAssignment.type === 'leave') {
                 setLeaveType(currentAssignment.leaveType);
-                setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: currentAssignment.comment || '', shift: 'Nights', projectId: null, startTime: '', endTime: '' });
+                const { startTime, endTime } = parseTimeString(currentAssignment.time);
+                setFormData({ 
+                    projectNumber: '', 
+                    projectName: '', 
+                    client: '', 
+                    time: currentAssignment.time || '', 
+                    task: '', 
+                    comment: currentAssignment.comment || '', 
+                    shift: 'Nights', 
+                    projectId: null, 
+                    startTime, 
+                    endTime 
+                });
                 setIsManual(false);
             } else {
                 setLeaveType('');
@@ -3120,7 +3148,18 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
 
     const handleSave = () => {
         if (leaveType) {
-            onSave({ type: 'leave', leaveType: leaveType, comment: formData.comment || '' });
+            let dataToSave = { type: 'leave', leaveType: leaveType, comment: formData.comment || '' };
+            
+            // Combine startTime and endTime into the time field for leaves as well
+            if (formData.startTime && formData.endTime) {
+                dataToSave.time = `${formData.startTime} - ${formData.endTime}`;
+            } else if (formData.startTime) {
+                dataToSave.time = formData.startTime;
+            } else if (formData.endTime) {
+                dataToSave.time = formData.endTime;
+            }
+            
+            onSave(dataToSave);
         } else {
             // If manual entry was used and we have a project number but no projectId,
             // try to look up the project to get its UUID
@@ -3272,6 +3311,22 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                             <label className="flex items-center space-x-2 text-sm"><input type="checkbox" checked={leaveType === 'No Assignment'} onChange={() => handleLeaveChange('No Assignment')} className="rounded text-orange-500 focus:ring-orange-500"/><span>No Assignment</span></label>
                         </div>
                     )}
+
+                    {/* Time Selection - Available for both Project and Leave */}
+                    <div className="grid grid-cols-2 gap-4 border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
+                        <Select label="Start Time" name="startTime" value={formData.startTime} onChange={handleInputChange}>
+                            <option value="">Select start time</option>
+                            {timeOptions.map(time => (
+                                <option key={`start-${time}`} value={time}>{time}</option>
+                            ))}
+                        </Select>
+                        <Select label="End Time" name="endTime" value={formData.endTime} onChange={handleInputChange}>
+                            <option value="">Select end time</option>
+                            {timeOptions.map(time => (
+                                <option key={`end-${time}`} value={time}>{time}</option>
+                            ))}
+                        </Select>
+                    </div>
 
                     {!isSecondLeave && <fieldset disabled={projectFieldsDisabled} className={`space-y-4 ${!isSecondProject ? 'border-t pt-4 mt-4 border-gray-200 dark:border-gray-700' : ''} disabled:opacity-40`}>
                         <div className="flex items-center space-x-2">
@@ -3445,20 +3500,6 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                             ))}
                         </Select>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <Select label="Start Time" name="startTime" value={formData.startTime} onChange={handleInputChange}>
-                                <option value="">Select start time</option>
-                                {timeOptions.map(time => (
-                                    <option key={`start-${time}`} value={time}>{time}</option>
-                                ))}
-                            </Select>
-                            <Select label="End Time" name="endTime" value={formData.endTime} onChange={handleInputChange}>
-                                <option value="">Select end time</option>
-                                {timeOptions.map(time => (
-                                    <option key={`end-${time}`} value={time}>{time}</option>
-                                ))}
-                            </Select>
-                        </div>
                         <Input label="Comment" name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..."/>
                     </fieldset>}
 

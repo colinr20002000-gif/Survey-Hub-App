@@ -18,7 +18,7 @@ import { useDebouncedValue } from '../../utils/debounce';
 // Equipment Management Page Component
 const EquipmentPage = () => {
     const { user: currentUser } = useAuth();
-    const { canAssignEquipment, canReturnEquipment, canAddEquipment, canAddEquipmentComments, canDeleteEquipmentComments, isEditorOrAbove } = usePermissions();
+    const { canAssignEquipment, canReturnEquipment, canAddEquipment, canAddEquipmentComments, canDeleteEquipmentComments, isEditorOrAbove, can } = usePermissions();
     const [equipment, setEquipment] = useState([]);
     const [users, setUsers] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -1325,16 +1325,18 @@ CREATE TABLE equipment_audit_log (
                         <p className="text-gray-600 dark:text-gray-400">Manage equipment assignments and track usage</p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => {
-                                setShowAuditTrail(true);
-                                loadAuditTrail();
-                            }}
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-                        >
-                            <History className="w-5 h-5" />
-                            Audit Trail
-                        </button>
+                        {can('SHOW_EQUIPMENT_AUDIT_TRAIL') && (
+                            <button
+                                onClick={() => {
+                                    setShowAuditTrail(true);
+                                    loadAuditTrail();
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                            >
+                                <History className="w-5 h-5" />
+                                Audit Trail
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
