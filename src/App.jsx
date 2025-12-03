@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -71,6 +71,7 @@ const EquipmentRegisterPage = lazy(() => import('./components/Equipment/Equipmen
 const CloseCallsPage = lazy(() => import('./pages/CloseCallsPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 
+import MultiSelectFilter from './components/ui/MultiSelectFilter';
 import { DeliveryTaskItem, DeliveryTaskModal } from './components/tasks/TaskComponents';
 import ProjectModal from './components/modals/ProjectModal';
 import JobModal from './components/modals/JobModal';
@@ -958,38 +959,36 @@ const DeliveryTrackerPage = () => {
 };
 
 const DeliveryTrackerContent = () => {
-    // MODIFICATION 1: Get data and functions from the new useJobs hook
     const { jobs, addJob, updateJob, deleteJob, loading, error } = useJobs();
     const { canCreateProjects, canEditProjects, canDeleteProjects } = usePermissions();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [jobToEdit, setJobToEdit] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
     const [sortConfig, setSortConfig] = useState({ key: 'plannedDeliveryDate', direction: 'ascending' });
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const [filterDiscipline, setFilterDiscipline] = useState([]);
-    const [filterStatus, setFilterStatus] = useState([]);
-    const filterRef = useRef(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [jobToDelete, setJobToDelete] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [jobToArchive, setJobToArchive] = useState(null);
     const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+    
+    // New Filter State
+    const [showFilters, setShowFilters] = useState(false);
+    const [filters, setFilters] = useState({
+        projectName: [],
+        projectNumber: [],
+        itemName: [],
+        projectManager: [],
+        client: [],
+        discipline: [],
+        siteStartDate: [],
+        siteCompletionDate: [],
+        plannedDeliveryDate: [],
+        actualDeliveryDate: [],
+        status: []
+    });
 
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (filterRef.current && !filterRef.current.contains(event.target)) {
-                setIsFilterOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    // MODIFICATION 2: Update save handler to use async context functions
     const handleSaveJob = async (jobData) => {
         if (jobToEdit) {
             await updateJob({ ...jobToEdit, ...jobData });
@@ -1006,7 +1005,6 @@ const DeliveryTrackerContent = () => {
         setIsDeleteModalOpen(true);
     };
 
-    // MODIFICATION 3: Update delete handler
     const confirmDelete = async () => {
         await deleteJob(jobToDelete.id);
         setIsDeleteModalOpen(false);
@@ -1018,7 +1016,6 @@ const DeliveryTrackerContent = () => {
         setIsArchiveModalOpen(true);
     };
 
-    // MODIFICATION 4: Update archive handler (it's an update operation)
     const confirmArchive = async () => {
         await updateJob({ ...jobToArchive, archived: true });
         setIsArchiveModalOpen(false);
@@ -1042,16 +1039,47 @@ const DeliveryTrackerContent = () => {
         setIsModalOpen(true);
     };
 
+    // Helper to get unique options for filters
+    const getOptions = (key) => {
+        const values = jobs.map(job => {
+            let val = job[key];
+            return String(val || '');
+        });
+        return [...new Set(values)].sort();
+    };
+
+    const handleFilterChange = (key, newValues) => {
+        setFilters(prev => ({ ...prev, [key]: newValues }));
+        setCurrentPage(1);
+    };
+
+    const clearFilters = () => {
+        setFilters({
+            projectName: [],
+            projectNumber: [],
+            itemName: [],
+            projectManager: [],
+            client: [],
+            discipline: [],
+            siteStartDate: [],
+            siteCompletionDate: [],
+            plannedDeliveryDate: [],
+            actualDeliveryDate: [],
+            status: []
+        });
+        setCurrentPage(1);
+    };
+
     const filteredJobs = useMemo(() => jobs.filter(j => {
-        const matchesSearch = (j.projectName?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase()) ||
-            (j.projectNumber?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase()) ||
-            (j.itemName?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase()) ||
-            (j.client?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase());
         const matchesArchive = showArchived ? j.archived : !j.archived;
-        const matchesDiscipline = filterDiscipline.length === 0 || filterDiscipline.includes(j.discipline);
-        const matchesStatus = filterStatus.length === 0 || filterStatus.includes(j.status);
-        return matchesSearch && matchesArchive && matchesDiscipline && matchesStatus;
-    }), [jobs, debouncedSearchTerm, showArchived, filterDiscipline, filterStatus]);
+        if (!matchesArchive) return false;
+
+        return Object.keys(filters).every(key => {
+            if (filters[key].length === 0) return true;
+            const itemVal = String(j[key] || '');
+            return filters[key].includes(itemVal);
+        });
+    }), [jobs, showArchived, filters]);
 
     const sortedJobs = useMemo(() => {
         let sortableItems = [...filteredJobs];
@@ -1083,15 +1111,8 @@ const DeliveryTrackerContent = () => {
     };
 
     const getSortIndicator = (key) => {
-        if (sortConfig.key !== key) return '↕';
-        return sortConfig.direction === 'ascending' ? '↑' : '↓';
-    };
-
-    const uniqueDisciplines = [...new Set(jobs.map(j => j.discipline))];
-    
-    const clearFilters = () => {
-        setFilterDiscipline([]);
-        setFilterStatus([]);
+        if (sortConfig.key !== key) return <ArrowUpDown className="w-3 h-3 ml-1 text-orange-200" />;
+        return sortConfig.direction === 'ascending' ? <ArrowUp className="w-3 h-3 ml-1 text-white" /> : <ArrowDown className="w-3 h-3 ml-1 text-white" />;
     };
 
     const tableHeaders = [
@@ -1108,7 +1129,6 @@ const DeliveryTrackerContent = () => {
         { key: 'status', label: 'Status' },
     ];
     
-    // MODIFICATION 5: Add loading and error states
     if (loading) {
         return <div className="p-8 text-2xl font-semibold text-center">Loading Delivery Team...</div>;
     }
@@ -1124,114 +1144,126 @@ const DeliveryTrackerContent = () => {
         );
     }
 
+    const hasActiveFilters = Object.values(filters).some(arr => arr.length > 0);
+
     return (
         <div>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div></div>
+                <div className="flex items-center">
+                     <label htmlFor="show-archived-jobs" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Show Archived Jobs</label>
+                     <Switch id="show-archived-jobs" isChecked={showArchived} onToggle={() => setShowArchived(!showArchived)} />
+                </div>
                 <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-grow">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input type="text" placeholder="Search jobs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                    </div>
-                    <div className="flex gap-2">
-                         <div className="relative" ref={filterRef}>
-                            <Button variant="outline" onClick={() => setIsFilterOpen(!isFilterOpen)}>
-                                <Filter size={16} className="mr-2" /> Filter
-                            </Button>
-                            {isFilterOpen && (
-                                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-4 space-y-4">
-                                    <div>
-                                        <h4 className="font-semibold mb-2">Discipline</h4>
-                                        {uniqueDisciplines.map(d => <label key={d} className="flex items-center space-x-2 text-sm"><input type="checkbox" checked={filterDiscipline.includes(d)} onChange={() => setFilterDiscipline(prev => prev.includes(d) ? prev.filter(i => i !== d) : [...prev, d])} className="rounded text-orange-500"/><span>{d}</span></label>)}
-                                    </div>
-                                    <div>
-                                        <h4 className="font-semibold mb-2">Status</h4>
-                                        {jobStatuses.map(s => <label key={s} className="flex items-center space-x-2 text-sm"><input type="checkbox" checked={filterStatus.includes(s)} onChange={() => setFilterStatus(prev => prev.includes(s) ? prev.filter(i => i !== s) : [...prev, s])} className="rounded text-orange-500"/><span>{s}</span></label>)}
-                                    </div>
-                                    <Button variant="outline" size="sm" className="w-full mt-3" onClick={clearFilters}>Clear Filters</Button>
-                                </div>
-                            )}
-                        </div>
-                        {canCreateProjects && (
-                            <Button onClick={openNewJobModal}><PlusCircle size={16} className="mr-2"/>Add Job</Button>
-                        )}
-                    </div>
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={showFilters ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                    >
+                        <Filter className="w-4 h-4 mr-2" /> {showFilters ? 'Hide Filters' : 'Show Filters'}
+                    </Button>
+                    {hasActiveFilters && (
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={clearFilters}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        >
+                            <X className="w-4 h-4 mr-2" /> Clear All
+                        </Button>
+                    )}
+                    {canCreateProjects && (
+                        <Button onClick={openNewJobModal}><PlusCircle size={16} className="mr-2"/>Add Job</Button>
+                    )}
                 </div>
             </div>
-             <div className="flex items-center mb-4">
-                 <label htmlFor="show-archived-jobs" className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Show Archived Jobs</label>
-                 <Switch id="show-archived-jobs" isChecked={showArchived} onToggle={() => setShowArchived(!showArchived)} />
-             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                        <tr>
-                            {tableHeaders.map(header => (
-                                <th key={header.key} scope="col" className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => requestSort(header.key)}>
-                                    <div className="flex items-center">{header.label}<span className="ml-2">{getSortIndicator(header.key)}</span></div>
-                                </th>
-                            ))}
-                            <th className="px-6 py-3">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {paginatedJobs.map(job => (
-                            <tr key={job.id} className={`border-b dark:border-gray-700 ${job.archived ? 'bg-gray-100 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-600/20'}`}>
-                                <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{job.projectName}</td>
-                                <td className="px-6 py-4">{job.projectNumber}</td>
-                                <td className="px-6 py-4">{job.itemName}</td>
-                                <td className="px-6 py-4">{job.projectManager}</td>
-                                <td className="px-6 py-4">{job.client}</td>
-                                <td className="px-6 py-4">{job.discipline}</td>
-                                <td className="px-6 py-4">{job.siteStartDate}</td>
-                                <td className="px-6 py-4">{job.siteCompletionDate}</td>
-                                <td className="px-6 py-4">{job.plannedDeliveryDate}</td>
-                                <td className="px-6 py-4">{job.actualDeliveryDate || 'N/A'}</td>
-                                <td className="px-6 py-4">
-                                    <StatusBadge status={job.status} />
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center space-x-2">
-                                        {canEditProjects && (
-                                            <button onClick={() => openEditModal(job)} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={16} /></button>
-                                        )}
-                                        {canDeleteProjects && (
-                                            <button onClick={() => handleDeleteClick(job)} className="p-1.5 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={16} /></button>
-                                        )}
-                                        {canEditProjects && (
-                                            job.archived ? (
-                                                <button onClick={() => handleUnarchiveJob(job.id)} className="p-1.5 text-gray-500 hover:text-green-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" title="Unarchive"><ArchiveRestore size={16}/></button>
-                                            ) : (
-                                                <button onClick={() => handleArchiveClick(job)} className="p-1.5 text-gray-500 hover:text-purple-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" title="Archive"><Archive size={16} /></button>
-                                            )
-                                        )}
-                                    </div>
-                                </td>
+            
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-visible">
+                <div className="overflow-x-auto pb-32">
+                    <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                        <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
+                            <tr>
+                                {tableHeaders.map(header => (
+                                    <th key={header.key} scope="col" className="px-6 py-3 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700" onClick={() => requestSort(header.key)}>
+                                        <div className="flex items-center">{header.label}<span className="ml-2">{getSortIndicator(header.key)}</span></div>
+                                    </th>
+                                ))}
+                                <th className="px-6 py-3">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                            {showFilters && (
+                                <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                                    {tableHeaders.map(header => (
+                                        <td key={header.key} className="px-2 py-2">
+                                            <MultiSelectFilter 
+                                                options={getOptions(header.key)} 
+                                                selectedValues={filters[header.key]} 
+                                                onChange={(vals) => handleFilterChange(header.key, vals)} 
+                                            />
+                                        </td>
+                                    ))}
+                                    <td className="px-2 py-2"></td>
+                                </tr>
+                            )}
+                        </thead>
+                        <tbody>
+                            {paginatedJobs.map(job => (
+                                <tr key={job.id} className={`border-b dark:border-gray-700 ${job.archived ? 'bg-gray-100 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-600/20'}`}>
+                                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{job.projectName}</td>
+                                    <td className="px-6 py-4">{job.projectNumber}</td>
+                                    <td className="px-6 py-4">{job.itemName}</td>
+                                    <td className="px-6 py-4">{job.projectManager}</td>
+                                    <td className="px-6 py-4">{job.client}</td>
+                                    <td className="px-6 py-4">{job.discipline}</td>
+                                    <td className="px-6 py-4">{job.siteStartDate}</td>
+                                    <td className="px-6 py-4">{job.siteCompletionDate}</td>
+                                    <td className="px-6 py-4">{job.plannedDeliveryDate}</td>
+                                    <td className="px-6 py-4">{job.actualDeliveryDate || 'N/A'}</td>
+                                    <td className="px-6 py-4">
+                                        <StatusBadge status={job.status} />
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center space-x-2">
+                                            {canEditProjects && (
+                                                <button onClick={() => openEditModal(job)} className="p-1.5 text-gray-500 hover:text-blue-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Edit size={16} /></button>
+                                            )}
+                                            {canDeleteProjects && (
+                                                <button onClick={() => handleDeleteClick(job)} className="p-1.5 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={16} /></button>
+                                            )}
+                                            {canEditProjects && (
+                                                job.archived ? (
+                                                    <button onClick={() => handleUnarchiveJob(job.id)} className="p-1.5 text-gray-500 hover:text-green-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" title="Unarchive"><ArchiveRestore size={16}/></button>
+                                                ) : (
+                                                    <button onClick={() => handleArchiveClick(job)} className="p-1.5 text-gray-500 hover:text-purple-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700" title="Archive"><Archive size={16} /></button>
+                                                )
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <Pagination currentPage={currentPage} setCurrentPage={setCurrentPage} totalPages={totalPages} itemsPerPage={itemsPerPage} setItemsPerPage={setItemsPerPage} totalItems={sortedJobs.length} />
+                <JobModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveJob} job={jobToEdit} />
+                <ConfirmationModal 
+                    isOpen={isDeleteModalOpen} 
+                    onClose={() => setIsDeleteModalOpen(false)} 
+                    onConfirm={confirmDelete} 
+                    title="Confirm Deletion" 
+                    message={`Are you sure you want to delete this job? This action cannot be undone.`}
+                    confirmText="Delete"
+                    confirmVariant="danger"
+                />
+                <ConfirmationModal 
+                    isOpen={isArchiveModalOpen} 
+                    onClose={() => setIsArchiveModalOpen(false)} 
+                    onConfirm={confirmArchive} 
+                    title="Confirm Archival" 
+                    message={`Are you sure you want to archive this job?`}
+                    confirmText="Archive"
+                    confirmVariant="primary"
+                />
             </div>
-            <Pagination currentPage={currentPage} setCurrentPage={setCurrentPage} totalPages={totalPages} itemsPerPage={itemsPerPage} setItemsPerPage={setItemsPerPage} totalItems={sortedJobs.length} />
-            <JobModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveJob} job={jobToEdit} />
-            <ConfirmationModal 
-                isOpen={isDeleteModalOpen} 
-                onClose={() => setIsDeleteModalOpen(false)} 
-                onConfirm={confirmDelete} 
-                title="Confirm Deletion" 
-                message={`Are you sure you want to delete this job? This action cannot be undone.`}
-                confirmText="Delete"
-                confirmVariant="danger"
-            />
-            <ConfirmationModal 
-                isOpen={isArchiveModalOpen} 
-                onClose={() => setIsArchiveModalOpen(false)} 
-                onConfirm={confirmArchive} 
-                title="Confirm Archival" 
-                message={`Are you sure you want to archive this job?`}
-                confirmText="Archive"
-                confirmVariant="primary"
-            />
         </div>
     );
 };

@@ -144,6 +144,9 @@ export const usePermissions = () => {
             canAddUsefulContacts: can('ADD_USEFUL_CONTACTS'),
             canEditUsefulContacts: can('EDIT_USEFUL_CONTACTS'),
             canDeleteUsefulContacts: can('DELETE_USEFUL_CONTACTS'),
+
+            canImportAssets: can('IMPORT_ASSETS_CSV'),
+            canDeleteAllAssets: can('DELETE_ALL_ASSETS'),
         };
     }, [userPrivilege, dynamicPermissions]);
 

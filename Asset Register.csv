@@ -1,0 +1,689 @@
+Asset Tag no.,New Asset Tag,Equipment Type,Description,Serial No.,Quantity,Kit Group,Assigned To,Last Checked
+IRL00049,IRL00049,IT,Asus Laptop,LBN0CX071112468,1,Kit 9,Terry Moncrieff,25/03/2024
+,10066,Tribrach,Trimble Tribrach,T-21-7143,1,Kit 9,Terry Moncrieff,25/03/2024
+,10072,Instrument,"Trimble S9 0.5""",38030208,1,Kit 9,Terry Moncrieff,25/03/2024
+10100,10100,Logger,TSC5 Logger,JA224610159,1,Kit 9,Terry Moncrieff,25/03/2024
+10101,10101,Charging Kit,TSC5 Charger,N/A,1,Kit 9,Terry Moncrieff,25/03/2024
+10102,10102,Prism,MT1000,96611278,1,Kit 9,Terry Moncrieff,25/03/2024
+10103,10103,Battery,MT1000 Battery,N/A,1,Kit 9,Terry Moncrieff,25/03/2024
+10104,10104,Battery,Instrument Battery,462100354,1,Kit 9,Terry Moncrieff,25/03/2024
+10105,10105,Battery,Instrument Battery,462100248,1,Kit 9,Terry Moncrieff,25/03/2024
+10106,10106,Charging Kit,Instrument Dual Slot Charger,024701224124128D,1,Kit 9,Terry Moncrieff,25/03/2024
+10107,10107,Detail Pole,Trimble Detail Pole 2.6m,5129-530,1,Kit 9,Terry Moncrieff,25/03/2024
+10108,10108,Prism,Trimble Traverse Prism,P-23-02394,1,Kit 9,Terry Moncrieff,25/03/2024
+10109,10109,Tribrach,Trimble Tribrach,T-22-19206,1,Kit 9,Terry Moncrieff,25/03/2024
+10110,10110,Prism,Trimble Traverse Prism,P-23-02392,1,Kit 9,Terry Moncrieff,25/03/2024
+10111,10111,Tribrach,Trimble Tribrach,T-22-19205,1,Kit 9,Terry Moncrieff,25/03/2024
+10112,10112,Tripod,Seco Tripod,90582-SE,1,Kit 9,Terry Moncrieff,25/03/2024
+10113,10113,Tripod,Seco Tripod,90582-SE,1,Kit 9,Terry Moncrieff,25/03/2024
+10114,10114,Tripod,Seco Tripod,90582-SE,1,Kit 9,Terry Moncrieff,25/03/2024
+10115,10115,Tripod,Spectra Tripod,N/A,1,Kit 9,Terry Moncrieff,25/03/2024
+10116,10116,Instrument,LS15 Level,704621,1,Kit 9,Terry Moncrieff,25/03/2024
+10117,10117,Battery,LS15 Battery,799190,1,Kit 9,Terry Moncrieff,25/03/2024
+10118,10118,Battery,LS15 Battery,799190,1,Kit 9,Terry Moncrieff,25/03/2024
+10119,10119,Battery,Leica Digital Staff Battery,61866,1,Kit 9,Terry Moncrieff,25/03/2024
+10120,10120,Battery,MT1000 Battery,N/A,1,Kit 9,Terry Moncrieff,25/03/2024
+10121,10121,Levelling,Leica Digital Staff,INV-IL-LEI,1,Kit 9,Terry Moncrieff,25/03/2024
+10122,10122,Drill,Dewalt Drill,5799,1,Kit 9,Terry Moncrieff,25/03/2024
+10123,10123,Battery,Dewalt Battery,N/A,1,Kit 9,Terry Moncrieff,25/03/2024
+10124,10124,Battery,Dewalt Battery,N/A,1,Kit 9,Terry Moncrieff,25/03/2024
+10125,10125,Battery,Dewalt Charger,N/A,1,Kit 9,Terry Moncrieff,25/03/2024
+10135,10135,Detail Pole,Rail Foot,N/A,1,Kit 9,Terry Moncrieff,25/03/2024
+10150,10150,Utilities,Radiodetection CAT4+,10/C4EN03-18148,1,Office (Shared),Terry Moncrieff,25/03/2024
+10151,10151,Utilities,Radiodetection Genny4,10/G4EN-63454,1,Office (Shared),Terry Moncrieff,25/03/2024
+10192,10192,Gauging,Bance Track Gauge,2012-19,1,Kit 9,Terry Moncrieff,25/03/2024
+,10558,Laser Level,Laser Level,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10557,Laser Level,Laser Level,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10561,Rail Shield,Rail Shield,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10560,Rail Shield,Rail Shield,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10559,Rail Shield,Rail Shield,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10565,Boards,WSMB,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10564,Boards,WSMB,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10563,Boards,WSMB,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10562,Boards,WSMB,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10566,Detonators,Detonators,N/A,7,Office (Shared),Office (Shared),04/03/2024
+,10567,Detonators,Detonators,N/A,7,Office (Shared),Office (Shared),04/03/2024
+,10568,Detonators,Detonators,N/A,7,Office (Shared),Office (Shared),04/03/2024
+,10573,Target,B/W Target,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10572,Target,B/W Target,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10571,Target,B/W Target,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10576,Target,B/W Target,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10575,Target,B/W Target,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10574,Target,B/W Target,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10579,Target,B/W Target,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10578,Target,B/W Target,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10569,Prism,Leica Circular Prisms,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10277,Prism,Leica Circular Prisms,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10570,Prism,Leica Circular Prisms,N/A,1,Office (Shared),Office (Shared),04/03/2024
+,10577,Prism,Leica Circular Prisms,N/A,1,Office (Shared),Office (Shared),04/03/2024
+IRL00014,10203,Tribrach,Trimble Tribrach,N/A,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00013,10204,Tribrach,Trimble Tribrach,N/A,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00012,10205,Tribrach,Trimble Tribrach,N/A,1,Kit 1,Ovidiu Amariutei,26/01/2024
+,10225,Detail Pole,Rail Foot,N/A,1,Kit 1,Ovidiu Amariutei,26/01/2024
+,10226,Detail Pole,Trimble 2.25 Detail Pole,N/A,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00010,10227,Tripod,Trimax Tripod,500197667,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00011,10228,Tripod,Trimax Tripod,500197649,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00015,10229,Tripod,Trimax Tripod,500195167,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00016,10230,Tripod,Trimax Tripod,500195155,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00014,10238,Prism/Tribach,Trimble Traverse Prism,78608007,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00012,10239,Prism,Trimble Traverse Prism,78608007,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00013,10240,Prism,Trimble Traverse Prism,78608007,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00008,10242,Charging Kit,GPS Dual Slot Charger,20067408,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00008,10243,Battery,GPS batteries,N/A,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00008,10244,Battery,GPS batteries,N/A,1,Kit 1,Ovidiu Amariutei,26/01/2024
+IRL00096,0,Tribrach,Tribrach,P-19-00310,1,Kit 5,Jay Kinney,25/01/2024
+IRL00050,0,Instrument,DNA03 Level,330383,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00094,10002,Battery,Instrument Battery,231900203,1,Kit 5,Jay Kinney,25/01/2024
+IRL00094,10003,Battery,Instrument Battery,492000770,1,Kit 5,Jay Kinney,25/01/2024
+IRL00094,10004,Prism,MT1000,96526360,1,Kit 5,Jay Kinney,25/01/2024
+IRL00094,10009,Battery,MT1000 Battery,MA1736A,1,Kit 5,Jay Kinney,25/01/2024
+IRL00094,10010,Battery,MT1000 Battery,MA1940A0246,1,Kit 5,Jay Kinney,25/01/2024
+IRL00095,10011,Charging Kit,Instrument Dual Slot Charger,24702201090869A,1,Kit 5,Jay Kinney,25/01/2024
+IRL00095,10012,Charging Kit,Instrument Dual Slot Charger Cable,N/A,1,Kit 5,Jay Kinney,25/01/2024
+,10013,Charging Kit,TSC5 Charger,N/A,1,Kit 5,Jay Kinney,25/01/2024
+,10014,Logger,TSC5 Logger,JAJ221010259,1,Kit 5,Jay Kinney,25/01/2024
+IRL00106,10015,Instrument,LS15 Level,702086,1,Kit 5,Jay Kinney,25/01/2024
+IRL00106,10016,Charging Kit,LS15 Charger,1067,1,Kit 5,Jay Kinney,25/01/2024
+IRL00106,10017,Battery,LS15 Battery,10179,1,Kit 5,Jay Kinney,25/01/2024
+IRL00106,10018,Battery,LS15 Battery,20160,1,Kit 5,Jay Kinney,25/01/2024
+IRL00162,10031,IT,Samsung Tab Surface Pro ,N/A,1,Kit 5,Jay Kinney,25/01/2024
+IRL00161,10032,Charging Kit,Mala Core GPR Charger,N/A,1,Kit 5,Jay Kinney,25/01/2024
+IRL00161,10033,Charging Kit,Mala Core GPR Charger,N/A,1,Kit 5,Jay Kinney,25/01/2024
+IRL00159,10034,Battery,Mala Core GPR Battery,N/A,1,Kit 5,Jay Kinney,25/01/2024
+IRL00160,10035,Battery,Mala Core GPR Battery,N/A,1,Kit 5,Jay Kinney,25/01/2024
+IRL00195,10038,IT,Samsung Galaxy Tab A8,R9YT609QJKY,1,Kit 5,Jay Kinney,25/01/2024
+,10042,Charging Kit,Varta Battery Charger,N/A,1,Kit 5,Jay Kinney,25/01/2024
+,10043,Charging Kit,Varta Battery Charger,N/A,1,Kit 5,Jay Kinney,25/01/2024
+,10083,Boards,Protection Limit Board (Stop),205-30139,1,Office (Shared),Office,25/01/2024
+,10085,Boards,Protection Limit Board (Stop),205-30138,2,Office (Shared),Office,25/01/2024
+IRL00020,10200,IT,Asus Laptop,L7N0CX13182930A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00197,10201,IT,Samsung Galaxy Tab A8,R9YT609QJXB,1,Kit 1,Ovidiu Amariutei,25/01/2024
+,10202,Logger,TSC5 Logger,JAJ224410303,1,Kit 1,Ovidiu Amariutei,25/01/2024
+,10203,Charging Kit,Charging Kit,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00037,10207,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+,10208,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+,10209,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+,10210,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+,10211,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00037,10212,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00008,10241,GPS,Trimble R8 GPS,60250-70,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00006,10245,Charging Kit,TSC3 Charger,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00005,10246,Charging Kit,Instrument Dual Slot Charger,024701199161766A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00005,10247,Battery,MT1000 Battery,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00005,10248,Battery,MT1000 Battery,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00005,10250,Battery,Instrument Battery,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00005,10251,Battery,Instrument Battery,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00005,10252,Battery,Instrument Battery,N/A,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00006,10253,Logger,TSC3 Logger,ES6WD15611,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00005,10254,Prism,MT1000,96538248,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00005,10255,Instrument,"Trimble S9 0.5""",37610006-DS,1,Kit 1,Ovidiu Amariutei,25/01/2024
+IRL00057,10259,Drill,Makita Drill,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00053,10261,Charging Kit,Instrument Dual Slot Charger Cable,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00053,10262,Charging Kit,Instrument Dual Slot Charger,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00052,10263,Tribrach,Tribrach,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+,10265,Laser Level,Ketotek 6 Point Laser,60825-1:2014,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00052,10266,Prism,MT1000 Battery,N/A,1,Kit 2,Damaged,25/01/2024
+IRL00052,10267,Prism,MT1000 Battery,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00052,10268,Prism,MT1000 Battery,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00052,10269,Prism,MT1000,86539270,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00052,10270,Instrument,"Trimble S9 0.5""",37620001,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00052,10271,Battery,Instrument Battery,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00052,10272,Battery,Instrument Battery,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00052,10274,Battery,Instrument Battery,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+10275,10275,Charging Kit,TSC7 Battery Charger ,N/A,1,Gedo,Office (Shared),25/01/2024
+IRL00043,10276,Prism,Leica Circular Prisms,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00047,10277,Prism,Leica Circular Prisms,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00037,10278,Prism,Leica Circular Prisms,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00043,10279,Prism,Leica Circular Prisms,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00043,10279,Prism,Leica Circular Prisms,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+,10281,Install Kit,Sledge Hammer,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+,10282,Levelling,Digital Staff,667113,2,Kit 3,Prem Serwinski,25/01/2024
+IRL00059,10283,Tripod,Trimax Tripod,500197984,1,Kit 3,Prem Serwinski,25/01/2024
+,10284,Tripod,Leica,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00085,10285,Tripod,Trimax Tripod,500193890,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00058,10286,Tripod,Trimax Tripod,500202546,1,Kit 3,Prem Serwinski,25/01/2024
+10287,10287,Detail Pole,Trimble Detail Pole - 2.6m (1.5m),N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00094,10302,Instrument,"Trimble S8 1""",98111933,1,Kit 5,Jay Kinney,25/01/2024
+IRL00136,10328,Tribrach,Trimble Tribrach,N/A,1,Kit 5,Jay Kinney,25/01/2024
+IRL00123,10412,Prism,Trimble Traverse Prism,P-19-02813,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00055,10413,Prism,Trimble Trav Prism,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00123,10414,Tribrach,Tribrach,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00055,10418,Tribrach,Tribrach,N/A,1,Kit 3,Prem Serwinski,25/01/2024
+IRL00127,0,Levelling,Manual Staff,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00104,10019,Detail Pole,Topcon Detail Pole 2.6m,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00108,10020,Levelling,Leica Digital Staff,757761,1,Kit 5,Jay Kinney,03/01/2024
+IRL00107,10021,Levelling,Leica Digital Staff,757761,1,Kit 5,Jay Kinney,03/01/2024
+IRL00109,10022,Levelling,Manual Staff,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00110,10023,Levelling,Manual Staff,N/A,1,Kit 5,Jay Kinney,03/01/2024
+,10024,Light,Portable Light,N/A,1,Kit 5,Jay Kinney,03/01/2024
+,10025,Light,Portable Light,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00017,10026,Detail Pole,Rail Foot,N/A,1,Kit 5,Jay Kinney,03/01/2024
+,10027,Detail Pole,GPS Pole,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00111,10028,Drill,Makita Drill,1334601,1,Kit 5,Jay Kinney,03/01/2024
+IRL00111,10029,Battery,Makita Battery,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00111,10030,Charging Kit,Makita Charger,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00158,10036,Utilities,Mala Core GPR Handle,2603005,1,Kit 5,Jay Kinney,03/01/2024
+,10037,Utilities,Mala Core GPR,2603005,1,Kit 5,Jay Kinney,03/01/2024
+IRL00164,10039,Utilities,Radiodetection 8100,10/81PDLG-GB-57,1,Kit 5,Jay Kinney,03/01/2024
+IRL00165,10040,Utilities,Radiodetection TX10 Genny,10/TX-10B-10878,1,Kit 5,Jay Kinney,03/01/2024
+,10041,Utilities,Radiodection Clamp,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00163,10044,Cobra,Sewer Sonde,20320170068,1,Kit 5,Jay Kinney,03/01/2024
+,10045,Shovel,Insulated Shovel,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00229,10054,Battery,MT1000 Battery,MA1419A,1,Kit 8,Jack Boardman,03/01/2024
+,10060,Detail Pole,TSC5 Pole,N/A,1,Kit 8,Jack Boardman,03/01/2024
+10185,10076,Lasersweep,Lasersweep Charger,N/A,1,Lasersweep 2,Office (Shared),03/01/2024
+,10092,Charging Kit,Instrument Dual Slot Charger Cable,N/A,1,GPS 5,Office (Shared),03/01/2024
+,10093,Charging Kit,Instrument Dual Slot Charger,024701232131190D,1,GPS 5,Office (Shared),03/01/2024
+,10094,Battery,Battery,AP22293294C,1,GPS 5,Office (Shared),03/01/2024
+,10095,GPS,Trimble R12 GPS,6239F00189,1,GPS 5,Office (Shared),03/01/2024
+10128,10128,Tribrach,Seco Tribrach,T-21-12759,1,Kit 8,Jack Boardman,03/01/2024
+10134,10134,Tribrach,Trimble Tribrach,T-07-2363,1,Kit 4,Joe Saxon,03/01/2024
+10152,10152,Utilities,Radiodetection CAT4,10/C4EN29-1391,1,Kit 4,Joe Saxon,03/01/2024
+10153,10153,Utilities,Radiodetection Genny4,10/G4EN-41837,1,Kit 4,Joe Saxon,03/01/2024
+10162,10162,Scanning,Globe,N/A,1,Globes 1,Office (Shared),03/01/2024
+10163,10163,Scanning,Globe,N/A,1,Globes 1,Office (Shared),03/01/2024
+10164,10164,Scanning,Globe,N/A,1,Globes 1,Office (Shared),03/01/2024
+10165,10165,Scanning,Globe,N/A,1,Globes 1,Office (Shared),03/01/2024
+10166,10166,Scanning,Globe,N/A,1,Globes 1,Office (Shared),03/01/2024
+10167,10167,Scanning,Globe,N/A,1,Globes 1,Office (Shared),03/01/2024
+10168,10168,Scanning,Globe Base,N/A,1,Globes 1,Office (Shared),03/01/2024
+10169,10169,Scanning,Globe Base,N/A,1,Globes 1,Office (Shared),03/01/2024
+10170,10170,Scanning,Globe Base,N/A,1,Globes 1,Office (Shared),03/01/2024
+10171,10171,Scanning,Globe Base,N/A,1,Globes 1,Office (Shared),03/01/2024
+10172,10172,Scanning,Globe Base,N/A,1,Globes 1,Office (Shared),03/01/2024
+10173,10173,Scanning,Globe Base,N/A,1,Globes 1,Office (Shared),03/01/2024
+10177,10177,Tribrach,Trimble Tribrach,T-15-4436,1,Kit 8,Jack Boardman,03/01/2024
+10182,10182,Lasersweep,Lasersweep 15,LRLS05/00015,1,Lasersweep 2,Office (Shared),03/01/2024
+10183,10183,Lasersweep,Lasersweep Foot,N/A,1,Lasersweep 2,Office (Shared),03/01/2024
+10184,10184,Lasersweep,Lasersweep Arm,N/A,1,Lasersweep 2,Office (Shared),03/01/2024
+10261,10261,Charging Kit,TSC 7 Charger,N/A,1,Gedo,Office (Shared),03/01/2024
+IRL00053,10264,Logger,TSC7 Logger,DAD183700097,1,Gedo,Office (Shared),03/01/2024
+10292,10292,Scanning,GITZO Scanner Tripod - GT5543XLS,*Scratched Off* Ending in 4404,1,Office (Shared),Office (Shared),03/01/2024
+10295,10295,Tripod,Orange Trimble Tripod ,N/A,1,Kit 7,Office (Shared),03/01/2024
+10296,10296,Tripod,Red Leica Tripod - GST20-9,394752,1,Kit 6,Office (Shared),03/01/2024
+10297,10297,Tripod,Red Leica Tripod - GST20-9,394752,1,Kit 4,Joe Saxon,03/01/2024
+10298,10298,Tripod,Red Leica Tripod - GST20-9,394752,1,Kit 7,Office (Shared),03/01/2024
+10299,10299,Tripod,Red Leica Tripod - GST20-9,394752,1,Kit 7,Office (Shared),03/01/2024
+10300,10300,Tripod,Red Leica Tripod - GST20-9,394752,1,Office (Shared),Office (Shared),03/01/2024
+,10301,Tribrach,Trimble Tribrach,T-14-2558,1,Kit 5,Jay Kinney,03/01/2024
+,10303,Tribrach,Trimble Tribrach,T-20-1354,1,Kit 5,Jay Kinney,03/01/2024
+,10304,Prism,Trimble Trav Prism,58026019,1,Kit 5,Jay Kinney,03/01/2024
+IRL00098,10307,Tribrach,Trimble Tribrach,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00098,10308,Prism,Trimble Trav Prism,58026019,1,Kit 5,Jay Kinney,03/01/2024
+,10309,Tripod,Leica Tripod,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00102,10310,Tripod,Spectra Tripod,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00101,10311,Tripod,Spectra Tripod,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00099,10312,Tripod,Spectra Tripod,N/A,1,Kit 5,Jay Kinney,03/01/2024
+,10313,Tribrach,Tribrach,N/A,1,Kit 8,Jack Boardman,03/01/2024
+IRL00143,10314,Instrument,"Trimble S9 1""",38410063,1,Kit 8,Jack Boardman,03/01/2024
+IRL00122,10315,Prism,MT1000,N/A,1,Kit 8,Jack Boardman,03/01/2024
+,10318,Battery,Instrument Battery,481800103,1,Kit 8,Jack Boardman,03/01/2024
+,10319,Battery,Instrument Battery,321003233,1,Kit 8,Jack Boardman,03/01/2024
+,10320,Battery,Instrument Battery,341601110,1,Kit 8,Jack Boardman,03/01/2024
+,10321,Logger,TSC5 Logger,JAJ223810178,1,Kit 8,Jack Boardman,03/01/2024
+,10322,Levelling,Extendable Digital Staff,667113,1,Kit 8,Jack Boardman,03/01/2024
+,10323,Detail Pole,Topcon Detail Pole 2.6m,N/A,1,Kit 8,Jack Boardman,03/01/2024
+IRL00273,10324,Tripod,Trimble Tripod,N/A,1,Kit 6,Office (Shared),03/01/2024
+IRL00132,10325,Tripod,Trimax Tripod,500204979,1,Kit 8,Jack Boardman,03/01/2024
+IRL00060,10326,Tripod,Trimax Tripod,500198023,1,Kit 4,Joe Saxon,03/01/2024
+IRL00131,10327,Tripod,Trimax Tripod,500204875,1,Kit 8,Jack Boardman,03/01/2024
+IRL00136,10329,Prism,Trimble Trav Prism,58026007,1,Kit 8,Jack Boardman,03/01/2024
+IRL00041,10330,Tribrach,Leica Tribrach,N/A,1,GPS 5,Office (Shared),03/01/2024
+IRL00137,10331,Prism,Trimble Trav Prism,58026020,1,Kit 8,Jack Boardman,03/01/2024
+IRL00200,10332,Tribrach,Trimble Traverse Tribrach,N/A,1,Kit 7,Office (Shared),03/01/2024
+IRL00035,10333,Prism,Trimble Trav Prism,58026007,1,Kit 8,Jack Boardman,03/01/2024
+IRL00130,10358,Tripod,Trimax Tripod,N/A,1,Kit 8,Jack Boardman,03/01/2024
+,10364,Battery,MT1000 Battery,N/A,1,Kit 4,Joe Saxon,03/01/2024
+IRL00274,10366,Tripod,Trimble Tripod,N/A,1,Kit 6,Office (Shared),03/01/2024
+,10367,Scanning,TX8 Mount,N/A,1,TX8,Office (Shared),03/01/2024
+,10383,Instrument,TX8 Scanner,94718129,1,TX8,Office (Shared),03/01/2024
+,10384,Scanning,Bolt Key Pole,N/A,1,TX8,Office (Shared),03/01/2024
+IRL00143,10385,Battery,MT1000 Battery,N/A,1,Kit 4,Joe Saxon,03/01/2024
+,10390,Detail Pole,Trimble Detail Pole 2.6m,N/A,1,Kit 4,Joe Saxon,03/01/2024
+IRL00230,10392,Logger,TSC5 Logger,JAJ223810101,1,Kit 4,Joe Saxon,03/01/2024
+IRL00027,10394,Prism,MT1000,N/A,1,Kit 4,Joe Saxon,03/01/2024
+IRL00148,10395,Detail Pole,Rail Foot,N/A,1,Kit 4,Joe Saxon,03/01/2024
+IRL00143,10397,Battery,Instrument Battery,341900127,1,Kit 4,Joe Saxon,03/01/2024
+IRL00121,10398,Battery,Instrument Battery,321700778,1,Kit 4,Joe Saxon,03/01/2024
+IRL00121,10399,Tribrach,Trimble Tribrach,T-19-17009,1,Kit 4,Joe Saxon,03/01/2024
+IRL00121,10400,Instrument,"Trimble S9 0.5""",37630072,1,Kit 4,Joe Saxon,03/01/2024
+,10401,Tribrach,Trimble Tribrach,T-18-2141,1,Kit 4,Joe Saxon,03/01/2024
+IRL00150,10402,Prism,Trimble Trav Prism,58026020,1,Kit 4,Joe Saxon,03/01/2024
+,10403,Tribrach,Trimble Tribrach,N/A,1,Kit 4,Joe Saxon,03/01/2024
+IRL00071,10404,Prism,Trimble Trav Prism,58026019,1,Kit 4,Joe Saxon,03/01/2024
+IRL00149,10406,Prism,Trimble Trav Prism,58026020,1,Kit 4,Joe Saxon,03/01/2024
+IRL00142,10409,Tripod,Trimax Tripod,N/A,1,Kit 4,Joe Saxon,03/01/2024
+,10416,Charging Kit,TSC5 Charger,N/A,1,Kit 8,Jack Boardman,03/01/2024
+IRL00236,10440,Detail Pole,Rail Foot,N/A,1,Kit 8,Jack Boardman,03/01/2024
+,10441,Battery,Battery,N/A,1,Kit 8,Jack Boardman,03/01/2024
+IRL00042,10442,Tribrach,Leica Tribach,N/A,1,Kit 8,Jack Boardman,03/01/2024
+,10443,Detail Pole,TSC5 Bracket,N/A,1,Kit 8,Jack Boardman,03/01/2024
+,10444,Stem,GPS Stem,N/A,1,GPS 5,Office (Shared),03/01/2024
+IRL00074,10445,Drill,Makita Drill,N/A,1,Kit 4,Joe Saxon,03/01/2024
+,10446,Charging Kit,Makita Charger,N/A,1,Kit 4,Joe Saxon,03/01/2024
+,10447,Battery,Makita Battery,N/A,1,Kit 4,Joe Saxon,03/01/2024
+,10448,Charging Kit,Trimble X7 Charging Cable,N/A,1,X7,Office (Shared),03/01/2024
+IRL00180,10449,Charging Kit,T10 Tablet Charger,N/A,1,X7,Office (Shared),03/01/2024
+IRL00181,10450,Battery,T10 Tablet Spare Battery,N/A,1,X7,Office (Shared),03/01/2024
+,10451,Battery,T10 Tablet Spare Battery,N/A,1,X7,Office (Shared),03/01/2024
+IRL00180,10452,Scanning,T10 Tablet ,01YTTA6X1125039,1,X7,Office (Shared),03/01/2024
+,10453,Charging Kit,Instrument Dual Slot Charger,20041451,1,X7,Office (Shared),03/01/2024
+,10454,Battery, X7 Scanner Batteries,322101122,1,X7,Office (Shared),03/01/2024
+,10455,Battery, X7 Scanner Batteries,25210369,1,X7,Office (Shared),03/01/2024
+IRL00177,10456,Battery, X7 Scanner Batteries,302101898,1,X7,Office (Shared),03/01/2024
+IRL00176,10457,Scanning,Trimble X7 Scanner,89803601,1,X7,Office (Shared),03/01/2024
+IRL00179,10458,Scanning,GITZO Scanner Tripod,N/A,1,X7,Office (Shared),03/01/2024
+,10460,Skate,Rail Skate,N/A,1,Office (Shared),Jay Kinney,03/01/2024
+,10461,CCTV,CCTV Camera Screen,PPC-0249,1,Kit 5,Jay Kinney,03/01/2024
+,10462,CCTV,CCTV Camera,N/A,1,Kit 5,Jay Kinney,03/01/2024
+IRL00089,10463,IT,Asus Laptop,LBN0Cx07092246G,1,Kit 5,Jay Kinney,03/01/2024
+,10464,Scanning,Globes,N/A,1,Globes 2,Office (Shared),03/01/2024
+,10465,Scanning,Globes,N/A,1,Globes 2,Office (Shared),03/01/2024
+,10466,Scanning,Globes,N/A,1,Globes 2,Office (Shared),03/01/2024
+,10467,Scanning,Globes,N/A,1,Globes 2,Office (Shared),03/01/2024
+,10468,Scanning,Globes,N/A,1,Globes 2,Office (Shared),03/01/2024
+,10469,Scanning,Globes,N/A,1,Globes 2,Office (Shared),03/01/2024
+,10470,Skate,Rail Skate,N/A,1,Office (Shared),Office (Shared),03/01/2024
+,10471,Battery,TX8 Battery,N/A,1,TX8,Office (Shared),03/01/2024
+,10472,Battery,TX8 Battery,N/A,1,TX8,Office (Shared),03/01/2024
+,10473,Battery,TX8 Battery,N/A,1,TX8,Office (Shared),03/01/2024
+,10474,Battery,TX8 Battery,N/A,1,TX8,Office (Shared),03/01/2024
+,10475,Charging Kit,TX8 Battery Charge,N/A,1,TX8,Office (Shared),03/01/2024
+,10476,Charging Kit,TX8 Battery Charger Cable,N/A,1,TX8,Office (Shared),03/01/2024
+,10477,Charging Kit,Trimble Dual Slot Charger,N/A,1,Kit 6,Office (Shared),03/01/2024
+,10478,Charging Kit,Trimble Dual Slot Charger Cable,N/A,1,Kit 6,Office (Shared),03/01/2024
+10138,10138 / 10393,Gauging,Bance Track Gauge,14816,1,Kit 4,Joe Saxon,03/01/2024
+,10046,Detail Pole,TSC5 Bracket,N/A,1,Kit 7,Office (Shared),02/01/2024
+,10047,Detail Pole,TSC5 Clamp,N/A,1,Kit 7,Office (Shared),02/01/2024
+,10049,Logger,TSC5 Logger,JAJ224210014,1,Kit 7,Office (Shared),02/01/2024
+IRL00228,10050,Battery,Instrument Battery,472102351,1,Kit 7,Office (Shared),02/01/2024
+IRL00228,10051,Battery,Instrument Battery,472102335,1,Kit 7,Office (Shared),02/01/2024
+IRL00228,10052,Instrument,"Trimble S9 1""",38310089,1,Kit 7,Office (Shared),02/01/2024
+IRL00229,10053,Battery,MT1000 Battery,MA1732A,1,Kit 7,Office (Shared),02/01/2024
+IRL00229,10055,Prism,MT1000 ,96610385,1,Kit 7,Office (Shared),02/01/2024
+IRL00277,10058,Logger,TSC5 Logger,JAJ224610129,1,GPS 1,Office (Shared),02/01/2024
+,10059,Detail Pole,TSC5 Bracket,N/A,1,GPS 1,Office (Shared),02/01/2024
+,10067,Charging Kit,TSC5 Charger,N/A,1,Kit 6,Office (Shared),02/01/2024
+,10074,Detail Pole,Trimble GPS Detail Pole,N/A,1,GPS 1,Office (Shared),02/01/2024
+,10075,Detail Pole,Trimble GPS Detail Pole,N/A,1,GPS 1,Office (Shared),02/01/2024
+IRL00135,10078,Charging Kit,Instrument Dual Slot Charger,2051007,1,GPS 3,Office  (Shared),02/01/2024
+IRL00185,10079,GPS,Trimble R10 GPS,5620461353,1,GPS 3,Office  (Shared),02/01/2024
+IRL00186,10081,Battery,GPS batteries,s5541295A,1,GPS 2,Office (Shared),02/01/2024
+IRL00184,10082,Charging Kit,Instrument Dual Slot Charger Cable,N/A,1,GPS 3,Office  (Shared),02/01/2024
+,10097,Prism,Trimble Trav Prism,N/A,1,Kit 6,Office (Shared),02/01/2024
+,10098,Prism,Trimble Trav Prism,N/A,1,Kit 6,Office (Shared),02/01/2024
+,10099,Tribrach,Trimble Tribrach,N/A,1,Kit 6,Office (Shared),02/01/2024
+10127,10127,Instrument,"Trimble S8 1""",98910107,1,Kit 6,Office (Shared),02/01/2024
+10131,10131,Prism,MT1000,58003013,1,Kit 6,Office (Shared),02/01/2024
+10161,10161,Charging Kit,TSC3 Charger,N/A,1,Kit 7,Office (Shared),02/01/2024
+10178,10178,Prism,Trimble Traverse Prism,58026019,1,Kit 7,Office (Shared),02/01/2024
+,10179,Tribrach,Tribrach,22 1398C,1,Kit 7,Office (Shared),02/01/2024
+10180,10180,Prism,Trimble Traverse Prism,P-15-01049,1,Kit 7,Office (Shared),02/01/2024
+,10191,Detail Pole,Topcon Detail Pole 2.6m,N/A,1,Kit 7,Office (Shared),02/01/2024
+10194,10194,Detail Pole,Trimble Detail Pole 2.6m,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00188,10256,Logger,TSC5 Logger ,JAJ214610303,1,Kit 6,Office (Shared),02/01/2024
+IRL00052,10273,Battery,Instrument Battery,N/A,1,Kit 6,Office (Shared),02/01/2024
+10288,10288,Detail Pole,Trimble GPS Detail Pole - 2.6m (1.36m),N/A,1,GPS 3,GPS 3,02/01/2024
+10294,10294,Tripod,Blue Leica Tripod,N/A,1,Kit 3,Kris Zielinski,02/01/2024
+,10305,Tribrach,Trimble Tribrach,T-19-16778,1,Kit 6,Office (Shared),02/01/2024
+,10306,Prism,Trimble Trav Prism,58026007,1,Kit 5,Jay Kinney,02/01/2024
+,10317,Battery,MT1000 Battery,N/A,1,Kit 7,Office (Shared),02/01/2024
+,10335,Shovel,Shovel,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00116,10336,Charging Kit,LS15 Charger,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00116,10337,Battery,LS15 Battery,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00116,10338,Battery,LS15 Battery,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00116,10339,Instrument,LS15 Level,700819,1,Kit 2,Kris Zielinski,02/01/2024
+,10340,Light,Portable Light,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00305,10342,Tribrach,Trimble Tribrach,T-19-2774,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00234,10343,Prism,Trimble Trav Prism,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00143,10344,Tribrach,Trimble Tribrach,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00235,10345,Tribrach,Trimble Tribrach,N/A,1,Kit 6,Office (Shared),02/01/2024
+IRL00235,10346,Prism,Trimble Traverse Prism,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00301,10347,Battery,Instrument Battery,191800071,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00300,10348,Battery,Instrument Battery,A0016432,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00304,10349,Battery,MT1000 Battery,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00302,10350,Battery,MT1000 Battery,N/A,2,Office (Shared),Office (Shared),02/01/2024
+IRL00303,10351,Prism,MT1000,96514787,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00061,10352,Instrument,"Trimble S9 0.5""",38330023,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00063,10353,Detail Pole,Trimble Pole ,N/A,1,Kit 6,Office (Shared),02/01/2024
+IRL00063,10354,Detail Pole,Rail Foot,N/A,1,Office (Shared),Office (Shared),02/01/2024
+IRL00093,10355,Utilities,Radiodetection Genny4,10/G4EN-66425,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00092,10356,Utilities,Radiodetection CAT4+,10/C4EN31-17502,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00120,10357,Drill,Makita Drill,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00030,10359,Tripod,Leica Tripod,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00033,10360,Tripod,SCCS Tripod,N/A,1,Office (Shared),Office (Shared),02/01/2024
+IRL00064,10361,Tripod,SCCS Tripod,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00066,10362,Tripod,SCCS Tripod,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00183,10374,Battery,GPS batteries,s5428335a,1,GPS 1,Office (Shared),02/01/2024
+IRL00186,10375,Battery,GPS batteries,s55254514,1,GPS 1,Office (Shared),02/01/2024
+IRL00184,10376,Charging Kit,Instrument Dual Slot Charger,20036321,1,GPS 1,Office (Shared),02/01/2024
+IRL00183,10378,Battery,GPS batteries,s6511933A,1,GPS 2,Office (Shared),02/01/2024
+IRL00187,10379,Charging Kit,Instrument Dual Slot Charger Cable,62546,1,GPS 1,Office (Shared),02/01/2024
+IRL00182,10380,GPS,Trimble R10 GPS,5619461103,1,GPS 1,Office (Shared),02/01/2024
+,10405,Tribrach,Trimble Tribrach,T-20-15485,1,Kit 7,Office (Shared),02/01/2024
+IRL00135,10417,GPS,Trimble R10 GPS,5630465499,1,GPS 2,Office (Shared),02/01/2024
+IRL00196,10420,IT,Samsung Galaxy Tab A8,R9YT609QH9L,1,Kit 2,Kris Zielinski,02/01/2024
+,10421,Battery,Logger Battery,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00091,10422,Charging Kit,Instrument Dual Slot Charger Cable,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00090,10423,Laser Level,Cross Line Laser,SC101,1,Kit 2,Kris Zielinski,02/01/2024
+,10424,Tape,30m Tape,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00062,10425,Logger,TSC3 Logger,RS6LD17424,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00125,10426,Levelling,Leica Digital Staff,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+IRL00124,10427,Levelling,Leica Digital Staff,N/A,1,Kit 2,Kris Zielinski,02/01/2024
+,10429,Detail Pole,Rail Foot,N/A,1,Kit 6,Office (Shared),02/01/2024
+,10430,Charging Kit,Instrument Dual Slot Charger,024701184301385A,1,GPS 2,Office (Shared),02/01/2024
+,10431,Charging Kit,Instrument Dual Slot Charger Cable,N/A,1,GPS 2,Office (Shared),02/01/2024
+,10432,Detail Pole,Trimble GPS Detail Pole,N/A,1,GPS 2,Office (Shared),02/01/2024
+,10433,Detail Pole,Trimble GPS Detail Pole,N/A,1,GPS 2,Office (Shared),02/01/2024
+IRL00028,10434,Logger,TSC3 Logger - R10 185,RS3LC76766,1,GPS 3,Office  (Shared),02/01/2024
+IRL00135,10435,Battery,GPS batteries,S5636268A,1,GPS 3,Office  (Shared),02/01/2024
+IRL00135,10436,Battery,GPS batteries,S2105340TJ,1,GPS 3,Office  (Shared),02/01/2024
+IRL00095,10437,Charging Kit,TSC 3 Charger,N/A,1,GPS 3,Office  (Shared),02/01/2024
+IRL00077,10438,,White Survey Pole,N/A,1,Kit 7,Office (Shared),02/01/2024
+,10439,Detail Pole,Detail Pole,N/A,1,Kit 6,Office (Shared),02/01/2024
+,10369,IT,Samsung A8 Tablet,R8YW916L6XV,1,Office (Shared),Paul Wilde,18/12/2023
+,10370,IT,Samsung A8 Tablet,R8YW916LMLF,1,Office (Shared),James Wheatley,18/12/2023
+,10371,IT,Samsung A8 Tablet,R8YW916KNXT,1,Office (Shared),Office,18/12/2023
+,10372,IT,Samsung A8 Tablet,R8YM916LKLR,1,Office (Shared),Office,18/12/2023
+,10368,Live Line Tester,Seward PH3 LLT MK2,14Q-0406,1,Office (Shared),Office (Shared),28/09/2023
+,10368,Live Line Tester,Seward PH3-LLT,39P-1313,1,Office (Shared),Office (Shared),28/09/2023
+,10382,Live Line Tester,Seward PH3-LLT,39P-1355,1,Office (Shared),Office (Shared),28/09/2023
+,10382,Live Line Tester,Seward PH3 LLT MK2,14Q-0405,1,Office (Shared),Office (Shared),28/09/2023
+,10206,Tape,30m Tape,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00044,10207,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00043,10208,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00043,10209,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00043,10210,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00043,10211,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00043,10212,Prism,Leica Circular Prisms,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+,10213,Install Kit,0.253mm Setting Out Spike,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+,10214,Tripod,Seco Tripod Spider Stand,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+,10215,Laser Level,3Point Laser,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00021,10216,Battery,Makita Battery,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00021,10217,Charging Kit,Makita Drill Charger,DC18SD,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00021,10218,Drill,Makita Drill,1201281,1,Kit 1,Ovidiu Amariutei,07/09/2023
+,10219,Shovel,Shovel,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00078,10220,Utilities,EziCat i550,302678,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00155,10221,Levelling,Extendable E Staff,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00154,10222,Levelling,Extendable E Staff,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00156,10223,Levelling,Leica Extendable Digital Staff,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00153,10224,Levelling,Leica Extendable Digital Staff,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+,10231,Tape,Rail Wheel,25315,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00152,10232,Battery,DNA03 Level Batteries,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00152,10233,Battery,DNA03 Level Batteries,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00152,10234,Battery,DNA03 Level Batteries,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00152,10235,Battery,DNA03 Level Batteries,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00152,10236,Charging Kit,DNA03 Charger,N/A,1,Kit 1,Ovidiu Amariutei,07/09/2023
+IRL00152,10237,Instrument,DNA03 Level,331380,1,Kit 1,Ovidiu Amariutei,07/09/2023
+,10161,Charging Kit,TSC3 Charger,N/A,1,Kit 2,Kris Zielinski,04/09/2023
+IRL00196,10421,IT,Tablet Charger,N/A,1,Kit 2,Kris Zielinski,04/09/2023
+,10067,Charging Kit,TSC5 Charger,N/A,1,GPS,Office (Shared),31/08/2023
+,10386,Charging Kit,Instrument Dual Slot Charger Cable,N/A,1,Kit 4,Liam Brookes,31/08/2023
+,10389,Drill,Makita Drill,DHR2025MW,1,Office (Shared),Office (Shared),31/08/2023
+IRL00121,10393,Battery,Battery,N/A,1,Kit 4,Liam Brookes,31/08/2023
+,10048,Charging Kit,TSC5 Charger,N/A,1,Kit 7,Office (Shared),17/08/2023
+,10178,Prism,Trimble Trav Prism,P-19-02908,1,Kit 7,Office (Shared),17/08/2023
+,10180,Prism,Trimble Trav Prism,N/A,1,Kit 7,Office (Shared),17/08/2023
+,10257,Battery,Gedo Battery,N/A,1,Gedo,Prem Serwinski,17/08/2023
+,10258,Battery,Gedo Battery,N/A,1,Gedo,Prem Serwinski,17/08/2023
+,10387,Charging Kit,Instrument Dual Slot Charger,N/A,1,Kit 4,Liam Brookes,17/08/2023
+,10388,Charging Kit,TSC5 Logger Charger,N/A,1,Kit 4,Liam Brookes,17/08/2023
+,10401,Tribrach,Trimble Tribrach,T-20-15485,1,Kit 4,Liam Brookes,17/08/2023
+IRL00141,10408,Tripod,Trimax Tripod,N/A,1,Kit 4,Liam Brookes,17/08/2023
+IRL00032,,Tripod,Leica Tripod,N/A,1,,Kris Zielinski,17/08/2023
+10289,10289,Shovel,Green Shovel,N/A,1,Office (Shared),Office (Shared),02/08/2023
+10290,10290,Shovel,Orange Shovel,2012655510,1,Office (Shared),Office (Shared),02/08/2023
+10291,10291,Levelling,Silver Leica Tripod - GST05L,563630,1,Office (Shared),Office (Shared),02/08/2023
+10293,10293,Tripod,GLS11 Tripod,385500,1,Office (Shared),Office (Shared),02/08/2023
+10300,10300,Tripod,Red Leica Tripod - GST20-9,394752,1,Office (Shared),Office (Shared),02/08/2023
+10001,10001,Levelling,E Staff,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10129,10129,Battery,Instrument Battery,141400783,1,Kit 6,Office (Shared),25/07/2023
+10130,10130,Battery,Instrument Battery,111702189,1,Kit 6,Office (Shared),25/07/2023
+10132,10132,Battery,MT1000 Battery,MA1434A,1,Kit 6,Office (Shared),25/07/2023
+10136,10136,Detail Pole,1/2 Spectra Pole,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10137,10137,Gauging,Bance Track Gauge,14818,1,Office (Shared),Office (Shared),25/07/2023
+10139,10139,Gauging,Bance Track Gauge,14807,1,Office (Shared),Office (Shared),25/07/2023
+10140,10140,Utilities,eCat4,10/C4EN59-1640,1,Office (Shared),Office (Shared),25/07/2023
+10141,10141,Gauging,Abtus OLE gauge,643,1,Office (Shared),Office (Shared),25/07/2023
+10142,10142,Disto,Hilti Disto,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10143,10143,Tape,Ttu metre Rail Wheel,7697222,1,Office (Shared),Office (Shared),25/07/2023
+10144,10144,Utilities,Radiodetection CAT4+,10/C4EN11-3488,1,Office (Shared),Office (Shared),25/07/2023
+10145,10145,Utilities,Cat4,10/C4EN11-3499,1,Office (Shared),Office (Shared),25/07/2023
+10147,10147,Utilities,Radiodetection Genny,10/G4EN-17926,1,Office (Shared),Office (Shared),25/07/2023
+10148,10148,Gauging,Abtus OLE gauge,554,1,Office (Shared),Office (Shared),25/07/2023
+10149,10149,Disto,Hilti Disto,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10154,10154,Logger,TSC3 Logger,RS5CC97018,1,Dead,Spare - No License,25/07/2023
+10155,10155,Tripod,Trimble Bipod,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10156,10156,Levelling,Digital Staff,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10157,10157,Gauging,Robel Platform Gauge ,1450109,1,Office (Shared),Office (Shared),25/07/2023
+10158,10158,Levelling,Leica Sprinter 250,2200617,1,Office (Shared),Office (Shared),25/07/2023
+10159,10159,Charging Kit,Instrument Dual Slot Charger,02470218B2108558A,1,Kit 7,Office (Shared),25/07/2023
+10160,10160,Charging Kit,Instrument Dual Slot Charger Cable,N/A,,Kit 7,Office (Shared),25/07/2023
+10175,10175,Charging Kit,Instrument Dual Slot Charger,02471221060639C,1,Kit 8,Jack Boardman,25/07/2023
+10176,10176,Charging Kit,Instrument Dual Slot Charger,N/A,1,Kit 8,Jack Boardman,25/07/2023
+10179,10179,Tribrach,Trimble Tribrach,T-22-13986,1,Office (Shared),Office (Shared),25/07/2023
+10181,10181,Instrument,DNA03 Level,343460,1,Office (Shared),Office (Shared),25/07/2023
+10186,10186,Lasersweep,Lasersweep Getac 15 PDA,RFA39P0079,1,Lasersweep 2,Office (Shared),25/07/2023
+10187,10187,Battery,Dewalt Drill Battery,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10188,10188,Drill,Dewalt Drill,DCD795,1,Office (Shared),Office (Shared),25/07/2023
+10189,10189,Battery,Dewalt Drill Battery,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10190,10190,Charging Kit,Dewalt Drill Battery Charger,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10191,10191,Detail Pole,Topcon Detail Pole 2.6m,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10193,10193,Detail Pole,Seco Detail Pole 2.6m,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10195,10195,Detail Pole,Topcon Detail Pole 2.6m,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10197,10197,Levelling,E Staff,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10198,10198,Levelling,E Staff,N/A,1,Office (Shared),Office (Shared),25/07/2023
+10199,10199,Levelling,E Staff,N/A,1,Office (Shared),Office (Shared),25/07/2023
+IRL00231,,Tripod,Trimble 2 Section Detail Pole 2m ,N/A,1,Kit 8,Jack Boardman,12/07/2023
+IRL00036,,Detail Pole,Trimble Pole ,N/A,1,Kit 2,Kris Zielinski,04/07/2023
+IRL00166,,,TSC3 Logger - R10 182,RS6PD19727,1,GPS 1,Office (Spare),13/06/2023
+IRL00128,,Logger,TSC3 Logger,RS5EC98915,1,Kit 7,Office (Shared),13/06/2023
+IRL00190,,Logger,TSC5 Logger ,JAJ221010259,1,Kit 5,Jay Kinney,13/06/2023
+IRL00121,10396,Battery,Instrument Battery,501800350,1,Kit 4,Liam Brookes,11/06/1928
+,10090,Node,Gateway,17100078,,,,
+,10091,Node,Solar Panel,17400B09,,,,
+10126,10126,IT,Samsung Galaxy Tab A8,R9YT609QJ7N,1,,Paul Wilde,
+10174,10174,Charging Kit,TSC5 Charger,N/A,1,Office (Shared),Office (Shared),
+IRL00229,10316,Battery,MT1000 Battery,N/A,1,Office (Shared),Office (Shared),
+IRL00140,10407,Tripod,Trimax Tripod,N/A,1,Kit 4,Liam Brookes,
+IRL00139,10415,Detail Pole,Rail Foot,N/A,1,Kit 7,Office (Shared),
+,10479,Node,Wisen Track Tilt Node,17600A80,,,,
+IRL00223,10480,Node,Wisen Track Tilt Node,1473B4D7,1,Node,Shared,
+IRL00215,10481,Node,Wisen Track Tilt Node,1473AED0,1,Node,Shared,
+IRL00227,10482,Node,Wisen Track Tilt Node,1473B2E7,1,Node,Shared,
+IRL00278,10483,Node,Wisen Track Tilt Node,17110277,1,Node,Shared,
+IRL00268,10484,Node,Wisen Track Tilt Node,171101EB,1,Node,Shared,
+IRL00283,10485,Node,Wisen Track Tilt Node,1711033A,1,Node,Shared,
+IRL00212,10486,Node,Wisen Track Tilt Node,1473B9C2,1,Node,Shared,
+IRL00208,10487,Node,Wisen Track Tilt Node,1473B678,1,Node,Shared,
+IRL00226,10488,Node,Wisen Track Tilt Node,1473B0C9,1,Node,Shared,
+IRL00218,10489,Node,Wisen Track Tilt Node,1473AECE,1,Node,Shared,
+IRL00214,10490,Node,Wisen Track Tilt Node,1473B84F,1,Node,Shared,
+IRL00224,10492,Node,Wisen Track Tilt Node,1473B1BE,1,Node,Shared,
+IRL00279,10493,Node,Wisen Track Tilt Node,171102A1,1,Node,Shared,
+IRL00256,10494,Node,Wisen Track Tilt Node,17110587,1,Node,Shared,
+IRL00209,10495,Node,Wisen Track Tilt Node,1473AE62,1,Node,Shared,
+IRL00222,10496,Node,Wisen Track Tilt Node,1473B0A7,1,Node,Shared,
+IRL00216,10497,Node,Wisen Track Tilt Node,1473B90C,1,Node,Shared,
+IRL00281,10498,Node,Wisen Track Tilt Node,1711036D,1,Node,Shared,
+IRL00219,10499,Node,Wisen Track Tilt Node,1473B0E0,1,Node,Shared,
+IRL00253,10500,Node,Wisen Track Tilt Node,1711012F,1,Node,Shared,
+IRL00211,10501,Node,Wisen Track Tilt Node,1473B6B9,1,Node,Shared,
+IRL00207,10502,Node,Wisen Track Tilt Node,1473B6D5,1,Node,Shared,
+IRL00225,10503,Node,Wisen Track Tilt Node,1473B272,1,Node,Shared,
+IRL00210,10504,Node,Wisen Track Tilt Node,1473B670,1,Node,Shared,
+IRL00217,10505,Node,Wisen Track Tilt Node,1473B978,1,Node,Shared,
+IRL00277,10506,Node,Wisen Track Tilt Node,17110129,1,Node,Shared,
+IRL00221,10507,Node,Wisen Track Tilt Node,1473B9D6,1,Node,Shared,
+IRL00282,10508,Node,Wisen Track Tilt Node,171105CO,1,Node,Shared,
+IRL00276,10509,Node,Wisen Track Tilt Node,1711025C,1,Node,Shared,
+IRL00220,10510,Node,Wisen Track Tilt Node,1473B1FC,1,Node,Shared,
+IRL00270,10511,Node,Wisen Track Tilt Node,171100FF,1,Node,Shared,
+IRL00257,10512,Node,Wisen Track Tilt Node,171100FC,1,Node,Shared,
+IRL00264,10513,Node,Wisen Track Tilt Node,17110162,1,Node,Shared,
+IRL00244,10514,Node,Wisen Track Tilt Node,171100CD,1,Node,Shared,
+IRL00251,10515,Node,Wisen Track Tilt Node,17110141,1,Node,Shared,
+IRL00254,10516,Node,Wisen Track Tilt Node,1-171104E4,1,Node,Shared,
+,10517,Node,Wisen Track Tilt Node,17110399,,,,
+,10518,Node,Wisen Track Tilt Node,176009BF,,,,
+,10519,Node,Wisen Track Tilt Node,1711024B,,,,
+,10520,Node,Wisen Track Tilt Node,17600A82,,,,
+,10521,Node,Wisen Track Tilt Node,17600E9D,,,,
+,10522,Node,Wisen Track Tilt Node,17600973,,,,
+,10523,Node,Wisen Track Tilt Node,17600678,,,,
+,10524,Node,Wisen Track Tilt Node,17600ADC,,,,
+,10525,Node,Wisen Track Tilt Node,1760086F,,,,
+,10526,Node,Wisen Track Tilt Node,1760087A,,,,
+,10527,Node,Wisen Track Tilt Node,17600976,,,,
+,10528,Node,Wisen Track Tilt Node,17600A4E,,,,
+,10529,Node,Wisen Track Tilt Node,176009A9,,,,
+,10530,Node,Wisen Track Tilt Node,17600D02,,,,
+,10531,Node,Wisen Track Tilt Node,1760060C,,,,
+,10532,Node,Wisen Track Tilt Node,17600E33,,,,
+,10533,Node,Wisen Track Tilt Node,17600DC5,,,,
+,10534,Node,Wisen Track Tilt Node,176008E4,,,,
+,10535,Node,Wisen Track Tilt Node,17600DBD,,,,
+,10536,Node,Wisen Track Tilt Node,171101BA,,,,
+,10537,Node,Wisen Track Tilt Node,1473B706,,,,
+,10538,Node,Wisen Track Tilt Node,1760064F,,,,
+,10539,Node,Wisen Track Tilt Node,171104C2,,,,
+,10540,Node,Wisen Track Tilt Node,17600657,,,,
+,10541,Node,Wisen Track Tilt Node,17600E3D,,,,
+,10542,Node,Wisen Track Tilt Node,17600F06,,,,
+,10543,Node,Wisen Track Tilt Node,1760066E,,,,
+,10544,Node,Wisen Track Tilt Node,17600D42,,,,
+,10545,Node,Wisen Track Tilt Node,17600CED,,,,
+,10546,Node,Wisen Track Tilt Node,1760061A,,,,
+,10547,Node,Wisen Track Tilt Node,17600699,,,,
+,10548,Node,Wisen Track Tilt Node,17600CEF,,,,
+,10549,Node,Wisen Track Tilt Node,17600DF5,,,,
+,10550,Node,Wisen Track Tilt Node,17600E4F,,,,
+,10551,Node,Wisen Track Tilt Node,17600A24,,,,
+,10552,Node,Wisen Track Tilt Node,17600AD0,,,,
+,10553,Node,Wisen Track Tilt Node,17600698,,,,
+,10554,Node,Wisen Track Tilt Node,17600D2D,,,,
+,10555,Node,Wisen Track Tilt Node,17600EA2,,,,
+,10556,Node,Solar Panel,16230453,,,,
+IRL00280,100491,Node,Wisen Track Tilt Node,171103F4,1,Node,Shared,
+IRL00008,,Logger,TSC3 Logger - R10 135,RS2QC58489,1,GPS 2,Prem Serwinski,
+IRL00135,,Battery,Trimble R10 GPS Batteries,N/A,2,,Shared,
+IRL00181,,Charging Kit,T10 Tablet Spare Battery Charger,N/A,1,,Shared ,
+IRL00027,,Charging Kit,Charging Kit,N/A,1,GPS 1,Office (Spare),
+IRL00019,,Gauging,Robel Platform Gauge ,0450035,1,,,
+IRL00081,,Gauging,Lasersweep 20,LRLS05/00020,1,,Shared,
+IRL00204,,Gauging,Abtus Track Gauge,168659,1,,Shared,
+IRL00081,,Gauging,Lasersweep Getac 20 PDA,RE839P0014,1,,Shared,
+IRL00151,,Utilities,Uni-key Manhole Lifters,N/A,2,,Office,
+IRL00009,,Utilities,Genny,10/G4EN-22679,1,,Prem Serwinski,
+IRL00038,,Tape,20m Magnusson Tape,N/A,1,,Office,
+IRL00046,,Instrument,NA720 Level,5696289,1,,Office,
+IRL00051,,Levelling,Staff,N/A,1,,Prem Serwinski,
+IRL00067,,Levelling,Leica Staff,N/A,1,,Prem Serwinski,
+IRL00126,,Levelling,Manual Staff,N/A,1,,Kris Zielinski,
+IRL00088,,Levelling,Leica Digital Staff,N/A,1,,Prem Serwinski,
+IRL00240,,IT,Asus Laptop,N2N0CX05329706A,1,,Aaron Ratchford,
+IRL00275,,IT,Asus Laptop,R1N0CV01U457018,1,,James Dietz,
+IRL00276,,IT,Asus Laptop,Nano CV089689438,1,,Jack Boardman,
+IRL00119,,IT,Asus Laptop,M2N0CX09T05808E,1,,Lindsay Hargreaves,
+IRL00169,,IT,Asus Laptop,L7N0CX131963309,1,,Antonio Salvador,
+IRL00134,,IT,Asus Laptop,N/A,1,,Jack Connah,
+IRL00117,,IT,Asus Laptop,M2N0CX09T124085,1,,Sam Percival,
+IRL00118,,IT,MSI GP65 Leopard Laptop,K2102N0041029,1,,Plinio Piccin,
+IRL00167,,IT,SXE Laptop ,Unreadable,1,,Lewis Thompson,
+IRL00168,,IT,SXE Laptop ,NKNH55DCQ000E00385,1,,Phil Dee,
+IRL00048,,IT,Asus Laptop,L8NRCB000230328,1,,Colin Rogers,
+IRL00022,,IT,Asus Laptop,L7N0CX13189430C,1,,Paul Wilde,
+IRL00086,,IT,Asus Laptop,LBN0CX070894466,1,,Kris Zielinski,
+IRL00191,,IT,Samsung Galaxy Tab A8,R9YT609QHSZ,1,,Martin Blake,
+IRL00193,,IT,Samsung Galaxy Tab A8,R9YT609QJYL,1,,Mike McAvoy,
+IRL00194,,IT,Samsung Galaxy Tab A8,R9YT609QJJP,1,,Sam Percival,
+IRL00198,,IT,Samsung Galaxy Tab A8,R9YT609QJ8D,1,,Liam Brookes,
+IRL00199,,IT,Samsung Galaxy Tab A8,R9YT609QJ2T,1,,Office - Spare,
+IRL00079,,IT,HP Printer,TH0BU492G1,1,,Prem Serwinski,
+IRL00080,,IT,HP Printer,TH0BU492HV,1,,Jack Boardman,
+IRL00025,,IT,Printer,TH08R39256,1,,Paul Wilde,
+IRL00023,,IT,Printer,TH08R39275,1,,,
+IRL00026,,IT,WD Passport Harddrive,1.94402E+11,1,,,
+IRL00024,,Levelling,Cross Line Laser,SC101,1,,Liam Brookes,
+IRL00087,,Levelling,Cross Line Laser,SC101,1,,Office,
+IRL00123,,Prism / Tribrach,Trimble Traverse Prism & Tribach,N/A,1,,Jay Kinney,
+IRL00070,,Prism / Tribrach,Trimble Traverse Prism & Tribach,N/A,1,,Office (Spare),
+IRL00072,,Prism / Tribrach,Leica Traverse Prism & Tribach,N/A,1,,Kris Zielinski,
+IRL00073,,Prism / Tribrach,Leica Traverse Prism & Tribach,N/A,1,,Kris Zielinski,
+IRL00056,,Prism / Tribrach,Trimble Traverse Prism & Tribach,N/A,1,,Prem Serwinski,
+IRL00138,,Detail Pole,Trimble Pole 1.5m,N/A,1,,Mike McAvoy,
+IRL00146,,Detail Pole,Trimble Pole 1.5m,N/A,1,,Liam Brookes,
+IRL00147,,Detail Pole,1m Extension Pole,N/A,1,,Liam Brookes,
+IRL00054,,Detail Pole,Trimble Pole ,N/A,1,,Prem Serwinski,
+IRL00129,,Tripod,Trimax Tripod,N/A,1,,Mike McAvoy,
+IRL00133,,Tripod,Trimax Tripod,N/A,1,,,
+IRL00065,,Tripod,Tripod,N/A,1,,Office (Spare),
+IRL00031,,Tripod,Leica Tripod,N/A,1,,Office,
+IRL00044,,Tripod,GITZO Scanner Tripod,N/A,1,,Office,
+IRL00157,,Tripod,Leica GST20-9 Tripod,N/A,1,,Office,
+,10558,Laser Level,Laser Level,N/A,,,,
+IRL00241,,,Wisen Track Tilt Node,17110245,1,Node,Shared,
+IRL00242,,,Wisen Track Tilt Node,1711035C,1,Node,Shared,
+IRL00243,,,Wisen Track Tilt Node,1711023C,1,Node,Shared,
+IRL00245,,,Wisen Track Tilt Node,171104ED,1,Node,Shared,
+IRL00246,,,Wisen Track Tilt Node,17110383,1,Node,Shared,
+IRL00247,,,Wisen Track Tilt Node,171101A8,1,Node,Shared,
+IRL00248,,,Wisen Track Tilt Node,171100F8,1,Node,Shared,
+IRL00249,,,Wisen Track Tilt Node,17110540,1,Node,Shared,
+IRL00250,,,Wisen Track Tilt Node,171104F9,1,Node,Shared,
+IRL00252,,,Wisen Track Tilt Node,17110147,1,Node,Shared,
+IRL00255,,,Wisen Track Tilt Node,17110237,1,Node,Shared,
+IRL00258,,,Wisen Track Tilt Node,171104BC,1,Node,Shared,
+IRL00259,,,Wisen Track Tilt Node,1-171104E2,1,Node,Shared,
+IRL00260,,,Wisen Track Tilt Node,17110109,1,Node,Shared,
+IRL00261,,,Wisen Track Tilt Node,17110547,1,Node,Shared,
+IRL00262,,,Wisen Track Tilt Node,17110287,1,Node,Shared,
+IRL00263,,,Wisen Track Tilt Node,17110160,1,Node,Shared,
+IRL00265,,,Wisen Track Tilt Node,17110393,1,Node,Shared,
+IRL00266,,,Wisen Track Tilt Node,171105A2,1,Node,Shared,
+IRL00267,,,Wisen Track Tilt Node,1-171100E2,1,Node,Shared,
+IRL00269,,,Wisen Track Tilt Node,171102B0,1,Node,Shared,
+IRL00271,,,Wisen Gateway,1710005C,1,,Shared,
+IRL00272,,,Wisen Solar Unit,16230453,1,Node,Shared,
+IRL00284,,,Wisen Track Tilt Node,17110120,1,Node,Shared,
+IRL00206,,,Wisen Gateway,1710006A,1,,Shared,
+IRL00213,,,Wisen Track Tilt Node,1473B7F0,1,Node,Shared,
+,10628,,Wisen Track Tilt Node,17902AB8 (WAN),1,Node,Shared,
+,10634,,Wisen Track Tilt Node,17902C80 (WAN),1,Node,Shared,
+,10635,,Wisen Track Tilt Node,17902E93 (WAN),1,Node,Shared,
+,10636,,Wisen Track Tilt Node,17902B60 (WAN),1,Node,Shared,
+,10637,,Wisen Track Tilt Node,17902EFB (WAN),1,Node,Shared,
+,10638,,Wisen Track Tilt Node,17902D5B (WAN),1,Node,Shared,
+,10639,,Wisen Track Tilt Node,17902E5D (WAN),1,Node,Shared,
+,10640,,Wisen Track Tilt Node,17902D4C (WAN),1,Node,Shared,
+,10641,,Wisen Track Tilt Node,17902E97 (WAN),1,Node,Shared,
+,10642,,Wisen Track Tilt Node,17902F12 (WAN),1,Node,Shared,
+,10643,,Wisen Track Tilt Node,17902E2B (WAN),1,Node,Shared,
+,10644,,Wisen Track Tilt Node,17902D02 (WAN),1,Node,Shared,
+,10645,,Wisen Track Tilt Node,17902B48 (WAN),1,Node,Shared,
+,10646,,Wisen Track Tilt Node,17902B66 (WAN),1,Node,Shared,
+,10647,,Wisen Track Tilt Node,17902B30 (WAN),1,Node,Shared,
+,10648,,Wisen Track Tilt Node,17902A9C (WAN),1,Node,Shared,
+,10649,,Wisen Track Tilt Node,17902EEE (WAN),1,Node,Shared,
+,10650,,Wisen Track Tilt Node,17902EAE (WAN),1,Node,Shared,
+,10651,,Wisen Track Tilt Node,17902CE6 (WAN),1,Node,Shared,
+,10652,,Wisen Track Tilt Node,17902B2D (WAN),1,Node,Shared,
+,10653,,Wisen Track Tilt Node,17902B72 (WAN),1,Node,Shared,
+,10654,,Wisen Track Tilt Node,15400DD5 (WAN),1,Node,Shared,
+,10655,,Wisen Track Tilt Node,15400D04 (WAN),1,Node,Shared,
+,10656,,Wisen Track Tilt Node,14830C2A (WAN),1,Node,Shared,
+,10657,,Wisen Track Tilt Node,14830AEE (WAN),1,Node,Shared,
+,10658,,Wisen Track Tilt Node,14110409 (WAN),1,Node,Shared,
+,10659,,Wisen Track Tilt Node,15400C76 (WAN),1,Node,Shared,
+,10660,,Wisen Track Tilt Node,15400EE6 (WAN),1,Node,Shared,
+,10662,,Wisen Track Tilt Node,15400CF4 (WAN),1,Node,Shared,
+,10663,,Wisen Gateway,16402092 (WAN),1,,,
+,10665,,Wisen Gateway,18102F58,1,,,
+,10666,,Wisen Gateway,18102F4F,1,,,
+,10667,GPS,SP85,6102500012,1,,Ovidiu Amariutei,
+,10668,Logger,Ranger 5,JAJ214710027,1,,Shared,
+,10670,,Wisen Gateway,1710009B,1,,,
+,10860,Instrument,Leica TM60,897959,1,Monitoring,Office,
+,10861,Tribrach,GEO Laser PAA-33X ,62729,1,Monitoring,Office,
+,10862,,ComBox60,,1,Monitoring,Office,
+,10863,,Power Unit,,1,Monitoring,Office,

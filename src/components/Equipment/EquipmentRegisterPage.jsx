@@ -3,14 +3,16 @@ import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { Card, Button, Input, Select, Modal, ConfirmationModal } from '../ui';
-import { Loader2, Search, Download, Edit, PlusCircle, Trash2, Eye, Archive } from 'lucide-react';
+import AssetTable from './AssetTable';
+import ImportAssetsButton from './ImportAssetsButton';
+import { Loader2, Search, Download, Edit, PlusCircle, Trash2, Eye, Archive, Trash } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
 
 const EquipmentRegisterPage = () => {
     const { user } = useAuth();
-    const { canAddEquipment } = usePermissions();
+    const { canAddEquipment, canImportAssets, canDeleteAllAssets } = usePermissions();
     const [loading, setLoading] = useState(true);
     const [equipment, setEquipment] = useState([]);
     const [assignments, setAssignments] = useState([]);
@@ -19,7 +21,13 @@ const EquipmentRegisterPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
     const [isManageMode, setIsManageMode] = useState(false);
-    
+    const [isAssetMode, setIsAssetMode] = useState(false);
+    const [activeTab, setActiveTab] = useState('equipment');
+
+    // Derived lists
+    const regularEquipment = useMemo(() => equipment.filter(e => !e.is_asset), [equipment]);
+    const assetItems = useMemo(() => equipment.filter(e => e.is_asset), [equipment]);
+
     // Modal State
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -36,7 +44,14 @@ const EquipmentRegisterPage = () => {
         purchase_date: '',
         warranty_expiry: '',
         category: '',
-        calibration_file: null
+        calibration_file: null,
+        asset_tag: '',
+        description: '',
+        new_asset_tag: '',
+        quantity: 1,
+        kit_group: '',
+        assigned_to_text: '',
+        last_checked: ''
     });
     const [updating, setUpdating] = useState(false);
 
@@ -131,7 +146,7 @@ const EquipmentRegisterPage = () => {
 
     // Group equipment by category
     const groupedEquipment = useMemo(() => {
-        const filtered = equipment.filter(item => 
+        const filtered = regularEquipment.filter(item => 
             (item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
              (item.serial_number && item.serial_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
              (item.model && item.model.toLowerCase().includes(searchTerm.toLowerCase())))
@@ -178,10 +193,10 @@ const EquipmentRegisterPage = () => {
         });
 
         return sortedGroups;
-    }, [equipment, searchTerm, selectedCategoryFilter, categoryOrder]);
+    }, [regularEquipment, searchTerm, selectedCategoryFilter, categoryOrder]);
 
     const filterCategories = useMemo(() => {
-        const cats = new Set(equipment.map(e => e.category || 'Uncategorized'));
+        const cats = new Set(regularEquipment.map(e => e.category || 'Uncategorized'));
         return ['All', ...Array.from(cats).sort((a, b) => {
             const orderA = categoryOrder[a] !== undefined ? categoryOrder[a] : 9999;
             const orderB = categoryOrder[b] !== undefined ? categoryOrder[b] : 9999;
@@ -189,7 +204,7 @@ const EquipmentRegisterPage = () => {
             if (orderA !== orderB) return orderA - orderB;
             return a.localeCompare(b);
         })];
-    }, [equipment, categoryOrder]);
+    }, [regularEquipment, categoryOrder]);
 
     const handleDownload = async (e, url, filename) => {
         e.preventDefault();
@@ -281,6 +296,7 @@ const EquipmentRegisterPage = () => {
 
     const handleAdd = () => {
         setModalMode('create');
+        setIsAssetMode(false);
         setEditForm({
             name: '',
             model: '',
@@ -290,7 +306,40 @@ const EquipmentRegisterPage = () => {
             purchase_date: '',
             warranty_expiry: '',
             category: '',
-            calibration_file: null
+            calibration_file: null,
+            asset_tag: '',
+            description: '',
+            new_asset_tag: '',
+            quantity: 1,
+            kit_group: '',
+            assigned_to_text: '',
+            last_checked: ''
+        });
+        setCertificates([]);
+        setNewCertExpiry('');
+        setEditModalOpen(true);
+    };
+
+    const handleAddAsset = () => {
+        setModalMode('create');
+        setIsAssetMode(true);
+        setEditForm({
+            name: '',
+            model: '',
+            serial_number: '',
+            status: 'available',
+            location: '',
+            purchase_date: '',
+            warranty_expiry: '',
+            category: '',
+            calibration_file: null,
+            asset_tag: '',
+            description: '',
+            new_asset_tag: '',
+            quantity: 1,
+            kit_group: '',
+            assigned_to_text: '',
+            last_checked: ''
         });
         setCertificates([]);
         setNewCertExpiry('');
@@ -300,6 +349,8 @@ const EquipmentRegisterPage = () => {
     const handleEdit = (item) => {
         setModalMode('edit');
         setSelectedItem(item);
+        const isAsset = !!item.is_asset;
+        setIsAssetMode(isAsset);
         setEditForm({
             name: item.name,
             model: item.model || '',
@@ -309,10 +360,21 @@ const EquipmentRegisterPage = () => {
             purchase_date: item.purchase_date || '',
             warranty_expiry: item.warranty_expiry || '',
             category: item.category,
-            calibration_file: null
+            calibration_file: null,
+            asset_tag: item.asset_tag || '',
+            description: item.description || '',
+            new_asset_tag: item.new_asset_tag || '',
+            quantity: item.quantity || 1,
+            kit_group: item.kit_group || '',
+            assigned_to_text: item.assigned_to_text || '',
+            last_checked: item.last_checked || ''
         });
         setNewCertExpiry('');
-        fetchCertificates(item.id);
+        if (!isAsset) {
+            fetchCertificates(item.id);
+        } else {
+            setCertificates([]);
+        }
         setEditModalOpen(true);
     };
 
@@ -471,8 +533,16 @@ const EquipmentRegisterPage = () => {
                     status: editForm.status,
                     location: editForm.location || null,
                     purchase_date: editForm.purchase_date || null,
-                    warranty_expiry: editForm.warranty_expiry || null,
+                    warranty_expiry: isAssetMode ? null : (editForm.warranty_expiry || null),
                     category: editForm.category,
+                    is_asset: isAssetMode,
+                    asset_tag: isAssetMode ? editForm.asset_tag : null,
+                    description: editForm.description || null,
+                    new_asset_tag: isAssetMode ? editForm.new_asset_tag : null,
+                    quantity: isAssetMode ? editForm.quantity : null,
+                    kit_group: isAssetMode ? editForm.kit_group : null,
+                    assigned_to_text: isAssetMode ? editForm.assigned_to_text : null,
+                    last_checked: isAssetMode ? editForm.last_checked : null,
                     created_by: user.id,
                     updated_by: user.id
                 };
@@ -493,8 +563,15 @@ const EquipmentRegisterPage = () => {
                     status: editForm.status,
                     location: editForm.location || null,
                     purchase_date: editForm.purchase_date || null,
-                    warranty_expiry: editForm.warranty_expiry || null,
+                    warranty_expiry: isAssetMode ? null : (editForm.warranty_expiry || null),
                     category: editForm.category,
+                    asset_tag: isAssetMode ? editForm.asset_tag : null,
+                    description: editForm.description || null,
+                    new_asset_tag: isAssetMode ? editForm.new_asset_tag : null,
+                    quantity: isAssetMode ? editForm.quantity : null,
+                    kit_group: isAssetMode ? editForm.kit_group : null,
+                    assigned_to_text: isAssetMode ? editForm.assigned_to_text : null,
+                    last_checked: isAssetMode ? editForm.last_checked : null,
                     updated_by: user.id,
                     updated_at: new Date().toISOString()
                 };
@@ -541,6 +618,29 @@ const EquipmentRegisterPage = () => {
             alert('Failed to delete equipment: ' + error.message);
         } finally {
             setUpdating(false);
+        }
+    };
+
+    const handleDeleteAllAssets = async () => {
+        const confirmation = window.prompt('WARNING: This will delete ALL items in the Asset Register. This action cannot be undone.\n\nType "DELETE" to confirm:');
+        if (confirmation !== 'DELETE') return;
+
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('equipment')
+                .delete()
+                .eq('is_asset', true);
+
+            if (error) throw error;
+
+            setEquipment(prev => prev.filter(item => !item.is_asset));
+            alert('All assets have been deleted.');
+        } catch (error) {
+            console.error('Error deleting all assets:', error);
+            alert('Failed to delete assets: ' + error.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -671,191 +771,332 @@ const EquipmentRegisterPage = () => {
         <div className="p-6 max-w-[1600px] mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Equipment Register</h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">Comprehensive list of all equipment by category</p>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+                        {activeTab === 'equipment' ? 'Equipment Register' : 'Asset Register'}
+                    </h1>
+                    <div className="flex space-x-4 mt-4 border-b border-gray-200 dark:border-gray-700">
+                        <button
+                            className={`pb-2 px-1 text-sm font-medium transition-colors ${
+                                activeTab === 'equipment' 
+                                    ? 'border-b-2 border-orange-500 text-orange-600' 
+                                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                            onClick={() => setActiveTab('equipment')}
+                        >
+                            Equipment
+                        </button>
+                        <button
+                            className={`pb-2 px-1 text-sm font-medium transition-colors ${
+                                activeTab === 'assets' 
+                                    ? 'border-b-2 border-orange-500 text-orange-600' 
+                                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                            onClick={() => setActiveTab('assets')}
+                        >
+                            Assets
+                        </button>
+                    </div>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2 md:flex-nowrap">
-                    {canAddEquipment && (
-                        <Button onClick={handleAdd} className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto">
-                            <PlusCircle className="w-4 h-4 mr-2" /> Add
+                    {activeTab === 'assets' && canDeleteAllAssets && (
+                        <Button 
+                            onClick={handleDeleteAllAssets} 
+                            variant="danger"
+                            className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto"
+                        >
+                            <Trash className="w-4 h-4 mr-2" /> Delete All Assets
                         </Button>
                     )}
-                    <Button 
-                        variant={isManageMode ? 'primary' : 'outline'} 
-                        onClick={() => setIsManageMode(!isManageMode)}
-                        className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto"
-                    >
-                        <Edit className="w-4 h-4 mr-2" /> {isManageMode ? 'Done' : 'Manage'}
-                    </Button>
-                    <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto">
-                        <Archive className="w-4 h-4 mr-2" /> Export Wizard
-                    </Button>
-                    <Button onClick={handleExportPDF} variant="outline" className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto">
-                        <Download className="w-4 h-4 mr-2" /> Export PDF
-                    </Button>
-                </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input 
-                            type="text" 
-                            placeholder="Search by name, model, or serial number..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                    </div>
-                    <div className="w-full md:w-64">
-                        <Select 
-                            value={selectedCategoryFilter} 
-                            onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                    {activeTab === 'assets' && canImportAssets && <ImportAssetsButton />}
+                    {canAddEquipment && (
+                        <Button 
+                            onClick={activeTab === 'equipment' ? handleAdd : handleAddAsset} 
+                            className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto"
                         >
-                            {filterCategories.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                        </Select>
-                    </div>
+                            <PlusCircle className="w-4 h-4 mr-2" /> 
+                            {activeTab === 'equipment' ? 'Add Equipment' : 'Add Asset'}
+                        </Button>
+                    )}
+                    
+                    {activeTab === 'equipment' && (
+                        <>
+                            <Button 
+                                variant={isManageMode ? 'primary' : 'outline'} 
+                                onClick={() => setIsManageMode(!isManageMode)}
+                                className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto"
+                            >
+                                <Edit className="w-4 h-4 mr-2" /> {isManageMode ? 'Done' : 'Manage'}
+                            </Button>
+                            <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto">
+                                <Archive className="w-4 h-4 mr-2" /> Export Wizard
+                            </Button>
+                            <Button onClick={handleExportPDF} variant="outline" className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto">
+                                <Download className="w-4 h-4 mr-2" /> Export PDF
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
 
-            <div className="space-y-8">
-                {Object.entries(groupedEquipment).map(([category, items]) => (
-                    items.length > 0 && (
-                        <Card key={category} className="overflow-hidden">
-                            <div className="bg-gray-50 dark:bg-gray-700/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                                <h2 className="text-lg font-bold text-gray-800 dark:text-white">{category}</h2>
-                                <span className="text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-600">
-                                    {items.length} items
-                                </span>
+            {activeTab === 'equipment' ? (
+                <>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search by name, model, or serial number..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                />
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                                    <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
-                                        <tr>
-                                            <th className="px-6 py-3 w-[20%]">Name</th>
-                                            <th className="px-6 py-3 w-[15%]">Model</th>
-                                            <th className="px-6 py-3 w-[15%]">Serial No.</th>
-                                            <th className="px-6 py-3 w-[10%]">Status</th>
-                                            <th className="px-6 py-3 w-[10%]">Assigned To</th>
-                                            <th className="px-6 py-3 w-[10%]">Cal. Expiry</th>
-                                            <th className="px-6 py-3 w-[5%] text-center">Cert</th>
-                                            {isManageMode && <th className="px-6 py-3 w-[10%] text-right">Actions</th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {items.map((item) => (
-                                            <tr key={item.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                                <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                                                    {item.name}
-                                                </td>
-                                                <td className="px-6 py-4">{item.model || '-'}</td>
-                                                <td className="px-6 py-4">{item.serial_number || '-'}</td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                        item.status === 'available' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                                                        item.status === 'assigned' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
-                                                        item.status === 'maintenance' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
-                                                        'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                                                    }`}>
-                                                        {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : 'Unknown'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    {(() => {
-                                                        const user = getAssignedUser(item.id);
-                                                        return user ? (
-                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                                                                {user}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-gray-400">-</span>
-                                                        );
-                                                    })()}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={(() => {
-                                                        if (!item.warranty_expiry) return '';
-                                                        const expiry = new Date(item.warranty_expiry);
-                                                        const now = new Date();
-                                                        const warningDate = new Date();
-                                                        warningDate.setDate(now.getDate() + 28);
-                                                        
-                                                        // Reset time parts for accurate date comparison
-                                                        expiry.setHours(0,0,0,0);
-                                                        now.setHours(0,0,0,0);
-                                                        warningDate.setHours(0,0,0,0);
-
-                                                        if (expiry < now) return 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-                                                        if (expiry <= warningDate) return 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-                                                        return '';
-                                                    })()}>
-                                                        {item.warranty_expiry ? new Date(item.warranty_expiry).toLocaleDateString() : '-'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    {item.calibration_certificate_url ? (
-                                                        <a 
-                                                            href={item.calibration_certificate_url} 
-                                                            onClick={(e) => {
-                                                                let filename = item.calibration_certificate_url.split('/').pop().split('?')[0];
-                                                                // Remove timestamp prefix (digits_...)
-                                                                filename = filename.replace(/^\d+_/, '');
-                                                                handleDownload(e, item.calibration_certificate_url, filename);
-                                                            }}
-                                                            className="text-gray-500 hover:text-orange-600 inline-block cursor-pointer"
-                                                            title="Download Certificate"
-                                                        >
-                                                            <Download className="w-4 h-4" />
-                                                        </a>
-                                                    ) : (
-                                                        <span className="text-gray-300">-</span>
-                                                    )}
-                                                </td>
-                                                {isManageMode && (
-                                                    <td className="px-6 py-4 text-right">
-                                                        <Button variant="outline" size="sm" onClick={() => handleEdit(item)} className="inline-flex items-center">
-                                                            <Edit className="w-3 h-3 mr-1" /> Edit
-                                                        </Button>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            <div className="w-full md:w-64">
+                                <Select 
+                                    value={selectedCategoryFilter} 
+                                    onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                                >
+                                    {filterCategories.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </Select>
                             </div>
-                        </Card>
-                    )
-                ))}
-                
-                {Object.keys(groupedEquipment).length === 0 && (
-                    <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                        <p className="text-gray-500 dark:text-gray-400">No equipment found matching your criteria.</p>
+                        </div>
                     </div>
-                )}
-            </div>
+
+                    <div className="space-y-8">
+                        {Object.entries(groupedEquipment).map(([category, items]) => (
+                            items.length > 0 && (
+                                <Card key={category} className="overflow-hidden">
+                                    <div className="bg-gray-50 dark:bg-gray-700/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                                        <h2 className="text-lg font-bold text-gray-800 dark:text-white">{category}</h2>
+                                        <span className="text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-600">
+                                            {items.length} items
+                                        </span>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                                            <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
+                                                <tr>
+                                                    <th className="px-6 py-3 w-[20%]">Name</th>
+                                                    <th className="px-6 py-3 w-[15%]">Model</th>
+                                                    <th className="px-6 py-3 w-[15%]">Serial No.</th>
+                                                    <th className="px-6 py-3 w-[10%]">Status</th>
+                                                    <th className="px-6 py-3 w-[10%]">Assigned To</th>
+                                                    <th className="px-6 py-3 w-[10%]">Cal. Expiry</th>
+                                                    <th className="px-6 py-3 w-[5%] text-center">Cert</th>
+                                                    {isManageMode && <th className="px-6 py-3 w-[10%] text-right">Actions</th>}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {items.map((item) => (
+                                                    <tr key={item.id} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                                                            {item.name}
+                                                        </td>
+                                                        <td className="px-6 py-4">{item.model || '-'}</td>
+                                                        <td className="px-6 py-4">{item.serial_number || '-'}</td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                                item.status === 'available' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                                                                item.status === 'assigned' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
+                                                                item.status === 'maintenance' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
+                                                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                                            }`}>
+                                                                {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : 'Unknown'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {(() => {
+                                                                const user = getAssignedUser(item.id);
+                                                                return user ? (
+                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                                                                        {user}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-gray-400">-</span>
+                                                                );
+                                                            })()}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={(() => {
+                                                                if (!item.warranty_expiry) return '';
+                                                                const expiry = new Date(item.warranty_expiry);
+                                                                const now = new Date();
+                                                                const warningDate = new Date();
+                                                                warningDate.setDate(now.getDate() + 28);
+                                                                
+                                                                // Reset time parts for accurate date comparison
+                                                                expiry.setHours(0,0,0,0);
+                                                                now.setHours(0,0,0,0);
+                                                                warningDate.setHours(0,0,0,0);
+
+                                                                if (expiry < now) return 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+                                                                if (expiry <= warningDate) return 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+                                                                return '';
+                                                            })()}>
+                                                                {item.warranty_expiry ? new Date(item.warranty_expiry).toLocaleDateString() : '-'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            {item.calibration_certificate_url ? (
+                                                                <a 
+                                                                    href={item.calibration_certificate_url} 
+                                                                    onClick={(e) => {
+                                                                        let filename = item.calibration_certificate_url.split('/').pop().split('?')[0];
+                                                                        // Remove timestamp prefix (digits_...)
+                                                                        filename = filename.replace(/^\d+_/, '');
+                                                                        handleDownload(e, item.calibration_certificate_url, filename);
+                                                                    }}
+                                                                    className="text-gray-500 hover:text-orange-600 inline-block cursor-pointer"
+                                                                    title="Download Certificate"
+                                                                >
+                                                                    <Download className="w-4 h-4" />
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-gray-300">-</span>
+                                                            )}
+                                                        </td>
+                                                        {isManageMode && (
+                                                            <td className="px-6 py-4 text-right">
+                                                                <Button variant="outline" size="sm" onClick={() => handleEdit(item)} className="inline-flex items-center">
+                                                                    <Edit className="w-3 h-3 mr-1" /> Edit
+                                                                </Button>
+                                                            </td>
+                                                        )}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </Card>
+                            )
+                        ))}
+                        
+                        {Object.keys(groupedEquipment).length === 0 && regularEquipment.length === 0 && (
+                            <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                                <p className="text-gray-500 dark:text-gray-400">No equipment found matching your criteria.</p>
+                            </div>
+                        )}
+                    </div>
+                </>
+            ) : (
+                <div className="mt-6">
+                    <AssetTable 
+                        assets={assetItems}
+                        onEdit={handleEdit}
+                        onDelete={(item) => { setSelectedItem(item); setDeleteConfirmOpen(true); }}
+                    />
+                </div>
+            )}
 
             {/* Edit Modal */}
-            <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={modalMode === 'create' ? "Add New Equipment" : "Manage Equipment"}>
+            <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={modalMode === 'create' ? (isAssetMode ? "Add New Asset" : "Add New Equipment") : (isAssetMode ? "Manage Asset" : "Manage Equipment")}>
                 <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium mb-1">Name *</label>
+                        <label className="block text-sm font-medium mb-1">{isAssetMode ? 'Asset Name *' : 'Name *'}</label>
                         <Input
                             required
                             value={editForm.name}
                             onChange={(e) => setEditForm({...editForm, name: e.target.value})}
                         />
                     </div>
+
+                    {isAssetMode && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Asset Tag No</label>
+                            <Input
+                                value={editForm.asset_tag}
+                                onChange={(e) => setEditForm({...editForm, asset_tag: e.target.value})}
+                            />
+                        </div>
+                    )}
+                    {isAssetMode && ( // New Input Field
+                        <div>
+                            <label className="block text-sm font-medium mb-1">New Asset Tag No</label>
+                            <Input
+                                value={editForm.new_asset_tag}
+                                onChange={(e) => setEditForm({...editForm, new_asset_tag: e.target.value})}
+                            />
+                        </div>
+                    )}
+
+                    {isAssetMode && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Quantity</label>
+                            <Input
+                                type="number"
+                                value={editForm.quantity}
+                                onChange={(e) => setEditForm({...editForm, quantity: parseInt(e.target.value) || 1})}
+                            />
+                        </div>
+                    )}
+                    {isAssetMode && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Kit Group</label>
+                            <Input
+                                value={editForm.kit_group}
+                                onChange={(e) => setEditForm({...editForm, kit_group: e.target.value})}
+                            />
+                        </div>
+                    )}
+                    {isAssetMode && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Assigned To</label>
+                            <Input
+                                value={editForm.assigned_to_text}
+                                onChange={(e) => setEditForm({...editForm, assigned_to_text: e.target.value})}
+                            />
+                        </div>
+                    )}
+                    {isAssetMode && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Last Checked</label>
+                            <Input
+                                type="date"
+                                value={editForm.last_checked}
+                                onChange={(e) => setEditForm({...editForm, last_checked: e.target.value})}
+                            />
+                        </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
+                         <div>
+                            <label className="block text-sm font-medium mb-1">{isAssetMode ? 'Equipment Type' : 'Category'}</label>
+                            <Select
+                                value={editForm.category}
+                                onChange={(e) => setEditForm({...editForm, category: e.target.value})}
+                            >
+                                <option value="">Select {isAssetMode ? 'Type' : 'Category'}</option>
+                                {availableCategories.map(cat => (
+                                    <option key={cat.id} value={cat.value}>{cat.value}</option>
+                                ))}
+                            </Select>
+                        </div>
+                        {!isAssetMode && (
+                             <div>
+                                <label className="block text-sm font-medium mb-1">Status</label>
+                                <Select
+                                    value={editForm.status}
+                                    onChange={(e) => setEditForm({...editForm, status: e.target.value})}
+                                >
+                                    <option value="available">Available</option>
+                                    <option value="assigned">Assigned</option>
+                                    <option value="maintenance">Maintenance</option>
+                                    <option value="retired">Archived</option>
+                                </Select>
+                            </div>
+                        )}
+                    </div>
+
                     <div>
-                        <label className="block text-sm font-medium mb-1">Model (Optional)</label>
+                        <label className="block text-sm font-medium mb-1">Description</label>
                         <Input
-                            value={editForm.model}
-                            onChange={(e) => setEditForm({...editForm, model: e.target.value})}
-                            placeholder="Enter model"
+                            value={editForm.description}
+                            onChange={(e) => setEditForm({...editForm, description: e.target.value})}
                         />
                     </div>
+
                     <div>
                         <label className="block text-sm font-medium mb-1">Serial Number</label>
                         <Input
@@ -863,139 +1104,127 @@ const EquipmentRegisterPage = () => {
                             onChange={(e) => setEditForm({...editForm, serial_number: e.target.value})}
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Status</label>
-                            <Select
-                                value={editForm.status}
-                                onChange={(e) => setEditForm({...editForm, status: e.target.value})}
-                            >
-                                <option value="available">Available</option>
-                                <option value="assigned">Assigned</option>
-                                <option value="maintenance">Maintenance</option>
-                                <option value="retired">Archived</option>
-                            </Select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Category</label>
-                            <Select
-                                value={editForm.category}
-                                onChange={(e) => setEditForm({...editForm, category: e.target.value})}
-                            >
-                                <option value="">Select Category</option>
-                                {availableCategories.map(cat => (
-                                    <option key={cat.id} value={cat.value}>{cat.value}</option>
-                                ))}
-                            </Select>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Location</label>
-                        <Input
-                            value={editForm.location}
-                            onChange={(e) => setEditForm({...editForm, location: e.target.value})}
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Purchase Date</label>
-                            <Input
-                                type="date"
-                                value={editForm.purchase_date}
-                                onChange={(e) => setEditForm({...editForm, purchase_date: e.target.value})}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Cal. Expiry</label>
-                            <Input
-                                type="date"
-                                value={editForm.warranty_expiry}
-                                onChange={(e) => setEditForm({...editForm, warranty_expiry: e.target.value})}
-                                disabled={true} // Controlled by certificates
-                                className="bg-gray-100"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Updated automatically via certificates</p>
-                        </div>
-                    </div>
+                    
+                    {!isAssetMode && (
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Location</label>
+                                <Input
+                                    value={editForm.location}
+                                    onChange={(e) => setEditForm({...editForm, location: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Model (Optional)</label>
+                                <Input
+                                    value={editForm.model}
+                                    onChange={(e) => setEditForm({...editForm, model: e.target.value})}
+                                    placeholder="Enter model"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Purchase Date</label>
+                                    <Input
+                                        type="date"
+                                        value={editForm.purchase_date}
+                                        onChange={(e) => setEditForm({...editForm, purchase_date: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Cal. Expiry</label>
+                                    <Input
+                                        type="date"
+                                        value={editForm.warranty_expiry}
+                                        onChange={(e) => setEditForm({...editForm, warranty_expiry: e.target.value})}
+                                        disabled={true} // Controlled by certificates
+                                        className="bg-gray-100"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Updated automatically via certificates</p>
+                                </div>
+                            </div>
 
-                    {modalMode === 'edit' && (
-                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Calibration Certificates</h3>
-                            
-                            {/* Certificates List */}
-                            {certificates.length > 0 ? (
-                                <div className="space-y-2 mb-4">
-                                    {certificates.map((cert) => (
-                                        <div key={cert.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`w-2 h-2 rounded-full ${new Date(cert.expiry_date) < new Date() ? 'bg-red-500' : 'bg-green-500'}`} />
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Expires: {new Date(cert.expiry_date).toLocaleDateString()}</span>
+                            {modalMode === 'edit' && (
+                                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                                    <h3 className="font-medium text-gray-900 dark:text-white mb-3">Calibration Certificates</h3>
+                                    
+                                    {/* Certificates List */}
+                                    {certificates.length > 0 ? (
+                                        <div className="space-y-2 mb-4">
+                                            {certificates.map((cert) => (
+                                                <div key={cert.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`w-2 h-2 rounded-full ${new Date(cert.expiry_date) < new Date() ? 'bg-red-500' : 'bg-green-500'}`} />
+                                                        <span className="text-sm text-gray-700 dark:text-gray-300">Expires: {new Date(cert.expiry_date).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <a 
+                                                            href={cert.file_url} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="p-1 text-gray-500 hover:text-orange-600 transition-colors"
+                                                            title="Download"
+                                                        >
+                                                            <Download className="w-4 h-4" />
+                                                        </a>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteCertificate(cert)}
+                                                            className="p-1 text-gray-500 hover:text-red-600 transition-colors"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic mb-4">No certificates uploaded.</p>
+                                    )}
+
+                                    {/* Upload New */}
+                                    <div className="bg-orange-50 dark:bg-orange-900/10 p-3 rounded-lg border border-orange-100 dark:border-orange-800">
+                                        <h4 className="text-sm font-medium text-orange-800 dark:text-orange-300 mb-2">Upload New Certificate</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1">Expiry Date</label>
+                                                <Input
+                                                    type="date"
+                                                    value={newCertExpiry}
+                                                    onChange={(e) => setNewCertExpiry(e.target.value)}
+                                                    className="bg-white"
+                                                />
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <a 
-                                                    href={cert.file_url} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="p-1 text-gray-500 hover:text-orange-600 transition-colors"
-                                                    title="Download"
-                                                >
-                                                    <Download className="w-4 h-4" />
-                                                </a>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDeleteCertificate(cert)}
-                                                    className="p-1 text-gray-500 hover:text-red-600 transition-colors"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1">File</label>
+                                                <input
+                                                    type="file"
+                                                    accept=".pdf,image/*"
+                                                    onChange={(e) => {
+                                                        if (e.target.files && e.target.files[0]) {
+                                                            setEditForm(prev => ({ ...prev, calibration_file: e.target.files[0] }));
+                                                        }
+                                                    }}
+                                                    className="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-orange-100 file:text-orange-700 hover:file:bg-orange-200"
+                                                />
                                             </div>
                                         </div>
-                                    ))}
+                                        <Button 
+                                            type="button" 
+                                            size="sm" 
+                                            onClick={handleUploadCertificate}
+                                            disabled={!editForm.calibration_file || !newCertExpiry || updating}
+                                            className="w-full"
+                                        >
+                                            {updating ? 'Uploading...' : 'Upload Certificate'}
+                                        </Button>
+                                    </div>
                                 </div>
-                            ) : (
-                                <p className="text-sm text-gray-500 italic mb-4">No certificates uploaded.</p>
                             )}
-
-                            {/* Upload New */}
-                            <div className="bg-orange-50 dark:bg-orange-900/10 p-3 rounded-lg border border-orange-100 dark:border-orange-800">
-                                <h4 className="text-sm font-medium text-orange-800 dark:text-orange-300 mb-2">Upload New Certificate</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                    <div>
-                                        <label className="block text-xs font-medium mb-1">Expiry Date</label>
-                                        <Input
-                                            type="date"
-                                            value={newCertExpiry}
-                                            onChange={(e) => setNewCertExpiry(e.target.value)}
-                                            className="bg-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium mb-1">File</label>
-                                        <input
-                                            type="file"
-                                            accept=".pdf,image/*"
-                                            onChange={(e) => {
-                                                if (e.target.files && e.target.files[0]) {
-                                                    setEditForm(prev => ({ ...prev, calibration_file: e.target.files[0] }));
-                                                }
-                                            }}
-                                            className="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-orange-100 file:text-orange-700 hover:file:bg-orange-200"
-                                        />
-                                    </div>
-                                </div>
-                                <Button 
-                                    type="button" 
-                                    size="sm" 
-                                    onClick={handleUploadCertificate}
-                                    disabled={!editForm.calibration_file || !newCertExpiry || updating}
-                                    className="w-full"
-                                >
-                                    {updating ? 'Uploading...' : 'Upload Certificate'}
-                                </Button>
-                            </div>
-                        </div>
+                        </>
                     )}
+
                     <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700">
                         {modalMode === 'edit' && (
                             <Button variant="danger" onClick={() => setDeleteConfirmOpen(true)} type="button">Delete</Button>
@@ -1003,7 +1232,7 @@ const EquipmentRegisterPage = () => {
                         <div className="flex gap-2 ml-auto">
                             <Button variant="outline" onClick={() => setEditModalOpen(false)} type="button">Cancel</Button>
                             <Button type="submit" disabled={updating}>
-                                {updating ? 'Saving...' : (modalMode === 'create' ? 'Add Equipment' : 'Save Changes')}
+                                {updating ? 'Saving...' : (modalMode === 'create' ? (isAssetMode ? 'Add Asset' : 'Add Equipment') : 'Save Changes')}
                             </Button>
                         </div>
                     </div>
