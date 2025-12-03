@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useToast } from '../contexts/ToastContext';
 import { Card, Button, Input } from '../components/ui';
-import { TrendingUp, Calendar, Loader2, Filter, AlertTriangle, Camera, Car, Save } from 'lucide-react';
+import { TrendingUp, Calendar, Loader2, Filter, AlertTriangle, Camera, Car, Save, Moon, Star } from 'lucide-react';
 
 const LeaderboardPage = () => {
     const { users } = useUsers();
@@ -141,14 +141,14 @@ const LeaderboardPage = () => {
                 // 1. Allocations
                 const allocationsPromise = supabase
                     .from('resource_allocations')
-                    .select('user_id, allocation_date, assignment_type')
+                    .select('user_id, allocation_date, assignment_type, shift, client')
                     .eq('assignment_type', 'project')
                     .gte('allocation_date', startDate)
                     .lte('allocation_date', endDate);
 
                 const dummyAllocationsPromise = supabase
                     .from('dummy_resource_allocations')
-                    .select('user_id, allocation_date, assignment_type')
+                    .select('user_id, allocation_date, assignment_type, shift, client')
                     .eq('assignment_type', 'project')
                     .gte('allocation_date', startDate)
                     .lte('allocation_date', endDate);
@@ -235,33 +235,116 @@ const LeaderboardPage = () => {
     // 1. Weekend Warriors
     const weekendLeaderboard = useMemo(() => {
         const allAllocations = [...allocations, ...dummyAllocations];
-        const userCounts = {};
+        // Object to track unique weekend dates per user
+        const userShiftDates = {};
 
         allAllocations.forEach(alloc => {
-            const date = new Date(alloc.allocation_date);
-            const day = date.getDay();
+            // Strictly filter for project assignments only (ignore leave, availability, etc.)
+            if (alloc.assignment_type !== 'project') return;
+
+            const dateObj = new Date(alloc.allocation_date);
+            const dateStr = alloc.allocation_date.split('T')[0]; // YYYY-MM-DD
+            const day = dateObj.getDay();
+            
             if (day === 0 || day === 6) { // Sunday or Saturday
                 const userId = alloc.user_id;
                 if (userId && isUserInDepartment(userId)) {
-                    userCounts[userId] = (userCounts[userId] || 0) + 1;
+                    if (!userShiftDates[userId]) {
+                        userShiftDates[userId] = new Set();
+                    }
+                    userShiftDates[userId].add(dateStr);
                 }
             }
         });
 
-        return Object.entries(userCounts)
-            .map(([userId, count]) => {
+        return Object.entries(userShiftDates)
+            .map(([userId, dateSet]) => {
                 const user = users.find(u => u.id === userId);
                 return {
                     name: user ? user.name : 'Unknown User',
                     department: user ? user.department : '',
-                    count
+                    count: dateSet.size // Count unique days
                 };
             })
             .sort((a, b) => b.count - a.count)
             .slice(0, 5);
     }, [allocations, dummyAllocations, users, selectedDepartments]);
 
-    // 2. Close Calls
+    // 2. Friday Night Fever
+    const fridayNightFeverLeaderboard = useMemo(() => {
+        const allAllocations = [...allocations, ...dummyAllocations];
+        const userShiftDates = {};
+
+        allAllocations.forEach(alloc => {
+            // Strictly filter for project assignments only
+            if (alloc.assignment_type !== 'project') return;
+
+            const dateObj = new Date(alloc.allocation_date);
+            const dateStr = alloc.allocation_date.split('T')[0]; // YYYY-MM-DD
+            const day = dateObj.getDay();
+            
+            // Friday (5) AND Nights shift
+            if (day === 5 && alloc.shift === 'Nights') {
+                const userId = alloc.user_id;
+                if (userId && isUserInDepartment(userId)) {
+                    if (!userShiftDates[userId]) {
+                        userShiftDates[userId] = new Set();
+                    }
+                    userShiftDates[userId].add(dateStr);
+                }
+            }
+        });
+
+        return Object.entries(userShiftDates)
+            .map(([userId, dateSet]) => {
+                const user = users.find(u => u.id === userId);
+                return {
+                    name: user ? user.name : 'Unknown User',
+                    department: user ? user.department : '',
+                    count: dateSet.size // Count unique dates
+                };
+            })
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5);
+    }, [allocations, dummyAllocations, users, selectedDepartments]);
+
+    // 3. CRSA Superstar
+    const crsaSuperstarLeaderboard = useMemo(() => {
+        const allAllocations = [...allocations, ...dummyAllocations];
+        const userShiftDates = {};
+
+        allAllocations.forEach(alloc => {
+            // Strictly filter for project assignments only
+            if (alloc.assignment_type !== 'project') return;
+
+            // Filter for Client = CRSA (case insensitive)
+            if (!alloc.client || alloc.client.trim().toUpperCase() !== 'CRSA') return;
+
+            const dateStr = alloc.allocation_date.split('T')[0]; // YYYY-MM-DD
+            const userId = alloc.user_id;
+            
+            if (userId && isUserInDepartment(userId)) {
+                if (!userShiftDates[userId]) {
+                    userShiftDates[userId] = new Set();
+                }
+                userShiftDates[userId].add(dateStr);
+            }
+        });
+
+        return Object.entries(userShiftDates)
+            .map(([userId, dateSet]) => {
+                const user = users.find(u => u.id === userId);
+                return {
+                    name: user ? user.name : 'Unknown User',
+                    department: user ? user.department : '',
+                    count: dateSet.size // Count unique dates/shifts
+                };
+            })
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5);
+    }, [allocations, dummyAllocations, users, selectedDepartments]);
+
+    // 4. Close Calls
     const closeCallsLeaderboard = useMemo(() => {
         const userCounts = {};
         closeCalls.forEach(item => {
@@ -283,7 +366,7 @@ const LeaderboardPage = () => {
             .slice(0, 5);
     }, [closeCalls, users, selectedDepartments]);
 
-    // 3. Check & Adjust
+    // 5. Check & Adjust
     const checkAdjustLeaderboard = useMemo(() => {
         const userCounts = {};
         checkAdjustLogs.forEach(item => {
@@ -305,7 +388,7 @@ const LeaderboardPage = () => {
             .slice(0, 5);
     }, [checkAdjustLogs, users, selectedDepartments]);
 
-    // 4. Vehicle Inspections
+    // 6. Vehicle Inspections
     const vehicleInspectionLeaderboard = useMemo(() => {
         const userCounts = {};
         vehicleInspectionLogs.forEach(item => {
@@ -483,6 +566,18 @@ const LeaderboardPage = () => {
                     title="Weekend Warriors" 
                     icon={Calendar} 
                     data={weekendLeaderboard} 
+                    countLabel="Shifts"
+                />
+                <LeaderboardTable 
+                    title="Friday Night Fever" 
+                    icon={Moon} 
+                    data={fridayNightFeverLeaderboard} 
+                    countLabel="Shifts"
+                />
+                <LeaderboardTable 
+                    title="CRSA Superstar" 
+                    icon={Star} 
+                    data={crsaSuperstarLeaderboard} 
                     countLabel="Shifts"
                 />
                 <LeaderboardTable 
