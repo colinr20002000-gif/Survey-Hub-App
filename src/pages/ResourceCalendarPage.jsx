@@ -2408,12 +2408,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     onMouseDown={handlePanStart}
                     style={{ cursor: isDesktop && !isPanning ? 'grab' : isPanning ? 'grabbing' : undefined }}
                 >
-                    <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
-                                                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-20">
+                    <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed', borderCollapse: 'collapse' }}>
+                                                        <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800 sticky top-0 z-10">
                                                             <tr>
-                                                                <th className="px-4 py-3 w-[250px] bg-gray-50 dark:bg-gray-700">Staff Member</th>
+                                                                <th className="px-4 py-3 w-[250px] bg-orange-500 dark:bg-orange-600 border-r border-orange-600 dark:border-orange-800">Staff Member</th>
                                                                 {weekDates.map(date => (
-                                                                    <th key={date.toISOString()} className="px-4 py-3 text-center w-72 bg-gray-50 dark:bg-gray-700">
+                                                                    <th key={date.toISOString()} className="px-4 py-3 text-center w-72 bg-orange-500 dark:bg-orange-600 border-r border-orange-600 dark:border-orange-800 border-l border-orange-600 dark:border-orange-800">
                                                                         {date.toLocaleDateString('en-US', { weekday: 'short' })}
                                                                         <br/>
                                                                         {formatDateForDisplay(date)}

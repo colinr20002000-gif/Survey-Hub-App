@@ -69,6 +69,7 @@ const VehicleMileageLogsPage = lazy(() => import('./pages/VehicleMileageLogsPage
 const CheckAdjustPage = lazy(() => import('./components/Equipment/CheckAdjustPage'));
 const EquipmentRegisterPage = lazy(() => import('./components/Equipment/EquipmentRegisterPage'));
 const CloseCallsPage = lazy(() => import('./pages/CloseCallsPage'));
+const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 
 import { DeliveryTaskItem, DeliveryTaskModal } from './components/tasks/TaskComponents';
 import ProjectModal from './components/modals/ProjectModal';
@@ -750,6 +751,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                 { name: 'AFV', parent: 'Analytics', show: can('VIEW_AFV') }
             ]
         },
+        { name: 'Leaderboard', icon: TrendingUp, show: can('VIEW_LEADERBOARD') },
         { name: 'Settings', icon: Settings, show: true },
     ];
 
@@ -4055,6 +4057,7 @@ const MainLayout = () => {
             case 'Project Logs': return can('VIEW_PROJECT_LOGS') ? <Suspense fallback={<LoadingFallback />}><ProjectLogsPage /></Suspense> : <AccessDenied />;
             case 'Resource': return can('VIEW_RESOURCE_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><ResourceAnalyticsPage /></Suspense> : <AccessDenied />;
             case 'AFV': return can('VIEW_AFV') ? <Suspense fallback={<LoadingFallback />}><AFVPage /></Suspense> : <AccessDenied />;
+            case 'Leaderboard': return can('VIEW_LEADERBOARD') ? <Suspense fallback={<LoadingFallback />}><LeaderboardPage /></Suspense> : <AccessDenied />;
             case 'Document Hub': return can('VIEW_DOCUMENT_HUB') ? <DocumentHubPage /> : <AccessDenied />;
             case 'Video Tutorials': return can('VIEW_VIDEO_TUTORIALS') ? <VideoTutorialsPage /> : <AccessDenied />;
             case 'Rail Components': return can('VIEW_RAIL_COMPONENTS') ? <RailComponentsPage /> : <AccessDenied />;

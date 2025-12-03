@@ -441,20 +441,6 @@ const CheckAdjustPage = () => {
         fetchData();
     }, [fetchData]);
 
-    // Leaderboard Calculation
-    const leaderboardData = useMemo(() => {
-        const userCounts = {};
-        logs.forEach(log => {
-            const userName = log.user?.name || 'Unknown';
-            userCounts[userName] = (userCounts[userName] || 0) + 1;
-        });
-
-        return Object.entries(userCounts)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 5); // Top 5
-    }, [logs]);
-
     // KPI Calculations & Overdue List
     const { kpiData, overdueList } = useMemo(() => {
         const totalUnits = equipment.length;
@@ -1258,47 +1244,6 @@ const CheckAdjustPage = () => {
                         setItemsPerPage={setItemsPerPage}
                         totalItems={filteredLogs.length}
                     />
-                </div>
-            </div>
-
-            {/* Leaderboard Table */}
-            <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-                        <TrendingUp className="w-5 h-5 mr-2 text-orange-500" />
-                        Top Performers (Check & Adjust)
-                    </h3>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                        <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
-                            <tr>
-                                <th className="px-6 py-3">Rank</th>
-                                <th className="px-6 py-3">Technician</th>
-                                <th className="px-6 py-3 text-right">Reports Completed</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {leaderboardData.length === 0 ? (
-                                <tr>
-                                    <td colSpan="3" className="px-6 py-4 text-center text-gray-500">No data available</td>
-                                </tr>
-                            ) : (
-                                leaderboardData.map((user, index) => (
-                                    <tr key={user.name} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td className="px-6 py-4 font-medium">
-                                            {index + 1 === 1 && <span className="text-xl mr-2">🥇</span>}
-                                            {index + 1 === 2 && <span className="text-xl mr-2">🥈</span>}
-                                            {index + 1 === 3 && <span className="text-xl mr-2">🥉</span>}
-                                            {index + 1 > 3 && <span className="ml-2 font-bold text-gray-500">#{index + 1}</span>}
-                                        </td>
-                                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{user.name}</td>
-                                        <td className="px-6 py-4 text-right font-bold text-orange-600 dark:text-orange-400">{user.count}</td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
                 </div>
             </div>
 
