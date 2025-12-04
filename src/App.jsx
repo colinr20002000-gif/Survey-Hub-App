@@ -409,7 +409,18 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
                 }
             } else {
                 console.log('✅ Already running latest version');
-                addToast({ message: `You're running the latest version (v${packageJson.version}). Refreshing...`, type: 'success' });
+                addToast({ message: `You're running the latest version (v${packageJson.version}). Force refreshing...`, type: 'success' });
+                
+                // Force unregister to ensure hard reload works on mobile PWA
+                try {
+                    if (registration) {
+                        await registration.unregister();
+                        console.log('🧹 Service Worker unregistered for hard reload');
+                    }
+                } catch (err) {
+                    console.error('Error unregistering SW:', err);
+                }
+
                 setTimeout(() => {
                     window.location.reload(true);
                 }, 1000);
@@ -417,6 +428,11 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
         } catch (error) {
             console.error('Update check failed:', error);
             addToast({ message: 'Failed to check for updates', type: 'error' });
+            
+            // Fallback reload even on error
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 1500);
         }
     };
 

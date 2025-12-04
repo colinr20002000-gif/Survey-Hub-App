@@ -843,15 +843,29 @@ const ProjectLogsPage = () => {
                         'calendar_week', 'calendar_year', 'staff_attended_count', 'subcontractors_attended_count'
                     ];
                     if (integerFields.includes(header) && value) {
-                        const num = parseInt(value);
-                        if (!isNaN(num)) record[header] = num;
+                        // Handle N/A, TBC, or other non-numeric text
+                        const upperVal = value.toString().toUpperCase();
+                        if (['N/A', 'TBC', 'NONE', '-'].includes(upperVal)) {
+                            record[header] = null;
+                        } else {
+                            const num = parseInt(value);
+                            // Ensure valid number, otherwise null
+                            record[header] = isNaN(num) ? null : num;
+                        }
                     }
 
                     // Convert decimal/numeric fields
                     const decimalFields = ['miles_from', 'yards_from', 'miles_to', 'yards_to', 'total_yardage'];
                     if (decimalFields.includes(header) && value) {
-                        const num = parseFloat(value);
-                        if (!isNaN(num)) record[header] = num;
+                        // Handle N/A, TBC, or other non-numeric text
+                        const upperVal = value.toString().toUpperCase();
+                        if (['N/A', 'TBC', 'NONE', '-'].includes(upperVal)) {
+                            record[header] = null;
+                        } else {
+                            const num = parseFloat(value);
+                            // Ensure valid number, otherwise null
+                            record[header] = isNaN(num) ? null : num;
+                        }
                     }
                 });
 
