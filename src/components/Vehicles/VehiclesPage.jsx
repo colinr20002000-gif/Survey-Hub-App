@@ -18,7 +18,7 @@ import { useDebouncedValue } from '../../utils/debounce';
 // Vehicle Management Page Component
 const VehiclesPage = () => {
     const { user: currentUser } = useAuth();
-    const { canAssignVehicles, canReturnVehicles, canAddVehicles, canAddVehicleComments, canDeleteVehicleComments, isEditorOrAbove } = usePermissions();
+    const { canAssignVehicles, canReturnVehicles, canAddVehicles, canAddVehicleComments, canDeleteVehicleComments, isEditorOrAbove, can } = usePermissions();
     const [vehicles, setVehicles] = useState([]);
     const [users, setUsers] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -945,16 +945,18 @@ const VehiclesPage = () => {
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Vehicle Management</h1>
                 <div className="flex gap-3">
-                    <button
-                        onClick={() => {
-                            setShowAuditTrail(true);
-                            loadAuditTrail();
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
-                    >
-                        <History className="h-4 w-4" />
-                        Vehicle Audit Trail
-                    </button>
+                    {can('SHOW_VEHICLE_AUDIT_TRAIL') && (
+                        <button
+                            onClick={() => {
+                                setShowAuditTrail(true);
+                                loadAuditTrail();
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+                        >
+                            <History className="h-4 w-4" />
+                            Vehicle Audit Trail
+                        </button>
+                    )}
                 </div>
             </div>
 

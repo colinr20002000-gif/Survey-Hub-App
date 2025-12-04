@@ -2195,7 +2195,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     <div className={`text-center ${hasComment || draggedItem.time ? 'mb-1' : ''} text-lg truncate`}>{draggedItem.leaveType}</div>
                     {draggedItem.time && <p className="text-xs leading-tight font-semibold truncate mb-0.5 text-center">{draggedItem.time}</p>}
                     {hasComment && (
-                        <div className="text-center text-sm font-bold opacity-90 leading-tight line-clamp-3">
+                        <div className="text-center text-sm font-bold leading-tight line-clamp-3 text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded px-1 py-0.5 mt-1 mx-auto shadow-sm border border-red-200 dark:border-red-900/50">
                             {draggedItem.comment}
                         </div>
                     )}
@@ -2508,12 +2508,11 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                                             style={leaveInlineStyle}
                                                                                                         >
                                                                                                             <div className={`text-center ${hasComment ? 'mb-0.5' : ''} text-sm truncate`}>{item.leaveType}</div>
-                                                                                                            {hasComment && (
-                                                                                                                <div className="text-center text-xs font-bold opacity-90 leading-tight line-clamp-2" title={item.comment}>
-                                                                                                                    {item.comment}
-                                                                                                                </div>
-                                                                                                            )}
-                                                                                                        </div>
+                                                                                                                                                                                                                                                                                                                    {hasComment && (
+                                                                                                                                                                                                                                                                                                                        <div className="text-center text-xs font-bold leading-tight line-clamp-2 text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded px-1 py-0.5 mt-0.5 mx-auto shadow-sm border border-red-200 dark:border-red-900/50" title={item.comment}>
+                                                                                                                                                                                                                                                                                                                            {item.comment}
+                                                                                                                                                                                                                                                                                                                        </div>
+                                                                                                                                                                                                                                                                                                                    )}                                                                                                        </div>
                                                                                                     </DraggableResourceItem>
                                                                                                 );
                                                                                             }
@@ -2543,7 +2542,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                             <div className={`text-center ${hasComment || assignment.time ? 'mb-1' : ''} text-lg truncate`}>{assignment.leaveType}</div>
                                                                                             {assignment.time && <p className="text-xs leading-tight font-semibold truncate mb-0.5 text-center">{assignment.time}</p>}
                                                                                             {hasComment && (
-                                                                                                <div className="text-center text-sm font-bold opacity-90 leading-tight line-clamp-3" title={assignment.comment}>
+                                                                                                <div className="text-center text-sm font-bold leading-tight line-clamp-3 text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded px-1 py-0.5 mt-1 mx-auto shadow-sm border border-red-200 dark:border-red-900/50" title={assignment.comment}>
                                                                                                     {assignment.comment}
                                                                                                 </div>
                                                                                             )}
@@ -2595,7 +2594,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                             {assignment.task && <p className="text-sm mb-1 font-semibold truncate">{assignment.task}</p>}
                                                                                             {assignment.shift && <p className="text-sm mb-1 font-semibold truncate">{assignment.shift}</p>}
                                                                                             {assignment.time && <p className="text-sm mb-1 font-semibold truncate">{assignment.time}</p>}
-                                                                                            {assignment.comment && <p className="text-sm font-bold leading-tight line-clamp-2" title={assignment.comment}>{assignment.comment}</p>}
+                                                                                            {assignment.comment && <p className="text-sm font-bold leading-tight line-clamp-2 text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded px-1 py-0.5 mt-1 mx-auto shadow-sm border border-red-200 dark:border-red-900/50 w-fit max-w-full" title={assignment.comment}>{assignment.comment}</p>}
                                                                                         </div>
                                                                                     </DraggableResourceItem>
                                                                                 );
@@ -3500,7 +3499,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                             ))}
                         </Select>
 
-                        <Input label="Comment" name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..."/>
+                        <Input label="Comment" name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..." className="text-red-500 dark:text-red-400"/>
                     </fieldset>}
 
                     {!isSecondProject && leaveType && (
@@ -3511,6 +3510,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                                 value={formData.comment}
                                 onChange={handleInputChange}
                                 placeholder="Add a comment for this leave type..."
+                                className="text-red-500 dark:text-red-400"
                             />
                         </div>
                     )}
@@ -3523,6 +3523,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                                 value={formData.comment}
                                 onChange={handleInputChange}
                                 placeholder="Add a comment for this leave type..."
+                                className="text-red-500 dark:text-red-400"
                             />
                         </div>
                     )}

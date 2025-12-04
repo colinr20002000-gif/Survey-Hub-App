@@ -12,7 +12,7 @@ import JSZip from 'jszip';
 
 const EquipmentRegisterPage = () => {
     const { user } = useAuth();
-    const { canAddEquipment, canImportAssets, canDeleteAllAssets } = usePermissions();
+    const { canAddEquipment, canImportAssets, canDeleteAllAssets, can } = usePermissions();
     const [loading, setLoading] = useState(true);
     const [equipment, setEquipment] = useState([]);
     const [assignments, setAssignments] = useState([]);
@@ -820,13 +820,15 @@ const EquipmentRegisterPage = () => {
                     
                     {activeTab === 'equipment' && (
                         <>
-                            <Button 
-                                variant={isManageMode ? 'primary' : 'outline'} 
-                                onClick={() => setIsManageMode(!isManageMode)}
-                                className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto"
-                            >
-                                <Edit className="w-4 h-4 mr-2" /> {isManageMode ? 'Done' : 'Manage'}
-                            </Button>
+                            {can('SHOW_EQUIPMENT_REGISTER_MANAGE_BUTTON') && (
+                                <Button 
+                                    variant={isManageMode ? 'primary' : 'outline'} 
+                                    onClick={() => setIsManageMode(!isManageMode)}
+                                    className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto"
+                                >
+                                    <Edit className="w-4 h-4 mr-2" /> {isManageMode ? 'Done' : 'Manage'}
+                                </Button>
+                            )}
                             <Button onClick={() => setWizardOpen(true)} variant="outline" className="flex items-center w-full sm:w-[calc(50%-0.25rem)] md:w-auto">
                                 <Archive className="w-4 h-4 mr-2" /> Export Wizard
                             </Button>
