@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Shield, Edit, Save, X, RotateCcw, History, AlertTriangle } from 'lucide-react';
+import { Shield, Edit, Save, X, RotateCcw, History, AlertTriangle, Star } from 'lucide-react';
 import { useDynamicPermissions } from '../../../hooks/useDynamicPermissions';
 import {
     getPermissionDifferences,
-    resetToDefaults
+    resetToDefaults,
+    saveAsDefaults
 } from '../../../utils/permissionSync';
 import SearchFilter from './SearchFilter';
 import PermissionCard from './PermissionCard';
@@ -43,6 +44,7 @@ const PrivilegeOverviewPage = () => {
     const [showAuditModal, setShowAuditModal] = useState(false);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [showSaveAsDefaultConfirm, setShowSaveAsDefaultConfirm] = useState(false);
 
     // Load permissions for active tab
     useEffect(() => {
@@ -72,19 +74,21 @@ const PrivilegeOverviewPage = () => {
         return JSON.stringify(permissions) !== JSON.stringify(originalPermissions);
     }, [permissions, originalPermissions]);
 
-    // Get all categories
+    // Get all categories (preserving order from database)
     const categories = useMemo(() => {
-        return Object.keys(permissions).sort();
+        return Object.keys(permissions);
     }, [permissions]);
 
-    // Filter permissions based on search and filters
+    // Filter permissions based on search and filters (preserving category order)
     const filteredPermissions = useMemo(() => {
         let filtered = { ...permissions };
+        const categoryKeys = Object.keys(permissions); // Preserve original order
 
         // Filter by search term
         if (searchTerm) {
             const search = searchTerm.toLowerCase();
-            filtered = Object.keys(filtered).reduce((acc, category) => {
+            filtered = categoryKeys.reduce((acc, category) => {
+                if (!filtered[category]) return acc;
                 const matchingPerms = filtered[category].filter(perm =>
                     perm.label.toLowerCase().includes(search) ||
                     perm.permission.toLowerCase().includes(search)
@@ -103,7 +107,8 @@ const PrivilegeOverviewPage = () => {
 
         // Filter by modified only
         if (showModifiedOnly) {
-            filtered = Object.keys(filtered).reduce((acc, category) => {
+            const currentKeys = Object.keys(filtered);
+            filtered = currentKeys.reduce((acc, category) => {
                 const modifiedPerms = filtered[category].filter(perm =>
                     modifiedPermissions.has(perm.permission)
                 );
@@ -237,6 +242,27 @@ const PrivilegeOverviewPage = () => {
         }
     };
 
+    // Save as defaults
+    const handleSaveAsDefaults = () => {
+        setShowSaveAsDefaultConfirm(true);
+    };
+
+    const confirmSaveAsDefaults = async () => {
+        try {
+            const result = await saveAsDefaults(activeTab);
+            if (result.success) {
+                await loadPermissions();
+                setShowSaveAsDefaultConfirm(false);
+                alert(`Successfully saved ${result.updated} permissions as defaults for ${activeTab}`);
+            } else {
+                alert(`Failed to save as defaults: ${result.message}`);
+            }
+        } catch (error) {
+            console.error('Error saving as defaults:', error);
+            alert('Failed to save permissions as defaults');
+        }
+    };
+
     // Handle tab change
     const handleTabChange = (newTab) => {
         if (hasUnsavedChanges) {
@@ -287,6 +313,18 @@ const PrivilegeOverviewPage = () => {
                                 >
                                     <RotateCcw className="w-4 h-4" />
                                     Reset to Defaults
+                                </button>
+                            )}
+
+                            {/* Save as Default Button */}
+                            {!isEditing && (
+                                <button
+                                    onClick={handleSaveAsDefaults}
+                                    className="px-4 py-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-md hover:bg-yellow-200 dark:hover:bg-yellow-900/50 flex items-center gap-2"
+                                    title="Save current settings as the default for this privilege level"
+                                >
+                                    <Star className="w-4 h-4" />
+                                    Save as Default
                                 </button>
                             )}
 
@@ -427,6 +465,18 @@ const PrivilegeOverviewPage = () => {
                     message="You have unsaved changes. Are you sure you want to discard them?"
                     confirmText="Discard"
                     type="warning"
+                />
+            )}
+
+            {showSaveAsDefaultConfirm && (
+                <ConfirmationModal
+                    isOpen={showSaveAsDefaultConfirm}
+                    onClose={() => setShowSaveAsDefaultConfirm(false)}
+                    onConfirm={confirmSaveAsDefaults}
+                    title="Save as Default"
+                    message={`Are you sure you want to save the current ${activeTab} permissions as the default settings? This will overwrite the existing defaults for this privilege level. When you use "Reset to Defaults", it will restore to these settings.`}
+                    confirmText="Save as Default"
+                    type="info"
                 />
             )}
         </div>

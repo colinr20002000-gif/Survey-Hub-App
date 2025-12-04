@@ -21,7 +21,7 @@ const PermissionCard = ({
     onTogglePermission,
     onBulkToggle
 }) => {
-    const [isExpanded, setIsExpanded] = useState(true);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     // Calculate statistics
     const totalPermissions = permissions.length;

@@ -198,6 +198,7 @@ const EquipmentPage = () => {
         const { data, error } = await supabase
             .from('equipment')
             .select('*')
+            .or('is_asset.is.null,is_asset.eq.false') // Only load assignable equipment, not asset register items
             .order('name');
 
         if (error) throw error;

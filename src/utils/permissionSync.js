@@ -302,3 +302,65 @@ export const getAuditTrail = async (filters = {}) => {
         throw error;
     }
 };
+
+/**
+ * Save current permissions as defaults for a privilege level
+ *
+ * @param {string} privilegeLevel - The privilege level to save as default
+ * @returns {Promise<{success: boolean, updated: number, message: string}>}
+ *
+ * @example
+ * const result = await saveAsDefaults('Editor');
+ * if (result.success) {
+ *   alert(`Saved ${result.updated} permissions as defaults`);
+ * }
+ */
+export const saveAsDefaults = async (privilegeLevel) => {
+    try {
+        // Fetch current permissions for this privilege level
+        const { data: current, error: currentError } = await supabase
+            .from('privilege_permissions')
+            .select('*')
+            .eq('privilege_level', privilegeLevel);
+
+        if (currentError) throw currentError;
+
+        // Delete existing defaults for this privilege level
+        const { error: deleteError } = await supabase
+            .from('privilege_permission_defaults')
+            .delete()
+            .eq('privilege_level', privilegeLevel);
+
+        if (deleteError) throw deleteError;
+
+        // Insert current permissions as new defaults
+        const defaultsToInsert = current.map(perm => ({
+            permission_key: perm.permission_key,
+            privilege_level: perm.privilege_level,
+            is_granted: perm.is_granted,
+            permission_label: perm.permission_label,
+            permission_category: perm.permission_category,
+            display_order: perm.display_order
+        }));
+
+        const { error: insertError } = await supabase
+            .from('privilege_permission_defaults')
+            .insert(defaultsToInsert);
+
+        if (insertError) throw insertError;
+
+        return {
+            success: true,
+            updated: defaultsToInsert.length,
+            message: `Successfully saved ${defaultsToInsert.length} permissions as defaults for ${privilegeLevel}`
+        };
+
+    } catch (error) {
+        console.error('Error saving as defaults:', error);
+        return {
+            success: false,
+            updated: 0,
+            message: `Error: ${error.message}`
+        };
+    }
+};
