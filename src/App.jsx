@@ -69,6 +69,7 @@ const VehicleMileageLogsPage = lazy(() => import('./pages/VehicleMileageLogsPage
 const CheckAdjustPage = lazy(() => import('./components/Equipment/CheckAdjustPage'));
 const EquipmentRegisterPage = lazy(() => import('./components/Equipment/EquipmentRegisterPage'));
 const CloseCallsPage = lazy(() => import('./pages/CloseCallsPage'));
+const MediaPage = lazy(() => import('./pages/MediaPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 
 import MultiSelectFilter from './components/ui/MultiSelectFilter';
@@ -698,7 +699,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             subItems: [
                 { name: 'Resource Calendar', parent: 'Resource', show: can('VIEW_RESOURCE_CALENDAR') },
                 { name: 'To Do List', parent: 'Resource', show: can('VIEW_TASKS') },
-                { name: 'Close Calls', parent: 'Resource', show: can('VIEW_CLOSE_CALLS') }
+                { name: 'Close Calls', parent: 'Resource', show: can('VIEW_CLOSE_CALLS') },
+                { name: 'Media', parent: 'Resource', show: can('VIEW_MEDIA') }
             ]
         },
         {
@@ -4120,6 +4122,7 @@ const MainLayout = () => {
             case 'Resource Calendar': return can('VIEW_RESOURCE_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><ResourceCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;
             case 'To Do List': return can('VIEW_TASKS') ? <ProjectTasksPage /> : <AccessDenied />;
             case 'Close Calls': return can('VIEW_CLOSE_CALLS') ? <Suspense fallback={<LoadingFallback />}><CloseCallsPage /></Suspense> : <AccessDenied />;
+            case 'Media': return can('VIEW_MEDIA') ? <Suspense fallback={<LoadingFallback />}><MediaPage /></Suspense> : <AccessDenied />;
             
             // Equipment
             case 'Calendar': return can('VIEW_EQUIPMENT_CALENDAR') ? <Suspense fallback={<LoadingFallback />}><EquipmentCalendarPage onViewProject={handleViewProject} /></Suspense> : <AccessDenied />;

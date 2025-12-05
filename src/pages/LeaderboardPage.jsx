@@ -20,6 +20,7 @@ const LeaderboardPage = () => {
     const [closeCalls, setCloseCalls] = useState([]);
     const [checkAdjustLogs, setCheckAdjustLogs] = useState([]);
     const [vehicleInspectionLogs, setVehicleInspectionLogs] = useState([]);
+    const [mediaPosts, setMediaPosts] = useState([]);
 
     // Date Range State (Loaded from settings if possible)
     const [startDate, setStartDate] = useState(() => {
@@ -176,18 +177,27 @@ const LeaderboardPage = () => {
                     .gte('inspection_date', startDate)
                     .lte('inspection_date', endDate);
 
+                // 5. Media Posts
+                const mediaPostsPromise = supabase
+                    .from('media_posts')
+                    .select('user_id, date_time')
+                    .gte('date_time', `${startDate}T00:00:00`)
+                    .lte('date_time', `${endDate}T23:59:59`);
+
                 const [
                     { data: realAlloc, error: realAllocErr },
                     { data: dummyAlloc, error: dummyAllocErr },
                     { data: ccData, error: ccErr },
                     { data: caData, error: caErr },
-                    { data: viData, error: viErr }
+                    { data: viData, error: viErr },
+                    { data: mediaData, error: mediaErr }
                 ] = await Promise.all([
                     allocationsPromise,
                     dummyAllocationsPromise,
                     closeCallsPromise,
                     checkAdjustPromise,
-                    vehicleInspectionPromise
+                    vehicleInspectionPromise,
+                    mediaPostsPromise
                 ]);
 
                 if (realAllocErr) throw realAllocErr;
@@ -196,12 +206,14 @@ const LeaderboardPage = () => {
                 // CA logs might be empty/error if table doesn't exist, handle gracefully
                 if (caErr && caErr.code !== '42P01') throw caErr;
                 if (viErr && viErr.code !== '42P01') throw viErr;
+                if (mediaErr && mediaErr.code !== '42P01') throw mediaErr;
 
                 setAllocations(realAlloc || []);
                 setDummyAllocations(dummyAlloc || []);
                 setCloseCalls(ccData || []);
                 setCheckAdjustLogs(caData || []);
                 setVehicleInspectionLogs(viData || []);
+                setMediaPosts(mediaData || []);
 
             } catch (error) {
                 console.error('Error fetching leaderboard data:', error);
@@ -308,41 +320,27 @@ const LeaderboardPage = () => {
             .slice(0, 5);
     }, [allocations, dummyAllocations, users, selectedDepartments]);
 
-    // 3. CRSA Superstar
-    const crsaSuperstarLeaderboard = useMemo(() => {
-        const allAllocations = [...allocations, ...dummyAllocations];
-        const userShiftDates = {};
-
-        allAllocations.forEach(alloc => {
-            // Strictly filter for project assignments only
-            if (alloc.assignment_type !== 'project') return;
-
-            // Filter for Client = CRSA (case insensitive)
-            if (!alloc.client || alloc.client.trim().toUpperCase() !== 'CRSA') return;
-
-            const dateStr = alloc.allocation_date.split('T')[0]; // YYYY-MM-DD
-            const userId = alloc.user_id;
-            
-            if (userId && isUserInDepartment(userId)) {
-                if (!userShiftDates[userId]) {
-                    userShiftDates[userId] = new Set();
-                }
-                userShiftDates[userId].add(dateStr);
+    // 3. Media Maestro (Replaces CRSA Superstar)
+    const mediaMaestroLeaderboard = useMemo(() => {
+        const userCounts = {};
+        mediaPosts.forEach(item => {
+            if (item.user_id && isUserInDepartment(item.user_id)) {
+                userCounts[item.user_id] = (userCounts[item.user_id] || 0) + 1;
             }
         });
 
-        return Object.entries(userShiftDates)
-            .map(([userId, dateSet]) => {
+        return Object.entries(userCounts)
+            .map(([userId, count]) => {
                 const user = users.find(u => u.id === userId);
                 return {
                     name: user ? user.name : 'Unknown User',
                     department: user ? user.department : '',
-                    count: dateSet.size // Count unique dates/shifts
+                    count // Count number of posts
                 };
             })
             .sort((a, b) => b.count - a.count)
             .slice(0, 5);
-    }, [allocations, dummyAllocations, users, selectedDepartments]);
+    }, [mediaPosts, users, selectedDepartments]);
 
     // 4. Close Calls
     const closeCallsLeaderboard = useMemo(() => {
@@ -575,10 +573,10 @@ const LeaderboardPage = () => {
                     countLabel="Shifts"
                 />
                 <LeaderboardTable 
-                    title="CRSA Superstar" 
+                    title="Media Maestro" 
                     icon={Star} 
-                    data={crsaSuperstarLeaderboard} 
-                    countLabel="Shifts"
+                    data={mediaMaestroLeaderboard} 
+                    countLabel="Posts"
                 />
                 <LeaderboardTable 
                     title="Top Reporters (Close Calls)" 
