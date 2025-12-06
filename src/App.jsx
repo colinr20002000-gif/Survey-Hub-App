@@ -395,7 +395,7 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
 
             if (result === 'update-found' || newUpdateDetected || hasWaitingNow || hasInstallingNow) {
                 console.log('✅ Update available - triggering installation');
-                addToast({ message: 'Update found! Installing...', type: 'success' });
+                addToast({ message: 'Update found! Refreshing...', type: 'success' });
 
                 // If there's a waiting service worker, tell it to activate
                 if (registration.waiting) {
@@ -408,23 +408,26 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
                         }
                     });
                 }
-            } else {
-                console.log('✅ Already running latest version');
-                addToast({ message: `You're running the latest version (v${packageJson.version}). Force refreshing...`, type: 'success' });
                 
-                // Force unregister to ensure hard reload works on mobile PWA
-                try {
-                    if (registration) {
-                        await registration.unregister();
-                        console.log('🧹 Service Worker unregistered for hard reload');
-                    }
-                } catch (err) {
-                    console.error('Error unregistering SW:', err);
-                }
-
+                // Force reload after a short delay to allow SW to activate
                 setTimeout(() => {
                     window.location.reload(true);
+                    // Fallback for PWA which might ignore reload(true)
+                    if (window.matchMedia('(display-mode: standalone)').matches) {
+                        window.location.href = window.location.href;
+                    }
                 }, 1000);
+            } else {
+                console.log('✅ Already running latest version');
+                addToast({ message: `You're running the latest version (v${packageJson.version}). Refreshing...`, type: 'success' });
+                
+                setTimeout(() => {
+                    window.location.reload(true);
+                    // Fallback for PWA which might ignore reload(true)
+                    if (window.matchMedia('(display-mode: standalone)').matches) {
+                        window.location.href = window.location.href;
+                    }
+                }, 500);
             }
         } catch (error) {
             console.error('Update check failed:', error);
@@ -433,6 +436,10 @@ const Header = ({ onMenuClick, setActiveTab, activeTab, onChatbotToggle }) => {
             // Fallback reload even on error
             setTimeout(() => {
                 window.location.reload(true);
+                // Fallback for PWA which might ignore reload(true)
+                if (window.matchMedia('(display-mode: standalone)').matches) {
+                    window.location.href = window.location.href;
+                }
             }, 1500);
         }
     };

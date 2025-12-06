@@ -55,13 +55,22 @@ const DroppableCell = ({ id, children, disabled }) => {
     );
 };
 
-// Helper function to check if a status record is within 24 hours of creation
+// Helper to check if a status record is within 24 hours of creation
 const isWithin24Hours = (createdAt) => {
     if (!createdAt) return false;
     const createdDate = new Date(createdAt);
     const now = new Date();
     const hoursDiff = (now - createdDate) / (1000 * 60 * 60);
     return hoursDiff < 24;
+};
+
+// Helper to parse comment and highlight status
+const getCommentDisplay = (comment) => {
+    if (!comment) return { text: '', isHighlighted: false };
+    if (comment.startsWith('[nh] ')) {
+        return { text: comment.substring(5), isHighlighted: false };
+    }
+    return { text: comment, isHighlighted: true };
 };
 
 // Helper function to check if user can edit/delete a status record
@@ -2169,8 +2178,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                         boxSizing: 'border-box',
                     }}
                 >
+                    <p className="font-bold text-sm mb-0.5 truncate">{draggedItem.projectNumber}</p>
                     <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1">{draggedItem.projectName}</p>
-                    <p className="font-semibold text-xs mb-0.5 truncate">{draggedItem.projectNumber}</p>
                     {draggedItem.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1">{draggedItem.task}</p>}
                     <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof draggedItem.shift === 'string' ? draggedItem.shift : String(draggedItem.shift || '')}</p>
                     {draggedItem.time && <p className="text-xs leading-tight font-semibold truncate">{draggedItem.time}</p>}
@@ -2194,11 +2203,16 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 >
                     <div className={`text-center ${hasComment || draggedItem.time ? 'mb-1' : ''} text-lg truncate`}>{draggedItem.leaveType}</div>
                     {draggedItem.time && <p className="text-xs leading-tight font-semibold truncate mb-0.5 text-center">{draggedItem.time}</p>}
-                    {hasComment && (
-                        <div className="text-center text-sm font-bold leading-tight line-clamp-3 text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded px-1 py-0.5 mt-1 mx-auto shadow-sm border border-red-200 dark:border-red-900/50">
-                            {draggedItem.comment}
-                        </div>
-                    )}
+                    {hasComment && (() => {
+                        const { text, isHighlighted } = getCommentDisplay(draggedItem.comment);
+                        return (
+                            <div 
+                                className={`text-center text-sm font-semibold leading-tight line-clamp-3 px-1 py-0.5 mt-1 mx-auto ${isHighlighted ? 'text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded shadow-sm border border-red-200 dark:border-red-900/50' : ''}`}
+                            >
+                                {text}
+                            </div>
+                        );
+                    })()}
                 </div>
             );
         }
@@ -2480,8 +2494,8 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                                             onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
                                                                                                             style={projInlineStyle}
                                                                                                         >
+                                                                                                            <p className="font-bold text-sm mb-0.5 truncate">{item.projectNumber}</p>
                                                                                                             <p className="text-sm mb-0.5 font-bold leading-tight line-clamp-1" title={item.projectName}>{item.projectName}</p>
-                                                                                                            <p className="font-semibold text-xs mb-0.5 truncate">{item.projectNumber}</p>
                                                                                                             {item.task && <p className="text-xs mb-0.5 leading-tight line-clamp-1" title={item.task}>{item.task}</p>}
                                                                                                             <p className="font-semibold text-xs mb-0.5 leading-tight truncate">{typeof item.shift === 'string' ? item.shift : String(item.shift || '')}</p>
                                                                                                             {item.time && <p className="text-xs leading-tight font-semibold truncate">{item.time}</p>}
@@ -2508,11 +2522,18 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                                             style={leaveInlineStyle}
                                                                                                         >
                                                                                                             <div className={`text-center ${hasComment ? 'mb-0.5' : ''} text-sm truncate`}>{item.leaveType}</div>
-                                                                                                                                                                                                                                                                                                                    {hasComment && (
-                                                                                                                                                                                                                                                                                                                        <div className="text-center text-xs font-bold leading-tight line-clamp-2 text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded px-1 py-0.5 mt-0.5 mx-auto shadow-sm border border-red-200 dark:border-red-900/50" title={item.comment}>
-                                                                                                                                                                                                                                                                                                                            {item.comment}
-                                                                                                                                                                                                                                                                                                                        </div>
-                                                                                                                                                                                                                                                                                                                    )}                                                                                                        </div>
+                                                                                                            {hasComment && (() => {
+                                                                                                                const { text, isHighlighted } = getCommentDisplay(item.comment);
+                                                                                                                return (
+                                                                                                                    <div 
+                                                                                                                        className={`text-center text-xs font-semibold leading-tight line-clamp-2 px-1 py-0.5 mt-0.5 mx-auto ${isHighlighted ? 'text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded shadow-sm border border-red-200 dark:border-red-900/50' : ''}`} 
+                                                                                                                        title={text}
+                                                                                                                    >
+                                                                                                                        {text}
+                                                                                                                    </div>
+                                                                                                                );
+                                                                                                            })()}
+                                                                                                        </div>
                                                                                                     </DraggableResourceItem>
                                                                                                 );
                                                                                             }
@@ -2541,11 +2562,16 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                         >
                                                                                             <div className={`text-center ${hasComment || assignment.time ? 'mb-1' : ''} text-lg truncate`}>{assignment.leaveType}</div>
                                                                                             {assignment.time && <p className="text-xs leading-tight font-semibold truncate mb-0.5 text-center">{assignment.time}</p>}
-                                                                                            {hasComment && (
-                                                                                                <div className="text-center text-sm font-bold leading-tight line-clamp-3 text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded px-1 py-0.5 mt-1 mx-auto shadow-sm border border-red-200 dark:border-red-900/50" title={assignment.comment}>
-                                                                                                    {assignment.comment}
-                                                                                                </div>
-                                                                                            )}
+                                                                                            {hasComment && (() => {
+                                                                                                const { text, isHighlighted } = getCommentDisplay(assignment.comment);
+                                                                                                return (
+                                                                                                                                                                                                                                                                                                                                                    <div 
+                                                                                                                                                                                                                                                                                                                                                        className={`text-center text-sm font-semibold leading-tight line-clamp-3 px-1 py-0.5 mt-1 mx-auto ${isHighlighted ? 'text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded shadow-sm border border-red-200 dark:border-red-900/50' : ''}`} 
+                                                                                                                                                                                                                                                                                                                                                        title={text}
+                                                                                                                                                                                                                                                                                                                                                    >
+                                                                                                                                                                                                                                                                                                                                                        {text}
+                                                                                                                                                                                                                                                                                                                                                    </div>                                                                                                );
+                                                                                            })()}
                                                                                         </div>
                                                                                     </DraggableResourceItem>
                                                                                 );
@@ -2588,13 +2614,22 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                             onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                                                             style={projectInlineStyle}
                                                                                         >
+                                                                                            <p className="font-bold text-lg mb-1 truncate">{assignment.projectNumber}</p>
                                                                                             {assignment.projectName && <p className="text-lg mb-1 font-bold leading-tight line-clamp-2" title={assignment.projectName}>{assignment.projectName}</p>}
-                                                                                            <p className="font-semibold text-sm mb-1 truncate">{assignment.projectNumber}</p>
                                                                                             {assignment.client && <p className="text-sm mb-1 leading-tight line-clamp-1" title={assignment.client}>{assignment.client}</p>}
                                                                                             {assignment.task && <p className="text-sm mb-1 font-semibold truncate">{assignment.task}</p>}
                                                                                             {assignment.shift && <p className="text-sm mb-1 font-semibold truncate">{assignment.shift}</p>}
                                                                                             {assignment.time && <p className="text-sm mb-1 font-semibold truncate">{assignment.time}</p>}
-                                                                                            {assignment.comment && <p className="text-sm font-bold leading-tight line-clamp-2 text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded px-1 py-0.5 mt-1 mx-auto shadow-sm border border-red-200 dark:border-red-900/50 w-fit max-w-full" title={assignment.comment}>{assignment.comment}</p>}
+                                                                                            {assignment.comment && (() => {
+                                                                                                const { text, isHighlighted } = getCommentDisplay(assignment.comment);
+                                                                                                return (
+                                                                                                                                                                                                                                                                                                                                                    <p 
+                                                                                                                                                                                                                                                                                                                                                        className={`text-sm font-semibold leading-tight line-clamp-2 px-1 py-0.5 mt-1 mx-auto w-fit max-w-full ${isHighlighted ? 'text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 rounded shadow-sm border border-red-200 dark:border-red-900/50' : ''}`} 
+                                                                                                                                                                                                                                                                                                                                                        title={text}
+                                                                                                                                                                                                                                                                                                                                                    >
+                                                                                                                                                                                                                                                                                                                                                        {text}
+                                                                                                                                                                                                                                                                                                                                                    </p>                                                                                                );
+                                                                                            })()}
                                                                                         </div>
                                                                                     </DraggableResourceItem>
                                                                                 );
@@ -2915,7 +2950,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     const [jobTypeOptions, setJobTypeOptions] = useState([]);
     const dropdownRef = useRef(null);
     const [formData, setFormData] = useState({
-        projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null, startTime: '', endTime: ''
+        projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', isHighlighted: false, shift: 'Nights', projectId: null, startTime: '', endTime: ''
     });
 
     useEffect(() => {
@@ -3051,13 +3086,15 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
             if (editingSpecificItem.type === 'leave') {
                 setLeaveType(editingSpecificItem.leaveType);
                 const { startTime, endTime } = parseTimeString(editingSpecificItem.time);
+                const { text, isHighlighted } = getCommentDisplay(editingSpecificItem.comment || '');
                 setFormData({ 
                     projectNumber: '', 
                     projectName: '', 
                     client: '', 
                     time: editingSpecificItem.time || '', 
                     task: '', 
-                    comment: editingSpecificItem.comment || '', 
+                    comment: text, 
+                    isHighlighted,
                     shift: 'Nights', 
                     projectId: null, 
                     startTime, 
@@ -3067,13 +3104,15 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
             } else {
                 setLeaveType('');
                 const { startTime, endTime } = parseTimeString(editingSpecificItem.time);
+                const { text, isHighlighted } = getCommentDisplay(editingSpecificItem.comment || '');
                 setFormData({
                     projectNumber: editingSpecificItem.projectNumber || '',
                     projectName: editingSpecificItem.projectName || '',
                     client: editingSpecificItem.client || '',
                     time: editingSpecificItem.time || '',
                     task: editingSpecificItem.task || '',
-                    comment: editingSpecificItem.comment || '',
+                    comment: text,
+                    isHighlighted,
                     shift: editingSpecificItem.shift || 'Nights',
                     projectId: editingSpecificItem.projectId || null,
                     startTime,
@@ -3085,20 +3124,22 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
         }
         // If adding to a multi-item cell (isSecondProject/isSecondLeave) or currentAssignment is an array, show blank form
         else if (isSecondProject || isSecondLeave || Array.isArray(currentAssignment)) {
-            setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null, startTime: '', endTime: '' });
+            setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', isHighlighted: false, shift: 'Nights', projectId: null, startTime: '', endTime: '' });
             setIsManual(false);
             setLeaveType('');
         } else if (currentAssignment) {
             if (currentAssignment.type === 'leave') {
                 setLeaveType(currentAssignment.leaveType);
                 const { startTime, endTime } = parseTimeString(currentAssignment.time);
+                const { text, isHighlighted } = getCommentDisplay(currentAssignment.comment || '');
                 setFormData({ 
                     projectNumber: '', 
                     projectName: '', 
                     client: '', 
                     time: currentAssignment.time || '', 
                     task: '', 
-                    comment: currentAssignment.comment || '', 
+                    comment: text, 
+                    isHighlighted,
                     shift: 'Nights', 
                     projectId: null, 
                     startTime, 
@@ -3108,13 +3149,15 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
             } else {
                 setLeaveType('');
                 const { startTime, endTime } = parseTimeString(currentAssignment.time);
+                const { text, isHighlighted } = getCommentDisplay(currentAssignment.comment || '');
                 setFormData({
                     projectNumber: currentAssignment.projectNumber || '',
                     projectName: currentAssignment.projectName || '',
                     client: currentAssignment.client || '',
                     time: currentAssignment.time || '',
                     task: currentAssignment.task || '',
-                    comment: currentAssignment.comment || '',
+                    comment: text,
+                    isHighlighted,
                     shift: currentAssignment.shift || 'Nights',
                     projectId: currentAssignment.projectId || null,
                     startTime,
@@ -3124,11 +3167,12 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                 setIsManual(!isProjectInList && !!currentAssignment.projectNumber);
             }
         } else {
-            setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', shift: 'Nights', projectId: null, startTime: '', endTime: '' });
+            // New assignment
+            setFormData({ projectNumber: '', projectName: '', client: '', time: '', task: '', comment: '', isHighlighted: false, shift: 'Nights', projectId: null, startTime: '', endTime: '' });
             setIsManual(false);
             setLeaveType('');
         }
-    }, [currentAssignment, isOpen, isSecondProject, isSecondLeave]);
+    }, [editingSpecificItem, currentAssignment, isSecondProject, isSecondLeave, projects, isOpen]);
 
     const handleProjectSelect = (e) => {
         const selectedProjectNumber = e.target.value;
@@ -3146,8 +3190,13 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     };
 
     const handleSave = () => {
+        // Construct the comment with optional highlighting
+        const commentToSave = formData.comment 
+            ? (formData.isHighlighted ? formData.comment : `[nh] ${formData.comment}`)
+            : '';
+
         if (leaveType) {
-            let dataToSave = { type: 'leave', leaveType: leaveType, comment: formData.comment || '' };
+            let dataToSave = { type: 'leave', leaveType: leaveType, comment: commentToSave };
             
             // Combine startTime and endTime into the time field for leaves as well
             if (formData.startTime && formData.endTime) {
@@ -3162,7 +3211,8 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
         } else {
             // If manual entry was used and we have a project number but no projectId,
             // try to look up the project to get its UUID
-            let dataToSave = { ...formData };
+            let dataToSave = { ...formData, comment: commentToSave };
+            delete dataToSave.isHighlighted;
 
             // Combine startTime and endTime into the time field
             if (formData.startTime && formData.endTime) {
@@ -3499,7 +3549,19 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                             ))}
                         </Select>
 
-                        <Input label="Comment" name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..." className="text-red-500 dark:text-red-400"/>
+                        <div className="space-y-1">
+                            <Input label="Comment" name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..." className={formData.isHighlighted ? "text-red-500 dark:text-red-400" : ""}/>
+                            <div className="flex items-center space-x-2">
+                                <input 
+                                    type="checkbox" 
+                                    id="highlight-project" 
+                                    checked={formData.isHighlighted} 
+                                    onChange={(e) => setFormData(prev => ({ ...prev, isHighlighted: e.target.checked }))} 
+                                    className="rounded text-orange-500 focus:ring-orange-500 h-4 w-4"
+                                />
+                                <label htmlFor="highlight-project" className="text-xs text-gray-600 dark:text-gray-400 cursor-pointer">Highlight Comment</label>
+                            </div>
+                        </div>
                     </fieldset>}
 
                     {!isSecondProject && leaveType && (
@@ -3510,8 +3572,18 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                                 value={formData.comment}
                                 onChange={handleInputChange}
                                 placeholder="Add a comment for this leave type..."
-                                className="text-red-500 dark:text-red-400"
+                                className={formData.isHighlighted ? "text-red-500 dark:text-red-400" : ""}
                             />
+                            <div className="flex items-center space-x-2">
+                                <input 
+                                    type="checkbox" 
+                                    id="highlight-leave" 
+                                    checked={formData.isHighlighted} 
+                                    onChange={(e) => setFormData(prev => ({ ...prev, isHighlighted: e.target.checked }))} 
+                                    className="rounded text-orange-500 focus:ring-orange-500 h-4 w-4"
+                                />
+                                <label htmlFor="highlight-leave" className="text-xs text-gray-600 dark:text-gray-400 cursor-pointer">Highlight Comment</label>
+                            </div>
                         </div>
                     )}
 
@@ -3523,8 +3595,18 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                                 value={formData.comment}
                                 onChange={handleInputChange}
                                 placeholder="Add a comment for this leave type..."
-                                className="text-red-500 dark:text-red-400"
+                                className={formData.isHighlighted ? "text-red-500 dark:text-red-400" : ""}
                             />
+                            <div className="flex items-center space-x-2">
+                                <input 
+                                    type="checkbox" 
+                                    id="highlight-second-leave" 
+                                    checked={formData.isHighlighted} 
+                                    onChange={(e) => setFormData(prev => ({ ...prev, isHighlighted: e.target.checked }))} 
+                                    className="rounded text-orange-500 focus:ring-orange-500 h-4 w-4"
+                                />
+                                <label htmlFor="highlight-second-leave" className="text-xs text-gray-600 dark:text-gray-400 cursor-pointer">Highlight Comment</label>
+                            </div>
                         </div>
                     )}
                 </div>
