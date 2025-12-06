@@ -64,27 +64,27 @@ FROM (VALUES ('Viewer'), ('Viewer+'), ('Editor'), ('Editor+'), ('Admin'), ('Supe
 ON CONFLICT (permission_key, privilege_level) DO UPDATE 
 SET permission_label = EXCLUDED.permission_label, permission_category = EXCLUDED.permission_category, display_order = EXCLUDED.display_order;
 
--- ADD_MEDIA (Category: Resource)
+-- ADD_MEDIA (Category: Resource - Media)
 INSERT INTO privilege_permissions (privilege_level, permission_key, permission_label, permission_category, is_granted, display_order)
-SELECT p_level, 'ADD_MEDIA', 'Add Media Post', 'Resource', 
+SELECT p_level, 'ADD_MEDIA', 'Add Media Post', 'Resource - Media', 
     CASE WHEN p_level IN ('Viewer', 'Viewer+', 'Editor', 'Editor+', 'Admin', 'Super Admin') THEN true ELSE false END, 
     161
 FROM (VALUES ('Viewer'), ('Viewer+'), ('Editor'), ('Editor+'), ('Admin'), ('Super Admin')) AS levels(p_level)
 ON CONFLICT (permission_key, privilege_level) DO UPDATE 
 SET permission_label = EXCLUDED.permission_label, permission_category = EXCLUDED.permission_category, display_order = EXCLUDED.display_order;
 
--- EXPORT_MEDIA (Category: Resource)
+-- EXPORT_MEDIA (Category: Resource - Media)
 INSERT INTO privilege_permissions (privilege_level, permission_key, permission_label, permission_category, is_granted, display_order)
-SELECT p_level, 'EXPORT_MEDIA', 'Export Media Posts', 'Resource', 
+SELECT p_level, 'EXPORT_MEDIA', 'Export Media Posts', 'Resource - Media', 
     CASE WHEN p_level IN ('Editor', 'Editor+', 'Admin', 'Super Admin') THEN true ELSE false END, 
     162
 FROM (VALUES ('Viewer'), ('Viewer+'), ('Editor'), ('Editor+'), ('Admin'), ('Super Admin')) AS levels(p_level)
 ON CONFLICT (permission_key, privilege_level) DO UPDATE 
 SET permission_label = EXCLUDED.permission_label, permission_category = EXCLUDED.permission_category, display_order = EXCLUDED.display_order;
 
--- MANAGE_MEDIA (Category: Resource)
+-- MANAGE_MEDIA (Category: Resource - Media)
 INSERT INTO privilege_permissions (privilege_level, permission_key, permission_label, permission_category, is_granted, display_order)
-SELECT p_level, 'MANAGE_MEDIA', 'Manage Media (Edit/Delete)', 'Resource', 
+SELECT p_level, 'MANAGE_MEDIA', 'Manage Media (Edit/Delete)', 'Resource - Media', 
     CASE WHEN p_level IN ('Editor', 'Editor+', 'Admin', 'Super Admin') THEN true ELSE false END, 
     163
 FROM (VALUES ('Viewer'), ('Viewer+'), ('Editor'), ('Editor+'), ('Admin'), ('Super Admin')) AS levels(p_level)

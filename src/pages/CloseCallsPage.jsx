@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Card, Button, Input, Select, Modal, ConfirmationModal, Pagination } from '../components/ui';
-import { Loader2, Search, Edit, Trash2, PlusCircle, MapPin, Camera, Upload, Eye, FileText, Download, Archive } from 'lucide-react';
+import { Loader2, Search, Edit, Trash2, PlusCircle, MapPin, Camera, Upload, Eye, FileText, Download, Archive, ChevronDown, Image as ImageIcon } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import JSZip from 'jszip';
 
@@ -201,6 +201,10 @@ const CloseCallsPage = () => {
     const [isManageMode, setIsManageMode] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+
+    // Project Dropdown State
+    const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+    const [projectSearchTerm, setProjectSearchTerm] = useState('');
 
     // Report Modal State
     const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -858,26 +862,67 @@ const CloseCallsPage = () => {
                             </>
                         ) : (
                             <>
-                                <div className="mb-4">
-                                    <Select
-                                        name="project_id"
-                                        value={formData.project_id}
-                                        onChange={(e) => {
-                                            const pid = e.target.value;
-                                            // Use loose equality because select value is string
-                                            const proj = projects.find(p => p.id == pid); 
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                project_id: pid,
-                                                client: proj ? proj.client : ''
-                                            }));
-                                        }}
+                                <div className="mb-4 relative">
+                                    <div 
+                                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer flex justify-between items-center"
+                                        onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
                                     >
-                                        <option value="">Select Project</option>
-                                        {projects.map(p => (
-                                            <option key={p.id} value={p.id}>{p.project_number} - {p.project_name}</option>
-                                        ))}
-                                    </Select>
+                                        <span className={`truncate mr-2 ${!formData.project_id ? "text-gray-500" : "text-gray-900 dark:text-white"}`}>
+                                            {formData.project_id 
+                                                ? (() => {
+                                                    // Use loose equality for ID match
+                                                    const p = projects.find(prj => prj.id == formData.project_id);
+                                                    return p ? `${p.project_number} - ${p.project_name}` : 'Select Project';
+                                                })() 
+                                                : 'Select Project'}
+                                        </span>
+                                        <ChevronDown size={16} className="text-gray-500 flex-shrink-0" />
+                                    </div>
+                                    
+                                    {isProjectDropdownOpen && (
+                                        <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                                            <div className="p-2 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800">
+                                                <div className="relative">
+                                                    <Search size={14} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search projects..."
+                                                        value={projectSearchTerm}
+                                                        onChange={(e) => setProjectSearchTerm(e.target.value)}
+                                                        className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 bg-gray-50 dark:bg-gray-900 dark:text-white"
+                                                        autoFocus
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="overflow-y-auto flex-1">
+                                                {projects
+                                                    .filter(p => 
+                                                        (p.project_number + ' ' + p.project_name).toLowerCase().includes(projectSearchTerm.toLowerCase())
+                                                    )
+                                                    .map(p => (
+                                                    <div 
+                                                        key={p.id}
+                                                        className={`px-3 py-2 text-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-gray-700 border-b border-gray-50 dark:border-gray-700/50 last:border-0 ${formData.project_id == p.id ? 'bg-orange-100 text-orange-900 dark:bg-orange-900/30 dark:text-orange-100' : 'text-gray-700 dark:text-gray-200'}`}
+                                                        onClick={() => {
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                project_id: p.id,
+                                                                client: p.client
+                                                            }));
+                                                            setIsProjectDropdownOpen(false);
+                                                            setProjectSearchTerm('');
+                                                        }}
+                                                    >
+                                                        <span className="font-medium truncate">{p.project_number} - {p.project_name}</span>
+                                                    </div>
+                                                ))}
+                                                {projects.filter(p => (p.project_number + ' ' + p.project_name).toLowerCase().includes(projectSearchTerm.toLowerCase())).length === 0 && (
+                                                    <div className="px-3 py-4 text-center text-xs text-gray-500">No projects found</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Client</label>
@@ -983,29 +1028,67 @@ const CloseCallsPage = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Photo</label>
-                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                            <input 
-                                type="file" 
-                                accept="image/*" 
-                                capture="environment"
-                                onChange={handleFileChange}
-                                className="hidden" 
-                                id="cc-photo-upload"
-                            />
-                            <label htmlFor="cc-photo-upload" className="cursor-pointer flex flex-col items-center justify-center">
-                                {photoPreview ? (
-                                    <div className="flex flex-col items-center">
-                                        <img src={photoPreview} alt="Preview" className="h-32 object-contain mb-2 rounded" />
-                                        <span className="text-xs text-gray-500">Click to change</span>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <Camera className="w-8 h-8 text-gray-400 mb-2" />
-                                        <span className="text-sm text-gray-500">Take photo or upload</span>
-                                    </>
-                                )}
-                            </label>
-                        </div>
+                        
+                        {photoPreview ? (
+                            <div className="relative group border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden h-48 bg-gray-100 dark:bg-gray-800">
+                                <img 
+                                    src={photoPreview} 
+                                    alt="Preview" 
+                                    className="w-full h-full object-contain" 
+                                />
+                                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPhotoPreview(null);
+                                            setFormData(prev => ({ ...prev, photo_file: null, photo_url: '' }));
+                                        }}
+                                        className="text-white text-sm font-medium bg-red-600 px-3 py-1.5 rounded-md hover:bg-red-700"
+                                    >
+                                        Remove Photo
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* Camera Button - Forces Camera */}
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        capture="environment"
+                                        onChange={handleFileChange}
+                                        className="hidden" 
+                                        id="cc-camera-upload"
+                                    />
+                                    <label 
+                                        htmlFor="cc-camera-upload" 
+                                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24"
+                                    >
+                                        <Camera className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Take Photo</span>
+                                    </label>
+                                </div>
+
+                                {/* Gallery Button - Allows File Selection */}
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        onChange={handleFileChange}
+                                        className="hidden" 
+                                        id="cc-gallery-upload"
+                                    />
+                                    <label 
+                                        htmlFor="cc-gallery-upload" 
+                                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24"
+                                    >
+                                        <ImageIcon className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Upload File</span>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <Button variant="outline" onClick={() => setIsModalOpen(false)} type="button">Cancel</Button>

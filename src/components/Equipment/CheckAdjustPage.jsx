@@ -18,7 +18,8 @@ import {
     Archive,
     Trash2,
     Edit,
-    TrendingUp
+    TrendingUp,
+    Image as ImageIcon
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
@@ -1431,29 +1432,67 @@ const CheckAdjustPage = () => {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Evidence (Screen Capture)</label>
-                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                            <input 
-                                type="file" 
-                                accept="image/*" 
-                                capture="environment"
-                                onChange={handleFileChange}
-                                className="hidden" 
-                                id="evidence-upload"
-                            />
-                            <label htmlFor="evidence-upload" className="cursor-pointer flex flex-col items-center justify-center">
-                                {(photoPreview || formData.photo_url) ? (
-                                    <div className="flex flex-col items-center">
-                                        <img src={photoPreview || formData.photo_url} alt="Preview" className="h-32 object-contain mb-2 rounded" />
-                                        <span className="text-xs text-gray-500">Click to change</span>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                                        <span className="text-sm text-gray-500">Upload photo or capture</span>
-                                    </>
-                                )}
-                            </label>
-                        </div>
+                        
+                        {(photoPreview || formData.photo_url) ? (
+                            <div className="relative group border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden h-48 bg-gray-100 dark:bg-gray-800">
+                                <img 
+                                    src={photoPreview || formData.photo_url} 
+                                    alt="Preview" 
+                                    className="w-full h-full object-contain" 
+                                />
+                                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPhotoPreview(null);
+                                            setFormData(prev => ({ ...prev, evidence_file: null, photo_url: '' }));
+                                        }}
+                                        className="text-white text-sm font-medium bg-red-600 px-3 py-1.5 rounded-md hover:bg-red-700"
+                                    >
+                                        Remove Photo
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* Camera Button - Forces Camera */}
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        capture="environment"
+                                        onChange={handleFileChange}
+                                        className="hidden" 
+                                        id="ca-camera-upload"
+                                    />
+                                    <label 
+                                        htmlFor="ca-camera-upload" 
+                                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24"
+                                    >
+                                        <Camera className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Take Photo</span>
+                                    </label>
+                                </div>
+
+                                {/* Gallery Button - Allows File Selection */}
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        onChange={handleFileChange}
+                                        className="hidden" 
+                                        id="ca-gallery-upload"
+                                    />
+                                    <label 
+                                        htmlFor="ca-gallery-upload" 
+                                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24"
+                                    >
+                                        <ImageIcon className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Upload File</span>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">

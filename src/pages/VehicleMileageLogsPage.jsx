@@ -1676,9 +1676,9 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
             return;
         }
 
-        // Validate that exactly 4 photos are uploaded
-        if (uploadedImages.length < 4) {
-            setValidationError(`Please upload all 4 required vehicle photos. You have uploaded ${uploadedImages.length}/4 photos.`);
+        // Validate that maximum 4 photos are uploaded (handled by UI but good to check)
+        if (uploadedImages.length > 4) {
+            setValidationError(`Maximum 4 vehicle photos allowed.`);
             return;
         }
 
@@ -1912,39 +1912,62 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                             <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mr-2">
                                 <Camera className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                             </div>
-                            Vehicle Photos (Mandatory) *
+                            Vehicle Photos (Optional)
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                            Take exactly 4 photos of your vehicle to confirm you are present during inspection ({uploadedImages.length}/4 photos taken)
+                            Take up to 4 photos of your vehicle ({uploadedImages.length}/4 photos taken)
                         </p>
 
-                        {/* Upload Button */}
+                        {/* Upload Buttons */}
                         <div className="mb-4">
-                            <label className="cursor-pointer">
-                                <div className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
-                                    {uploading ? (
-                                        <>
-                                            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                                            <span className="text-sm text-gray-700 dark:text-gray-300">Uploading...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Camera className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Take Photo with Camera
-                                            </span>
-                                        </>
-                                    )}
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* Camera Button */}
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        capture="environment"
+                                        onChange={handleImageUpload}
+                                        disabled={uploading}
+                                        className="hidden" 
+                                        id="vi-camera-upload"
+                                    />
+                                    <label 
+                                        htmlFor="vi-camera-upload" 
+                                        className={`flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        {uploading ? (
+                                            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                                        ) : (
+                                            <Camera className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                        )}
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Take Photo</span>
+                                    </label>
                                 </div>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    onChange={handleImageUpload}
-                                    disabled={uploading}
-                                    className="hidden"
-                                />
-                            </label>
+
+                                {/* Gallery Button */}
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        onChange={handleImageUpload}
+                                        disabled={uploading}
+                                        className="hidden" 
+                                        id="vi-gallery-upload"
+                                    />
+                                    <label 
+                                        htmlFor="vi-gallery-upload" 
+                                        className={`flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        {uploading ? (
+                                            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                                        ) : (
+                                            <FileImage className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                        )}
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Upload File</span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Uploaded Images Preview */}

@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Button, Input, Select, Modal, ConfirmationModal } from '../components/ui';
-import { Loader2, Search, Edit, Trash2, PlusCircle, MapPin, Camera, FileText, Download, Archive } from 'lucide-react';
+import { Loader2, Search, Edit, Trash2, PlusCircle, MapPin, Camera, FileText, Download, Archive, ChevronDown, X, Image as ImageIcon } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import JSZip from 'jszip';
 
@@ -14,6 +14,9 @@ const MediaReportView = React.forwardRef(({ item, usersData, projects }, ref) =>
     const projectName = project ? `${project.project_number} - ${project.project_name}` : (item.project_name || 'N/A');
     const client = project ? project.client : (item.client || 'N/A');
     const userName = usersData[item.user_id] || 'Unknown User';
+
+    // Parse media_urls if available, otherwise use photo_url
+    const images = item.media_urls || (item.photo_url ? [item.photo_url] : []);
 
     return (
         <div className="p-6 space-y-6 bg-white text-left" ref={ref}>
@@ -63,14 +66,19 @@ const MediaReportView = React.forwardRef(({ item, usersData, projects }, ref) =>
                     </p>
                 </div>
 
-                {item.photo_url && (
+                {images.length > 0 && (
                     <div>
                         <h3 className="text-lg font-semibold border-b pb-2 mb-2 text-gray-900">Evidence</h3>
-                        <img 
-                            src={item.photo_url} 
-                            alt="Evidence" 
-                            className="w-full max-h-96 object-contain rounded-lg border border-gray-200"
-                        />
+                        <div className={`grid gap-4 ${images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            {images.map((url, index) => (
+                                <img 
+                                    key={index}
+                                    src={url} 
+                                    alt={`Evidence ${index + 1}`}
+                                    className="w-full h-auto max-h-96 object-contain rounded-lg border border-gray-200"
+                                />
+                            ))}
+                        </div>
                     </div>
                 )}
                 
@@ -143,11 +151,6 @@ const MediaReportModal = ({ item, isOpen, onClose, usersData, projects }) => {
 
     if (!isOpen || !item) return null;
 
-    const project = projects.find(p => p.id === item.project_id);
-    const projectName = project ? `${project.project_number} - ${project.project_name}` : (item.project_name || 'N/A');
-    const client = project ? project.client : (item.client || 'N/A');
-    const userName = usersData[item.user_id] || 'Unknown User';
-
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Media Post Report">
             <div className="max-h-[80vh] overflow-y-auto">
@@ -178,6 +181,8 @@ const MediaPage = () => {
     const [selectedItem, setSelectedItem] = useState(null);
     const [isManualProject, setIsManualProject] = useState(false);
     const [mileageUnit, setMileageUnit] = useState('ch'); // 'ch' or 'yds'
+    
+    // Updated state to handle multiple photos
     const [formData, setFormData] = useState({
         project_id: '',
         project_name: '',
@@ -190,10 +195,9 @@ const MediaPage = () => {
         comments: '',
         latitude: '',
         longitude: '',
-        photo_file: null,
-        photo_url: ''
+        photos: [] // Array of objects { file: File | null, url: string, isNew: boolean }
     });
-    const [photoPreview, setPhotoPreview] = useState(null);
+    
     const [submitting, setSubmitting] = useState(false);
     const [gettingLocation, setGettingLocation] = useState(false);
 
@@ -201,6 +205,10 @@ const MediaPage = () => {
     const [isManageMode, setIsManageMode] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+
+    // Project Dropdown State
+    const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+    const [projectSearchTerm, setProjectSearchTerm] = useState('');
 
     // Report Modal State
     const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -260,6 +268,7 @@ const MediaPage = () => {
         }
     };
 
+    // ... Export Wizard Logic (Same as before, but handled by MediaReportView update) ...
     const handleWizardExport = async () => {
         if (!exportStartDate || !exportEndDate) {
             alert('Please select a start and end date.');
@@ -445,15 +454,30 @@ const MediaPage = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setFormData(prev => ({ ...prev, photo_file: file }));
-            
-            // Create preview URL
-            const objectUrl = URL.createObjectURL(file);
-            setPhotoPreview(objectUrl);
+    const handlePhotoAdd = (e) => {
+        if (e.target.files) {
+            const newPhotos = Array.from(e.target.files).map(file => ({
+                file: file,
+                url: URL.createObjectURL(file),
+                isNew: true
+            }));
+
+            setFormData(prev => {
+                const combined = [...prev.photos, ...newPhotos];
+                // Limit to 4 photos
+                return { ...prev, photos: combined.slice(0, 4) };
+            });
         }
+        // Reset input value so same file can be selected again if deleted
+        e.target.value = null; 
+    };
+
+    const handlePhotoRemove = (index) => {
+        setFormData(prev => {
+            const updated = [...prev.photos];
+            updated.splice(index, 1);
+            return { ...prev, photos: updated };
+        });
     };
 
     const getLocation = () => {
@@ -496,10 +520,8 @@ const MediaPage = () => {
             comments: '',
             latitude: '',
             longitude: '',
-            photo_file: null,
-            photo_url: ''
+            photos: []
         });
-        setPhotoPreview(null);
         setSelectedItem(null);
         setIsModalOpen(true);
     };
@@ -528,6 +550,16 @@ const MediaPage = () => {
         }
         setMileageUnit(unit);
 
+        // Parse media_urls if available, otherwise use photo_url
+        const initialPhotos = [];
+        if (item.media_urls && Array.isArray(item.media_urls)) {
+            item.media_urls.forEach(url => {
+                initialPhotos.push({ file: null, url: url, isNew: false });
+            });
+        } else if (item.photo_url) {
+            initialPhotos.push({ file: null, url: item.photo_url, isNew: false });
+        }
+
         setFormData({
             project_id: item.project_id || '',
             project_name: item.project_name || '',
@@ -540,10 +572,8 @@ const MediaPage = () => {
             comments: item.comments || '',
             latitude: item.latitude || '',
             longitude: item.longitude || '',
-            photo_file: null,
-            photo_url: item.photo_url || ''
+            photos: initialPhotos
         });
-        setPhotoPreview(item.photo_url || null);
         setIsModalOpen(true);
     };
 
@@ -551,48 +581,56 @@ const MediaPage = () => {
         e.preventDefault();
         setSubmitting(true);
         try {
-            let photoUrl = formData.photo_url;
+            let mediaUrls = [];
 
-            // Upload photo if new file selected
-            if (formData.photo_file) {
-                const file = formData.photo_file;
-                const fileExt = file.name.split('.').pop();
+            // Process photos
+            for (const photo of formData.photos) {
+                if (photo.isNew && photo.file) {
+                    // Upload new photo
+                    const file = photo.file;
+                    const fileExt = file.name.split('.').pop();
 
-                // Get project info
-                let projectIdentifier = 'NoProject';
-                if (formData.project_id) {
-                    const project = projects.find(p => p.id === formData.project_id);
-                    projectIdentifier = project ? project.project_number : 'UnknownProject';
-                } else if (isManualProject && formData.project_name) {
-                    projectIdentifier = formData.project_name;
+                    // Get project info
+                    let projectIdentifier = 'NoProject';
+                    if (formData.project_id) {
+                        const project = projects.find(p => p.id === formData.project_id);
+                        projectIdentifier = project ? project.project_number : 'UnknownProject';
+                    } else if (isManualProject && formData.project_name) {
+                        projectIdentifier = formData.project_name;
+                    }
+                    
+                    // Get date
+                    const datePart = new Date(formData.date_time).toISOString().split('T')[0];
+
+                    // Sanitize title
+                    const sanitizedTitle = (formData.title || 'MediaPost').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_').substring(0, 50);
+                    const sanitizedProjectIdentifier = projectIdentifier.replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_');
+
+                    // Construct filename: YYYY-MM-DD_PROJECT_TITLE_TIMESTAMP_INDEX.ext
+                    const fileName = `${datePart}_${sanitizedProjectIdentifier}_${sanitizedTitle}_${Date.now()}_${Math.floor(Math.random() * 1000)}.${fileExt}`;
+                    const filePath = `${fileName}`;
+
+                    const { error: uploadError } = await supabase.storage
+                        .from('media-photos')
+                        .upload(filePath, file);
+
+                    if (uploadError) throw new Error('Photo upload failed: ' + uploadError.message);
+
+                    const { data } = supabase.storage
+                        .from('media-photos')
+                        .getPublicUrl(filePath);
+                    
+                    mediaUrls.push(data.publicUrl);
+                } else {
+                    // Keep existing photo URL
+                    mediaUrls.push(photo.url);
                 }
-                
-                // Get date
-                const datePart = new Date(formData.date_time).toISOString().split('T')[0];
-
-                // Sanitize title
-                const sanitizedTitle = (formData.title || 'MediaPost').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_').substring(0, 50);
-                const sanitizedProjectIdentifier = projectIdentifier.replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_');
-
-
-                // Construct filename: YYYY-MM-DD_PROJECT_TITLE_TIMESTAMP.ext
-                const fileName = `${datePart}_${sanitizedProjectIdentifier}_${sanitizedTitle}_${Date.now()}.${fileExt}`;
-                const filePath = `${fileName}`;
-
-                const { error: uploadError } = await supabase.storage
-                    .from('media-photos')
-                    .upload(filePath, file);
-
-                if (uploadError) throw new Error('Photo upload failed: ' + uploadError.message);
-
-                const { data } = supabase.storage
-                    .from('media-photos')
-                    .getPublicUrl(filePath);
-                
-                photoUrl = data.publicUrl;
             }
 
             const mileage = `${formData.mileage_miles}m ${formData.mileage_yards}${mileageUnit}`;
+
+            // Use first photo as main photo_url for backward compatibility/list view
+            const mainPhotoUrl = mediaUrls.length > 0 ? mediaUrls[0] : null;
 
             const payload = {
                 project_id: isManualProject ? null : (formData.project_id || null),
@@ -605,7 +643,8 @@ const MediaPage = () => {
                 comments: formData.comments,
                 latitude: formData.latitude || null,
                 longitude: formData.longitude || null,
-                photo_url: photoUrl
+                photo_url: mainPhotoUrl,
+                media_urls: mediaUrls
             };
 
             if (modalMode === 'create') {
@@ -643,10 +682,19 @@ const MediaPage = () => {
 
     const handleConfirmDelete = async () => {
         try {
+            // Delete main photo
             if (itemToDelete.photo_url) {
                 const path = itemToDelete.photo_url.split('media-photos/').pop();
-                if (path) {
-                    await supabase.storage.from('media-photos').remove([path]);
+                if (path) await supabase.storage.from('media-photos').remove([path]);
+            }
+            
+            // Delete other media photos if any
+            if (itemToDelete.media_urls && Array.isArray(itemToDelete.media_urls)) {
+                for (const url of itemToDelete.media_urls) {
+                    if (url !== itemToDelete.photo_url) { // Avoid double delete attempt
+                        const path = url.split('media-photos/').pop();
+                        if (path) await supabase.storage.from('media-photos').remove([path]);
+                    }
                 }
             }
 
@@ -706,7 +754,7 @@ const MediaPage = () => {
                     )}
                     {can('MANAGE_MEDIA') && (
                         <Button 
-                            variant={isManageMode ? 'primary' : 'outline'}
+                            variant={isManageMode ? 'primary' : 'outline'} 
                             onClick={() => setIsManageMode(!isManageMode)}
                             className="flex items-center"
                         >
@@ -721,7 +769,7 @@ const MediaPage = () => {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input 
                         type="text" 
-                        placeholder="Search by ELR, comments, or user..."
+                        placeholder="Search by ELR, comments, or user..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -816,6 +864,7 @@ const MediaPage = () => {
             {/* Create/Edit Modal */}
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalMode === 'create' ? 'Log Media Post' : 'Edit Media Post'}>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                    {/* Project Selection */}
                     <div>
                         <div className="flex justify-between items-center mb-1">
                             <label className="block text-sm font-medium">Project</label>
@@ -858,26 +907,67 @@ const MediaPage = () => {
                             </>
                         ) : (
                             <>
-                                <div className="mb-4">
-                                    <Select
-                                        name="project_id"
-                                        value={formData.project_id}
-                                        onChange={(e) => {
-                                            const pid = e.target.value;
-                                            // Use loose equality because select value is string
-                                            const proj = projects.find(p => p.id == pid); 
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                project_id: pid,
-                                                client: proj ? proj.client : ''
-                                            }));
-                                        }}
+                                <div className="mb-4 relative">
+                                    <div 
+                                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer flex justify-between items-center"
+                                        onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
                                     >
-                                        <option value="">Select Project</option>
-                                        {projects.map(p => (
-                                            <option key={p.id} value={p.id}>{p.project_number} - {p.project_name}</option>
-                                        ))}
-                                    </Select>
+                                        <span className={`truncate mr-2 ${!formData.project_id ? "text-gray-500" : "text-gray-900 dark:text-white"}`}>
+                                            {formData.project_id 
+                                                ? (() => {
+                                                    // Use loose equality for ID match
+                                                    const p = projects.find(prj => prj.id == formData.project_id);
+                                                    return p ? `${p.project_number} - ${p.project_name}` : 'Select Project';
+                                                })() 
+                                                : 'Select Project'}
+                                        </span>
+                                        <ChevronDown size={16} className="text-gray-500 flex-shrink-0" />
+                                    </div>
+                                    
+                                    {isProjectDropdownOpen && (
+                                        <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                                            <div className="p-2 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800">
+                                                <div className="relative">
+                                                    <Search size={14} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search projects..."
+                                                        value={projectSearchTerm}
+                                                        onChange={(e) => setProjectSearchTerm(e.target.value)}
+                                                        className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 bg-gray-50 dark:bg-gray-900 dark:text-white"
+                                                        autoFocus
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="overflow-y-auto flex-1">
+                                                {projects
+                                                    .filter(p => 
+                                                        (p.project_number + ' ' + p.project_name).toLowerCase().includes(projectSearchTerm.toLowerCase())
+                                                    )
+                                                    .map(p => (
+                                                    <div 
+                                                        key={p.id}
+                                                        className={`px-3 py-2 text-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-gray-700 border-b border-gray-50 dark:border-gray-700/50 last:border-0 ${formData.project_id == p.id ? 'bg-orange-100 text-orange-900 dark:bg-orange-900/30 dark:text-orange-100' : 'text-gray-700 dark:text-gray-200'}`}
+                                                        onClick={() => {
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                project_id: p.id,
+                                                                client: p.client
+                                                            }));
+                                                            setIsProjectDropdownOpen(false);
+                                                            setProjectSearchTerm('');
+                                                        }}
+                                                    >
+                                                        <span className="font-medium truncate">{p.project_number} - {p.project_name}</span>
+                                                    </div>
+                                                ))}
+                                                {projects.filter(p => (p.project_number + ' ' + p.project_name).toLowerCase().includes(projectSearchTerm.toLowerCase())).length === 0 && (
+                                                    <div className="px-3 py-4 text-center text-xs text-gray-500">No projects found</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Client</label>
@@ -892,6 +982,8 @@ const MediaPage = () => {
                             </>
                         )}
                     </div>
+
+                    {/* Date & Time */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Date & Time</label>
                         <Input
@@ -902,6 +994,8 @@ const MediaPage = () => {
                             required
                         />
                     </div>
+
+                    {/* ELR & Mileage */}
                     <div>
                         <label className="block text-sm font-medium mb-1">ELR</label>
                         <Input
@@ -929,15 +1023,17 @@ const MediaPage = () => {
                                 placeholder={mileageUnit === 'ch' ? 'Chains' : 'Yards'}
                                 className="flex-1"
                             />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setMileageUnit(prev => prev === 'ch' ? 'yds' : 'ch')}
-                                                                className="px-3 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 transition-colors min-w-[3rem]"
-                                                                title={`Switch to ${mileageUnit === 'ch' ? 'Yards' : 'Chains'}`}
-                                                            >
-                                                                {mileageUnit}
-                                                            </button>                        </div>
+                            <button
+                                type="button"
+                                onClick={() => setMileageUnit(prev => prev === 'ch' ? 'yds' : 'ch')}
+                                className="px-3 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 transition-colors min-w-[3rem]"
+                                title={`Switch to ${mileageUnit === 'ch' ? 'Yards' : 'Chains'}`}
+                            >
+                                {mileageUnit}
+                            </button>                        </div>
                     </div>
+
+                    {/* Location */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Location (Lat/Long)</label>
                         <div className="flex gap-2 mb-2">
@@ -959,6 +1055,8 @@ const MediaPage = () => {
                             {gettingLocation ? 'Locating...' : 'Use My Location'}
                         </Button>
                     </div>
+
+                    {/* Title & Description */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Title</label>
                         <Input
@@ -981,32 +1079,83 @@ const MediaPage = () => {
                             required
                         />
                     </div>
+
+                    {/* Photo Upload */}
                     <div>
-                        <label className="block text-sm font-medium mb-1">Photo</label>
-                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                            <input 
-                                type="file" 
-                                accept="image/*" 
-                                capture="environment"
-                                onChange={handleFileChange}
-                                className="hidden" 
-                                id="media-photo-upload"
-                            />
-                            <label htmlFor="media-photo-upload" className="cursor-pointer flex flex-col items-center justify-center">
-                                {photoPreview ? (
-                                    <div className="flex flex-col items-center">
-                                        <img src={photoPreview} alt="Preview" className="h-32 object-contain mb-2 rounded" />
-                                        <span className="text-xs text-gray-500">Click to change</span>
+                        <label className="block text-sm font-medium mb-1">
+                            Photos {formData.photos.length > 0 && `(${formData.photos.length}/4)`}
+                        </label>
+                        
+                        {/* Photo Grid */}
+                        {formData.photos.length > 0 && (
+                            <div className="grid grid-cols-2 gap-3 mb-3">
+                                {formData.photos.map((photo, index) => (
+                                    <div key={index} className="relative group rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 aspect-video bg-gray-100 dark:bg-gray-800">
+                                        <img 
+                                            src={photo.url} 
+                                            alt={`Photo ${index + 1}`}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => handlePhotoRemove(index)}
+                                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-90 hover:opacity-100 shadow-md"
+                                            title="Remove photo"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                        {photo.isNew && (
+                                            <span className="absolute bottom-1 right-1 px-1.5 py-0.5 text-[10px] bg-blue-500 text-white rounded">New</span>
+                                        )}
                                     </div>
-                                ) : (
-                                    <>
-                                        <Camera className="w-8 h-8 text-gray-400 mb-2" />
-                                        <span className="text-sm text-gray-500">Take photo or upload</span>
-                                    </>
-                                )}
-                            </label>
-                        </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Add Photo Buttons */}
+                        {formData.photos.length < 4 && (
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* Camera Button - Forces Camera */}
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        capture="environment"
+                                        onChange={handlePhotoAdd}
+                                        className="hidden" 
+                                        id="media-camera-upload"
+                                    />
+                                    <label 
+                                        htmlFor="media-camera-upload" 
+                                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24"
+                                    >
+                                        <Camera className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Take Photo</span>
+                                    </label>
+                                </div>
+
+                                {/* Gallery Button - Allows File Selection */}
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        multiple
+                                        onChange={handlePhotoAdd}
+                                        className="hidden" 
+                                        id="media-gallery-upload"
+                                    />
+                                    <label 
+                                        htmlFor="media-gallery-upload" 
+                                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24"
+                                    >
+                                        <ImageIcon className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Upload File</span>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
                     </div>
+
                     <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <Button variant="outline" onClick={() => setIsModalOpen(false)} type="button">Cancel</Button>
                         <Button type="submit" disabled={submitting}>
@@ -1016,6 +1165,7 @@ const MediaPage = () => {
                 </form>
             </Modal>
 
+            {/* ... (Rest of the component: ConfirmationModal, Export Wizard, Hidden Render Container, MediaReportModal) ... */}
             <ConfirmationModal
                 isOpen={deleteConfirmOpen}
                 onClose={() => setDeleteConfirmOpen(false)}
