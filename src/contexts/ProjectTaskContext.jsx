@@ -201,7 +201,7 @@ export const ProjectTaskProvider = ({ children }) => {
             .from('project_tasks')
             .update(taskRecord)
             .eq('id', updatedTask.id)
-            .select();
+            .select('*');
 
         if (error) {
             console.error('Error updating project task:', error);
@@ -210,7 +210,12 @@ export const ProjectTaskProvider = ({ children }) => {
         }
         if (data) {
             console.log('Successfully updated project task:', data[0]);
-            // Don't manually update state - realtime subscription handles it
+            // Update state immediately
+            const updatedTaskCamel = mapToCamelCase(data[0]);
+            setProjectTasks(prev => prev.map(t => t.id === updatedTaskCamel.id ? updatedTaskCamel : t));
+            
+            // Force refresh to ensure consistency
+            getProjectTasks();
 
             // Send notification to task creator when task is marked complete (if they didn't complete it themselves)
             if (isBeingCompleted && oldTask.createdBy && user?.id && oldTask.createdBy !== user.id) {
@@ -268,6 +273,8 @@ export const ProjectTaskProvider = ({ children }) => {
         if (error) {
             console.error('Error deleting project task:', error);
             alert(`Error deleting project task: ${error.message}`);
+        } else {
+            setProjectTasks(prev => prev.filter(t => t.id !== taskId));
         }
         // Don't manually update state - realtime subscription handles it
     };
@@ -288,7 +295,8 @@ export const ProjectTaskProvider = ({ children }) => {
             console.error('Error deleting archived project tasks:', error);
             alert(`Error deleting archived project tasks: ${error.message}`);
         } else {
-            // Don't manually update state - realtime subscription handles it
+            // Update state manually
+            setProjectTasks(prev => prev.filter(t => !archivedTaskIds.includes(t.id)));
             showSuccessModal('All archived project tasks have been deleted');
         }
     };

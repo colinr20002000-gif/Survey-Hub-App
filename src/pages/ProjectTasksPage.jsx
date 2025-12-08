@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, ListEnd, ListTodo, Loader2, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useProjectTasks } from '../contexts/ProjectTaskContext';
 import { supabase } from '../supabaseClient';
-import { Button } from '../components/ui';
-import { DeliveryTaskItem, DeliveryTaskModal } from '../components/tasks/TaskComponents';
+import { Button, Card } from '../components/ui';
+import { DeliveryTaskCard, DeliveryTaskModal } from '../components/tasks/TaskComponents';
 import { sendProjectTaskCompletionNotification } from '../utils/fcmNotifications';
 
 const ProjectTasksPage = () => {
@@ -43,11 +43,6 @@ const ProjectTasksPage = () => {
 
         fetchUsers();
     }, []);
-
-    const handleEditTask = (task) => {
-        setTaskToEdit(task);
-        setIsModalOpen(true);
-    };
 
     const handleSaveTask = async (taskData) => {
         if (taskToEdit) {
@@ -113,16 +108,26 @@ const ProjectTasksPage = () => {
     };
 
     const handleArchiveTask = async (task) => {
-        console.log('Archive button clicked for task:', task.id, 'Current archived status:', task.archived);
-        const newArchivedStatus = task.archived === true ? false : true;
-        console.log('Setting archived to:', newArchivedStatus);
+        // Ensure boolean value for archiving toggle
+        const currentStatus = task.archived === true;
+        const newArchivedStatus = !currentStatus;
+        
+        console.log(`Archiving task ${task.id}: ${currentStatus} -> ${newArchivedStatus}`);
+        
         const updatedTask = { ...task, archived: newArchivedStatus };
         await updateProjectTask(updatedTask);
     };
 
     // Loading and error states
     if (loading) {
-        return <div className="p-8 text-2xl font-semibold text-center">Loading To Do List...</div>;
+        return (
+            <div className="p-8 text-2xl font-semibold text-center text-gray-700 dark:text-gray-300">
+                <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                </div>
+                Loading To Do List...
+            </div>
+        );
     }
 
     if (error) {
@@ -143,12 +148,15 @@ const ProjectTasksPage = () => {
     const completedTasks = tasksToDisplay.filter(t => t.completed);
 
     return (
-        <div className="p-4 md:p-6">
-            <div className="flex flex-col gap-4 mb-6">
+        <div className="p-4 md:p-6 space-y-8">
+            <div className="flex flex-col gap-4 mb-2">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">To Do List</h1>
-                    {canCreateTasks && (
-                        <Button onClick={openNewTaskModal} className="w-full sm:w-auto">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Project Team Tasks</h1>
+                        <p className="text-gray-500 dark:text-gray-400 mt-1">Manage project tasks and track progress</p>
+                    </div>
+                    {canCreateTasks && !showArchived && (
+                        <Button onClick={openNewTaskModal} className="w-full sm:w-auto shadow-sm">
                             <PlusCircle size={16} className="mr-2"/>Add Task
                         </Button>
                     )}
@@ -158,46 +166,90 @@ const ProjectTasksPage = () => {
                         variant="outline"
                         onClick={() => setShowArchived(!showArchived)}
                         className="text-sm"
+                        size="sm"
                     >
-                        {showArchived ? 'Show Active' : 'Show Archived'} ({showArchived ? activeTasks.length : archivedTasks.length})
+                        {showArchived ? 'Show Active' : 'Show Archived'} <span className="ml-2 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full text-xs">{showArchived ? activeTasks.length : archivedTasks.length}</span>
                     </Button>
                     {showArchived && archivedTasks.length > 0 && (
                         <Button
                             variant="outline"
                             onClick={handleDeleteAllArchived}
-                            className="text-sm text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                            className="text-sm text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 border-red-200 dark:border-red-900/30"
+                            size="sm"
                         >
                             <Trash2 size={16} className="mr-1 sm:mr-2"/>
-                            <span className="hidden xs:inline">Delete All Archived</span>
-                            <span className="xs:hidden">Delete All</span>
+                            Delete All Archived
                         </Button>
                     )}
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="p-4">
-                    <h3 className="text-lg font-semibold mb-4">To Do ({incompleteTasks.length})</h3>
-                    <ul className="space-y-2">
-                        {incompleteTasks.map(task => (
-                            <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} onArchive={handleArchiveTask} users={users} canComplete={canCompleteTasks} canEdit={canEditProjects} canDelete={canDeleteProjects} />
-                        ))}
-                        {incompleteTasks.length === 0 && (
-                            <li className="text-gray-500 dark:text-gray-400 text-center py-4">{showArchived ? 'No pending archived tasks' : 'No pending project tasks'}</li>
-                        )}
-                    </ul>
-                </div>
-                {completedTasks.length > 0 && (
-                    <div className="border-t border-gray-200 dark:border-gray-700 p-4">
-                        <h3 className="text-lg font-semibold mb-4 text-green-600 dark:text-green-400">Completed ({completedTasks.length})</h3>
-                        <ul className="space-y-2">
-                            {completedTasks.map(task => (
-                                <DeliveryTaskItem key={task.id} task={task} onToggle={() => handleToggleComplete(task)} onEdit={openEditModal} onDelete={handleDeleteTask} onArchive={handleArchiveTask} users={users} canComplete={canCompleteTasks} canEdit={canEditProjects} canDelete={canDeleteProjects} />
-                            ))}
-                        </ul>
+            {tasksToDisplay.length === 0 ? (
+                <div className="bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-12 text-center">
+                    <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <ListEnd className="w-8 h-8 text-orange-400" />
                     </div>
-                )}
-            </div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">{showArchived ? 'No archived tasks found' : 'All caught up!'}</h3>
+                    <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+                        {showArchived ? 'Archived tasks will appear here.' : 'There are no pending tasks at the moment. Enjoy your day or add a new task to get started.'}
+                    </p>
+                </div>
+            ) : (
+                <>
+                    {/* Active Tasks Grid */}
+                    {incompleteTasks.length > 0 && (
+                        <div className="space-y-4">
+                            <div className="flex items-center space-x-2">
+                                <ListTodo className="h-5 w-5 text-orange-500" />
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">To Do <span className="ml-2 text-sm font-normal text-gray-500">({incompleteTasks.length})</span></h2>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {incompleteTasks.map(task => (
+                                    <DeliveryTaskCard 
+                                        key={task.id} 
+                                        task={task} 
+                                        onToggle={() => handleToggleComplete(task)} 
+                                        onEdit={openEditModal} 
+                                        onDelete={handleDeleteTask} 
+                                        onArchive={handleArchiveTask} 
+                                        users={users} 
+                                        canComplete={canCompleteTasks} 
+                                        canEdit={canEditProjects} 
+                                        canDelete={canDeleteProjects} 
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Completed Tasks Grid */}
+                    {completedTasks.length > 0 && (
+                        <div className={`space-y-4 ${incompleteTasks.length > 0 ? 'pt-8 border-t border-gray-200 dark:border-gray-700' : ''}`}>
+                            <div className="flex items-center space-x-2">
+                                <ClipboardCheck className="h-5 w-5 text-green-500" />
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Completed <span className="ml-2 text-sm font-normal text-gray-500">({completedTasks.length})</span></h2>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {completedTasks.map(task => (
+                                    <DeliveryTaskCard 
+                                        key={task.id} 
+                                        task={task} 
+                                        onToggle={() => handleToggleComplete(task)} 
+                                        onEdit={openEditModal} 
+                                        onDelete={handleDeleteTask} 
+                                        onArchive={handleArchiveTask} 
+                                        users={users} 
+                                        canComplete={canCompleteTasks} 
+                                        canEdit={canEditProjects} 
+                                        canDelete={canDeleteProjects} 
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+
             <DeliveryTaskModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
