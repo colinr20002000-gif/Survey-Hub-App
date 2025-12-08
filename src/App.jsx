@@ -997,8 +997,6 @@ const DeliveryTrackerContent = () => {
         return saved ? JSON.parse(saved) : { key: 'plannedDeliveryDate', direction: 'ascending' };
     });
 
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
     const [jobToDelete, setJobToDelete] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [jobToArchive, setJobToArchive] = useState(null);
@@ -1145,16 +1143,6 @@ const DeliveryTrackerContent = () => {
         return sortableItems;
     }, [filteredJobs, sortConfig]);
 
-    const paginatedJobs = useMemo(() => {
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        return sortedJobs.slice(startIndex, startIndex + itemsPerPage);
-    }, [sortedJobs, currentPage, itemsPerPage]);
-
-    const totalPages = useMemo(() => {
-        if (!sortedJobs || sortedJobs.length === 0) return 0;
-        return Math.ceil(sortedJobs.length / itemsPerPage);
-    }, [sortedJobs, itemsPerPage]);
-
     const requestSort = (key) => {
         let direction = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -1259,7 +1247,7 @@ const DeliveryTrackerContent = () => {
                             )}
                         </thead>
                         <tbody>
-                            {paginatedJobs.map(job => (
+                            {sortedJobs.map(job => (
                                 <tr key={job.id} className={`border-b dark:border-gray-700 ${job.archived ? 'bg-gray-100 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-600/20'}`}>
                                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{job.projectName}</td>
                                     <td className="px-6 py-4">{job.projectNumber}</td>
@@ -1296,7 +1284,6 @@ const DeliveryTrackerContent = () => {
                         </tbody>
                     </table>
                 </div>
-                <Pagination currentPage={currentPage} setCurrentPage={setCurrentPage} totalPages={totalPages} itemsPerPage={itemsPerPage} setItemsPerPage={setItemsPerPage} totalItems={sortedJobs.length} />
                 <JobModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveJob} job={jobToEdit} />
                 <ConfirmationModal 
                     isOpen={isDeleteModalOpen} 

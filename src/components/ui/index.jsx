@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -15,6 +15,69 @@ export const Card = ({ title, icon, children, className, ...props }) => (
         <div className="p-4">{children}</div>
     </div>
 );
+
+// Combobox Component
+export const Combobox = ({ label, name, value, onChange, options = [], placeholder, required, className, disabled }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const wrapperRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredOptions = options.filter(option => 
+        option.toLowerCase().includes((value || '').toLowerCase()) && option !== value
+    );
+
+    const handleSelect = (option) => {
+        onChange({ target: { name, value: option } });
+        setIsOpen(false);
+    };
+
+    return (
+        <div className={`relative ${className || ''}`} ref={wrapperRef}>
+            {label && <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>}
+            <input
+                type="text"
+                name={name}
+                value={value}
+                onChange={(e) => {
+                    onChange(e);
+                    setIsOpen(true);
+                }}
+                onFocus={() => setIsOpen(true)}
+                placeholder={placeholder}
+                required={required}
+                disabled={disabled}
+                autoComplete="off"
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${
+                    disabled
+                        ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
+                }`}
+            />
+            {isOpen && filteredOptions.length > 0 && !disabled && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {filteredOptions.map((option, index) => (
+                        <div
+                            key={index}
+                            className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-gray-600 cursor-pointer"
+                            onClick={() => handleSelect(option)}
+                        >
+                            {option}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 // Input Component
 export const Input = ({ label, disabled, className, ...props }) => (
