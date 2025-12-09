@@ -2806,9 +2806,9 @@ const ProjectDetailPage = ({ project, onBack }) => {
 
     const tabs = [
         { id: 'overview', label: 'Overview' },
+        { id: 'site_info', label: 'Site Information' },
         { id: 'tasks', label: 'Tasks' },
         { id: 'files', label: 'Files' },
-        { id: 'site_info', label: 'Site Information' },
     ];
 
     return (
@@ -3358,7 +3358,7 @@ const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
             case 'track_information':
                 return { tracks: [{ elr: '', track_id: '', isDesign: false }] };
             case 'non_track_works':
-                return { notes: '' };
+                return { title: 'Miscellaneous', notes: '' };
             default:
                 return {};
         }
@@ -3553,14 +3553,21 @@ const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
             site_mileage: 'Site Mileage',
             site_chainage: 'Site Chainage',
             track_information: 'Track Information',
-            non_track_works: 'Non-Track Works'
+            non_track_works: 'Miscellaneous'
+        };
+
+        const getSectionTitle = () => {
+            if (type === 'non_track_works' && data.title) {
+                return data.title;
+            }
+            return sectionTitles[type];
         };
 
         return (
             <div key={id} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{sectionTitles[type]}</h3>
+                        <h3 className="font-semibold">{getSectionTitle()}</h3>
                         {isEditing && (
                             <div className="flex items-center gap-1 ml-2">
                                 <button
@@ -4033,24 +4040,22 @@ const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
                         <div className="space-y-3">
                             {(data.tracks && data.tracks.length > 0) ? (
                                 data.tracks.map((track, index) => (
-                                    <div key={index} className="flex gap-3 items-start p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                                    <div key={index} className="grid grid-cols-[120px_1fr_auto] gap-3 items-start p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
                                         {isEditing ? (
                                             <>
-                                                <div className="flex-1 grid grid-cols-[1fr_2fr] gap-3">
-                                                    <Input
-                                                        label="ELR"
-                                                        value={track.elr || ''}
-                                                        onChange={(e) => updateTrackInSection(id, index, 'elr', e.target.value)}
-                                                        placeholder="ELR"
-                                                    />
-                                                    <Input
-                                                        label="Track ID"
-                                                        value={track.track_id || ''}
-                                                        onChange={(e) => updateTrackInSection(id, index, 'track_id', e.target.value)}
-                                                        placeholder="Track ID"
-                                                    />
-                                                </div>
-                                                <div className="flex items-center gap-2 pt-6 min-w-[100px] justify-center">
+                                                <Input
+                                                    label="ELR"
+                                                    value={track.elr || ''}
+                                                    onChange={(e) => updateTrackInSection(id, index, 'elr', e.target.value)}
+                                                    placeholder="ELR"
+                                                />
+                                                <Input
+                                                    label="Track ID"
+                                                    value={track.track_id || ''}
+                                                    onChange={(e) => updateTrackInSection(id, index, 'track_id', e.target.value)}
+                                                    placeholder="Track ID"
+                                                />
+                                                <div className="flex items-center gap-2 pt-[1.5rem]">
                                                     <label className="flex items-center gap-2 cursor-pointer">
                                                         <input
                                                             type="checkbox"
@@ -4071,17 +4076,15 @@ const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
                                                                                             )}                                                </div>
                                             </>
                                         ) : (
-                                            <div className="flex-1 flex justify-between items-center">
-                                                <div className="grid grid-cols-2 gap-8">
-                                                    <ReadOnlyField label="ELR" value={track.elr} />
-                                                    <ReadOnlyField label="Track ID" value={track.track_id} />
-                                                </div>
+                                            <>
+                                                <ReadOnlyField label="ELR" value={track.elr} />
+                                                <ReadOnlyField label="Track ID" value={track.track_id} />
                                                 {track.isDesign && (
                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 whitespace-nowrap">
                                                         Design Track
                                                     </span>
                                                 )}
-                                            </div>
+                                            </>
                                         )}
                                     </div>
                                 ))
@@ -4110,13 +4113,21 @@ const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
                 case 'non_track_works':
                     return (
                         <div className="space-y-3">
+                            {isEditing && (
+                                <Input
+                                    label="Section Title"
+                                    value={data.title ?? 'Miscellaneous'}
+                                    onChange={(e) => updateSectionData(id, 'title', e.target.value)}
+                                    placeholder="Enter section title..."
+                                />
+                            )}
                             {isEditing ? (
                                 <textarea
                                     value={data.notes || ''}
                                     onChange={(e) => updateSectionData(id, 'notes', e.target.value)}
                                     rows="4"
                                     className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                    placeholder="Enter details about non-track works..."
+                                    placeholder="Enter details..."
                                 />
                             ) : (
                                 <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
@@ -4227,13 +4238,13 @@ const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
                                     Add Section
                                 </Button>
                                 {isAddSectionMenuOpen && (
-                                    <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-2">
+                                    <div className="absolute left-0 md:right-0 md:left-auto mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-2">
                                         <button onClick={() => addSection('site_location')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Site Location</button>
                                         <button onClick={() => addSection('chainage_reference')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Chainage Reference</button>
                                         <button onClick={() => addSection('site_mileage')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Site Mileage</button>
                                         <button onClick={() => addSection('site_chainage')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Site Chainage</button>
                                         <button onClick={() => addSection('track_information')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Track Information</button>
-                                        <button onClick={() => addSection('non_track_works')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Non-Track Works</button>
+                                        <button onClick={() => addSection('non_track_works')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Miscellaneous</button>
                                     </div>
                                 )}
                             </div>
