@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link, ArrowUpDown, ArrowUp, ArrowDown, Trophy } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link, ArrowUpDown, ArrowUp, ArrowDown, Trophy, Image as ImageIcon } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -38,7 +38,7 @@ import PasswordChangePrompt from './components/PasswordChangePrompt';
 import CustomConfirmationModal from './components/ConfirmationModal';
 import AdminDocumentManager from './components/pages/AdminDocumentManager';
 import Chatbot from './components/Chatbot';
-import { Card, Input, Select, Button, Switch, Modal, ConfirmationModal, StatusBadge, Pagination } from './components/ui';
+import { Button, Input, ConfirmationModal, Select, Combobox } from './components/ui';
 import FileManagementSystem from './components/FileManagement/FileManagementSystem';
 import EquipmentPage from './components/Equipment/EquipmentPage';
 import VehiclesPage from './components/Vehicles/VehiclesPage';
@@ -2798,6 +2798,7 @@ const ProjectDetailPage = ({ project, onBack }) => {
         { id: 'overview', label: 'Overview' },
         { id: 'tasks', label: 'Tasks' },
         { id: 'files', label: 'Files' },
+        { id: 'site_info', label: 'Site Information' },
     ];
 
     return (
@@ -2825,6 +2826,7 @@ const ProjectDetailPage = ({ project, onBack }) => {
                 {activeTab === 'overview' && <ProjectOverview project={project} onUpdate={updateProject} canEdit={privileges.canEditProjects} />}
                 {activeTab === 'tasks' && <ProjectTasks project={project} canEdit={privileges.canEditProjects} />}
                 {activeTab === 'files' && <ProjectFiles projectId={project.id} />}
+                {activeTab === 'site_info' && <ProjectSiteInformation project={project} onUpdate={updateProject} canEdit={privileges.canEditProjects} />}
             </div>
         </div>
     );
@@ -3254,6 +3256,1027 @@ const ProjectFiles = ({ projectId }) => {
                 confirmText="Delete"
                 confirmVariant="danger"
             />
+        </div>
+    );
+};
+
+const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [formData, setFormData] = useState({
+        ...project,
+        site_info_sections: project.site_info_sections || [],
+        site_info_photos: project.site_info_photos || []
+    });
+    const [uploading, setUploading] = useState(false);
+    const [fullScreenImage, setFullScreenImage] = useState(null);
+    const [isAddSectionMenuOpen, setIsAddSectionMenuOpen] = useState(false);
+    const photoInputRefs = useRef({});
+
+    // Dropdown options state
+    const [chainageRefOptions, setChainageRefOptions] = useState([]);
+
+    useEffect(() => {
+        setFormData({
+            ...project,
+            site_info_sections: project.site_info_sections || [],
+            site_info_photos: project.site_info_photos || []
+        });
+    }, [project]);
+
+    // Fetch dropdown options for Chainage Reference
+    useEffect(() => {
+        const fetchChainageRefOptions = async () => {
+            try {
+                // First get the category ID
+                const { data: categoryData, error: categoryError } = await supabase
+                    .from('dropdown_categories')
+                    .select('id')
+                    .eq('name', 'chainage_reference') // Changed to lowercase matches DB
+                    .single();
+
+                if (categoryError || !categoryData) return;
+
+                // Then get the items
+                const { data: itemsData, error: itemsError } = await supabase
+                    .from('dropdown_items')
+                    .select('value') // Changed from label to value
+                    .eq('category_id', categoryData.id)
+                    .eq('is_active', true)
+                    .order('sort_order', { ascending: true });
+
+                if (itemsData) {
+                    setChainageRefOptions(itemsData.map(item => item.value));
+                }
+            } catch (error) {
+                console.error('Error fetching chainage reference options:', error);
+            }
+        };
+
+        fetchChainageRefOptions();
+    }, []);
+
+    const handleSave = () => {
+        onUpdate(formData);
+        setIsEditing(false);
+    };
+
+    // Section management
+    const addSection = (type) => {
+        const newSection = {
+            id: Date.now().toString(),
+            type,
+            order: formData.site_info_sections.length,
+            data: getSectionDefaultData(type)
+        };
+        setFormData(prev => ({
+            ...prev,
+            site_info_sections: [...prev.site_info_sections, newSection]
+        }));
+        setIsAddSectionMenuOpen(false);
+    };
+
+    const getSectionDefaultData = (type) => {
+        switch (type) {
+            case 'site_location':
+                return { postcode: '', google_maps_link: '', what3words_link: '' };
+            case 'chainage_reference':
+                return { datum_type: '', datum_miles: '', datum_yards: '', datum_km: '', datum_m: '' };
+            case 'site_mileage':
+                return { elr: '', start_miles: '', start_yards: '', end_miles: '', end_yards: '' };
+            case 'site_chainage':
+                return { elr: '', start_km: '', start_m: '', end_km: '', end_m: '' };
+            case 'track_information':
+                return { tracks: [{ elr: '', track_id: '', isDesign: false }] };
+            case 'non_track_works':
+                return { notes: '' };
+            default:
+                return {};
+        }
+    };
+
+    const removeSection = (sectionId) => {
+        setFormData(prev => ({
+            ...prev,
+            site_info_sections: prev.site_info_sections.filter(s => s.id !== sectionId)
+        }));
+    };
+
+    const moveSectionUp = (index) => {
+        if (index === 0) return;
+        const newSections = [...formData.site_info_sections];
+        [newSections[index - 1], newSections[index]] = [newSections[index], newSections[index - 1]];
+        setFormData(prev => ({ ...prev, site_info_sections: newSections }));
+    };
+
+    const moveSectionDown = (index) => {
+        if (index === formData.site_info_sections.length - 1) return;
+        const newSections = [...formData.site_info_sections];
+        [newSections[index + 1], newSections[index]] = [newSections[index], newSections[index + 1]];
+        setFormData(prev => ({ ...prev, site_info_sections: newSections }));
+    };
+
+    const updateSectionData = (sectionId, field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            site_info_sections: prev.site_info_sections.map(section =>
+                section.id === sectionId
+                    ? { ...section, data: { ...section.data, [field]: value } }
+                    : section
+            )
+        }));
+    };
+
+    // Track management within track_information sections
+    const addTrackToSection = (sectionId) => {
+        setFormData(prev => ({
+            ...prev,
+            site_info_sections: prev.site_info_sections.map(section =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        data: {
+                            ...section.data,
+                            tracks: [...(section.data.tracks || []), { elr: '', track_id: '', isDesign: false }]
+                        }
+                    }
+                    : section
+            )
+        }));
+    };
+
+    const removeTrackFromSection = (sectionId, trackIndex) => {
+        setFormData(prev => ({
+            ...prev,
+            site_info_sections: prev.site_info_sections.map(section =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        data: {
+                            ...section.data,
+                            tracks: section.data.tracks.filter((_, i) => i !== trackIndex)
+                        }
+                    }
+                    : section
+            )
+        }));
+    };
+
+    const updateTrackInSection = (sectionId, trackIndex, field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            site_info_sections: prev.site_info_sections.map(section =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        data: {
+                            ...section.data,
+                            tracks: section.data.tracks.map((track, i) =>
+                                i === trackIndex ? { ...track, [field]: value } : track
+                            )
+                        }
+                    }
+                    : section
+            )
+        }));
+    };
+
+    // Photo box management
+    const addPhotoBox = () => {
+        const newPhoto = {
+            id: Date.now().toString(),
+            title: `Photo ${formData.site_info_photos.length + 1}`,
+            url: '',
+            order: formData.site_info_photos.length
+        };
+        setFormData(prev => ({
+            ...prev,
+            site_info_photos: [...prev.site_info_photos, newPhoto]
+        }));
+    };
+
+    const removePhotoBox = async (photoId) => {
+        // Find the photo to see if we need to delete a file
+        const photoToRemove = formData.site_info_photos.find(p => p.id === photoId);
+        
+        if (photoToRemove && photoToRemove.url) {
+            try {
+                // Extract the file path from the URL
+                const urlParts = photoToRemove.url.split('/');
+                const fileName = urlParts[urlParts.length - 1];
+                const filePath = `site-info-photos/${fileName}`;
+                
+                const { error } = await supabase.storage
+                    .from('project-files')
+                    .remove([filePath]);
+                    
+                if (error) {
+                    console.error('Error deleting photo file:', error);
+                }
+            } catch (err) {
+                console.error('Exception deleting photo file:', err);
+            }
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            site_info_photos: prev.site_info_photos.filter(p => p.id !== photoId)
+        }));
+    };
+
+    const updatePhotoTitle = (photoId, title) => {
+        setFormData(prev => ({
+            ...prev,
+            site_info_photos: prev.site_info_photos.map(photo =>
+                photo.id === photoId ? { ...photo, title } : photo
+            )
+        }));
+    };
+
+    const handlePhotoUpload = async (event, photoId) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${project.id}_${photoId}_${Date.now()}.${fileExt}`;
+            const filePath = `site-info-photos/${fileName}`;
+
+            const { data, error } = await supabase.storage
+                .from('project-files')
+                .upload(filePath, file);
+
+            if (error) {
+                alert('Error uploading photo: ' + error.message);
+                return;
+            }
+
+            const { data: publicUrlData } = supabase.storage
+                .from('project-files')
+                .getPublicUrl(filePath);
+
+            setFormData(prev => ({
+                ...prev,
+                site_info_photos: prev.site_info_photos.map(photo =>
+                    photo.id === photoId ? { ...photo, url: publicUrlData.publicUrl } : photo
+                )
+            }));
+
+            alert('Photo uploaded successfully!');
+        } catch (error) {
+            console.error('Error uploading photo:', error);
+            alert('Error uploading photo');
+        } finally {
+            setUploading(false);
+            if (photoInputRefs.current[photoId]) {
+                photoInputRefs.current[photoId].value = '';
+            }
+        }
+    };
+
+    const renderSection = (section, index) => {
+        const { id, type, data } = section;
+
+        const sectionTitles = {
+            site_location: 'Site Location',
+            chainage_reference: 'Chainage Reference',
+            site_mileage: 'Site Mileage',
+            site_chainage: 'Site Chainage',
+            track_information: 'Track Information',
+            non_track_works: 'Non-Track Works'
+        };
+
+        return (
+            <div key={id} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{sectionTitles[type]}</h3>
+                        {isEditing && (
+                            <div className="flex items-center gap-1 ml-2">
+                                <button
+                                    onClick={() => moveSectionUp(index)}
+                                    disabled={index === 0}
+                                    className={`p-1 rounded-full ${index === 0 ? 'text-gray-300 dark:text-gray-600' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-orange-500'}`}
+                                    title="Move Up"
+                                >
+                                    <ArrowUp size={16} />
+                                </button>
+                                <button
+                                    onClick={() => moveSectionDown(index)}
+                                    disabled={index === formData.site_info_sections.length - 1}
+                                    className={`p-1 rounded-full ${index === formData.site_info_sections.length - 1 ? 'text-gray-300 dark:text-gray-600' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-orange-500'}`}
+                                    title="Move Down"
+                                >
+                                    <ArrowDown size={16} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    {isEditing && (
+                        <button
+                            onClick={() => removeSection(id)}
+                            className="text-red-500 hover:text-red-700"
+                            title="Remove section"
+                        >
+                            <Trash2 size={18} />
+                        </button>
+                    )}
+                </div>
+                {renderSectionContent(section)}
+            </div>
+        );
+    };
+
+    const convertDatumValues = (sectionId, direction) => {
+        setFormData(prev => ({
+            ...prev,
+            site_info_sections: prev.site_info_sections.map(section => {
+                if (section.id !== sectionId) return section;
+
+                const { datum_miles, datum_yards, datum_km, datum_m } = section.data;
+                let newData = { ...section.data };
+
+                if (direction === 'to_km') {
+                    // Convert Miles/Yards to Km/M
+                    const totalYards = (parseFloat(datum_miles) || 0) * 1760 + (parseFloat(datum_yards) || 0);
+                    const totalMeters = totalYards * 0.9144;
+                    newData.datum_km = Math.floor(totalMeters / 1000).toString();
+                    newData.datum_m = Math.round(totalMeters % 1000).toString();
+                } else {
+                    // Convert Km/M to Miles/Yards
+                    const totalMeters = (parseFloat(datum_km) || 0) * 1000 + (parseFloat(datum_m) || 0);
+                    const totalYards = totalMeters * 1.09361;
+                    newData.datum_miles = Math.floor(totalYards / 1760).toString();
+                    newData.datum_yards = Math.round(totalYards % 1760).toString();
+                }
+
+                return { ...section, data: newData };
+            })
+        }));
+    };
+
+    const convertChainageToMileage = (sectionId) => {
+        // Find the first site_chainage section to use as source
+        const chainageSection = formData.site_info_sections.find(s => s.type === 'site_chainage');
+        
+        if (!chainageSection) {
+            alert('No Site Chainage section found to convert from.');
+            return;
+        }
+        
+        const { start_km, start_m, end_km, end_m, elr } = chainageSection.data;
+        
+        // Helper to convert km.m to yards
+        const convertToYards = (km, m) => {
+            const totalMeters = (parseFloat(km) || 0) * 1000 + (parseFloat(m) || 0);
+            return totalMeters * 1.09361;
+        };
+        
+        const startTotalYards = convertToYards(start_km, start_m);
+        const endTotalYards = convertToYards(end_km, end_m);
+        
+        const newData = {
+            elr: elr || '',
+            start_miles: Math.floor(startTotalYards / 1760).toString(),
+            start_yards: Math.round(startTotalYards % 1760).toString(),
+            end_miles: Math.floor(endTotalYards / 1760).toString(),
+            end_yards: Math.round(endTotalYards % 1760).toString()
+        };
+        
+        setFormData(prev => ({
+            ...prev,
+            site_info_sections: prev.site_info_sections.map(section =>
+                section.id === sectionId
+                    ? { ...section, data: newData }
+                    : section
+            )
+        }));
+    };
+
+    const convertMileageToChainage = (sectionId) => {
+        // Find the first site_mileage section to use as source
+        const mileageSection = formData.site_info_sections.find(s => s.type === 'site_mileage');
+        
+        if (!mileageSection) {
+            alert('No Site Mileage section found to convert from.');
+            return;
+        }
+        
+        const { start_miles, start_yards, end_miles, end_yards, elr } = mileageSection.data;
+        
+        // Helper to convert miles.yards to meters
+        const convertToMeters = (miles, yards) => {
+            const totalYards = (parseFloat(miles) || 0) * 1760 + (parseFloat(yards) || 0);
+            return totalYards * 0.9144;
+        };
+        
+        const startMeters = convertToMeters(start_miles, start_yards);
+        const endMeters = convertToMeters(end_miles, end_yards);
+        
+        const newData = {
+            elr: elr || '',
+            start_km: Math.floor(startMeters / 1000).toString(),
+            start_m: Math.round(startMeters % 1000).toString(),
+            end_km: Math.floor(endMeters / 1000).toString(),
+            end_m: Math.round(endMeters % 1000).toString()
+        };
+        
+        setFormData(prev => ({
+            ...prev,
+            site_info_sections: prev.site_info_sections.map(section =>
+                section.id === sectionId
+                    ? { ...section, data: newData }
+                    : section
+            )
+        }));
+    };
+
+    const renderSectionContent = (section) => {
+        const { id, type, data } = section;
+
+        switch (type) {
+            case 'site_location':
+                return (
+                    <div className="space-y-3">
+                        <div className="flex flex-col">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Postcode</label>
+                            <Input
+                                value={data.postcode || ''}
+                                onChange={(e) => updateSectionData(id, 'postcode', e.target.value)}
+                                disabled={!isEditing}
+                            />
+                        </div>
+                        <div className="flex flex-col">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Google Maps Link</label>
+                            <Input
+                                value={data.google_maps_link || ''}
+                                onChange={(e) => updateSectionData(id, 'google_maps_link', e.target.value)}
+                                disabled={!isEditing}
+                                placeholder="https://maps.google.com/..."
+                            />
+                        </div>
+                        <div className="flex flex-col">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">What3Words Link</label>
+                            <Input
+                                value={data.what3words_link || ''}
+                                onChange={(e) => updateSectionData(id, 'what3words_link', e.target.value)}
+                                disabled={!isEditing}
+                                placeholder="https://w3w.co/..."
+                            />
+                        </div>
+                    </div>
+                );
+
+            case 'chainage_reference':
+                return (
+                    <div className="space-y-4">
+                        <div className="flex flex-col">
+                            <Combobox
+                                label="Datum Type"
+                                value={data.datum_type || ''}
+                                onChange={(e) => updateSectionData(id, 'datum_type', e.target.value)}
+                                options={chainageRefOptions}
+                                disabled={!isEditing}
+                                placeholder="Select or type..."
+                            />
+                        </div>
+                        
+                        {/* Miles / Yards Input */}
+                        <div className="flex flex-col space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Datum Value (Miles / Yards)</label>
+                                {isEditing && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => convertDatumValues(id, 'to_miles')}
+                                        title="Convert Km/M to Miles/Yards"
+                                        className="h-6 px-2 text-xs"
+                                    >
+                                        <ArrowUp size={12} className="mr-1" />
+                                        Convert to Miles/Yards
+                                    </Button>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.datum_miles || ''}
+                                            onChange={(e) => updateSectionData(id, 'datum_miles', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Miles"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">mi</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.datum_yards || ''}
+                                            onChange={(e) => updateSectionData(id, 'datum_yards', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Yards"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">yds</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Km / M Input */}
+                        <div className="flex flex-col space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Datum Value (Km / Meters)</label>
+                                {isEditing && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => convertDatumValues(id, 'to_km')}
+                                        title="Convert Miles/Yards to Km/M"
+                                        className="h-6 px-2 text-xs"
+                                    >
+                                        <ArrowDown size={12} className="mr-1" />
+                                        Convert to Km/M
+                                    </Button>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.datum_km || ''}
+                                            onChange={(e) => updateSectionData(id, 'datum_km', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Km"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">km</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.datum_m || ''}
+                                            onChange={(e) => updateSectionData(id, 'datum_m', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Meters"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">m</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+            case 'site_mileage':
+                return (
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-start">
+                            <div className="flex-1 mr-4">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">ELR</label>
+                                <Input
+                                    value={data.elr || ''}
+                                    onChange={(e) => updateSectionData(id, 'elr', e.target.value)}
+                                    disabled={!isEditing}
+                                />
+                            </div>
+                            {isEditing && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => convertChainageToMileage(id)}
+                                    className="mt-6"
+                                    title="Convert values from Site Chainage section"
+                                >
+                                    <RefreshCw size={14} className="mr-2" />
+                                    Convert from Chainage
+                                </Button>
+                            )}
+                        </div>
+                        
+                        <div className="flex flex-col space-y-2">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Mileage</label>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.start_miles || ''}
+                                            onChange={(e) => updateSectionData(id, 'start_miles', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Miles"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">mi</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.start_yards || ''}
+                                            onChange={(e) => updateSectionData(id, 'start_yards', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Yards"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">yds</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col space-y-2">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">End Mileage</label>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.end_miles || ''}
+                                            onChange={(e) => updateSectionData(id, 'end_miles', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Miles"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">mi</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.end_yards || ''}
+                                            onChange={(e) => updateSectionData(id, 'end_yards', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Yards"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">yds</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+            case 'site_chainage':
+                return (
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-start">
+                            <div className="flex-1 mr-4">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">ELR</label>
+                                <Input
+                                    value={data.elr || ''}
+                                    onChange={(e) => updateSectionData(id, 'elr', e.target.value)}
+                                    disabled={!isEditing}
+                                />
+                            </div>
+                            {isEditing && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => convertMileageToChainage(id)}
+                                    className="mt-6"
+                                    title="Convert values from Site Mileage section"
+                                >
+                                    <RefreshCw size={14} className="mr-2" />
+                                    Convert from Mileage
+                                </Button>
+                            )}
+                        </div>
+
+                        <div className="flex flex-col space-y-2">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Chainage</label>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.start_km || ''}
+                                            onChange={(e) => updateSectionData(id, 'start_km', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Km"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">km</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.start_m || ''}
+                                            onChange={(e) => updateSectionData(id, 'start_m', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Meters"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">m</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col space-y-2">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">End Chainage</label>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.end_km || ''}
+                                            onChange={(e) => updateSectionData(id, 'end_km', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Km"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">km</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <div className="relative">
+                                        <Input
+                                            value={data.end_m || ''}
+                                            onChange={(e) => updateSectionData(id, 'end_m', e.target.value)}
+                                            disabled={!isEditing}
+                                            placeholder="Meters"
+                                            className="pr-12"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">m</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+            case 'track_information':
+                return (
+                    <div className="space-y-3">
+                        {(data.tracks && data.tracks.length > 0) ? (
+                            data.tracks.map((track, index) => (
+                                <div key={index} className="flex gap-3 items-start p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                                <div className="flex-1 grid grid-cols-[1fr_2fr] gap-3">
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">
+                                                ELR
+                                            </label>
+                                            <Input
+                                                value={track.elr || ''}
+                                                onChange={(e) => updateTrackInSection(id, index, 'elr', e.target.value)}
+                                                disabled={!isEditing}
+                                                placeholder="ELR"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">
+                                                Track ID
+                                            </label>
+                                            <Input
+                                                value={track.track_id || ''}
+                                                onChange={(e) => updateTrackInSection(id, index, 'track_id', e.target.value)}
+                                                disabled={!isEditing}
+                                                placeholder="Track ID"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 pt-6 min-w-[100px] justify-center">
+                                        {isEditing ? (
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={track.isDesign || false}
+                                                    onChange={(e) => updateTrackInSection(id, index, 'isDesign', e.target.checked)}
+                                                    className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-700"
+                                                />
+                                                <span className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                                    Design Track
+                                                </span>
+                                            </label>
+                                        ) : (
+                                            track.isDesign && (
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 whitespace-nowrap">
+                                                    Design Track
+                                                </span>
+                                            )
+                                        )}
+                                        {isEditing && (
+                                            <button
+                                                onClick={() => removeTrackFromSection(id, index)}
+                                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                                                title="Remove track"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+                                <p className="text-sm">No tracks added yet.</p>
+                                {isEditing && (
+                                    <p className="text-xs mt-1">Click "Add Track" to get started.</p>
+                                )}
+                            </div>
+                        )}
+                        {isEditing && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => addTrackToSection(id)}
+                                className="w-full"
+                            >
+                                <PlusCircle size={16} className="mr-2" />
+                                Add Track
+                            </Button>
+                        )}
+                    </div>
+                );
+
+            case 'non_track_works':
+                return (
+                    <div className="space-y-3">
+                        {isEditing ? (
+                            <textarea
+                                value={data.notes || ''}
+                                onChange={(e) => updateSectionData(id, 'notes', e.target.value)}
+                                rows="4"
+                                className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                placeholder="Enter details about non-track works..."
+                            />
+                        ) : (
+                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                {data.notes || 'No information added.'}
+                            </p>
+                        )}
+                    </div>
+                );
+
+            default:
+                return null;
+        }
+    };
+
+    const renderPhotoBox = (photo) => {
+        return (
+            <div key={photo.id} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+                {isEditing ? (
+                    <div className="flex justify-between items-center mb-4">
+                        <Input
+                            value={photo.title}
+                            onChange={(e) => updatePhotoTitle(photo.id, e.target.value)}
+                            className="font-semibold flex-1 mr-2"
+                        />
+                        <button
+                            onClick={() => removePhotoBox(photo.id)}
+                            className="text-red-500 hover:text-red-700"
+                            title="Remove photo box"
+                        >
+                            <Trash2 size={18} />
+                        </button>
+                    </div>
+                ) : (
+                    <h3 className="font-semibold mb-4">{photo.title}</h3>
+                )}
+                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 flex flex-col items-center justify-center min-h-[300px] relative bg-gray-50 dark:bg-gray-900">
+                    {photo.url ? (
+                        <div
+                            className="relative w-full cursor-pointer group"
+                            onClick={() => setFullScreenImage({ url: photo.url, title: photo.title })}
+                        >
+                            <img
+                                src={photo.url}
+                                alt={photo.title}
+                                className="w-full h-auto max-h-[280px] object-contain rounded-md block"
+                            />
+                            <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-30 transition-opacity duration-200 rounded-md flex items-center justify-center">
+                                <Eye className="text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" size={32} />
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center text-gray-400">
+                            <ImageIcon size={48} className="mx-auto mb-2 opacity-50" />
+                            <p>No photo inserted</p>
+                        </div>
+                    )}
+                    {canEdit && (
+                        <div className="absolute top-4 right-4 z-10">
+                            <input
+                                ref={(el) => (photoInputRefs.current[photo.id] = el)}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handlePhotoUpload(e, photo.id)}
+                                disabled={uploading}
+                            />
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    photoInputRefs.current[photo.id]?.click();
+                                }}
+                                disabled={uploading}
+                            >
+                                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                                <span className="ml-2">{photo.url ? 'Change' : 'Upload'}</span>
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="space-y-6">
+            {canEdit && (
+                <div className="flex flex-wrap justify-between items-end gap-2 mb-4">
+                    <div className="flex gap-2">
+                        {isEditing ? (
+                            <>
+                                <Button variant="outline" onClick={() => { setIsEditing(false); setFormData({...project, site_info_sections: project.site_info_sections || [], site_info_photos: project.site_info_photos || []}); }}>Cancel</Button>
+                                <Button onClick={handleSave}>Save Changes</Button>
+                            </>
+                        ) : (
+                            <Button variant="outline" onClick={() => setIsEditing(true)}>Edit Information</Button>
+                        )}
+                    </div>
+
+                    {isEditing && (
+                        <div className="flex gap-2 items-center">
+                            <div className="relative">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsAddSectionMenuOpen(!isAddSectionMenuOpen)}
+                                >
+                                    <PlusCircle size={16} className="mr-2" />
+                                    Add Section
+                                </Button>
+                                {isAddSectionMenuOpen && (
+                                    <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 p-2">
+                                        <button onClick={() => addSection('site_location')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Site Location</button>
+                                        <button onClick={() => addSection('chainage_reference')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Chainage Reference</button>
+                                        <button onClick={() => addSection('site_mileage')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Site Mileage</button>
+                                        <button onClick={() => addSection('site_chainage')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Site Chainage</button>
+                                        <button onClick={() => addSection('track_information')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Track Information</button>
+                                        <button onClick={() => addSection('non_track_works')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">Non-Track Works</button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <Button
+                                variant="outline"
+                                onClick={addPhotoBox}
+                            >
+                                <PlusCircle size={16} className="mr-2" />
+                                Add Photo Box
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Sections */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {formData.site_info_sections.map((section, index) => renderSection(section, index))}
+
+                {formData.site_info_sections.length === 0 && !isEditing && (
+                    <div className="col-span-full text-center py-12 text-gray-400 dark:text-gray-500">
+                        <p>No sections added yet.</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Photos */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {formData.site_info_photos.map(photo => renderPhotoBox(photo))}
+            </div>
+
+            {/* Full Screen Image Modal */}
+            {fullScreenImage && (
+                <div
+                    className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4"
+                    onClick={() => setFullScreenImage(null)}
+                >
+                    <button
+                        onClick={() => setFullScreenImage(null)}
+                        className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
+                        title="Close"
+                    >
+                        <X size={32} />
+                    </button>
+                    <div className="relative max-w-7xl max-h-[90vh] w-full h-full flex flex-col items-center justify-center">
+                        <h2 className="text-white text-xl font-semibold mb-4">{fullScreenImage.title}</h2>
+                        <img
+                            src={fullScreenImage.url}
+                            alt={fullScreenImage.title}
+                            className="max-w-full max-h-full object-contain rounded-lg"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

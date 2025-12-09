@@ -80,12 +80,13 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
 };
 
 // Input Component
-export const Input = ({ label, disabled, className, ...props }) => (
+export const Input = ({ label, disabled, className, list, ...props }) => (
     <div>
         {label && <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>}
         <input
             {...props}
             disabled={disabled}
+            list={list}
             className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${
                 disabled
                     ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-500 dark:text-gray-400 cursor-not-allowed'
