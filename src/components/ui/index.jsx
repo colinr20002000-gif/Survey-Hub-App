@@ -79,6 +79,16 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
     );
 };
 
+// ReadOnlyField Component
+export const ReadOnlyField = ({ label, value, className }) => (
+    <div className={className}>
+        {label && <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</label>}
+        <div className="text-sm font-medium text-gray-900 dark:text-white min-h-[20px]">
+            {value || '-'}
+        </div>
+    </div>
+);
+
 // Input Component
 export const Input = ({ label, disabled, className, list, ...props }) => (
     <div>

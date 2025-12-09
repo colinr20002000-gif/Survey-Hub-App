@@ -13,7 +13,7 @@ const ProjectDetailPage = ({ project, onBack }) => {
     const { user } = useAuth();
     // Assuming userPrivileges is available or imported. If not, we might need to adjust.
     // In App.jsx it was using a local object. We should probably use usePermissions hook instead for better consistency.
-    const { canEditProjects } = usePermissions();
+    const { canEditProjects, canEditSiteInformation } = usePermissions();
 
     const tabs = [
         { id: 'overview', label: 'Overview' },
@@ -47,7 +47,7 @@ const ProjectDetailPage = ({ project, onBack }) => {
                 {activeTab === 'overview' && <ProjectOverview project={project} onUpdate={updateProject} canEdit={canEditProjects} />}
                 {activeTab === 'tasks' && <ProjectTasks project={project} canEdit={canEditProjects} />}
                 {activeTab === 'files' && <ProjectFiles projectId={project.id} />}
-                {activeTab === 'site_info' && <ProjectSiteInformation project={project} onUpdate={updateProject} canEdit={canEditProjects} />}
+                {activeTab === 'site_info' && <ProjectSiteInformation project={project} onUpdate={updateProject} canEdit={canEditSiteInformation} />}
             </div>
         </div>
     );

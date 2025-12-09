@@ -14,6 +14,32 @@ import ConfirmationModal from '../../ConfirmationModal';
 
 const PRIVILEGE_LEVELS = ['Viewer', 'Viewer+', 'Editor', 'Editor+', 'Admin', 'Super Admin'];
 
+const CATEGORY_DISPLAY_ORDER = [
+    'View Access',
+    'Settings',
+    'Admin',
+    'Projects',
+    'Announcements',
+    'Resource - Resource Calendar',
+    'Resource - To Do List',
+    'Resource - Close Calls',
+    'Resource - Media',
+    'Equipment - Calendar',
+    'Equipment - Assignments',
+    'Equipment - Register',
+    'Equipment - Check & Adjust',
+    'Vehicles - Vehicle Management',
+    'Vehicles - Vehicle Inspection',
+    'Delivery - To Do List',
+    'Training Centre - Document Hub',
+    'Contact Details - On-Call Contacts',
+    'Contact Details - Subcontractors',
+    'Contact Details - Useful Contacts',
+    'Analytics - Project Logs',
+    'Analytics - AFV',
+    'Leaderboard'
+];
+
 /**
  * PrivilegeOverviewPage - Main privilege permission management interface
  */
@@ -421,17 +447,19 @@ const PrivilegeOverviewPage = () => {
                                 </p>
                             </div>
                         ) : (
-                            Object.keys(filteredPermissions).map((category) => (
-                                <PermissionCard
-                                    key={category}
-                                    category={category}
-                                    permissions={filteredPermissions[category]}
-                                    modifiedPermissions={modifiedPermissions}
-                                    isEditing={isEditing}
-                                    onTogglePermission={handleTogglePermission}
-                                    onBulkToggle={handleBulkToggleCategory}
-                                />
-                            ))
+                            CATEGORY_DISPLAY_ORDER
+                                .filter(categoryName => filteredPermissions[categoryName]) // Only show categories that have permissions
+                                .map((category) => (
+                                    <PermissionCard
+                                        key={category}
+                                        category={category}
+                                        permissions={filteredPermissions[category]}
+                                        modifiedPermissions={modifiedPermissions}
+                                        isEditing={isEditing}
+                                        onTogglePermission={handleTogglePermission}
+                                        onBulkToggle={handleBulkToggleCategory}
+                                    />
+                                ))
                         )}
                     </div>
                 )}

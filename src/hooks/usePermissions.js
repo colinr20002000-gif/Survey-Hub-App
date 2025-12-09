@@ -102,6 +102,7 @@ export const usePermissions = () => {
             canCreateProjects: can('CREATE_PROJECTS'),
             canEditProjects: can('EDIT_PROJECTS'),
             canDeleteProjects: can('DELETE_PROJECTS'),
+            canEditSiteInformation: can('EDIT_SITE_INFORMATION'),
 
             canCompleteTasks: can('COMPLETE_PROJECT_TASKS'),
             canCreateTasks: can('CREATE_TASKS'),

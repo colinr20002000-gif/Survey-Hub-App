@@ -38,7 +38,7 @@ import PasswordChangePrompt from './components/PasswordChangePrompt';
 import CustomConfirmationModal from './components/ConfirmationModal';
 import AdminDocumentManager from './components/pages/AdminDocumentManager';
 import Chatbot from './components/Chatbot';
-import { Button, Input, ConfirmationModal, Select, Combobox } from './components/ui';
+import { Button, Input, ConfirmationModal, Select, Combobox, ReadOnlyField } from './components/ui';
 import FileManagementSystem from './components/FileManagement/FileManagementSystem';
 import EquipmentPage from './components/Equipment/EquipmentPage';
 import VehiclesPage from './components/Vehicles/VehiclesPage';
@@ -93,6 +93,7 @@ const userPrivileges = {
     'Viewer': {
         level: 0,
         canEditProjects: false,
+        canEditSiteInformation: false,
         canViewAssignedTasks: false,
         canViewUserAdmin: false,
         canEditUserAdmin: false,
@@ -102,6 +103,7 @@ const userPrivileges = {
     'Viewer+': {
         level: 0.5,
         canEditProjects: false,
+        canEditSiteInformation: false,
         canViewAssignedTasks: true,
         canViewUserAdmin: false,
         canEditUserAdmin: false,
@@ -111,6 +113,7 @@ const userPrivileges = {
     'Editor': {
         level: 1,
         canEditProjects: true,
+        canEditSiteInformation: true,
         canViewAssignedTasks: false,
         canViewUserAdmin: false,
         canEditUserAdmin: false,
@@ -120,6 +123,7 @@ const userPrivileges = {
     'Editor+': {
         level: 1.5,
         canEditProjects: true,
+        canEditSiteInformation: true,
         canViewAssignedTasks: true,
         canViewUserAdmin: false,
         canEditUserAdmin: false,
@@ -129,6 +133,7 @@ const userPrivileges = {
     'Subcontractor': {
         level: 2,
         canEditProjects: false,
+        canEditSiteInformation: false,
         canViewAssignedTasks: false,
         canViewUserAdmin: false,
         canEditUserAdmin: false,
@@ -138,6 +143,7 @@ const userPrivileges = {
     'Site Staff': {
         level: 3,
         canEditProjects: true,
+        canEditSiteInformation: true,
         canViewAssignedTasks: false,
         canViewUserAdmin: false,
         canEditUserAdmin: false,
@@ -147,6 +153,7 @@ const userPrivileges = {
     'Office Staff': {
         level: 4,
         canEditProjects: true,
+        canEditSiteInformation: true,
         canViewAssignedTasks: true,
         canViewUserAdmin: true,
         canEditUserAdmin: false,
@@ -156,6 +163,7 @@ const userPrivileges = {
     'Delivery Surveyors': {
         level: 4,
         canEditProjects: true,
+        canEditSiteInformation: true,
         canViewAssignedTasks: true,
         canViewUserAdmin: true,
         canEditUserAdmin: false,
@@ -165,6 +173,7 @@ const userPrivileges = {
     'Project Managers': {
         level: 4,
         canEditProjects: true,
+        canEditSiteInformation: true,
         canViewAssignedTasks: true,
         canViewUserAdmin: true,
         canEditUserAdmin: false,
@@ -174,6 +183,7 @@ const userPrivileges = {
     'Admin': {
         level: 5,
         canEditProjects: true,
+        canEditSiteInformation: true,
         canViewAssignedTasks: true,
         canViewUserAdmin: true,
         canEditUserAdmin: true,
@@ -2826,7 +2836,7 @@ const ProjectDetailPage = ({ project, onBack }) => {
                 {activeTab === 'overview' && <ProjectOverview project={project} onUpdate={updateProject} canEdit={privileges.canEditProjects} />}
                 {activeTab === 'tasks' && <ProjectTasks project={project} canEdit={privileges.canEditProjects} />}
                 {activeTab === 'files' && <ProjectFiles projectId={project.id} />}
-                {activeTab === 'site_info' && <ProjectSiteInformation project={project} onUpdate={updateProject} canEdit={privileges.canEditProjects} />}
+                {activeTab === 'site_info' && <ProjectSiteInformation project={project} onUpdate={updateProject} canEdit={privileges.canEditSiteInformation} />}
             </div>
         </div>
     );
@@ -3601,7 +3611,7 @@ const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
                     const totalYards = (parseFloat(datum_miles) || 0) * 1760 + (parseFloat(datum_yards) || 0);
                     const totalMeters = totalYards * 0.9144;
                     newData.datum_km = Math.floor(totalMeters / 1000).toString();
-                    newData.datum_m = Math.round(totalMeters % 1000).toString();
+                    newData.datum_m = (totalMeters % 1000).toFixed(3).toString();
                 } else {
                     // Convert Km/M to Miles/Yards
                     const totalMeters = (parseFloat(datum_km) || 0) * 1000 + (parseFloat(datum_m) || 0);
@@ -3691,432 +3701,435 @@ const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
         }));
     };
 
-    const renderSectionContent = (section) => {
-        const { id, type, data } = section;
-
-        switch (type) {
-            case 'site_location':
-                return (
-                    <div className="space-y-3">
-                        <div className="flex flex-col">
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Postcode</label>
-                            <Input
-                                value={data.postcode || ''}
-                                onChange={(e) => updateSectionData(id, 'postcode', e.target.value)}
-                                disabled={!isEditing}
-                            />
-                        </div>
-                        <div className="flex flex-col">
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Google Maps Link</label>
-                            <Input
-                                value={data.google_maps_link || ''}
-                                onChange={(e) => updateSectionData(id, 'google_maps_link', e.target.value)}
-                                disabled={!isEditing}
-                                placeholder="https://maps.google.com/..."
-                            />
-                        </div>
-                        <div className="flex flex-col">
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">What3Words Link</label>
-                            <Input
-                                value={data.what3words_link || ''}
-                                onChange={(e) => updateSectionData(id, 'what3words_link', e.target.value)}
-                                disabled={!isEditing}
-                                placeholder="https://w3w.co/..."
-                            />
-                        </div>
-                    </div>
-                );
-
-            case 'chainage_reference':
-                return (
-                    <div className="space-y-4">
-                        <div className="flex flex-col">
-                            <Combobox
-                                label="Datum Type"
-                                value={data.datum_type || ''}
-                                onChange={(e) => updateSectionData(id, 'datum_type', e.target.value)}
-                                options={chainageRefOptions}
-                                disabled={!isEditing}
-                                placeholder="Select or type..."
-                            />
-                        </div>
-                        
-                        {/* Miles / Yards Input */}
-                        <div className="flex flex-col space-y-2">
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Datum Value (Miles / Yards)</label>
-                                {isEditing && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => convertDatumValues(id, 'to_miles')}
-                                        title="Convert Km/M to Miles/Yards"
-                                        className="h-6 px-2 text-xs"
-                                    >
-                                        <ArrowUp size={12} className="mr-1" />
-                                        Convert to Miles/Yards
-                                    </Button>
-                                )}
-                            </div>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.datum_miles || ''}
-                                            onChange={(e) => updateSectionData(id, 'datum_miles', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Miles"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">mi</span>
-                                    </div>
-                                </div>
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.datum_yards || ''}
-                                            onChange={(e) => updateSectionData(id, 'datum_yards', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Yards"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">yds</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Km / M Input */}
-                        <div className="flex flex-col space-y-2">
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Datum Value (Km / Meters)</label>
-                                {isEditing && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => convertDatumValues(id, 'to_km')}
-                                        title="Convert Miles/Yards to Km/M"
-                                        className="h-6 px-2 text-xs"
-                                    >
-                                        <ArrowDown size={12} className="mr-1" />
-                                        Convert to Km/M
-                                    </Button>
-                                )}
-                            </div>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.datum_km || ''}
-                                            onChange={(e) => updateSectionData(id, 'datum_km', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Km"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">km</span>
-                                    </div>
-                                </div>
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.datum_m || ''}
-                                            onChange={(e) => updateSectionData(id, 'datum_m', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Meters"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">m</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-
-            case 'site_mileage':
-                return (
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-start">
-                            <div className="flex-1 mr-4">
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">ELR</label>
-                                <Input
-                                    value={data.elr || ''}
-                                    onChange={(e) => updateSectionData(id, 'elr', e.target.value)}
-                                    disabled={!isEditing}
-                                />
-                            </div>
-                            {isEditing && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => convertChainageToMileage(id)}
-                                    className="mt-6"
-                                    title="Convert values from Site Chainage section"
-                                >
-                                    <RefreshCw size={14} className="mr-2" />
-                                    Convert from Chainage
-                                </Button>
+            const renderSectionContent = (section) => {
+                const { id, type, data } = section;
+        
+                // Helper to format meters with leading zeros and 3 decimal places
+                        const formatMeters = (value) => {
+                            if (value === null || value === undefined || value === '') return '';
+                            const num = parseFloat(value);
+                            if (isNaN(num)) return value; // Return as-is if not a valid number
+                
+                            // Round to nearest whole number for zero decimal places
+                            const integerPart = Math.round(num).toString();
+                            
+                            // Pad integer part to 3 digits
+                            const formattedInteger = integerPart.padStart(3, '0');
+                            
+                            return formattedInteger;
+                        };                    
+                            // Helper to format kilometers to zero decimal places
+                            const formatKilometers = (value) => {
+                                if (value === null || value === undefined || value === '') return '';
+                                const num = parseFloat(value);
+                                if (isNaN(num)) return value; // Return as-is if not a valid number
+                                return Math.floor(num).toString(); // Return integer part
+                            };
+                                switch (type) {
+                case 'site_location':
+                    return (
+                        <div className="space-y-3">
+                            {isEditing ? (
+                                <>
+                                    <Input
+                                        label="Postcode"
+                                        value={data.postcode || ''}
+                                        onChange={(e) => updateSectionData(id, 'postcode', e.target.value)}
+                                    />
+                                    <Input
+                                        label="Google Maps Link"
+                                        value={data.google_maps_link || ''}
+                                        onChange={(e) => updateSectionData(id, 'google_maps_link', e.target.value)}
+                                        placeholder="https://maps.google.com/..."
+                                    />
+                                    <Input
+                                        label="What3Words Link"
+                                        value={data.what3words_link || ''}
+                                        onChange={(e) => updateSectionData(id, 'what3words_link', e.target.value)}
+                                        placeholder="https://w3w.co/..."
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <ReadOnlyField label="Postcode" value={data.postcode} />
+                                    {data.google_maps_link && (
+                                        <div className="text-sm">
+                                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Google Maps</label>
+                                            <a href={data.google_maps_link} target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:underline">View Map</a>
+                                        </div>
+                                    )}
+                                    {data.what3words_link && (
+                                        <div className="text-sm">
+                                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">What3Words</label>
+                                            <a href={data.what3words_link} target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:underline">View Location</a>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
-                        
-                        <div className="flex flex-col space-y-2">
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Mileage</label>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.start_miles || ''}
-                                            onChange={(e) => updateSectionData(id, 'start_miles', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Miles"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">mi</span>
-                                    </div>
-                                </div>
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.start_yards || ''}
-                                            onChange={(e) => updateSectionData(id, 'start_yards', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Yards"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">yds</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col space-y-2">
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">End Mileage</label>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.end_miles || ''}
-                                            onChange={(e) => updateSectionData(id, 'end_miles', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Miles"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">mi</span>
-                                    </div>
-                                </div>
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.end_yards || ''}
-                                            onChange={(e) => updateSectionData(id, 'end_yards', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Yards"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">yds</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-
-            case 'site_chainage':
-                return (
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-start">
-                            <div className="flex-1 mr-4">
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">ELR</label>
-                                <Input
-                                    value={data.elr || ''}
-                                    onChange={(e) => updateSectionData(id, 'elr', e.target.value)}
-                                    disabled={!isEditing}
-                                />
-                            </div>
-                            {isEditing && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => convertMileageToChainage(id)}
-                                    className="mt-6"
-                                    title="Convert values from Site Mileage section"
-                                >
-                                    <RefreshCw size={14} className="mr-2" />
-                                    Convert from Mileage
-                                </Button>
-                            )}
-                        </div>
-
-                        <div className="flex flex-col space-y-2">
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Chainage</label>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.start_km || ''}
-                                            onChange={(e) => updateSectionData(id, 'start_km', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Km"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">km</span>
-                                    </div>
-                                </div>
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.start_m || ''}
-                                            onChange={(e) => updateSectionData(id, 'start_m', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Meters"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">m</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col space-y-2">
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">End Chainage</label>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.end_km || ''}
-                                            onChange={(e) => updateSectionData(id, 'end_km', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Km"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">km</span>
-                                    </div>
-                                </div>
-                                <div className="flex-1">
-                                    <div className="relative">
-                                        <Input
-                                            value={data.end_m || ''}
-                                            onChange={(e) => updateSectionData(id, 'end_m', e.target.value)}
-                                            disabled={!isEditing}
-                                            placeholder="Meters"
-                                            className="pr-12"
-                                        />
-                                        <span className="absolute right-3 top-2.5 text-xs text-gray-400">m</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-
-            case 'track_information':
-                return (
-                    <div className="space-y-3">
-                        {(data.tracks && data.tracks.length > 0) ? (
-                            data.tracks.map((track, index) => (
-                                <div key={index} className="flex gap-3 items-start p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-                                <div className="flex-1 grid grid-cols-[1fr_2fr] gap-3">
-                                        <div>
-                                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">
-                                                ELR
-                                            </label>
-                                            <Input
-                                                value={track.elr || ''}
-                                                onChange={(e) => updateTrackInSection(id, index, 'elr', e.target.value)}
-                                                disabled={!isEditing}
-                                                placeholder="ELR"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">
-                                                Track ID
-                                            </label>
-                                            <Input
-                                                value={track.track_id || ''}
-                                                onChange={(e) => updateTrackInSection(id, index, 'track_id', e.target.value)}
-                                                disabled={!isEditing}
-                                                placeholder="Track ID"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 pt-6 min-w-[100px] justify-center">
-                                        {isEditing ? (
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={track.isDesign || false}
-                                                    onChange={(e) => updateTrackInSection(id, index, 'isDesign', e.target.checked)}
-                                                    className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-700"
-                                                />
-                                                <span className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                                                    Design Track
-                                                </span>
-                                            </label>
-                                        ) : (
-                                            track.isDesign && (
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 whitespace-nowrap">
-                                                    Design Track
-                                                </span>
-                                            )
-                                        )}
-                                        {isEditing && (
-                                            <button
-                                                onClick={() => removeTrackFromSection(id, index)}
-                                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-                                                title="Remove track"
+                    );
+    
+                case 'chainage_reference':
+                    return (
+                        <div className="space-y-4">
+                            {isEditing ? (
+                                <>
+                                    <Combobox
+                                        label="Datum Type"
+                                        value={data.datum_type || ''}
+                                        onChange={(e) => updateSectionData(id, 'datum_type', e.target.value)}
+                                        options={chainageRefOptions}
+                                        placeholder="Select or type..."
+                                    />
+                                    
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Datum Value (Miles / Yards)</label>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => convertDatumValues(id, 'to_miles')}
+                                                title="Convert Km/M to Miles/Yards"
+                                                className="h-6 px-2 text-xs"
                                             >
-                                                <Trash2 size={18} />
-                                            </button>
+                                                <ArrowUp size={12} className="mr-1" />
+                                                Convert to Miles/Yards
+                                            </Button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 relative">
+                                                <Input
+                                                    value={data.datum_miles || ''}
+                                                    onChange={(e) => updateSectionData(id, 'datum_miles', e.target.value)}
+                                                    placeholder="Miles"
+                                                    className="pr-12"
+                                                />
+                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">mi</span>
+                                            </div>
+                                            <div className="flex-1 relative">
+                                                <Input
+                                                    value={data.datum_yards || ''}
+                                                    onChange={(e) => updateSectionData(id, 'datum_yards', e.target.value)}
+                                                    placeholder="Yards"
+                                                    className="pr-12"
+                                                />
+                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">yds</span>
+                                            </div>
+                                        </div>
+                                    </div>
+    
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Datum Value (Km / Meters)</label>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => convertDatumValues(id, 'to_km')}
+                                                title="Convert Miles/Yards to Km/M"
+                                                className="h-6 px-2 text-xs"
+                                            >
+                                                <ArrowDown size={12} className="mr-1" />
+                                                Convert to Km/M
+                                            </Button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 relative">
+                                                <Input
+                                                    value={data.datum_km || ''}
+                                                    onChange={(e) => updateSectionData(id, 'datum_km', e.target.value)}
+                                                    placeholder="Km"
+                                                    className="pr-12"
+                                                />
+                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">km</span>
+                                            </div>
+                                            <div className="flex-1 relative">
+                                                <Input
+                                                    value={data.datum_m || ''}
+                                                    onChange={(e) => updateSectionData(id, 'datum_m', e.target.value)}
+                                                    placeholder="Meters"
+                                                    className="pr-12"
+                                                />
+                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">m</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <ReadOnlyField label="Datum Type" value={data.datum_type} className="col-span-2" />
+                                    <ReadOnlyField label="Datum (Miles)" value={data.datum_miles ? `${data.datum_miles} mi` : '-'} />
+                                    <ReadOnlyField label="Datum (Yards)" value={data.datum_yards ? `${data.datum_yards} yds` : '-'} />
+                                    <ReadOnlyField label="Datum (Km)" value={data.datum_km ? `${data.datum_km} km` : '-'} />
+                                    <ReadOnlyField label="Datum (Meters)" value={data.datum_m ? `${parseFloat(data.datum_m).toFixed(3)} m` : '-'} />
+                                </div>
+                            )}
+                        </div>
+                    );
+    
+                case 'site_mileage':
+                    return (
+                        <div className="space-y-4">
+                            {isEditing ? (
+                                <>
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1 mr-4">
+                                            <Input
+                                                label="ELR"
+                                                value={data.elr || ''}
+                                                onChange={(e) => updateSectionData(id, 'elr', e.target.value)}
+                                            />
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => convertChainageToMileage(id)}
+                                            className="mt-6"
+                                            title="Convert values from Site Chainage section"
+                                        >
+                                            <RefreshCw size={14} className="mr-2" />
+                                            Convert from Chainage
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Mileage</label>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 relative">
+                                                <Input
+                                                    value={data.start_miles || ''}
+                                                    onChange={(e) => updateSectionData(id, 'start_miles', e.target.value)}
+                                                    placeholder="Miles"
+                                                    className="pr-12"
+                                                />
+                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">mi</span>
+                                            </div>
+                                            <div className="flex-1 relative">
+                                                <Input
+                                                    value={data.start_yards || ''}
+                                                    onChange={(e) => updateSectionData(id, 'start_yards', e.target.value)}
+                                                    placeholder="Yards"
+                                                    className="pr-12"
+                                                />
+                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">yds</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">End Mileage</label>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 relative">
+                                                <Input
+                                                    value={data.end_miles || ''}
+                                                    onChange={(e) => updateSectionData(id, 'end_miles', e.target.value)}
+                                                    placeholder="Miles"
+                                                    className="pr-12"
+                                                />
+                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">mi</span>
+                                            </div>
+                                            <div className="flex-1 relative">
+                                                <Input
+                                                    value={data.end_yards || ''}
+                                                    onChange={(e) => updateSectionData(id, 'end_yards', e.target.value)}
+                                                    placeholder="Yards"
+                                                    className="pr-12"
+                                                />
+                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">yds</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <ReadOnlyField label="ELR" value={data.elr} className="col-span-2" />
+                                    <ReadOnlyField label="Start Miles" value={data.start_miles ? `${data.start_miles} mi` : '-'} />
+                                    <ReadOnlyField label="Start Yards" value={data.start_yards ? `${data.start_yards} yds` : '-'} />
+                                    <ReadOnlyField label="End Miles" value={data.end_miles ? `${data.end_miles} mi` : '-'} />
+                                    <ReadOnlyField label="End Yards" value={data.end_yards ? `${data.end_yards} yds` : '-'} />
+                                </div>
+                            )}
+                        </div>
+                    );
+    
+                case 'site_chainage':
+                    return (
+                        <div className="space-y-4">
+                            {isEditing ? (
+                                <>
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1 mr-4">
+                                            <Input
+                                                label="ELR"
+                                                value={data.elr || ''}
+                                                onChange={(e) => updateSectionData(id, 'elr', e.target.value)}
+                                            />
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => convertMileageToChainage(id)}
+                                            className="mt-6"
+                                            title="Convert values from Site Mileage section"
+                                        >
+                                            <RefreshCw size={14} className="mr-2" />
+                                            Convert from Mileage
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Chainage</label>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 relative">
+                                                                                            <Input
+                                                                                                value={isEditing ? data.start_km || '' : formatKilometers(data.start_km)}
+                                                                                                onChange={(e) => updateSectionData(id, 'start_km', e.target.value)}
+                                                                                                placeholder="Km"
+                                                                                                className="pr-12"
+                                                                                            />                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">km</span>
+                                            </div>
+                                            <div className="flex-1 relative">
+                                                                                            <Input
+                                                                                                value={isEditing ? data.start_m || '' : formatMeters(data.start_m)}
+                                                                                                onChange={(e) => updateSectionData(id, 'start_m', e.target.value)}
+                                                                                                placeholder="Meters"
+                                                                                                className="pr-12"
+                                                                                            />                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">m</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">End Chainage</label>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 relative">
+                                                                                            <Input
+                                                                                                value={isEditing ? data.end_km || '' : formatKilometers(data.end_km)}
+                                                                                                onChange={(e) => updateSectionData(id, 'end_km', e.target.value)}
+                                                                                                placeholder="Km"
+                                                                                                className="pr-12"
+                                                                                            />                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">km</span>
+                                            </div>
+                                            <div className="flex-1 relative">
+                                                                                            <Input
+                                                                                                value={isEditing ? data.end_m || '' : formatMeters(data.end_m)}
+                                                                                                onChange={(e) => updateSectionData(id, 'end_m', e.target.value)}
+                                                                                                placeholder="Meters"
+                                                                                                className="pr-12"
+                                                                                            />                                                <span className="absolute right-3 top-2.5 text-xs text-gray-400">m</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <ReadOnlyField label="ELR" value={data.elr} className="col-span-2" />
+                                    <ReadOnlyField label="Start Km" value={data.start_km ? `${formatKilometers(data.start_km)} km` : '-'} />
+                                    <ReadOnlyField label="Start Meters" value={data.start_m ? `${formatMeters(data.start_m)} m` : '-'} />
+                                    <ReadOnlyField label="End Km" value={data.end_km ? `${formatKilometers(data.end_km)} km` : '-'} />
+                                    <ReadOnlyField label="End Meters" value={data.end_m ? `${formatMeters(data.end_m)} m` : '-'} />
+                                </div>
+                            )}
+                        </div>
+                    );
+    
+                case 'track_information':
+                    return (
+                        <div className="space-y-3">
+                            {(data.tracks && data.tracks.length > 0) ? (
+                                data.tracks.map((track, index) => (
+                                    <div key={index} className="flex gap-3 items-start p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                                        {isEditing ? (
+                                            <>
+                                                <div className="flex-1 grid grid-cols-[1fr_2fr] gap-3">
+                                                    <Input
+                                                        label="ELR"
+                                                        value={track.elr || ''}
+                                                        onChange={(e) => updateTrackInSection(id, index, 'elr', e.target.value)}
+                                                        placeholder="ELR"
+                                                    />
+                                                    <Input
+                                                        label="Track ID"
+                                                        value={track.track_id || ''}
+                                                        onChange={(e) => updateTrackInSection(id, index, 'track_id', e.target.value)}
+                                                        placeholder="Track ID"
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-2 pt-6 min-w-[100px] justify-center">
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={track.isDesign || false}
+                                                            onChange={(e) => updateTrackInSection(id, index, 'isDesign', e.target.checked)}
+                                                            className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-700"
+                                                        />
+                                                        <span className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">Design Track</span>
+                                                    </label>
+                                                                                            {isEditing && (
+                                                                                                <button
+                                                                                                    onClick={() => removeTrackFromSection(id, index)}
+                                                                                                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                                                                                                    title="Remove track"
+                                                                                                >
+                                                                                                    <Trash2 size={18} />
+                                                                                                </button>
+                                                                                            )}                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="flex-1 flex justify-between items-center">
+                                                <div className="grid grid-cols-2 gap-8">
+                                                    <ReadOnlyField label="ELR" value={track.elr} />
+                                                    <ReadOnlyField label="Track ID" value={track.track_id} />
+                                                </div>
+                                                {track.isDesign && (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 whitespace-nowrap">
+                                                        Design Track
+                                                    </span>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+                                    <p className="text-sm">No tracks added yet.</p>
+                                    {isEditing && (
+                                        <p className="text-xs mt-1">Click "Add Track" to get started.</p>
+                                    )}
                                 </div>
-                            ))
-                        ) : (
-                            <div className="text-center py-8 text-gray-400 dark:text-gray-500">
-                                <p className="text-sm">No tracks added yet.</p>
-                                {isEditing && (
-                                    <p className="text-xs mt-1">Click "Add Track" to get started.</p>
-                                )}
-                            </div>
-                        )}
-                        {isEditing && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => addTrackToSection(id)}
-                                className="w-full"
-                            >
-                                <PlusCircle size={16} className="mr-2" />
-                                Add Track
-                            </Button>
-                        )}
-                    </div>
-                );
-
-            case 'non_track_works':
-                return (
-                    <div className="space-y-3">
-                        {isEditing ? (
-                            <textarea
-                                value={data.notes || ''}
-                                onChange={(e) => updateSectionData(id, 'notes', e.target.value)}
-                                rows="4"
-                                className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                placeholder="Enter details about non-track works..."
-                            />
-                        ) : (
-                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                {data.notes || 'No information added.'}
-                            </p>
-                        )}
-                    </div>
-                );
-
-            default:
-                return null;
-        }
-    };
-
+                            )}
+                            {isEditing && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => addTrackToSection(id)}
+                                    className="w-full"
+                                >
+                                    <PlusCircle size={16} className="mr-2" />
+                                    Add Track
+                                </Button>
+                            )}
+                        </div>
+                    );
+    
+                case 'non_track_works':
+                    return (
+                        <div className="space-y-3">
+                            {isEditing ? (
+                                <textarea
+                                    value={data.notes || ''}
+                                    onChange={(e) => updateSectionData(id, 'notes', e.target.value)}
+                                    rows="4"
+                                    className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    placeholder="Enter details about non-track works..."
+                                />
+                            ) : (
+                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                    {data.notes || 'No information added.'}
+                                </p>
+                            )}
+                        </div>
+                    );
+    
+                default:
+                    return null;
+            }
+        };
     const renderPhotoBox = (photo) => {
         return (
             <div key={photo.id} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
