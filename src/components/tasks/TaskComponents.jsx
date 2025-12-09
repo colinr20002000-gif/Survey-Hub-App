@@ -19,8 +19,8 @@ export const DeliveryTaskCard = ({ task, onToggle, onEdit, onDelete, onArchive, 
     return (
         <div className={`rounded-xl p-4 shadow-sm border transition-all duration-200 flex flex-col h-full relative group ${
             task.completed
-                ? 'bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-900/60 border-green-200 dark:border-green-800'
-                : 'bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-700/50 border-gray-200 dark:border-gray-700 hover:shadow-md hover:-translate-y-0.5'
+                ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-md hover:-translate-y-0.5'
         }`}>
             <div className="flex justify-between items-start mb-3">
                 <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
@@ -29,9 +29,9 @@ export const DeliveryTaskCard = ({ task, onToggle, onEdit, onDelete, onArchive, 
                 {canComplete && (
                     <Button
                         size="sm"
-                        variant={task.completed ? "default" : "primary"} // Adjusted variant for completed state
+                        variant={task.completed ? "success" : "primary"}
                         onClick={onToggle}
-                        className={`text-xs px-2 py-1 ${task.completed ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200'}`}
+                        className="text-xs px-2 py-1"
                         title={task.completed ? "Mark as Incomplete" : "Mark as Complete"}
                     >
                         {task.completed ? <><CheckCircle2 size={14} className="mr-1" /> Completed</> : <><CheckCircle2 size={14} className="mr-1" /> Mark Complete</>}
@@ -39,7 +39,7 @@ export const DeliveryTaskCard = ({ task, onToggle, onEdit, onDelete, onArchive, 
                 )}
             </div>
             
-            <p className={`text-lg font-semibold mb-4 flex-grow ${task.completed ? 'text-gray-500 line-through' : 'text-gray-800 dark:text-white'}`}>
+            <p className={`text-lg font-semibold mb-4 flex-grow ${task.completed ? 'text-gray-800 dark:text-gray-200 line-through' : 'text-gray-800 dark:text-white'}`}>
                 {task.text}
             </p>
 
@@ -76,14 +76,14 @@ export const DeliveryTaskCard = ({ task, onToggle, onEdit, onDelete, onArchive, 
                 {task.completed && (
                     <div className="flex flex-col space-y-1 pt-2 border-t border-gray-100 dark:border-gray-700">
                         {completedByUser && (
-                            <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
-                                <CheckCircle2 size={14} className="flex-shrink-0" />
+                            <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                                <CheckCircle2 size={14} className="flex-shrink-0 text-green-600" />
                                 <span>Completed by <span className="font-medium">{completedByUser.name}</span></span>
                             </div>
                         )}
                         {task.completedAt && (
-                            <div className="flex items-center space-x-2 text-xs text-green-600 dark:text-green-400">
-                                <Calendar size={14} className="flex-shrink-0" />
+                            <div className="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300">
+                                <Calendar size={14} className="flex-shrink-0 text-green-600" />
                                 <span>Completed on {formatDateTime(task.completedAt)}</span>
                             </div>
                         )}

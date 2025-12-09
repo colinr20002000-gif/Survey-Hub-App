@@ -110,6 +110,7 @@ export const Button = ({ children, variant = 'primary', size = 'md', ...props })
     const baseClasses = "font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors duration-200 flex items-center justify-center";
     const variants = {
         primary: 'text-white bg-orange-500 hover:bg-orange-600 focus:ring-orange-500',
+        success: 'text-white bg-green-500 hover:bg-green-600 focus:ring-green-500',
         outline: 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 focus:ring-orange-500',
         danger: 'text-white bg-red-600 hover:bg-red-700 focus:ring-red-500',
     };
