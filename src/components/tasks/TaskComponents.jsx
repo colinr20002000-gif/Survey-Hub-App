@@ -66,7 +66,7 @@ export const DeliveryTaskCard = ({ task, onToggle, onEdit, onDelete, onArchive, 
                         <span className="flex-shrink-0">Assigned to:</span>
                         <div className="flex flex-wrap gap-1">
                             {assignedUsers.map(user => (
-                                <span key={user.id} className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getDepartmentColor(user.department)} text-white`}>
+                                <span key={user.id} className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${task.completed ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}>
                                     {user.name}
                                 </span>
                             ))}
