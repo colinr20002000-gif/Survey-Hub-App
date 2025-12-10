@@ -1,4 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link, ArrowUpDown, ArrowUp, ArrowDown, Trophy, Image as ImageIcon, Mail, ClipboardCopy } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
@@ -2807,7 +2809,6 @@ const ProjectDetailPage = ({ project, onBack }) => {
     const tabs = [
         { id: 'overview', label: 'Survey Brief' },
         { id: 'site_info', label: 'Site Information' },
-        { id: 'tasks', label: 'Tasks' },
         { id: 'files', label: 'Files' },
     ];
 
@@ -2833,8 +2834,7 @@ const ProjectDetailPage = ({ project, onBack }) => {
                 </nav>
             </div>
             <div className="mt-6">
-                {activeTab === 'overview' && <ProjectOverview project={project} onUpdate={updateProject} canEdit={privileges.canEditProjects} />}
-                {activeTab === 'tasks' && <ProjectTasks project={project} canEdit={privileges.canEditProjects} />}
+                {activeTab === 'overview' && <ProjectOverview project={project} onUpdate={updateProject} />}
                 {activeTab === 'files' && <ProjectFiles projectId={project.id} />}
                 {activeTab === 'site_info' && <ProjectSiteInformation project={project} onUpdate={updateProject} canEdit={privileges.canEditSiteInformation} />}
             </div>
@@ -2842,7 +2842,12 @@ const ProjectDetailPage = ({ project, onBack }) => {
     );
 };
 
-const ProjectOverview = ({ project, onUpdate, canEdit }) => {
+const ProjectOverview = ({ project, onUpdate }) => {
+    const { can } = usePermissions();
+    const canEditBrief = can('EDIT_SURVEY_BRIEF');
+    const canEmailBrief = can('EMAIL_SURVEY_BRIEF');
+    const canDownloadPDF = can('DOWNLOAD_SURVEY_BRIEF_PDF');
+
     const [isEditing, setIsEditing] = useState(false);
     const [items, setItems] = useState([]);
     const [uploading, setUploading] = useState(false);
@@ -3016,8 +3021,8 @@ const ProjectOverview = ({ project, onUpdate, canEdit }) => {
     const generateHtmlBody = () => {
         let html = `<div style="font-family: Arial, sans-serif; color: #333;">`;
         html += `<h1 style="color: #f97316;">Survey Brief</h1>`;
-        html += `<p><strong>Project:</strong> ${project.project_name}</p>`;
-        html += `<p><strong>Number:</strong> ${project.project_number}</p><hr/>`;
+        html += `<p style="margin-bottom: 5px;"><strong>Project:</strong> ${project.project_name}</p>`;
+        html += `<p style="margin-bottom: 20px;"><strong>Number:</strong> ${project.project_number}</p><hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;" />`;
 
         items.forEach(item => {
             html += `<h2 style="color: #444; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 20px;">${item.title}</h2>`;
@@ -3041,6 +3046,73 @@ const ProjectOverview = ({ project, onUpdate, canEdit }) => {
         });
         html += `</div>`;
         return html;
+    };
+
+    const handleDownloadPDF = async () => {
+        try {
+            addToast({ message: 'Generating PDF...', type: 'info' });
+            
+            // Create a temporary container for the HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = generateHtmlBody();
+            tempDiv.style.width = '794px'; // A4 width at 96 DPI
+            tempDiv.style.padding = '40px';
+            tempDiv.style.background = 'white';
+            tempDiv.style.position = 'absolute';
+            tempDiv.style.left = '-9999px';
+            tempDiv.style.top = '0';
+            
+            // Ensure images load
+            const images = tempDiv.getElementsByTagName('img');
+            const imagePromises = Array.from(images).map(img => {
+                img.crossOrigin = "Anonymous"; 
+                return new Promise((resolve) => {
+                    if (img.complete) resolve();
+                    else {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                    }
+                });
+            });
+
+            document.body.appendChild(tempDiv);
+            await Promise.all(imagePromises);
+
+            const canvas = await html2canvas(tempDiv, {
+                scale: 2, 
+                useCORS: true,
+                logging: false
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            
+            const imgWidth = pdfWidth;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            
+            let heightLeft = imgHeight;
+            let position = 0;
+
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pdfHeight;
+
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pdfHeight;
+            }
+
+            pdf.save(`${project.project_number} - Survey Brief.pdf`);
+            document.body.removeChild(tempDiv);
+            addToast({ message: 'PDF downloaded successfully.', type: 'success' });
+
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            addToast({ message: 'Failed to generate PDF.', type: 'error' });
+        }
     };
 
     const handleShareAction = async (type) => {
@@ -3068,12 +3140,16 @@ const ProjectOverview = ({ project, onUpdate, canEdit }) => {
         } else if (type === 'mailto') {
             try {
                 const htmlBody = generateHtmlBody();
+                const boundary = "boundary_" + Date.now().toString(16);
                 
-                // Construct EML file content
-                // X-Unsent: 1 marks it as a draft to be opened
-                const emlContent = `Subject: ${subject}
+                // 1. Start EML content with headers
+                let emlContent = `Subject: ${subject}
 Cc: Survey_Brief@inorail.co.uk
 X-Unsent: 1
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="${boundary}"
+
+--${boundary}
 Content-Type: text/html; charset=utf-8
 
 <!DOCTYPE html>
@@ -3081,7 +3157,67 @@ Content-Type: text/html; charset=utf-8
 <body>
 ${htmlBody}
 </body>
-</html>`;
+</html>
+`;
+
+                // 2. Fetch and attach project files
+                addToast({ message: 'Generating email draft with attachments...', type: 'info' });
+                
+                const { data: files } = await supabase.storage
+                    .from('project-files')
+                    .list(`project-${project.id}`);
+
+                if (files && files.length > 0) {
+                    for (const file of files) {
+                        try {
+                            const { data: fileData } = await supabase.storage
+                                .from('project-files')
+                                .download(`project-${project.id}/${file.name}`);
+
+                            if (fileData) {
+                                // Convert blob to base64
+                                const buffer = await fileData.arrayBuffer();
+                                let binary = '';
+                                const bytes = new Uint8Array(buffer);
+                                for (let i = 0; i < bytes.byteLength; i++) {
+                                    binary += String.fromCharCode(bytes[i]);
+                                }
+                                const base64 = btoa(binary);
+                                
+                                // Format base64 to 76 chars per line (MIME standard)
+                                const formattedBase64 = base64.match(/.{1,76}/g).join('\r\n');
+
+                                // Determine generic content type based on extension
+                                const ext = file.name.split('.').pop().toLowerCase();
+                                let contentType = 'application/octet-stream';
+                                if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) contentType = `image/${ext}`;
+                                else if (ext === 'pdf') contentType = 'application/pdf';
+                                else if (['doc', 'docx'].includes(ext)) contentType = 'application/msword';
+                                else if (['xls', 'xlsx'].includes(ext)) contentType = 'application/vnd.ms-excel';
+
+                                // Get original file name by stripping the prefix
+                                const originalFileName = file.name.includes('_')
+                                    ? file.name.substring(file.name.indexOf('_') + 1)
+                                    : file.name;
+
+                                // Add attachment part
+                                emlContent += `
+--${boundary}
+Content-Type: ${contentType}; name="${originalFileName}"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="${originalFileName}"
+
+${formattedBase64}
+`;
+                            }
+                        } catch (fileErr) {
+                            console.error(`Failed to attach file ${file.name}:`, fileErr);
+                        }
+                    }
+                }
+
+                // 3. Close multipart
+                emlContent += `\n--${boundary}--`;
 
                 const blob = new Blob([emlContent], { type: 'message/rfc822' });
                 const url = URL.createObjectURL(blob);
@@ -3094,7 +3230,7 @@ ${htmlBody}
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
 
-                addToast({ message: 'Outlook draft generated. Open the downloaded file.', type: 'success' });
+                addToast({ message: 'Outlook draft generated with attachments.', type: 'success' });
             } catch (err) {
                 console.error('Failed to generate email:', err);
                 alert('Failed to generate email draft.');
@@ -3107,7 +3243,7 @@ ${htmlBody}
         <div className="space-y-6">
             <div className="flex flex-wrap justify-between items-end gap-2 mb-4">
                 <div className="flex gap-2">
-                    {canEdit && (
+                    {canEditBrief && (
                         isEditing ? (
                             <>
                                 <Button variant="outline" onClick={() => { setIsEditing(false); setItems(project.survey_brief_items || []); }}>Cancel</Button>
@@ -3117,9 +3253,16 @@ ${htmlBody}
                             <Button variant="outline" onClick={() => setIsEditing(true)}>Edit Brief</Button>
                         )
                     )}
-                    <Button variant="outline" onClick={() => handleShareAction('mailto')} title="Download Survey Brief">
-                        <Mail size={16} className="mr-2" /> Download Brief
-                    </Button>
+                    {canEmailBrief && (
+                        <Button variant="outline" onClick={() => handleShareAction('mailto')} title="Download Survey Brief Email">
+                            <Mail size={16} className="mr-2" /> Email Brief
+                        </Button>
+                    )}
+                    {canDownloadPDF && (
+                        <Button variant="outline" onClick={handleDownloadPDF} title="Download Survey Brief as PDF">
+                            <FileText size={16} className="mr-2" /> Download PDF
+                        </Button>
+                    )}
                 </div>
 
                 {isEditing && (
@@ -3238,58 +3381,7 @@ ${htmlBody}
     );
 };
 
-const ProjectTasks = ({ project, canEdit }) => {
-    const { updateProject } = useProjects();
-    const [isEditing, setIsEditing] = useState(false);
-    const [tasksText, setTasksText] = useState(project.tasksText || '');
 
-    useEffect(() => {
-        setTasksText(project.tasksText || '');
-    }, [project.tasksText]);
-
-    const handleSave = () => {
-        updateProject({ ...project, tasksText });
-        setIsEditing(false);
-    };
-
-    const handleCancel = () => {
-        setTasksText(project.tasksText || '');
-        setIsEditing(false);
-    };
-
-    return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
-            <div className="p-4 flex justify-between items-center border-b dark:border-gray-700">
-                <h3 className="font-semibold">Tasks & Notes</h3>
-                {canEdit && (
-                    isEditing ? (
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={handleCancel}>Cancel</Button>
-                            <Button onClick={handleSave}>Save</Button>
-                        </div>
-                    ) : (
-                        <Button variant="outline" onClick={() => setIsEditing(true)}>Edit</Button>
-                    )
-                )}
-            </div>
-            <div className="p-4">
-                {isEditing ? (
-                    <textarea
-                        value={tasksText}
-                        onChange={(e) => setTasksText(e.target.value)}
-                        rows="15"
-                        className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        placeholder="Enter a list of tasks or any relevant information..."
-                    />
-                ) : (
-                    <pre className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-sans">
-                        {tasksText || 'No tasks or notes have been added yet.'}
-                    </pre>
-                )}
-            </div>
-        </div>
-    );
-};
 
 const ProjectFiles = ({ projectId }) => {
     const { canDownloadFiles, canUploadDocuments, canDeleteDocuments } = usePermissions();

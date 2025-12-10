@@ -37,6 +37,7 @@ html, body {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   touch-action: manipulation;
+  overscroll-behavior-y: contain; /* Disable pull-to-refresh */
 }
 
 /* Smooth transition when changing orientation */
