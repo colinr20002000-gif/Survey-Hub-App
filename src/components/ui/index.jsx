@@ -2,6 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
+import RichTextEditor from './RichTextEditor';
+
+// Export RichTextEditor
+export { RichTextEditor };
+
 // Card Component
 export const Card = ({ title, icon, children, className, ...props }) => (
     <div 

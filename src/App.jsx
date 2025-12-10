@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link, ArrowUpDown, ArrowUp, ArrowDown, Trophy, Image as ImageIcon } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link, ArrowUpDown, ArrowUp, ArrowDown, Trophy, Image as ImageIcon, Mail, ClipboardCopy } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -38,7 +38,7 @@ import PasswordChangePrompt from './components/PasswordChangePrompt';
 import CustomConfirmationModal from './components/ConfirmationModal';
 import AdminDocumentManager from './components/pages/AdminDocumentManager';
 import Chatbot from './components/Chatbot';
-import { Button, Input, ConfirmationModal, Select, Combobox, ReadOnlyField } from './components/ui';
+import { Button, Input, ConfirmationModal, Select, Combobox, ReadOnlyField, RichTextEditor, Modal } from './components/ui';
 import FileManagementSystem from './components/FileManagement/FileManagementSystem';
 import EquipmentPage from './components/Equipment/EquipmentPage';
 import VehiclesPage from './components/Vehicles/VehiclesPage';
@@ -2805,7 +2805,7 @@ const ProjectDetailPage = ({ project, onBack }) => {
     const privileges = userPrivileges[user.privilege];
 
     const tabs = [
-        { id: 'overview', label: 'Overview' },
+        { id: 'overview', label: 'Survey Brief' },
         { id: 'site_info', label: 'Site Information' },
         { id: 'tasks', label: 'Tasks' },
         { id: 'files', label: 'Files' },
@@ -2844,63 +2844,396 @@ const ProjectDetailPage = ({ project, onBack }) => {
 
 const ProjectOverview = ({ project, onUpdate, canEdit }) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState(project);
+    const [items, setItems] = useState([]);
+    const [uploading, setUploading] = useState(false);
+    const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+    const [fullScreenImage, setFullScreenImage] = useState(null);
+    const photoInputRefs = useRef({});
+    const { addToast } = useToast(); // Assuming useToast is available in this scope
 
+    // Initialize and migrate data
     useEffect(() => {
-        setFormData(project);
+        const rawItems = project.survey_brief_items || [];
+        const migratedItems = rawItems.map(item => {
+            if (item.type === 'photo' && !item.photos) {
+                // Migrate legacy single photo to array
+                return {
+                    ...item,
+                    photos: item.url ? [{ id: Date.now(), url: item.url, title: item.title }] : []
+                };
+            }
+            return item;
+        });
+        setItems(migratedItems);
     }, [project]);
 
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+    const handleSave = () => {
+        onUpdate({ ...project, survey_brief_items: items });
+        setIsEditing(false);
     };
 
-    const handleSave = () => {
-        onUpdate(formData);
-        setIsEditing(false);
+    const addItem = (type, title = '') => {
+        const newItem = {
+            id: Date.now().toString(),
+            type,
+            title: title || getTypeDefaultTitle(type),
+            content: '',
+            photos: [] // Initialize empty photos array for all types, used if type is 'photo'
+        };
+        setItems(prev => [...prev, newItem]);
+        setIsAddMenuOpen(false);
+    };
+
+    const getTypeDefaultTitle = (type) => {
+        switch (type) {
+            case 'meeting_times': return 'Meeting Times & Contacts';
+            case 'track_detail': return 'Track Detail';
+            case 'equipment': return 'Equipment';
+            case 'miscellaneous': return 'Miscellaneous';
+            case 'photo': return 'Photo Box';
+            default: return 'New Section';
+        }
+    };
+
+    const updateItem = (id, field, value) => {
+        setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+    };
+
+    const removeItem = (id) => {
+        setItems(prev => prev.filter(item => item.id !== id));
+    };
+
+    const moveItem = (index, direction) => {
+        if ((direction === -1 && index === 0) || (direction === 1 && index === items.length - 1)) return;
+        const newItems = [...items];
+        [newItems[index], newItems[index + direction]] = [newItems[index + direction], newItems[index]];
+        setItems(newItems);
+    };
+
+    const handlePhotoUpload = async (event, itemId) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${project.id}_sb_${itemId}_${Date.now()}.${fileExt}`;
+            const filePath = `survey-brief-photos/${fileName}`;
+
+            const { data, error } = await supabase.storage
+                .from('project-files')
+                .upload(filePath, file);
+
+            if (error) throw error;
+
+            const { data: publicUrlData } = supabase.storage
+                .from('project-files')
+                .getPublicUrl(filePath);
+
+            const newPhoto = {
+                id: Date.now().toString(),
+                url: publicUrlData.publicUrl,
+                title: file.name
+            };
+
+            setItems(prev => prev.map(item => {
+                if (item.id === itemId) {
+                    return { ...item, photos: [...(item.photos || []), newPhoto] };
+                }
+                return item;
+            }));
+
+            alert('Photo uploaded successfully!');
+        } catch (error) {
+            console.error('Error uploading photo:', error);
+            alert('Error uploading photo: ' + error.message);
+        } finally {
+            setUploading(false);
+            if (photoInputRefs.current[itemId]) {
+                photoInputRefs.current[itemId].value = '';
+            }
+        }
+    };
+
+    const removePhoto = (itemId, photoId) => {
+        if (!confirm('Are you sure you want to remove this photo?')) return;
+        setItems(prev => prev.map(item => {
+            if (item.id === itemId) {
+                return { ...item, photos: item.photos.filter(p => p.id !== photoId) };
+            }
+            return item;
+        }));
+    };
+
+    // Helper function to convert HTML to plain text
+    const htmlToPlainText = (html) => {
+        if (!html) return '';
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        // Replace list items with bullet points or numbers
+        doc.querySelectorAll('li').forEach(li => {
+            if (li.parentNode.nodeName === 'OL') {
+                li.textContent = `${Array.from(li.parentNode.children).indexOf(li) + 1}. ${li.textContent}`;
+            } else if (li.parentNode.nodeName === 'UL') {
+                li.textContent = `• ${li.textContent}`;
+            }
+        });
+        // Add new lines for block elements like p, div, br
+        doc.querySelectorAll('p, div, br').forEach(el => {
+            el.insertAdjacentText('afterend', '\n');
+        });
+
+        return doc.body.textContent
+            .replace(/(\n\s*){3,}/g, '\n\n') // Remove excessive newlines
+            .trim();
+    };
+
+    const getSubject = () => {
+        return `${project.project_number} - ${project.project_name} - Survey Brief`;
+    };
+
+    const generatePlainTextBody = () => {
+        let body = `SURVEY BRIEF\n`;
+        body += `Project: ${project.project_name}\n`;
+        body += `Number: ${project.project_number}\n\n`;
+
+        items.forEach(item => {
+            body += `--- ${item.title.toUpperCase()} ---\n\n`;
+            if (item.type === 'photo') {
+                if (item.photos && item.photos.length > 0) {
+                    item.photos.forEach(photo => {
+                        body += `[Photo: ${photo.title || 'Untitled'}]\nLink: ${photo.url}\n\n`;
+                    });
+                } else {
+                    body += "No photos.\n\n";
+                }
+            } else {
+                body += `${htmlToPlainText(item.content)}\n\n`;
+            }
+        });
+        return body;
+    };
+
+    const generateHtmlBody = () => {
+        let html = `<div style="font-family: Arial, sans-serif; color: #333;">`;
+        html += `<h1 style="color: #f97316;">Survey Brief</h1>`;
+        html += `<p><strong>Project:</strong> ${project.project_name}</p>`;
+        html += `<p><strong>Number:</strong> ${project.project_number}</p><hr/>`;
+
+        items.forEach(item => {
+            html += `<h2 style="color: #444; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 20px;">${item.title}</h2>`;
+            if (item.type === 'photo') {
+                if (item.photos && item.photos.length > 0) {
+                    html += `<div>`;
+                    item.photos.forEach(photo => {
+                        html += `
+                            <div style="display: inline-block; margin: 10px; vertical-align: top; width: 300px;">
+                                <img src="${photo.url}" alt="${photo.title}" width="300" style="width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px;" />
+                            </div>
+                        `;
+                    });
+                    html += `</div>`;
+                } else {
+                    html += `<p><em>No photos.</em></p>`;
+                }
+            } else {
+                html += `<div>${item.content}</div>`;
+            }
+        });
+        html += `</div>`;
+        return html;
+    };
+
+    const handleShareAction = async (type) => {
+        const subject = getSubject();
+        const plainBody = generatePlainTextBody();
+
+        if (type === 'copy') {
+            try {
+                const htmlBody = generateHtmlBody();
+                const blobHtml = new Blob([htmlBody], { type: 'text/html' });
+                const blobText = new Blob([plainBody], { type: 'text/plain' });
+                
+                const clipboardItem = new ClipboardItem({
+                    'text/html': blobHtml,
+                    'text/plain': blobText
+                });
+
+                await navigator.clipboard.write([clipboardItem]);
+                alert('Survey Brief copied to clipboard! You can now paste it into your email.');
+                setIsShareModalOpen(false);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy to clipboard.');
+            }
+        } else if (type === 'mailto') {
+            try {
+                const htmlBody = generateHtmlBody();
+                
+                // Construct EML file content
+                // X-Unsent: 1 marks it as a draft to be opened
+                const emlContent = `Subject: ${subject}
+Cc: Survey_Brief@inorail.co.uk
+X-Unsent: 1
+Content-Type: text/html; charset=utf-8
+
+<!DOCTYPE html>
+<html>
+<body>
+${htmlBody}
+</body>
+</html>`;
+
+                const blob = new Blob([emlContent], { type: 'message/rfc822' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${project.project_number} - Survey Brief.eml`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                addToast({ message: 'Outlook draft generated. Open the downloaded file.', type: 'success' });
+            } catch (err) {
+                console.error('Failed to generate email:', err);
+                alert('Failed to generate email draft.');
+            }
+            setIsShareModalOpen(false);
+        }
     };
 
     return (
         <div className="space-y-6">
-            {canEdit && (
-                <div className="flex justify-end">
-                    {isEditing ? (
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => { setIsEditing(false); setFormData(project); }}>Cancel</Button>
-                            <Button onClick={handleSave}>Save Changes</Button>
-                        </div>
-                    ) : (
-                        <Button variant="outline" onClick={() => setIsEditing(true)}>Edit Details</Button>
+            <div className="flex flex-wrap justify-between items-end gap-2 mb-4">
+                <div className="flex gap-2">
+                    {canEdit && (
+                        isEditing ? (
+                            <>
+                                <Button variant="outline" onClick={() => { setIsEditing(false); setItems(project.survey_brief_items || []); }}>Cancel</Button>
+                                <Button onClick={handleSave}>Save Changes</Button>
+                            </>
+                        ) : (
+                            <Button variant="outline" onClick={() => setIsEditing(true)}>Edit Brief</Button>
+                        )
                     )}
+                    <Button variant="outline" onClick={() => handleShareAction('mailto')} title="Download Survey Brief">
+                        <Mail size={16} className="mr-2" /> Download Brief
+                    </Button>
+                </div>
+
+                {isEditing && (
+                    <div className="relative">
+                        <Button variant="outline" onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}>
+                            <PlusCircle size={16} className="mr-2" /> Add Item
+                        </Button>
+                        {isAddMenuOpen && (
+                            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 py-1">
+                                <button onClick={() => addItem('meeting_times')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Meeting Times & Contacts</button>
+                                <button onClick={() => addItem('track_detail')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Track Detail</button>
+                                <button onClick={() => addItem('equipment')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Equipment</button>
+                                <button onClick={() => addItem('miscellaneous')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Miscellaneous</button>
+                                <button onClick={() => addItem('photo')} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Photo Box</button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            <div className="space-y-6">
+                {items.map((item, index) => (
+                    <div key={item.id} className={
+                        `bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 relative group ` +
+                        (item.type === 'photo' && !isEditing ? 'w-fit max-w-full' : 'w-full')
+                    }>
+                        {isEditing && (
+                            <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                <button onClick={() => moveItem(index, -1)} disabled={index === 0} className="p-1 text-gray-500 hover:text-orange-500 disabled:opacity-30"><ArrowUp size={16} /></button>
+                                <button onClick={() => moveItem(index, 1)} disabled={index === items.length - 1} className="p-1 text-gray-500 hover:text-orange-500 disabled:opacity-30"><ArrowDown size={16} /></button>
+                                <button onClick={() => removeItem(item.id)} className="p-1 text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
+                            </div>
+                        )}
+
+                        {item.type === 'photo' ? (
+                            <div className="flex flex-col">
+                                {isEditing ? (
+                                    <Input value={item.title} onChange={(e) => updateItem(item.id, 'title', e.target.value)} className="font-semibold mb-4 text-center" />
+                                ) : (
+                                    <h3 className="font-semibold mb-4 text-center">{item.title}</h3>
+                                )}
+                                <div className={
+                                    `border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-900 w-full`
+                                }>
+                                    <div className="flex flex-wrap gap-4 justify-start">
+                                        {(item.photos || []).map(photo => (
+                                            <div key={photo.id} className="relative group/photo">
+                                                <div onClick={() => setFullScreenImage({ url: photo.url, title: photo.title })} className="cursor-pointer">
+                                                    <img src={photo.url} alt={photo.title} className="h-40 w-auto object-cover rounded-md shadow-sm hover:shadow-md transition-shadow" />
+                                                </div>
+                                                {isEditing && (
+                                                    <button 
+                                                        onClick={() => removePhoto(item.id, photo.id)}
+                                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover/photo:opacity-100 transition-opacity shadow-sm hover:bg-red-600"
+                                                        title="Remove photo"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        
+                                        {isEditing && (
+                                            <div className="h-40 w-40 flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => photoInputRefs.current[item.id]?.click()}>
+                                                <div className="text-center text-gray-400">
+                                                    {uploading ? <Loader2 size={24} className="mx-auto mb-2 animate-spin" /> : <PlusCircle size={24} className="mx-auto mb-2" />}
+                                                    <span className="text-xs">Add Photo</span>
+                                                </div>
+                                                <input ref={el => photoInputRefs.current[item.id] = el} type="file" accept="image/*" className="hidden" onChange={(e) => handlePhotoUpload(e, item.id)} disabled={uploading} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {(item.photos || []).length === 0 && !isEditing && (
+                                        <div className="text-center text-gray-400 py-8">
+                                            <ImageIcon size={48} className="mx-auto mb-2 opacity-50" />
+                                            <p>No photos added</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                {isEditing && item.type === 'miscellaneous' ? (
+                                    <Input value={item.title} onChange={(e) => updateItem(item.id, 'title', e.target.value)} className="font-semibold mb-4" />
+                                ) : (
+                                    <h3 className="font-semibold mb-4">{item.title}</h3>
+                                )}
+                                {isEditing ? (
+                                    <RichTextEditor value={item.content} onChange={(html) => updateItem(item.id, 'content', html)} placeholder="Enter details..." />
+                                ) : (
+                                    <div 
+                                        className="text-sm text-gray-700 dark:text-gray-300 prose dark:prose-invert max-w-none"
+                                        dangerouslySetInnerHTML={{ __html: item.content || '<p>No information added.</p>' }}
+                                    />
+                                )}
+                            </div>
+                        )}
+                    </div>
+                ))}
+                
+                {items.length === 0 && !isEditing && (
+                    <div className="text-center py-12 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                        <p>No survey brief items added yet.</p>
+                    </div>
+                )}
+            </div>
+
+            {fullScreenImage && (
+                <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4" onClick={() => setFullScreenImage(null)}>
+                    <button onClick={() => setFullScreenImage(null)} className="absolute top-4 right-4 text-white hover:text-gray-300"><X size={32} /></button>
+                    <img src={fullScreenImage.url} alt={fullScreenImage.title} className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
                 </div>
             )}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
-                    <h3 className="font-semibold mb-4">Project Description</h3>
-                    {isEditing ? (
-                        <textarea name="description" value={formData.description} onChange={handleInputChange} rows="5" className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"></textarea>
-                    ) : (
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{project.description}</p>
-                    )}
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
-                    <h3 className="font-semibold mb-4">Key Dates</h3>
-                    <div className="text-sm space-y-4">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">Created</label>
-                            {isEditing ? <Input type="date" name="date_created" value={formData.date_created} onChange={handleInputChange} /> : <p>{project.date_created}</p>}
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">Start Date</label>
-                            {isEditing ? <Input type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} /> : <p>{project.startDate}</p>}
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">Target Completion</label>
-                            {isEditing ? <Input type="date" name="targetDate" value={formData.targetDate} onChange={handleInputChange} /> : <p>{project.targetDate}</p>}
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 };
@@ -4183,7 +4516,7 @@ const ProjectSiteInformation = ({ project, onUpdate, canEdit }) => {
                             <p>No photo inserted</p>
                         </div>
                     )}
-                    {canEdit && (
+                    {isEditing && (
                         <div className="absolute top-4 right-4 z-10">
                             <input
                                 ref={(el) => (photoInputRefs.current[photo.id] = el)}

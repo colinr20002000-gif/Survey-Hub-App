@@ -15,7 +15,7 @@ export const ProjectProvider = ({ children }) => {
         try {
             const { data, error: fetchError } = await supabase
                 .from('projects')
-                .select('id, project_number, project_name, client, description, team, startDate, targetDate, tasksText, date_created, created_by, assigned_to, project_manager, year, archived, site_info_sections, site_info_photos')
+                .select('id, project_number, project_name, client, description, team, startDate, targetDate, tasksText, date_created, created_by, assigned_to, project_manager, year, archived, site_info_sections, site_info_photos, survey_brief_items')
                 .order('id', { ascending: false });
 
             if (fetchError) {

@@ -16,7 +16,7 @@ const ProjectDetailPage = ({ project, onBack }) => {
     const { canEditProjects, canEditSiteInformation } = usePermissions();
 
     const tabs = [
-        { id: 'overview', label: 'Overview' },
+        { id: 'overview', label: 'Survey Brief' },
         { id: 'tasks', label: 'Tasks' },
         { id: 'files', label: 'Files' },
         { id: 'site_info', label: 'Site Information' },
@@ -54,64 +54,9 @@ const ProjectDetailPage = ({ project, onBack }) => {
 };
 
 const ProjectOverview = ({ project, onUpdate, canEdit }) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState(project);
-
-    useEffect(() => {
-        setFormData(project);
-    }, [project]);
-
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleSave = () => {
-        onUpdate(formData);
-        setIsEditing(false);
-    };
-
     return (
-        <div className="space-y-6">
-            {canEdit && (
-                <div className="flex justify-end">
-                    {isEditing ? (
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => { setIsEditing(false); setFormData(project); }}>Cancel</Button>
-                            <Button onClick={handleSave}>Save Changes</Button>
-                        </div>
-                    ) : (
-                        <Button variant="outline" onClick={() => setIsEditing(true)}>Edit Details</Button>
-                    )}
-                </div>
-            )}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
-                    <h3 className="font-semibold mb-4">Project Description</h3>
-                    {isEditing ? (
-                        <textarea name="description" value={formData.description} onChange={handleInputChange} rows="5" className="w-full p-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"></textarea>
-                    ) : (
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{project.description}</p>
-                    )}
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
-                    <h3 className="font-semibold mb-4">Key Dates</h3>
-                    <div className="text-sm space-y-4">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">Created</label>
-                            {isEditing ? <Input type="date" name="date_created" value={formData.date_created} onChange={handleInputChange} /> : <p>{project.date_created}</p>}
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">Start Date</label>
-                            {isEditing ? <Input type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} /> : <p>{project.startDate}</p>}
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">Target Completion</label>
-                            {isEditing ? <Input type="date" name="targetDate" value={formData.targetDate} onChange={handleInputChange} /> : <p>{project.targetDate}</p>}
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 min-h-[200px]">
+            {/* Survey Brief Content */}
         </div>
     );
 };
