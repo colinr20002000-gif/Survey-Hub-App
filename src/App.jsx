@@ -40,7 +40,7 @@ import PasswordChangePrompt from './components/PasswordChangePrompt';
 import CustomConfirmationModal from './components/ConfirmationModal';
 import AdminDocumentManager from './components/pages/AdminDocumentManager';
 import Chatbot from './components/Chatbot';
-import { Button, Input, ConfirmationModal, Select, Combobox, ReadOnlyField, RichTextEditor, Modal } from './components/ui';
+import { Button, Input, ConfirmationModal, Select, Combobox, ReadOnlyField, RichTextEditor, Modal, Switch, StatusBadge } from './components/ui';
 import FileManagementSystem from './components/FileManagement/FileManagementSystem';
 import EquipmentPage from './components/Equipment/EquipmentPage';
 import VehiclesPage from './components/Vehicles/VehiclesPage';
