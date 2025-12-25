@@ -252,6 +252,35 @@ const AnnouncementsPage = () => {
         if (!announcementToDelete) return;
 
         try {
+            // Find the announcement to get file URLs
+            const announcement = announcements.find(a => a.id === announcementToDelete);
+            
+            // Delete attachments if they exist
+            if (announcement && announcement.file_urls && announcement.file_urls.length > 0) {
+                const filesToRemove = announcement.file_urls.map(url => {
+                    // Extract path after 'documents/'
+                    const parts = url.split('/documents/');
+                    if (parts.length > 1) {
+                        return parts[1]; // Returns "announcements/filename..."
+                    }
+                    return null;
+                }).filter(Boolean); // Remove nulls
+
+                if (filesToRemove.length > 0) {
+                    console.log('Deleting attachments:', filesToRemove);
+                    const { error: storageError } = await supabase.storage
+                        .from('documents')
+                        .remove(filesToRemove);
+                    
+                    if (storageError) {
+                        console.error('Error deleting attachments:', storageError);
+                        // We continue with DB deletion even if file deletion fails, 
+                        // but log the error. Or we could stop here.
+                        // For now, let's log and continue to ensure the record is removed.
+                    }
+                }
+            }
+
             const { error } = await supabase
                 .from('announcements')
                 .delete()

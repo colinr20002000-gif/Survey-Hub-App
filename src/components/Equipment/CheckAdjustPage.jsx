@@ -993,13 +993,25 @@ const CheckAdjustPage = () => {
             // Logic to delete log and associated evidence photo
             const logToDelete = logs.find(log => log.id === logId);
             
-            // Delete all photos
-            const photosToDelete = logToDelete.evidence_urls || (logToDelete.evidence_url ? [logToDelete.evidence_url] : []);
-            
-            for (const url of photosToDelete) {
-                const path = url.split('evidence/').pop();
-                if (path) {
-                    await supabase.storage.from('evidence').remove([path]);
+            if (logToDelete) {
+                // Collect all photos to delete
+                const photoUrls = logToDelete.evidence_urls || (logToDelete.evidence_url ? [logToDelete.evidence_url] : []);
+                
+                const filesToRemove = photoUrls.map(url => {
+                    const parts = url.split('/evidence/');
+                    return parts.length > 1 ? parts[1] : null;
+                }).filter(Boolean);
+
+                if (filesToRemove.length > 0) {
+                    console.log('Deleting evidence photos:', filesToRemove);
+                    const { error: storageError } = await supabase.storage
+                        .from('evidence')
+                        .remove(filesToRemove);
+                    
+                    if (storageError) {
+                         console.warn('Failed to delete some evidence files:', storageError);
+                         // Continue with DB delete
+                    }
                 }
             }
             
