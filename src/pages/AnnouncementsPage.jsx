@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Megaphone, X, Calendar, AlertTriangle, Filter, PlusCircle, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Megaphone, X, Calendar, AlertTriangle, Filter, PlusCircle, Edit, Trash2, Loader2, Paperclip, FileText } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -445,6 +445,29 @@ const AnnouncementsPage = () => {
                                 <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words overflow-wrap-anywhere">
                                     {announcement.content || 'No content available'}
                                 </div>
+
+                                {announcement.file_urls && announcement.file_urls.length > 0 && (
+                                    <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+                                        <p className="text-xs font-medium text-gray-500 uppercase mb-2">Attachments</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {announcement.file_urls.map((url, idx) => (
+                                                <a 
+                                                    key={idx} 
+                                                    href={url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center space-x-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-600 transition-colors group"
+                                                >
+                                                    <Paperclip className="w-4 h-4 text-blue-500 group-hover:text-blue-600" />
+                                                    <span className="text-sm text-blue-600 dark:text-blue-400 group-hover:underline truncate max-w-[200px]">
+                                                        {decodeURIComponent(url.split('/').pop().split('_').slice(2).join('_') || url.split('/').pop())}
+                                                    </span>
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {announcement.expires_at && (
                                     <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg flex items-center gap-2">
                                         <AlertTriangle size={16} className="text-yellow-500" />
@@ -508,8 +531,10 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
         category: 'General',
         priority: 'medium',
         target_roles: [],
-        expires_at: ''
+        expires_at: '',
+        file_urls: []
     });
+    const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(false);
     const [categories, setCategories] = useState([]);
     const { user } = useAuth();
@@ -612,8 +637,10 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                 category: announcement.category || 'General',
                 priority: announcement.priority || 'medium',
                 target_roles: announcement.target_roles || [],
-                expires_at: announcement.expires_at ? announcement.expires_at.split('T')[0] : ''
+                expires_at: announcement.expires_at ? announcement.expires_at.split('T')[0] : '',
+                file_urls: announcement.file_urls || []
             });
+            setFiles([]);
         } else {
             setFormData({
                 title: '',
@@ -621,21 +648,65 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                 category: 'General',
                 priority: 'medium',
                 target_roles: [],
-                expires_at: ''
+                expires_at: '',
+                file_urls: []
             });
+            setFiles([]);
         }
     }, [announcement, isOpen]);
+
+    const handleFileChange = (e) => {
+        if (e.target.files) {
+            setFiles(prev => [...prev, ...Array.from(e.target.files)]);
+        }
+    };
+
+    const handleRemoveFile = (index) => {
+        setFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleRemoveExistingFile = (index) => {
+        setFormData(prev => ({
+            ...prev,
+            file_urls: prev.file_urls.filter((_, i) => i !== index)
+        }));
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
 
         try {
+            let uploadedUrls = [];
+
+            // Upload new files
+            if (files.length > 0) {
+                for (const file of files) {
+                    const timestamp = Date.now();
+                    const randomId = Math.random().toString(36).substring(2, 8);
+                    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+                    const filePath = `announcements/${timestamp}_${randomId}_${sanitizedFileName}`;
+
+                    const { error: uploadError } = await supabase.storage
+                        .from('documents')
+                        .upload(filePath, file);
+
+                    if (uploadError) throw uploadError;
+
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('documents')
+                        .getPublicUrl(filePath);
+
+                    uploadedUrls.push(publicUrl);
+                }
+            }
+
             const payload = {
                 ...formData,
                 author_id: user.id,
                 expires_at: formData.expires_at || null,
-                target_roles: formData.target_roles.length > 0 ? formData.target_roles : null
+                target_roles: formData.target_roles.length > 0 ? formData.target_roles : null,
+                file_urls: [...(formData.file_urls || []), ...uploadedUrls]
             };
 
             console.log('📢 [ANNOUNCEMENT] Creating announcement with payload:', payload);
@@ -731,6 +802,85 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                             placeholder="Announcement content..."
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Attachments
+                        </label>
+                        <div className="space-y-3">
+                            {/* Existing Files */}
+                            {formData.file_urls && formData.file_urls.length > 0 && (
+                                <div className="space-y-2">
+                                    <p className="text-xs font-medium text-gray-500 uppercase">Existing Files</p>
+                                    {formData.file_urls.map((url, index) => (
+                                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                                            <div className="flex items-center space-x-2 truncate">
+                                                <FileText className="w-4 h-4 text-blue-500" />
+                                                <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                                                    {decodeURIComponent(url.split('/').pop().split('_').slice(2).join('_') || url.split('/').pop())}
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveExistingFile(index)}
+                                                className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* New Files */}
+                            {files.length > 0 && (
+                                <div className="space-y-2">
+                                    <p className="text-xs font-medium text-gray-500 uppercase">New Files</p>
+                                    {files.map((file, index) => (
+                                        <div key={index} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                            <div className="flex items-center space-x-2 truncate">
+                                                <Paperclip className="w-4 h-4 text-blue-500" />
+                                                <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                                                    {file.name}
+                                                </span>
+                                                <span className="text-xs text-gray-500">
+                                                    ({(file.size / 1024).toFixed(1)} KB)
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveFile(index)}
+                                                className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="relative">
+                                <input
+                                    type="file"
+                                    multiple
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                    id="announcement-file-upload"
+                                />
+                                <label
+                                    htmlFor="announcement-file-upload"
+                                    className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                    <div className="flex flex-col items-center">
+                                        <Paperclip className="w-6 h-6 text-gray-400 mb-1" />
+                                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                                            Click to attach files
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

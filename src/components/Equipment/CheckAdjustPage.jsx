@@ -128,14 +128,27 @@ const LogCertificateView = React.forwardRef(({ log }, ref) => {
             )}
 
             {/* Evidence */}
-            {log.evidence_url && (
+            {(log.evidence_urls?.length > 0 || log.evidence_url) && (
                 <div className="space-y-2">
                     <h3 className="font-semibold text-lg border-b pb-2">Evidence</h3>
-                    <img 
-                        src={log.evidence_url} 
-                        alt="Evidence" 
-                        className="w-full h-48 object-contain rounded-lg border border-gray-200 bg-gray-50"
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                        {log.evidence_urls && log.evidence_urls.length > 0 ? (
+                            log.evidence_urls.map((url, index) => (
+                                <img 
+                                    key={index}
+                                    src={url} 
+                                    alt={`Evidence ${index + 1}`} 
+                                    className="w-full h-48 object-contain rounded-lg border border-gray-200 bg-gray-50"
+                                />
+                            ))
+                        ) : (
+                            <img 
+                                src={log.evidence_url} 
+                                alt="Evidence" 
+                                className="w-full h-48 object-contain rounded-lg border border-gray-200 bg-gray-50"
+                            />
+                        )}
+                    </div>
                 </div>
             )}
         </div>
@@ -332,11 +345,11 @@ const CheckAdjustPage = () => {
     const [isManageMode, setIsManageMode] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [photoPreview, setPhotoPreview] = useState(null);
     
     // Form State
     const [formData, setFormData] = useState({
         equipment_id: '',
+        check_date: new Date().toISOString().split('T')[0],
         ha_collimation: '',
         va_collimation: '',
         trunnion_axis_tilt: '',
@@ -348,8 +361,8 @@ const CheckAdjustPage = () => {
         compensator: false,
         comments: '',
         status: 'Pass',
-        evidence_file: null,
-        photo_url: ''
+        evidence_files: [],
+        photo_urls: []
     });
 
     // Filters & Pagination
@@ -739,17 +752,42 @@ const CheckAdjustPage = () => {
     };
 
     const handleFileChange = async (e) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            try {
-                // Compress immediately for preview and readiness
-                const compressedBlob = await compressImage(file);
-                setFormData(prev => ({ ...prev, evidence_file: compressedBlob }));
-                setPhotoPreview(URL.createObjectURL(compressedBlob));
-            } catch (error) {
-                console.error('Error processing image:', error);
-                addToast({ message: 'Failed to process image', type: 'error' });
+        if (e.target.files) {
+            const files = Array.from(e.target.files);
+            const currentCount = (formData.evidence_files?.length || 0) + (formData.photo_urls?.length || 0);
+            
+            if (currentCount + files.length > 4) {
+                addToast({ message: 'Maximum 4 photos allowed', type: 'error' });
+                return;
             }
+
+            try {
+                const compressedFiles = await Promise.all(
+                    files.map(file => compressImage(file))
+                );
+                
+                setFormData(prev => ({ 
+                    ...prev, 
+                    evidence_files: [...prev.evidence_files, ...compressedFiles] 
+                }));
+            } catch (error) {
+                console.error('Error processing images:', error);
+                addToast({ message: 'Failed to process images', type: 'error' });
+            }
+        }
+    };
+
+    const handleRemovePhoto = (index, isExisting) => {
+        if (isExisting) {
+            setFormData(prev => ({
+                ...prev,
+                photo_urls: prev.photo_urls.filter((_, i) => i !== index)
+            }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                evidence_files: prev.evidence_files.filter((_, i) => i !== index)
+            }));
         }
     };
 
@@ -772,60 +810,61 @@ const CheckAdjustPage = () => {
 
         setSubmitting(true);
         try {
-            let evidenceUrl = null;
+            let finalPhotoUrls = [...formData.photo_urls];
 
-            // Upload Evidence if new file selected
-            if (formData.evidence_file) {
+            // Upload Evidence if new files selected
+            if (formData.evidence_files.length > 0) {
                 setUploading(true);
                 try {
-                    // File is already compressed in handleFileChange
-                    const compressedBlob = formData.evidence_file;
-                    
-                    // Use jpg extension for compressed image
-                    const fileExt = 'jpg';
-                    const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
-                    const filePath = `check-adjust/${fileName}`;
+                    for (const compressedBlob of formData.evidence_files) {
+                        // Use jpg extension for compressed image
+                        const fileExt = 'jpg';
+                        const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+                        const filePath = `check-adjust/${fileName}`;
 
-                    // Convert Blob to File for better compatibility with Supabase Storage (fixes mobile access denied)
-                    const fileToUpload = new File([compressedBlob], fileName, { type: 'image/jpeg' });
+                        // Convert Blob to File for better compatibility with Supabase Storage (fixes mobile access denied)
+                        const fileToUpload = new File([compressedBlob], fileName, { type: 'image/jpeg' });
 
-                    const { error: uploadError } = await supabase.storage
-                        .from('evidence')
-                        .upload(filePath, fileToUpload, {
-                            contentType: 'image/jpeg',
-                            cacheControl: '3600',
-                            upsert: false
-                        });
-
-                    if (uploadError) {
-                        console.error('Supabase upload error:', uploadError);
-                        addToast({ message: `Image upload failed: ${uploadError.message}`, type: 'error' });
-                        throw new Error(`Image upload failed: ${uploadError.message}`); // Rethrow to stop saving log without photo
-                    } else {
-                        const { data: { publicUrl } } = supabase.storage
+                        const { error: uploadError } = await supabase.storage
                             .from('evidence')
-                            .getPublicUrl(filePath);
-                        evidenceUrl = publicUrl;
+                            .upload(filePath, fileToUpload, {
+                                contentType: 'image/jpeg',
+                                cacheControl: '3600',
+                                upsert: false
+                            });
+
+                        if (uploadError) {
+                            console.error('Supabase upload error:', uploadError);
+                            addToast({ message: `Image upload failed: ${uploadError.message}`, type: 'error' });
+                            throw new Error(`Image upload failed: ${uploadError.message}`); 
+                        } else {
+                            const { data: { publicUrl } } = supabase.storage
+                                .from('evidence')
+                                .getPublicUrl(filePath);
+                            finalPhotoUrls.push(publicUrl);
+                        }
                     }
                 } catch (imageError) {
                     console.error('Error during image processing or upload:', imageError);
                     addToast({ message: `Failed to process/upload image: ${imageError.message}`, type: 'error' });
-                    // Decide whether to proceed saving the log without the photo or stop entirely
-                    // For now, we'll rethrow to stop the log saving
                     throw imageError;
                 } finally {
                     setUploading(false);
                 }
             }
 
-            // Calculate Next Due Date (7 days from now)
-            const nextDue = new Date();
+            // Calculate Next Due Date (7 days from selected check date)
+            const dateParts = formData.check_date.split('-');
+            const checkDateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+            
+            const nextDue = new Date(checkDateObj);
             nextDue.setDate(nextDue.getDate() + 7);
 
+            // Construct log object
             const newLog = {
                 equipment_id: formData.equipment_id,
                 user_id: user.id,
-                check_date: new Date().toISOString(),
+                check_date: checkDateObj.toISOString(), // Use selected date (local midnight converted to UTC)
                 ha_collimation: formData.ha_collimation,
                 va_collimation: formData.va_collimation,
                 trunnion_axis_tilt: formData.trunnion_axis_tilt,
@@ -837,7 +876,8 @@ const CheckAdjustPage = () => {
                 compensator: formData.compensator,
                 comments: formData.comments,
                 status: formData.status,
-                evidence_url: evidenceUrl,
+                evidence_url: finalPhotoUrls[0] || null, // Keep backward compatibility
+                evidence_urls: finalPhotoUrls, // New field
                 next_due_date: nextDue.toISOString()
             };
 
@@ -859,6 +899,7 @@ const CheckAdjustPage = () => {
                 setIsModalOpen(false);
                 setFormData({
                     equipment_id: '',
+                    check_date: new Date().toISOString().split('T')[0],
                     ha_collimation: '',
                     va_collimation: '',
                     trunnion_axis_tilt: '',
@@ -870,10 +911,10 @@ const CheckAdjustPage = () => {
                     compensator: false,
                     comments: '',
                     status: 'Pass',
-                    evidence_file: null,
-                    photo_url: ''
+                    evidence_files: [],
+                    photo_urls: []
                 });
-                setPhotoPreview(null);
+                
 
             } else { // edit mode
                 const { data, error } = await supabase
@@ -902,15 +943,25 @@ const CheckAdjustPage = () => {
             addToast({ message: error.message || 'Failed to save log', type: 'error' });
         } finally {
             setSubmitting(false);
-            setPhotoPreview(null); // Clear photo preview after submission attempt
+             // Clear photo preview after submission attempt
         }
     };
 
     const handleEditLog = (log) => {
         setSelectedLog(log); // Set selectedLog for reference in handleSubmit
         setModalMode('edit');
+        
+        // Handle legacy evidence_url and new evidence_urls
+        let existingPhotos = [];
+        if (log.evidence_urls && log.evidence_urls.length > 0) {
+            existingPhotos = log.evidence_urls;
+        } else if (log.evidence_url) {
+            existingPhotos = [log.evidence_url];
+        }
+
         setFormData({
             equipment_id: log.equipment_id,
+            check_date: new Date(log.check_date).toISOString().split('T')[0],
             ha_collimation: log.ha_collimation,
             va_collimation: log.va_collimation,
             trunnion_axis_tilt: log.trunnion_axis_tilt,
@@ -922,10 +973,9 @@ const CheckAdjustPage = () => {
             compensator: log.compensator,
             comments: log.comments,
             status: log.status,
-            evidence_file: null, // Don't pre-fill file input
-            photo_url: log.evidence_url
+            evidence_files: [], // Don't pre-fill file input
+            photo_urls: existingPhotos
         });
-        setPhotoPreview(log.evidence_url || null);
         setIsModalOpen(true);
     };
 
@@ -942,8 +992,12 @@ const CheckAdjustPage = () => {
         try {
             // Logic to delete log and associated evidence photo
             const logToDelete = logs.find(log => log.id === logId);
-            if (logToDelete && logToDelete.evidence_url) {
-                const path = logToDelete.evidence_url.split('evidence/').pop();
+            
+            // Delete all photos
+            const photosToDelete = logToDelete.evidence_urls || (logToDelete.evidence_url ? [logToDelete.evidence_url] : []);
+            
+            for (const url of photosToDelete) {
+                const path = url.split('evidence/').pop();
                 if (path) {
                     await supabase.storage.from('evidence').remove([path]);
                 }
@@ -1006,6 +1060,7 @@ const CheckAdjustPage = () => {
                             setModalMode('create');
                             setFormData({
                                 equipment_id: '',
+                                check_date: new Date().toISOString().split('T')[0],
                                 ha_collimation: '',
                                 va_collimation: '',
                                 trunnion_axis_tilt: '',
@@ -1017,10 +1072,10 @@ const CheckAdjustPage = () => {
                                 compensator: false,
                                 comments: '',
                                 status: 'Pass',
-                                evidence_file: null,
-                                photo_url: ''
+                                evidence_files: [],
+                                photo_urls: []
                             });
-                            setPhotoPreview(null);
+                            
                             setIsModalOpen(true);
                         }}>
                             <PlusCircle className="w-4 h-4 mr-2" />
@@ -1308,22 +1363,34 @@ const CheckAdjustPage = () => {
             {/* Calibration Modal */}
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Perform Check & Adjust">
                 <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Unit *</label>
-                        <select 
-                            name="equipment_id" 
-                            value={formData.equipment_id} 
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
-                            required
-                        >
-                            <option value="">-- Select Total Station --</option>
-                            {equipment.map(unit => (
-                                <option key={unit.id} value={unit.id}>
-                                    {unit.name} {unit.serial_number ? `(${unit.serial_number})` : ''}
-                                </option>
-                            ))}
-                        </select>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Unit *</label>
+                            <select 
+                                name="equipment_id" 
+                                value={formData.equipment_id} 
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                required
+                            >
+                                <option value="">-- Select Total Station --</option>
+                                {equipment.map(unit => (
+                                    <option key={unit.id} value={unit.id}>
+                                        {unit.name} {unit.serial_number ? `(${unit.serial_number})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Check Date *</label>
+                            <Input
+                                type="date"
+                                name="check_date"
+                                value={formData.check_date}
+                                onChange={handleInputChange}
+                                required
+                            />
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -1431,68 +1498,89 @@ const CheckAdjustPage = () => {
                         </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Evidence (Screen Capture)</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Evidence (Up to 4 Photos)</label>
                         
-                        {(photoPreview || formData.photo_url) ? (
-                            <div className="relative group border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden h-48 bg-gray-100 dark:bg-gray-800">
-                                <img 
-                                    src={photoPreview || formData.photo_url} 
-                                    alt="Preview" 
-                                    className="w-full h-full object-contain" 
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity md:bg-black md:bg-opacity-50">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setPhotoPreview(null);
-                                            setFormData(prev => ({ ...prev, evidence_file: null, photo_url: '' }));
-                                        }}
-                                        className="text-white text-sm font-medium bg-red-600 px-3 py-1.5 rounded-md hover:bg-red-700 shadow-sm"
-                                    >
-                                        Remove Photo
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 gap-3">
-                                {/* Camera Button - Forces Camera */}
-                                <div className="relative">
-                                    <input 
-                                        type="file" 
-                                        accept="image/*" 
-                                        capture="environment"
-                                        onChange={handleFileChange}
-                                        className="hidden" 
-                                        id="ca-camera-upload"
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {/* Existing Photos */}
+                            {formData.photo_urls.map((url, index) => (
+                                <div key={`existing-${index}`} className="relative group border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden h-32 bg-gray-100 dark:bg-gray-800">
+                                    <img 
+                                        src={url} 
+                                        alt={`Existing ${index}`} 
+                                        className="w-full h-full object-cover" 
                                     />
-                                    <label 
-                                        htmlFor="ca-camera-upload" 
-                                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24"
-                                    >
-                                        <Camera className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
-                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Take Photo</span>
-                                    </label>
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-50">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemovePhoto(index, true)}
+                                            className="text-white p-1 hover:text-red-400"
+                                        >
+                                            <Trash2 className="w-6 h-6" />
+                                        </button>
+                                    </div>
                                 </div>
+                            ))}
 
-                                {/* Gallery Button - Allows File Selection */}
-                                <div className="relative">
-                                    <input 
-                                        type="file" 
-                                        accept="image/*" 
-                                        onChange={handleFileChange}
-                                        className="hidden" 
-                                        id="ca-gallery-upload"
+                            {/* New Photos */}
+                            {formData.evidence_files.map((file, index) => (
+                                <div key={`new-${index}`} className="relative group border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden h-32 bg-gray-100 dark:bg-gray-800">
+                                    <img 
+                                        src={URL.createObjectURL(file)} 
+                                        alt={`New ${index}`} 
+                                        className="w-full h-full object-cover" 
                                     />
-                                    <label 
-                                        htmlFor="ca-gallery-upload" 
-                                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors h-24"
-                                    >
-                                        <ImageIcon className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
-                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Upload File</span>
-                                    </label>
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-50">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemovePhoto(index, false)}
+                                            className="text-white p-1 hover:text-red-400"
+                                        >
+                                            <Trash2 className="w-6 h-6" />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            ))}
+
+                            {/* Add Photo Buttons */}
+                            {(formData.photo_urls.length + formData.evidence_files.length) < 4 && (
+                                <>
+                                    <div className="relative">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            capture="environment"
+                                            onChange={handleFileChange}
+                                            className="hidden" 
+                                            id="ca-camera-upload"
+                                        />
+                                        <label 
+                                            htmlFor="ca-camera-upload" 
+                                            className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                        >
+                                            <Camera className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Take Photo</span>
+                                        </label>
+                                    </div>
+                                    <div className="relative">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            multiple
+                                            onChange={handleFileChange}
+                                            className="hidden" 
+                                            id="ca-gallery-upload"
+                                        />
+                                        <label 
+                                            htmlFor="ca-gallery-upload" 
+                                            className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                        >
+                                            <ImageIcon className="w-6 h-6 text-gray-500 dark:text-gray-400 mb-1" />
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Upload File</span>
+                                        </label>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
