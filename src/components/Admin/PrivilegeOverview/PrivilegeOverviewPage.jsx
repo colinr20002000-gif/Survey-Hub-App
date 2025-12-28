@@ -30,6 +30,7 @@ const CATEGORY_DISPLAY_ORDER = [
     'Equipment - Check & Adjust',
     'Vehicles - Vehicle Management',
     'Vehicles - Vehicle Inspection',
+    'Vehicles - Mileage Log',
     'Delivery - To Do List',
     'Training Centre - Document Hub',
     'Contact Details - On-Call Contacts',

@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -24,20 +25,51 @@ export const Card = ({ title, icon, children, className, ...props }) => (
 // Combobox Component
 export const Combobox = ({ label, name, value, onChange, options = [], placeholder, required, className, disabled }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
     const wrapperRef = useRef(null);
+
+    // Update position
+    const updatePosition = () => {
+        if (wrapperRef.current) {
+            const rect = wrapperRef.current.getBoundingClientRect();
+            setCoords({
+                top: rect.bottom + window.scrollY,
+                left: rect.left + window.scrollX,
+                width: rect.width
+            });
+        }
+    };
+
+    useLayoutEffect(() => {
+        if (isOpen) {
+            updatePosition();
+            window.addEventListener('resize', updatePosition);
+            window.addEventListener('scroll', updatePosition, true); // Capture scroll to handle parent scrolls
+        }
+        return () => {
+            window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('scroll', updatePosition, true);
+        };
+    }, [isOpen]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+            // Check if click is inside input wrapper or inside the portal dropdown
+            const dropdown = document.getElementById(`combobox-dropdown-${name}`);
+            if (
+                wrapperRef.current && 
+                !wrapperRef.current.contains(event.target) && 
+                (!dropdown || !dropdown.contains(event.target))
+            ) {
                 setIsOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    }, [name]);
 
     const filteredOptions = options.filter(option => 
-        option.toLowerCase().includes((value || '').toLowerCase()) && option !== value
+        typeof option === 'string' && option.toLowerCase().includes((value || '').toLowerCase()) && option !== value
     );
 
     const handleSelect = (option) => {
@@ -51,12 +83,15 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
             <input
                 type="text"
                 name={name}
-                value={value}
+                value={value || ''}
                 onChange={(e) => {
                     onChange(e);
                     setIsOpen(true);
                 }}
-                onFocus={() => setIsOpen(true)}
+                onFocus={() => {
+                    setIsOpen(true);
+                    updatePosition();
+                }}
                 placeholder={placeholder}
                 required={required}
                 disabled={disabled}
@@ -67,8 +102,16 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
                         : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
                 }`}
             />
-            {isOpen && filteredOptions.length > 0 && !disabled && (
-                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+            {isOpen && filteredOptions.length > 0 && !disabled && createPortal(
+                <div 
+                    id={`combobox-dropdown-${name}`}
+                    className="fixed z-[9999] mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                    style={{
+                        top: coords.top - window.scrollY, // Adjust for fixed positioning relative to viewport
+                        left: coords.left - window.scrollX,
+                        width: coords.width
+                    }}
+                >
                     {filteredOptions.map((option, index) => (
                         <div
                             key={index}
@@ -78,7 +121,8 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
                             {option}
                         </div>
                     ))}
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

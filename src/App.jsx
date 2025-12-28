@@ -68,6 +68,7 @@ const ResourceAnalyticsPage = lazy(() => import('./pages/ResourceAnalyticsPage')
 const AFVPage = lazy(() => import('./pages/AFVPage'));
 const CalendarColoursPage = lazy(() => import('./pages/CalendarColoursPage'));
 const VehicleMileageLogsPage = lazy(() => import('./pages/VehicleMileageLogsPage'));
+const VehicleMileagePage = lazy(() => import('./pages/VehicleMileagePage'));
 const CheckAdjustPage = lazy(() => import('./components/Equipment/CheckAdjustPage'));
 const EquipmentRegisterPage = lazy(() => import('./components/Equipment/EquipmentRegisterPage'));
 const CloseCallsPage = lazy(() => import('./pages/CloseCallsPage'));
@@ -741,6 +742,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Vehicle Management', parent: 'Vehicles', show: can('VIEW_VEHICLES') },
+                { name: 'Mileage Logs', parent: 'Vehicles', show: can('VIEW_VEHICLE_MILEAGE') },
                 { name: 'Vehicle Inspection', parent: 'Vehicles', show: can('VIEW_VEHICLE_INSPECTION') }
             ]
         },
@@ -836,7 +838,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const isEquipmentActive = activeTab === 'Calendar' || activeTab === 'Assignments' || activeTab === 'Register' || activeTab === 'Check & Adjust';
     const isTrainingCentreActive = activeTab === 'Document Hub' || activeTab === 'Video Tutorials' || activeTab === 'Rail Components';
     const isContactDetailsActive = activeTab === 'Staff Contacts' || activeTab === 'Subcontractors' || activeTab === 'Useful Contacts' || activeTab === 'On-Call Contacts';
-    const isVehiclesActive = activeTab === 'Vehicle Management' || activeTab === 'Vehicle Inspection';
+    const isVehiclesActive = activeTab === 'Vehicle Management' || activeTab === 'Vehicle Inspection' || activeTab === 'Mileage Logs';
     const isAnalyticsActive = activeTab === 'Project Logs' || activeTab === 'Resource' || activeTab === 'AFV';
 
     // Close sidebar when clicking outside in mobile mode
@@ -5595,9 +5597,9 @@ const MainLayout = () => {
             case 'Assignments': return can('VIEW_EQUIPMENT') ? <EquipmentPage /> : <AccessDenied />;
             case 'Register': return can('VIEW_EQUIPMENT_REGISTER') ? <Suspense fallback={<LoadingFallback />}><EquipmentRegisterPage /></Suspense> : <AccessDenied />;
             case 'Check & Adjust': return can('VIEW_CHECK_ADJUST') ? <Suspense fallback={<LoadingFallback />}><CheckAdjustPage /></Suspense> : <AccessDenied />;
-            case 'Vehicle Management': return can('VIEW_VEHICLES') ? <VehiclesPage /> : <AccessDenied />;
-            case 'Vehicle Inspection': return can('VIEW_VEHICLE_INSPECTION') ? <Suspense fallback={<LoadingFallback />}><VehicleMileageLogsPage /></Suspense> : <AccessDenied />;
-            case 'Delivery Tracker': return can('VIEW_DELIVERY_TRACKER') ? <DeliveryTrackerPage /> : <AccessDenied />;
+                                    case 'Vehicle Management': return can('VIEW_VEHICLES') ? <VehiclesPage /> : <AccessDenied />;
+                                    case 'Mileage Logs': return can('VIEW_VEHICLE_MILEAGE') ? <Suspense fallback={<LoadingFallback />}><VehicleMileagePage /></Suspense> : <AccessDenied />;
+                                    case 'Vehicle Inspection': return can('VIEW_VEHICLE_INSPECTION') ? <Suspense fallback={<LoadingFallback />}><VehicleMileageLogsPage /></Suspense> : <AccessDenied />;            case 'Delivery Tracker': return can('VIEW_DELIVERY_TRACKER') ? <DeliveryTrackerPage /> : <AccessDenied />;
             case 'Delivery Team - To Do List': return can('VIEW_DELIVERY_TODO') ? <DeliveryTasksPage /> : <AccessDenied />;
             case 'Project Logs': return can('VIEW_PROJECT_LOGS') ? <Suspense fallback={<LoadingFallback />}><ProjectLogsPage /></Suspense> : <AccessDenied />;
             case 'Resource': return can('VIEW_RESOURCE_ANALYTICS') ? <Suspense fallback={<LoadingFallback />}><ResourceAnalyticsPage /></Suspense> : <AccessDenied />;

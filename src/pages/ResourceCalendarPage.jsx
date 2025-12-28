@@ -13,7 +13,7 @@ import { getWeekStartDate, getFiscalWeek, addDays, formatDateForDisplay, formatD
 import { getDepartmentColor, getAvatarText, getAvatarProps } from '../utils/avatarColors';
 import { handleSupabaseError, isRLSError } from '../utils/rlsErrorHandler';
 import { shiftColors, leaveColors } from '../constants';
-import { Button, Select, Modal, Input } from '../components/ui';
+import { Button, Select, Modal, Input, Combobox } from '../components/ui';
 
 // Draggable wrapper component for resource assignments
 const DraggableResourceItem = ({ id, children, disabled }) => {
@@ -3474,6 +3474,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     const [isCreatingNewProject, setIsCreatingNewProject] = useState(false);
     const [newProjectData, setNewProjectData] = useState({ project_name: '', project_number: '', client: '', year: '' });
     const [yearOptions, setYearOptions] = useState([]);
+    const [clientOptions, setClientOptions] = useState([]);
     const [jobTypeOptions, setJobTypeOptions] = useState([]);
     const dropdownRef = useRef(null);
     const [formData, setFormData] = useState({
@@ -3481,7 +3482,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     });
 
     useEffect(() => {
-        // Fetch year and job type options when modal opens
+        // Fetch year, client and job type options when modal opens
         const fetchDropdownOptions = async () => {
             try {
                 // Fetch all categories first to debug
@@ -3516,6 +3517,26 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
 
                     if (!yearItemError) {
                         setYearOptions(yearItems || []);
+                    }
+                }
+
+                // Fetch Client options
+                const { data: clientCategories, error: clientCatError } = await supabase
+                    .from('dropdown_categories')
+                    .select('id')
+                    .ilike('name', 'Clients')
+                    .limit(1);
+
+                if (!clientCatError && clientCategories && clientCategories.length > 0) {
+                    const { data: clientItems, error: clientItemError } = await supabase
+                        .from('dropdown_items')
+                        .select('display_text')
+                        .eq('category_id', clientCategories[0].id)
+                        .eq('is_active', true)
+                        .order('sort_order', { ascending: true });
+
+                    if (!clientItemError) {
+                        setClientOptions(clientItems.map(i => i.display_text) || []);
                     }
                 }
 
@@ -3961,11 +3982,12 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                                                             onChange={handleNewProjectInputChange}
                                                             required
                                                         />
-                                                        <Input
+                                                        <Combobox
                                                             label="Client"
                                                             name="client"
                                                             value={newProjectData.client}
                                                             onChange={handleNewProjectInputChange}
+                                                            options={clientOptions}
                                                             required
                                                         />
                                                         <Select
@@ -4059,7 +4081,14 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                         )}
                         
                         <Input label="Project Name" name="projectName" value={formData.projectName} onChange={handleInputChange} disabled={!isManual} />
-                        <Input label="Client" name="client" value={formData.client} onChange={handleInputChange} disabled={!isManual} />
+                        <Combobox 
+                            label="Client" 
+                            name="client" 
+                            value={formData.client} 
+                            onChange={handleInputChange} 
+                            options={clientOptions}
+                            disabled={!isManual} 
+                        />
                         
                         <Select label="Shift" name="shift" value={formData.shift} onChange={handleInputChange}>
                             <option>Nights</option>
