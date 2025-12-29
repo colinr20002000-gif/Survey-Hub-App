@@ -46,6 +46,7 @@ const VehicleMileagePage = () => {
     const [isManageMode, setIsManageMode] = useState(false);
     const [monthToDelete, setMonthToDelete] = useState(null);
     const [isDeleteMonthModalOpen, setIsDeleteMonthModalOpen] = useState(false);
+    const [showSelectVehicleModal, setShowSelectVehicleModal] = useState(false);
 
     // Form data for adding a journey
     const [journeyForm, setJourneyForm] = useState({
@@ -330,6 +331,11 @@ const VehicleMileagePage = () => {
     const handleSelectVehicle = (vehicleId) => {
         setFilterVehicle(vehicleId);
         setViewMode('summary');
+    };
+
+    const handleSelectVehicleConfirm = (vehicleId) => {
+        handleSelectVehicle(vehicleId);
+        setShowSelectVehicleModal(false);
     };
 
     const handleBackToVehicles = () => {
@@ -904,10 +910,17 @@ const VehicleMileagePage = () => {
                                 <RotateCcw className="w-4 h-4" /> Unsubmit
                             </Button>
                         )}
-                        {viewMode === 'vehicle_list' && can('SHOW_MILEAGE_BULK_EXPORT') && (
-                            <Button onClick={() => setShowExportWizard(true)} variant="outline" className="w-full md:w-auto flex items-center justify-center gap-2 py-2">
-                                <Wand2 className="w-4 h-4" /> Bulk Export
-                            </Button>
+                        {viewMode === 'vehicle_list' && (
+                            <>
+                                <Button onClick={() => setShowSelectVehicleModal(true)} className="w-full md:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white py-2">
+                                    <Car className="w-4 h-4" /> Select Vehicle
+                                </Button>
+                                {can('SHOW_MILEAGE_BULK_EXPORT') && (
+                                    <Button onClick={() => setShowExportWizard(true)} variant="outline" className="w-full md:w-auto flex items-center justify-center gap-2 py-2">
+                                        <Wand2 className="w-4 h-4" /> Bulk Export
+                                    </Button>
+                                )}
+                            </>
                         )}
                         {viewMode === 'summary' && can('SHOW_MILEAGE_MANAGE_BUTTON') && (
                             <Button 
@@ -1565,6 +1578,13 @@ const VehicleMileagePage = () => {
                 initialVehicleId={filterVehicle !== 'all' ? filterVehicle : ''}
             />
 
+            <SelectVehicleModal 
+                isOpen={showSelectVehicleModal}
+                onClose={() => setShowSelectVehicleModal(false)}
+                onConfirm={handleSelectVehicleConfirm}
+                vehicles={vehicles}
+            />
+
             <MileageExportWizard
                 isOpen={showExportWizard}
                 onClose={() => setShowExportWizard(false)}
@@ -1810,6 +1830,40 @@ const MileageExportWizard = ({ isOpen, onClose, vehicles, allLogs, exportPdf, ex
                     </div>
                 </div>
             </div>
+        </Modal>
+    );
+};
+
+const SelectVehicleModal = ({ isOpen, onClose, onConfirm, vehicles }) => {
+    const [vehicleId, setVehicleId] = useState('');
+
+    useEffect(() => {
+        if (isOpen && vehicles.length > 0) {
+            setVehicleId(vehicles[0].id);
+        }
+    }, [isOpen, vehicles]);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onConfirm(vehicleId);
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Select Vehicle">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vehicle</label>
+                    <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} required>
+                        {vehicles.map(v => (
+                            <option key={v.id} value={v.id}>{v.name} ({v.serial_number})</option>
+                        ))}
+                    </Select>
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                    <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button type="submit">View Logs</Button>
+                </div>
+            </form>
         </Modal>
     );
 };
