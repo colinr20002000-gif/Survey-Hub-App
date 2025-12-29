@@ -27,6 +27,7 @@ const VehicleMileagePage = () => {
     const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString());
     const [filterMonth, setFilterMonth] = useState('all');
     const [myVehiclesFilter, setMyVehiclesFilter] = useState(false);
+    const [filterOverdue, setFilterOverdue] = useState('all');
     
     // Multi-select filter states
     const [selectedVehicleIds, setSelectedVehicleIds] = useState([]);
@@ -855,7 +856,7 @@ const VehicleMileagePage = () => {
         <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
             {/* Header */}
             <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-2 md:py-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center space-x-3">
                         {viewMode === 'summary' && (
                             <button onClick={handleBackToVehicles} className="mr-2 p-1 hover:bg-gray-100 rounded-full dark:hover:bg-gray-700">
@@ -869,11 +870,11 @@ const VehicleMileagePage = () => {
                         )}
                         <Car className="w-6 h-6 md:w-8 md:h-8 text-orange-500" />
                         <div>
-                            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex flex-wrap items-center gap-2">
                                 {viewMode === 'detail' ? (
                                     <>
-                                        Mileage: {selectedMonthGroup?.monthLabel}
-                                        <span className={`px-2 py-1 text-sm rounded-full ${
+                                        <span className="whitespace-nowrap">Mileage: {selectedMonthGroup?.monthLabel}</span>
+                                        <span className={`px-2 py-0.5 text-xs rounded-full ${
                                             selectedMonthGroup?.status === 'submitted' 
                                                 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
                                                 : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
@@ -892,19 +893,19 @@ const VehicleMileagePage = () => {
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         {viewMode === 'detail' && selectedMonthGroup?.status !== 'submitted' && can('SHOW_MILEAGE_SUBMIT_LOG') && (
-                            <Button onClick={() => handleSubmitMonth(selectedMonthGroup)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white">
+                            <Button onClick={() => handleSubmitMonth(selectedMonthGroup)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2">
                                 <FileText className="w-4 h-4" /> Submit Log
                             </Button>
                         )}
                         {viewMode === 'detail' && selectedMonthGroup?.status === 'submitted' && can('SHOW_MILEAGE_SUBMIT_LOG') && (
-                            <Button onClick={() => handleUnsubmitMonth(selectedMonthGroup)} variant="outline" className="flex items-center gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
-                                <RotateCcw className="w-4 h-4" /> Unsubmit Log
+                            <Button onClick={() => handleUnsubmitMonth(selectedMonthGroup)} variant="outline" className="flex-1 md:flex-none flex items-center justify-center gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 py-2">
+                                <RotateCcw className="w-4 h-4" /> Unsubmit
                             </Button>
                         )}
                         {viewMode === 'vehicle_list' && can('SHOW_MILEAGE_BULK_EXPORT') && (
-                            <Button onClick={() => setShowExportWizard(true)} variant="outline" className="flex items-center gap-2">
+                            <Button onClick={() => setShowExportWizard(true)} variant="outline" className="w-full md:w-auto flex items-center justify-center gap-2 py-2">
                                 <Wand2 className="w-4 h-4" /> Bulk Export
                             </Button>
                         )}
@@ -912,18 +913,18 @@ const VehicleMileagePage = () => {
                             <Button 
                                 onClick={() => setIsManageMode(!isManageMode)} 
                                 variant={isManageMode ? "primary" : "outline"}
-                                className="flex items-center gap-2"
+                                className="w-full md:w-auto flex items-center justify-center gap-2 py-2"
                             >
                                 <Edit className="w-4 h-4" /> {isManageMode ? 'Done' : 'Manage'}
                             </Button>
                         )}
                         {viewMode === 'detail' && can('VIEW_VEHICLE_MILEAGE') && (
                             <>
-                                <Button onClick={() => handleExportExcel(selectedMonthGroup)} variant="outline" className="flex items-center gap-2">
-                                    <FileText className="w-4 h-4" /> Export Excel
+                                <Button onClick={() => handleExportExcel(selectedMonthGroup)} variant="outline" className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2">
+                                    <FileText className="w-4 h-4" /> Excel
                                 </Button>
-                                <Button onClick={() => handleExportMonth(selectedMonthGroup)} variant="outline" className="flex items-center gap-2">
-                                    <Download className="w-4 h-4" /> Export PDF
+                                <Button onClick={() => handleExportMonth(selectedMonthGroup)} variant="outline" className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2">
+                                    <Download className="w-4 h-4" /> PDF
                                 </Button>
                             </>
                         )}
@@ -1031,14 +1032,24 @@ const VehicleMileagePage = () => {
                                 </div>
                             </div>
 
-                            <Button 
-                                variant={myVehiclesFilter ? "primary" : "outline"}
-                                onClick={() => setMyVehiclesFilter(!myVehiclesFilter)}
-                                className="w-full sm:w-auto flex items-center gap-2"
-                            >
-                                <Car className="w-4 h-4" />
-                                {myVehiclesFilter ? "Show All Vehicles" : "My Vehicles"}
-                            </Button>
+                            <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                                <div className="w-full sm:w-48">
+                                    <Select value={filterOverdue} onChange={(e) => setFilterOverdue(e.target.value)}>
+                                        <option value="all">All Overdue Status</option>
+                                        <option value="overdue">Overdue Only</option>
+                                        <option value="up_to_date">Up to Date Only</option>
+                                    </Select>
+                                </div>
+
+                                <Button 
+                                    variant={myVehiclesFilter ? "primary" : "outline"}
+                                    onClick={() => setMyVehiclesFilter(!myVehiclesFilter)}
+                                    className="w-full sm:w-auto flex items-center gap-2"
+                                >
+                                    <Car className="w-4 h-4" />
+                                    {myVehiclesFilter ? "Show All Vehicles" : "My Vehicles"}
+                                </Button>
+                            </div>
                         </div>
 
                     <Card className="overflow-hidden">
@@ -1060,7 +1071,7 @@ const VehicleMileagePage = () => {
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                                            <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
                                                 <div className="flex justify-center items-center gap-2">
                                                     <Loader2 className="w-4 h-4 animate-spin" /> Loading vehicles...
                                                 </div>
@@ -1068,7 +1079,7 @@ const VehicleMileagePage = () => {
                                         </tr>
                                     ) : vehicles.length === 0 ? (
                                         <tr>
-                                            <td colSpan="7" className="px-6 py-8 text-center text-gray-500">No vehicles found.</td>
+                                            <td colSpan="9" className="px-6 py-8 text-center text-gray-500">No vehicles found.</td>
                                         </tr>
                                     ) : (
                                         vehicles.filter(vehicle => {
@@ -1090,7 +1101,14 @@ const VehicleMileagePage = () => {
 
                                             // 3. My Vehicles Filter (Quick Filter)
                                             if (myVehiclesFilter) {
-                                                return assignedUserId === user.id;
+                                                if (assignedUserId !== user.id) return false;
+                                            }
+
+                                            // 4. Overdue Status Filter
+                                            if (filterOverdue !== 'all') {
+                                                const overdueList = getOverdueStatus(vehicle.id);
+                                                if (filterOverdue === 'overdue' && overdueList.length === 0) return false;
+                                                if (filterOverdue === 'up_to_date' && overdueList.length > 0) return false;
                                             }
 
                                             return true;
@@ -1215,10 +1233,10 @@ const VehicleMileagePage = () => {
                 {viewMode === 'summary' && (
                     <>
                         {/* Filters */}
-                        <div className="mb-6 flex flex-col md:flex-row gap-4 items-end md:items-center justify-between">
-                            <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                        <div className="mb-6 flex flex-col md:flex-row gap-4 items-stretch md:items-end justify-between">
+                            <div className="grid grid-cols-2 md:flex md:flex-row gap-4 w-full md:w-auto">
                                 {/* Vehicle filter hidden in this mode as it's selected via cards */}
-                                <div className="w-32">
+                                <div className="flex-1 md:w-32">
                                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Year</label>
                                     <Select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
                                         <option value="all">All Years</option>
@@ -1228,7 +1246,7 @@ const VehicleMileagePage = () => {
                                         <option value="2026">2026</option>
                                     </Select>
                                 </div>
-                                <div className="w-32">
+                                <div className="flex-1 md:w-32">
                                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Month</label>
                                     <Select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
                                         <option value="all">All Months</option>
@@ -1240,7 +1258,7 @@ const VehicleMileagePage = () => {
                             </div>
                             
                             {can('SHOW_MILEAGE_CREATE_LOG') && (
-                                <Button onClick={handleCreateNewMonthLog} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white">
+                                <Button onClick={handleCreateNewMonthLog} className="w-full md:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white">
                                     <Plus className="w-4 h-4" /> Create Monthly Log
                                 </Button>
                             )}
