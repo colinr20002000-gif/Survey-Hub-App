@@ -3811,7 +3811,10 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     // Close dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+            // Check if click is inside a combobox dropdown (which are portals)
+            const isComboboxClick = event.target.closest('[id^="combobox-dropdown-"]');
+            
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target) && !isComboboxClick) {
                 setIsDropdownOpen(false);
             }
         };
