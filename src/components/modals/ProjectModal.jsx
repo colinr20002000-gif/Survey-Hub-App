@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
-import { Modal, Input, Select, Button, Combobox } from '../ui';
+import { Modal, Input, Button, Combobox } from '../ui';
 
 const ProjectModal = ({ isOpen, onClose, onSave, project }) => {
     const [formData, setFormData] = useState({ project_name: '', project_number: '', client: '', year: '' });
@@ -37,7 +37,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project }) => {
                     .eq('category_id', yearCategory.id)
                     .eq('is_active', true)
                     .order('sort_order', { ascending: true });
-                setYearOptions(items || []);
+                setYearOptions(items ? items.map(i => i.display_text) : []);
             }
 
             // Fetch Client Options
@@ -87,12 +87,14 @@ const ProjectModal = ({ isOpen, onClose, onSave, project }) => {
                         options={clientOptions}
                         required 
                     />
-                    <Select label="Year" name="year" value={formData.year} onChange={handleChange} required>
-                        <option value="">Select Year</option>
-                        {yearOptions.map(option => (
-                            <option key={option.id} value={option.display_text}>{option.display_text}</option>
-                        ))}
-                    </Select>
+                    <Combobox 
+                        label="Year" 
+                        name="year" 
+                        value={formData.year} 
+                        onChange={handleChange} 
+                        options={yearOptions}
+                        required 
+                    />
                     <div className="flex justify-end space-x-2 pt-4">
                         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
                         <Button type="submit">Save Project</Button>
