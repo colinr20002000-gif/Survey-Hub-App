@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Upload, Filter, X, Calendar, ExternalLink, TrendingUp, DollarSign, Percent, FileText, Download, Eye, FileSpreadsheet, Image, Calculator, Activity, BarChart2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { Button, Select, Input, Pagination, Modal } from '../components/ui';
+import { Button, Input, Pagination, Modal, Combobox } from '../components/ui';
 import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -1134,28 +1134,41 @@ const AFVPage = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Date Range
                             </label>
-                            <select
-                                value={dateRange}
-                                onChange={(e) => setDateRange(e.target.value)}
-                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                            >
-                                <option value="today">Today</option>
-                                <option value="yesterday">Yesterday</option>
-                                <option value="last7">Last 7 Days</option>
-                                <option value="last14">Last 14 Days</option>
-                                <option value="last30">Last 30 Days</option>
-                                <option value="last90">Last 90 Days</option>
-                                <option value="thisWeek">This Week</option>
-                                <option value="lastWeek">Last Week</option>
-                                <option value="thisMonth">This Month</option>
-                                <option value="lastMonth">Last Month</option>
-                                <option value="thisQuarter">This Quarter</option>
-                                <option value="lastQuarter">Last Quarter</option>
-                                <option value="thisYear">This Year</option>
-                                <option value="lastYear">Last Year</option>
-                                <option value="custom">Custom Range</option>
-                                <option value="allTime">All Time</option>
-                            </select>
+                            <Combobox
+                                value={{
+                                    'today': 'Today',
+                                    'yesterday': 'Yesterday',
+                                    'last7': 'Last 7 Days',
+                                    'last14': 'Last 14 Days',
+                                    'last30': 'Last 30 Days',
+                                    'last90': 'Last 90 Days',
+                                    'thisWeek': 'This Week',
+                                    'lastWeek': 'Last Week',
+                                    'thisMonth': 'This Month',
+                                    'lastMonth': 'Last Month',
+                                    'custom': 'Custom Range'
+                                }[dateRange] || 'Last 30 Days'}
+                                onChange={(e) => {
+                                    const map = {
+                                        'Today': 'today',
+                                        'Yesterday': 'yesterday',
+                                        'Last 7 Days': 'last7',
+                                        'Last 14 Days': 'last14',
+                                        'Last 30 Days': 'last30',
+                                        'Last 90 Days': 'last90',
+                                        'This Week': 'thisWeek',
+                                        'Last Week': 'lastWeek',
+                                        'This Month': 'thisMonth',
+                                        'Last Month': 'lastMonth',
+                                        'Custom Range': 'custom'
+                                    };
+                                    setDateRange(map[e.target.value] || 'last30');
+                                }}
+                                options={[
+                                    'Today', 'Yesterday', 'Last 7 Days', 'Last 14 Days', 'Last 30 Days', 'Last 90 Days',
+                                    'This Week', 'Last Week', 'This Month', 'Last Month', 'Custom Range'
+                                ]}
+                            />
                         </div>
 
                         {/* Custom Date Range */}
@@ -1772,19 +1785,15 @@ const AFVPage = () => {
                                 <span className="text-sm text-gray-600 dark:text-gray-400">
                                     Show per page:
                                 </span>
-                                <select
-                                    value={itemsPerPage}
+                                <Combobox
+                                    value={String(itemsPerPage)}
                                     onChange={(e) => {
                                         setItemsPerPage(Number(e.target.value));
                                         setCurrentPage(1);
                                     }}
-                                    className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                >
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                </select>
+                                    options={['10', '25', '50', '100']}
+                                    className="w-20"
+                                />
                             </div>
                         </div>
                     </div>

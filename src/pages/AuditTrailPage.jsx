@@ -3,7 +3,7 @@ import { History, Search, Filter, X, Download, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuditTrail } from '../contexts/AuditTrailContext';
 import { getAvatarText } from '../utils/avatarColors';
-import { Button, Select, Input, Pagination } from '../components/ui';
+import { Button, Input, Pagination, Combobox } from '../components/ui';
 import { useDebouncedValue } from '../utils/debounce';
 
 // Mock users (to be replaced with actual user data from context)
@@ -382,20 +382,32 @@ const AuditTrailPage = () => {
                     {/* Date Range */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date Range</label>
-                        <select
-                            value={dateRange}
-                            onChange={(e) => setDateRange(e.target.value)}
-                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        >
-                            <option value="last7">Last 7 Days</option>
-                            <option value="last30">Last 30 Days</option>
-                            <option value="last90">Last 3 Months</option>
-                            <option value="thisMonth">This Month</option>
-                            <option value="lastMonth">Last Month</option>
-                            <option value="thisYear">This Year</option>
-                            <option value="allTime">All Time</option>
-                            <option value="custom">Custom Range</option>
-                        </select>
+                        <Combobox
+                            value={{
+                                'last7': 'Last 7 Days',
+                                'last30': 'Last 30 Days',
+                                'last90': 'Last 3 Months',
+                                'thisMonth': 'This Month',
+                                'lastMonth': 'Last Month',
+                                'thisYear': 'This Year',
+                                'allTime': 'All Time',
+                                'custom': 'Custom Range'
+                            }[dateRange] || 'Last 7 Days'}
+                            onChange={(e) => {
+                                const map = {
+                                    'Last 7 Days': 'last7',
+                                    'Last 30 Days': 'last30',
+                                    'Last 3 Months': 'last90',
+                                    'This Month': 'thisMonth',
+                                    'Last Month': 'lastMonth',
+                                    'This Year': 'thisYear',
+                                    'All Time': 'allTime',
+                                    'Custom Range': 'custom'
+                                };
+                                setDateRange(map[e.target.value] || 'last7');
+                            }}
+                            options={['Last 7 Days', 'Last 30 Days', 'Last 3 Months', 'This Month', 'Last Month', 'This Year', 'All Time', 'Custom Range']}
+                        />
                     </div>
 
                     {dateRange === 'custom' && (
@@ -424,45 +436,30 @@ const AuditTrailPage = () => {
                     {/* User Filter */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">User</label>
-                        <select
-                            value={userFilter}
-                            onChange={(e) => setUserFilter(e.target.value)}
-                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        >
-                            <option value="">All Users</option>
-                            {uniqueUsers.map(user => (
-                                <option key={user} value={user}>{user}</option>
-                            ))}
-                        </select>
+                        <Combobox
+                            value={userFilter || 'All Users'}
+                            onChange={(e) => setUserFilter(e.target.value === 'All Users' ? '' : e.target.value)}
+                            options={['All Users', ...uniqueUsers]}
+                        />
                     </div>
 
                     {/* Filters */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Action</label>
-                        <select
-                            value={actionFilter[0] || ''}
-                            onChange={(e) => setActionFilter(e.target.value ? [e.target.value] : [])}
-                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        >
-                            <option value="">All Actions</option>
-                            {uniqueActions.map(action => (
-                                <option key={action} value={action}>{action}</option>
-                            ))}
-                        </select>
+                        <Combobox
+                            value={actionFilter[0] || 'All Actions'}
+                            onChange={(e) => setActionFilter(e.target.value === 'All Actions' ? [] : [e.target.value])}
+                            options={['All Actions', ...uniqueActions]}
+                        />
                     </div>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entity</label>
-                        <select
-                            value={entityFilter}
-                            onChange={(e) => setEntityFilter(e.target.value)}
-                            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        >
-                            <option value="">All Entities</option>
-                            {uniqueEntities.map(entity => (
-                                <option key={entity} value={entity}>{entity}</option>
-                            ))}
-                        </select>
+                        <Combobox
+                            value={entityFilter || 'All Entities'}
+                            onChange={(e) => setEntityFilter(e.target.value === 'All Entities' ? '' : e.target.value)}
+                            options={['All Entities', ...uniqueEntities]}
+                        />
                     </div>
 
                     <div>

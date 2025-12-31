@@ -13,7 +13,7 @@ import { getWeekStartDate, getFiscalWeek, addDays, formatDateForDisplay, formatD
 import { getDepartmentColor, getAvatarText, getAvatarProps } from '../utils/avatarColors';
 import { handleSupabaseError, isRLSError } from '../utils/rlsErrorHandler';
 import { shiftColors, leaveColors } from '../constants';
-import { Button, Select, Modal, Input, Combobox } from '../components/ui';
+import { Button, Modal, Input, Combobox } from '../components/ui';
 
 // Draggable wrapper component for resource assignments
 const DraggableResourceItem = ({ id, children, disabled }) => {
@@ -157,7 +157,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     const [visibleUserIds, setVisibleUserIds] = useState([]);
     const [filterDepartments, setFilterDepartments] = useState([]);
     const [departments, setDepartments] = useState([]);
-    const [sortOrder, setSortOrder] = useState('department');
+    const [sortOrder, setSortOrder] = useState('Department');
     const [filterSaturday, setFilterSaturday] = useState(false);
     const [filterSunday, setFilterSunday] = useState(false);
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
@@ -846,9 +846,9 @@ const ResourceCalendarPage = ({ onViewProject }) => {
         usersToDisplay = usersToDisplay.filter(user => visibleUserIds.includes(user.id));
 
         // Apply sorting based on sortOrder
-        if (sortOrder === 'alphabetical') {
+        if (sortOrder.toLowerCase() === 'alphabetical') {
             usersToDisplay.sort((a, b) => a.name.localeCompare(b.name));
-        } else if (sortOrder === 'department') {
+        } else if (sortOrder.toLowerCase() === 'department') {
             // Custom department order
             const departmentOrder = ['Site team', 'Project team', 'Delivery team', 'Design team', 'Office staff', 'Subcontractor'];
 
@@ -2858,10 +2858,13 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     </div>
                     <div className="flex items-center">
                         <label htmlFor="sort-by" className="text-sm mr-2">Sort by:</label>
-                        <Select id="sort-by" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="!py-1.5">
-                            <option value="alphabetical">Alphabetical</option>
-                            <option value="department">Department</option>
-                        </Select>
+                        <Combobox 
+                            id="sort-by" 
+                            value={sortOrder} 
+                            onChange={e => setSortOrder(e.target.value)} 
+                            options={['Alphabetical', 'Department']}
+                            className="w-40"
+                        />
                     </div>
                 </div>
                 <h2 className="text-lg font-semibold text-center">Week {fiscalWeek}: {formatDateForDisplay(weekDates[0])} - {formatDateForDisplay(weekDates[6])}, {currentWeekStart.getFullYear()}</h2>
@@ -3516,7 +3519,7 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                     console.log('📅 Year items:', yearItems);
 
                     if (!yearItemError) {
-                        setYearOptions(yearItems || []);
+                        setYearOptions(yearItems ? yearItems.map(i => i.display_text) : []);
                     }
                 }
 
@@ -3914,18 +3917,22 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
 
                     {/* Time Selection - Available for both Project and Leave */}
                     <div className="grid grid-cols-2 gap-4 border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
-                        <Select label="Start Time" name="startTime" value={formData.startTime} onChange={handleInputChange}>
-                            <option value="">Select start time</option>
-                            {timeOptions.map(time => (
-                                <option key={`start-${time}`} value={time}>{time}</option>
-                            ))}
-                        </Select>
-                        <Select label="End Time" name="endTime" value={formData.endTime} onChange={handleInputChange}>
-                            <option value="">Select end time</option>
-                            {timeOptions.map(time => (
-                                <option key={`end-${time}`} value={time}>{time}</option>
-                            ))}
-                        </Select>
+                        <Combobox 
+                            label="Start Time" 
+                            name="startTime" 
+                            value={formData.startTime} 
+                            onChange={handleInputChange}
+                            options={timeOptions}
+                            placeholder="Select start time"
+                        />
+                        <Combobox 
+                            label="End Time" 
+                            name="endTime" 
+                            value={formData.endTime} 
+                            onChange={handleInputChange}
+                            options={timeOptions}
+                            placeholder="Select end time"
+                        />
                     </div>
 
                     {!isSecondLeave && <fieldset disabled={projectFieldsDisabled} className={`space-y-4 ${!isSecondProject ? 'border-t pt-4 mt-4 border-gray-200 dark:border-gray-700' : ''} disabled:opacity-40`}>
@@ -3993,20 +4000,14 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                                                             options={clientOptions}
                                                             required
                                                         />
-                                                        <Select
+                                                        <Combobox
                                                             label="Year"
                                                             name="year"
                                                             value={newProjectData.year}
                                                             onChange={handleNewProjectInputChange}
+                                                            options={yearOptions}
                                                             required
-                                                        >
-                                                            <option value="">Select Year</option>
-                                                            {yearOptions.map(option => (
-                                                                <option key={option.id} value={option.display_text}>
-                                                                    {option.display_text}
-                                                                </option>
-                                                            ))}
-                                                        </Select>
+                                                        />
                                                     </div>
                                                 ) : (
                                                     <>
@@ -4093,20 +4094,22 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                             disabled={!isManual} 
                         />
                         
-                        <Select label="Shift" name="shift" value={formData.shift} onChange={handleInputChange}>
-                            <option>Nights</option>
-                            <option>Days</option>
-                            <option>Evening</option>
-                        </Select>
+                        <Combobox 
+                            label="Shift" 
+                            name="shift" 
+                            value={formData.shift} 
+                            onChange={handleInputChange}
+                            options={['Nights', 'Days', 'Evening']}
+                        />
 
-                        <Select label="Task" name="task" value={formData.task} onChange={handleInputChange}>
-                            <option value="">Select Task Type</option>
-                            {jobTypeOptions.map(option => (
-                                <option key={option.id} value={option.display_text}>
-                                    {option.display_text}
-                                </option>
-                            ))}
-                        </Select>
+                        <Combobox 
+                            label="Task" 
+                            name="task" 
+                            value={formData.task} 
+                            onChange={handleInputChange}
+                            options={jobTypeOptions.map(option => option.display_text)}
+                            placeholder="Select Task Type"
+                        />
 
                         <div className="space-y-1">
                             <Input label="Comment" name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..." className={formData.isHighlighted ? "text-red-500 dark:text-red-400" : ""}/>

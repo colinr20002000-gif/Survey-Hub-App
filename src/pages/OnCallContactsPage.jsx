@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { PlusCircle, Edit, Trash2, Calendar, Archive, ArchiveRestore } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { supabase } from '../supabaseClient';
-import { Button, Modal } from '../components/ui';
+import { Button, Modal, Combobox } from '../components/ui';
 import { usePermissions } from '../hooks/usePermissions';
 import { getWeekStartDate, addDays, formatDateForDisplay, formatDateForKey, getFiscalWeek } from '../utils/dateHelpers';
 
@@ -460,21 +460,16 @@ const OnCallContactModal = ({ isOpen, onClose, onSave, contact }) => {
             <form onSubmit={handleSubmit} className="p-6">
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Working Week <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                            value={selectedWeek || ''}
-                            onChange={(e) => handleWeekChange(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        <Combobox
+                            label={<>Working Week <span className="text-red-500">*</span></>}
+                            value={selectedWeek ? (weekOptions.find(w => w.startKey === selectedWeek)?.label || '') : ''}
+                            onChange={(e) => {
+                                const option = weekOptions.find(w => w.label === e.target.value);
+                                if (option) handleWeekChange(option.startKey);
+                            }}
+                            options={weekOptions.map(w => w.label)}
                             required
-                        >
-                            {weekOptions.map(week => (
-                                <option key={week.startKey} value={week.startKey}>
-                                    {week.label}
-                                </option>
-                            ))}
-                        </select>
+                        />
                     </div>
 
                     <div>

@@ -3,7 +3,7 @@ import { FolderKanban, Bell, Megaphone, Bug } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { supabase } from '../supabaseClient';
-import { Card, Button, Select } from '../components/ui';
+import { Card, Button, Select, Combobox } from '../components/ui';
 import { ANNOUNCEMENT_PRIORITIES } from '../constants';
 
 const DashboardPage = ({ onViewProject, setActiveTab }) => {
@@ -149,10 +149,11 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
                     <Card title="Report a Bug or Request a Feature" icon={<Bug className="text-orange-500" />}>
                         <form onSubmit={handleFeedbackSubmit} className="space-y-4">
                             <div>
-                                <Select value={feedbackType} onChange={(e) => setFeedbackType(e.target.value)}>
-                                    <option value="bug">Report a Bug</option>
-                                    <option value="feature">Request a Feature</option>
-                                </Select>
+                                <Combobox 
+                                    value={feedbackType === 'bug' ? 'Report a Bug' : 'Request a Feature'} 
+                                    onChange={(e) => setFeedbackType(e.target.value === 'Report a Bug' ? 'bug' : 'feature')}
+                                    options={['Report a Bug', 'Request a Feature']}
+                                />
                             </div>
                             <div>
                                 <textarea

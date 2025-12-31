@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../supabaseClient';
-import { Button, Select, Modal } from '../components/ui';
+import { Button, Combobox, Modal } from '../components/ui';
 
 const FeedbackPage = () => {
     const { user } = useAuth();
@@ -174,21 +174,27 @@ const FeedbackPage = () => {
                 <div className="flex flex-wrap gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
-                        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                            <option value="all">All Statuses</option>
-                            <option value="open">Open</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="resolved">Resolved</option>
-                            <option value="closed">Closed</option>
-                        </Select>
+                        <Combobox 
+                            value={statusFilter === 'all' ? '' : statusFilter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
+                            onChange={(e) => {
+                                const val = e.target.value.toLowerCase().replace(' ', '_');
+                                setStatusFilter(val || 'all');
+                            }}
+                            options={['Open', 'In Progress', 'Resolved', 'Closed']}
+                            placeholder="All Statuses"
+                        />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
-                        <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-                            <option value="all">All Types</option>
-                            <option value="bug">Bug Reports</option>
-                            <option value="feature">Feature Requests</option>
-                        </Select>
+                        <Combobox 
+                            value={typeFilter === 'all' ? '' : (typeFilter === 'bug' ? 'Bug Reports' : 'Feature Requests')} 
+                            onChange={(e) => {
+                                const val = e.target.value === 'Bug Reports' ? 'bug' : (e.target.value === 'Feature Requests' ? 'feature' : 'all');
+                                setTypeFilter(val);
+                            }}
+                            options={['Bug Reports', 'Feature Requests']}
+                            placeholder="All Types"
+                        />
                     </div>
                 </div>
             </div>

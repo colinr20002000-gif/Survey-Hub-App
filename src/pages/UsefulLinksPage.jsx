@@ -3,7 +3,7 @@ import { Link as LinkIcon, Plus, Trash2, Edit2, X, Save, ExternalLink, Folder, E
 import { supabase } from '../supabaseClient';
 import { getDepartmentColor } from '../utils/avatarColors';
 import { useAuth } from '../contexts/AuthContext';
-import { Button, Select } from '../components/ui';
+import { Button, Select, Combobox } from '../components/ui';
 
 const UsefulLinksPage = () => {
     const { user } = useAuth();
@@ -465,20 +465,17 @@ const UsefulLinksPage = () => {
                                     </div>
 
                                     <div>
-                                        <Select
+                                        <Combobox
                                             label={<>Category <span className="text-red-500">*</span></>}
-                                            value={formData.category_id}
-                                            onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                                            value={categories.find(c => c.id === formData.category_id)?.display_text || ''}
+                                            onChange={(e) => {
+                                                const cat = categories.find(c => c.display_text === e.target.value);
+                                                if (cat) setFormData({ ...formData, category_id: cat.id });
+                                            }}
+                                            options={categories.map(c => c.display_text)}
                                             required
                                             className="w-full"
-                                        >
-                                            <option value="">Select a Category...</option>
-                                            {categories.map(category => (
-                                                <option key={category.id} value={category.id}>
-                                                    {category.display_text}
-                                                </option>
-                                            ))}
-                                        </Select>
+                                        />
                                     </div>
 
                                     <div>

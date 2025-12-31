@@ -3,7 +3,7 @@
 
 // Service Worker for Survey Hub + Firebase Cloud Messaging
 // NO OFFLINE CACHING - Only Firebase push notifications
-const CACHE_VERSION = 'v13-cache-fix'; // Update this version when deploying changes
+const CACHE_VERSION = 'v14-combobox-fix'; // Update this version when deploying changes
 const CACHE_NAME = `survey-hub-${CACHE_VERSION}-fcm`;
 const OFFLINE_URL = '/offline.html';
 

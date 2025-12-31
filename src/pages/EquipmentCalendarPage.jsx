@@ -10,7 +10,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { getWeekStartDate, addDays, formatDateForDisplay, formatDateForKey, getFiscalWeek } from '../utils/dateHelpers';
 import { getDepartmentColor, getAvatarText } from '../utils/avatarColors';
 import { handleSupabaseError, isRLSError } from '../utils/rlsErrorHandler';
-import { Button, Select, Modal, Input } from '../components/ui';
+import { Button, Modal, Input, Combobox } from '../components/ui';
 
 // Draggable wrapper component for equipment items
 const DraggableEquipmentItem = ({ id, children, disabled, className = '' }) => {
@@ -81,7 +81,7 @@ const EquipmentCalendarPage = () => {
     const [visibleUserIds, setVisibleUserIds] = useState([]);
     const [filterDepartments, setFilterDepartments] = useState([]);
     const [departments, setDepartments] = useState([]);
-    const [sortOrder, setSortOrder] = useState('department');
+    const [sortOrder, setSortOrder] = useState('Department');
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, cellData: null });
     const [clipboard, setClipboard] = useState({ type: null, data: null, sourceCell: null, sourceIndex: null });
     const [undoHistory, setUndoHistory] = useState([]);
@@ -220,7 +220,8 @@ const EquipmentCalendarPage = () => {
         try {
             const { data, error } = await supabase
                 .from('equipment')
-                .select('id, name, category, status')
+                .select('id, name, category, status, is_asset')
+                .eq('is_asset', false)
                 .order('name');
 
             if (error) {
@@ -709,9 +710,9 @@ const EquipmentCalendarPage = () => {
         usersToDisplay = usersToDisplay.filter(user => visibleUserIds.includes(user.id));
 
         // Apply sorting
-        if (sortOrder === 'alphabetical') {
+        if (sortOrder.toLowerCase() === 'alphabetical') {
             usersToDisplay.sort((a, b) => a.name.localeCompare(b.name));
-        } else if (sortOrder === 'department') {
+        } else if (sortOrder.toLowerCase() === 'department') {
             const departmentOrder = ['Site team', 'Project team', 'Delivery team', 'Design team', 'Office staff', 'Subcontractor'];
 
             usersToDisplay.sort((a, b) => {
@@ -2268,10 +2269,13 @@ const EquipmentCalendarPage = () => {
                     </div>
                     <div className="flex items-center">
                         <label htmlFor="sort-by" className="text-sm mr-2">Sort by:</label>
-                        <Select id="sort-by" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="!py-1.5">
-                            <option value="alphabetical">Alphabetical</option>
-                            <option value="department">Department</option>
-                        </Select>
+                        <Combobox 
+                            id="sort-by" 
+                            value={sortOrder} 
+                            onChange={e => setSortOrder(e.target.value)} 
+                            options={['Alphabetical', 'Department']}
+                            className="w-40"
+                        />
                     </div>
                 </div>
                 <h2 className="text-lg font-semibold text-center">Week {fiscalWeek}: {formatDateForDisplay(weekDates[0])} - {formatDateForDisplay(weekDates[6])}, {currentWeekStart.getFullYear()}</h2>
@@ -2928,12 +2932,12 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                 });
             } else {
                 setFormData({
-                    equipmentId: currentAssignment.equipmentId || '',
+                    equipmentId: currentAssignment.equipmentId || null,
                     comment: comment
                 });
             }
         } else {
-            setFormData({ equipmentId: '', comment: '' });
+            setFormData({ equipmentId: null, comment: '' });
         }
     }, [currentAssignment, isOpen]);
 
@@ -2944,6 +2948,12 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
     };
 
     const handleSave = () => {
+        // Validate: Equipment selection is required
+        if (formData.equipmentId === null) {
+            setError('Please select equipment from the list');
+            return;
+        }
+
         // Validate: If "Comment Only" is selected (equipmentId is empty string), comment is required
         if (formData.equipmentId === '' && !formData.comment.trim()) {
             setError('Comment is required when "Comment Only" is selected');
@@ -2986,15 +2996,34 @@ const AllocationModal = ({ isOpen, onClose, onSave, user, date, currentAssignmen
                     )}
 
                     <fieldset className="space-y-4">
-                        <Select label="Equipment (Optional)" name="equipmentId" value={formData.equipmentId} onChange={handleInputChange}>
-                            <option value="no-equipment-required">No Equipment Required</option>
-                            <option value="">Comment Only</option>
-                            {(equipment || []).map(eq => (
-                                <option key={eq.id} value={eq.id}>
-                                    {eq.name} {eq.serial_number ? `(${eq.serial_number})` : ''}
-                                </option>
-                            ))}
-                        </Select>
+                        <Combobox 
+                            label="Equipment" 
+                            name="equipmentId" 
+                            value={
+                                formData.equipmentId === 'no-equipment-required' ? 'No Equipment Required' : 
+                                (formData.equipmentId === '' ? 'Comment Only' : 
+                                (formData.equipmentId === null ? '' :
+                                (equipment.find(eq => eq.id === formData.equipmentId) ? 
+                                    `${equipment.find(eq => eq.id === formData.equipmentId).name} ${equipment.find(eq => eq.id === formData.equipmentId).serial_number ? `(${equipment.find(eq => eq.id === formData.equipmentId).serial_number})` : ''}` : 
+                                    ''))) 
+                            } 
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'No Equipment Required') {
+                                    setFormData(prev => ({ ...prev, equipmentId: 'no-equipment-required' }));
+                                } else if (val === 'Comment Only') {
+                                    setFormData(prev => ({ ...prev, equipmentId: '' }));
+                                } else {
+                                    const eq = equipment.find(q => `${q.name} ${q.serial_number ? `(${q.serial_number})` : ''}` === val);
+                                    if (eq) setFormData(prev => ({ ...prev, equipmentId: eq.id }));
+                                }
+                            }}
+                            options={[
+                                'No Equipment Required',
+                                'Comment Only',
+                                ...(equipment || []).map(eq => `${eq.name} ${eq.serial_number ? `(${eq.serial_number})` : ''}`)
+                            ]}
+                        />
                         <Input label={commentLabel} name="comment" value={formData.comment} onChange={handleInputChange} placeholder="Add a comment..." />
                     </fieldset>
                 </div>

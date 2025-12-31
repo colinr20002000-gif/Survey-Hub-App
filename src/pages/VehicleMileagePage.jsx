@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { Card, Button, Input, Modal, Select, ConfirmationModal } from '../components/ui';
+import { Card, Button, Select, Input, Modal, ConfirmationModal, Combobox } from '../components/ui';
 import { Car, Plus, Search, Calendar, FileText, Filter, Loader2, Trash2, Edit, Download, ChevronRight, ArrowLeft, Wand2, RotateCcw } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { jsPDF } from 'jspdf';
@@ -1047,11 +1047,14 @@ const VehicleMileagePage = () => {
 
                             <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
                                 <div className="w-full sm:w-48">
-                                    <Select value={filterOverdue} onChange={(e) => setFilterOverdue(e.target.value)}>
-                                        <option value="all">All Overdue Status</option>
-                                        <option value="overdue">Overdue Only</option>
-                                        <option value="up_to_date">Up to Date Only</option>
-                                    </Select>
+                                    <Combobox 
+                                        value={filterOverdue === 'all' ? 'All Overdue Status' : (filterOverdue === 'overdue' ? 'Overdue Only' : 'Up to Date Only')} 
+                                        onChange={(e) => {
+                                            const map = { 'All Overdue Status': 'all', 'Overdue Only': 'overdue', 'Up to Date Only': 'up_to_date' };
+                                            setFilterOverdue(map[e.target.value] || 'all');
+                                        }}
+                                        options={['All Overdue Status', 'Overdue Only', 'Up to Date Only']}
+                                    />
                                 </div>
 
                                 <Button 
@@ -1251,22 +1254,27 @@ const VehicleMileagePage = () => {
                                 {/* Vehicle filter hidden in this mode as it's selected via cards */}
                                 <div className="flex-1 md:w-32">
                                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Year</label>
-                                    <Select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
-                                        <option value="all">All Years</option>
-                                        <option value="2023">2023</option>
-                                        <option value="2024">2024</option>
-                                        <option value="2025">2025</option>
-                                        <option value="2026">2026</option>
-                                    </Select>
+                                    <Combobox
+                                        value={filterYear === 'all' ? 'All Years' : filterYear}
+                                        onChange={(e) => setFilterYear(e.target.value === 'All Years' ? 'all' : e.target.value)}
+                                        options={['All Years', '2023', '2024', '2025', '2026']}
+                                    />
                                 </div>
                                 <div className="flex-1 md:w-32">
                                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Month</label>
-                                    <Select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
-                                        <option value="all">All Months</option>
-                                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                                            <option key={m} value={String(m)}>{new Date(2000, m - 1, 1).toLocaleDateString('default', { month: 'short' })}</option>
-                                        ))}
-                                    </Select>
+                                    <Combobox
+                                        value={filterMonth === 'all' ? 'All Months' : new Date(2000, parseInt(filterMonth) - 1, 1).toLocaleDateString('default', { month: 'short' })}
+                                        onChange={(e) => {
+                                            if (e.target.value === 'All Months') {
+                                                setFilterMonth('all');
+                                            } else {
+                                                const months = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString('default', { month: 'short' }));
+                                                const index = months.indexOf(e.target.value);
+                                                if (index !== -1) setFilterMonth(String(index + 1));
+                                            }
+                                        }}
+                                        options={['All Months', ...Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString('default', { month: 'short' }))] }
+                                    />
                                 </div>
                             </div>
                             
@@ -1853,11 +1861,16 @@ const SelectVehicleModal = ({ isOpen, onClose, onConfirm, vehicles }) => {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vehicle</label>
-                    <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} required>
-                        {vehicles.map(v => (
-                            <option key={v.id} value={v.id}>{v.name} ({v.serial_number})</option>
-                        ))}
-                    </Select>
+                    <Combobox
+                        value={vehicleId ? (vehicles.find(v => v.id === vehicleId)?.name + ` (${vehicles.find(v => v.id === vehicleId)?.serial_number})` || '') : ''}
+                        onChange={(e) => {
+                             const selectedString = e.target.value;
+                             const v = vehicles.find(v => `${v.name} (${v.serial_number})` === selectedString);
+                             if (v) setVehicleId(v.id);
+                        }}
+                        options={vehicles.map(v => `${v.name} (${v.serial_number})`)}
+                        required
+                    />
                 </div>
                 <div className="flex justify-end gap-3 pt-4">
                     <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
@@ -1891,28 +1904,39 @@ const CreateMonthModal = ({ isOpen, onClose, onConfirm, vehicles, initialVehicle
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vehicle</label>
-                    <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} required>
-                        {vehicles.map(v => (
-                            <option key={v.id} value={v.id}>{v.name} ({v.serial_number})</option>
-                        ))}
-                    </Select>
+                    <Combobox
+                        value={vehicleId ? (vehicles.find(v => v.id === vehicleId)?.name + ` (${vehicles.find(v => v.id === vehicleId)?.serial_number})` || '') : ''}
+                        onChange={(e) => {
+                             const selectedString = e.target.value;
+                             const v = vehicles.find(v => `${v.name} (${v.serial_number})` === selectedString);
+                             if (v) setVehicleId(v.id);
+                        }}
+                        options={vehicles.map(v => `${v.name} (${v.serial_number})`)}
+                        required
+                    />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Month</label>
-                        <Select value={month} onChange={(e) => setMonth(e.target.value)}>
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                                <option key={m} value={m}>{new Date(2000, m - 1, 1).toLocaleDateString('default', { month: 'long' })}</option>
-                            ))}
-                        </Select>
+                        <Combobox
+                            value={new Date(2000, month - 1, 1).toLocaleDateString('default', { month: 'long' })}
+                            onChange={(e) => {
+                                const months = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString('default', { month: 'long' }));
+                                const index = months.indexOf(e.target.value);
+                                if (index !== -1) setMonth(index + 1);
+                            }}
+                            options={Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString('default', { month: 'long' }))}
+                            required
+                        />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
-                        <Select value={year} onChange={(e) => setYear(e.target.value)}>
-                            {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
-                                <option key={y} value={y}>{y}</option>
-                            ))}
-                        </Select>
+                        <Combobox
+                            value={String(year)}
+                            onChange={(e) => setYear(parseInt(e.target.value))}
+                            options={[String(new Date().getFullYear() - 1), String(new Date().getFullYear()), String(new Date().getFullYear() + 1)]}
+                            required
+                        />
                     </div>
                 </div>
                 <div className="flex justify-end gap-3 pt-4">

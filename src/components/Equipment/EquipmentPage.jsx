@@ -8,6 +8,7 @@ import {
     Loader2,
     History
 } from 'lucide-react';
+import { Combobox } from '../ui';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -1946,16 +1947,12 @@ CREATE TABLE equipment_audit_log (
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Category</label>
-                                    <select
+                                    <Combobox
                                         value={equipmentForm.category}
                                         onChange={(e) => setEquipmentForm({...equipmentForm, category: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    >
-                                        <option value="">Select Category</option>
-                                        {categories.map(cat => (
-                                            <option key={cat.id} value={cat.value}>{cat.value}</option>
-                                        ))}
-                                    </select>
+                                        options={categories.map(cat => cat.value)}
+                                        placeholder="Select Category"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Serial Number (Optional)</label>
@@ -2145,16 +2142,12 @@ CREATE TABLE equipment_audit_log (
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Category</label>
-                                    <select
+                                    <Combobox
                                         value={equipmentForm.category}
                                         onChange={(e) => setEquipmentForm({...equipmentForm, category: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    >
-                                        <option value="">Select Category</option>
-                                        {categories.map(cat => (
-                                            <option key={cat.id} value={cat.value}>{cat.value}</option>
-                                        ))}
-                                    </select>
+                                        options={categories.map(cat => cat.value)}
+                                        placeholder="Select Category"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Serial Number (Optional)</label>
@@ -2168,15 +2161,14 @@ CREATE TABLE equipment_audit_log (
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Status</label>
-                                    <select
-                                        value={equipmentForm.status}
-                                        onChange={(e) => setEquipmentForm({...equipmentForm, status: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    >
-                                        <option value="available">Available</option>
-                                        <option value="assigned">Assigned</option>
-                                        <option value="maintenance">Maintenance</option>
-                                    </select>
+                                    <Combobox
+                                        value={equipmentForm.status === 'available' ? 'Available' : (equipmentForm.status === 'assigned' ? 'Assigned' : 'Maintenance')}
+                                        onChange={(e) => {
+                                            const map = { 'Available': 'available', 'Assigned': 'assigned', 'Maintenance': 'maintenance' };
+                                            setEquipmentForm({...equipmentForm, status: map[e.target.value] || 'available'});
+                                        }}
+                                        options={['Available', 'Assigned', 'Maintenance']}
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Location</label>

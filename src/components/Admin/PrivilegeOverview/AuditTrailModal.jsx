@@ -1,24 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { X, History, Check, XIcon, Calendar, User } from 'lucide-react';
+import { X, History, User, Clock, Shield, Search, Check, XCircle } from 'lucide-react';
+import { Combobox } from '../../ui';
 import { useDynamicPermissions } from '../../../hooks/useDynamicPermissions';
 
-/**
- * AuditTrailModal - Display audit history of permission changes
- *
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether the modal is open
- * @param {Function} props.onClose - Callback when modal is closed
- * @param {string} props.privilegeLevel - Optional filter by privilege level
- */
-const AuditTrailModal = ({
-    isOpen,
-    onClose,
-    privilegeLevel = null
-}) => {
+const AuditTrailModal = ({ isOpen, onClose, privilegeLevel }) => {
     const { getAuditTrail } = useDynamicPermissions();
     const [auditRecords, setAuditRecords] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedLevel, setSelectedLevel] = useState(privilegeLevel || '');
+
+    useEffect(() => {
+        if (isOpen && privilegeLevel && !selectedLevel) {
+            setSelectedLevel(privilegeLevel);
+        }
+    }, [isOpen, privilegeLevel]);
 
     useEffect(() => {
         if (isOpen) {
@@ -85,19 +80,12 @@ const AuditTrailModal = ({
                         <label className="text-sm text-gray-700 dark:text-gray-300">
                             Filter by privilege level:
                         </label>
-                        <select
-                            value={selectedLevel}
-                            onChange={(e) => setSelectedLevel(e.target.value)}
-                            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
-                        >
-                            <option value="">All Levels</option>
-                            <option value="Viewer">Viewer</option>
-                            <option value="Viewer+">Viewer+</option>
-                            <option value="Editor">Editor</option>
-                            <option value="Editor+">Editor+</option>
-                            <option value="Admin">Admin</option>
-                            <option value="Super Admin">Super Admin</option>
-                        </select>
+                        <Combobox
+                            value={selectedLevel || 'All Levels'}
+                            onChange={(e) => setSelectedLevel(e.target.value === 'All Levels' ? '' : e.target.value)}
+                            options={['All Levels', 'Viewer', 'Viewer+', 'Editor', 'Editor+', 'Admin', 'Super Admin']}
+                            className="w-48"
+                        />
 
                         <button
                             onClick={fetchAuditTrail}
@@ -147,7 +135,7 @@ const AuditTrailModal = ({
                                                     {record.old_value ? (
                                                         <Check className="w-4 h-4 text-green-600" />
                                                     ) : (
-                                                        <XIcon className="w-4 h-4 text-red-600" />
+                                                        <XCircle className="w-4 h-4 text-red-600" />
                                                     )}
                                                     <span className="text-gray-600 dark:text-gray-400">
                                                         {record.old_value ? 'Granted' : 'Denied'}
@@ -161,7 +149,7 @@ const AuditTrailModal = ({
                                                     {record.new_value ? (
                                                         <Check className="w-4 h-4 text-green-600" />
                                                     ) : (
-                                                        <XIcon className="w-4 h-4 text-red-600" />
+                                                        <XCircle className="w-4 h-4 text-red-600" />
                                                     )}
                                                     <span className="text-gray-900 dark:text-gray-100 font-medium">
                                                         {record.new_value ? 'Granted' : 'Denied'}

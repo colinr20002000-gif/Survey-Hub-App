@@ -7,6 +7,7 @@ import {
   returnAllUserAssignments
 } from '../../utils/userAssignmentCleanup';
 import { getDepartmentColor, getAvatarText } from '../../utils/avatarColors';
+import { Combobox } from '../ui';
 
 const UserAdmin = () => {
   const { user } = useAuth();
@@ -1704,30 +1705,20 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Privilege</label>
-                <select
+                <Combobox
                   value={realUserForm.privilege}
                   onChange={(e) => setRealUserForm(prev => ({ ...prev, privilege: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                >
-                  <option value="Viewer">Viewer</option>
-                  <option value="Viewer+">Viewer+</option>
-                  <option value="Editor">Editor</option>
-                  <option value="Editor+">Editor+</option>
-                  <option value="Admin">Admin</option>
-                </select>
+                  options={["Viewer", "Viewer+", "Editor", "Editor+", "Admin"]}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Team Role</label>
-                <select
+                <Combobox
                   value={realUserForm.team_role}
                   onChange={(e) => setRealUserForm(prev => ({ ...prev, team_role: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                >
-                  <option value="">Select Team Role</option>
-                  {teamRoles.map((role, index) => (
-                    <option key={`team-role-${index}`} value={role}>{role}</option>
-                  ))}
-                </select>
+                  options={teamRoles}
+                  placeholder="Select Team Role"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Hire Date</label>
@@ -1750,29 +1741,21 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Department</label>
-                <select
+                <Combobox
                   value={realUserForm.department}
                   onChange={(e) => setRealUserForm(prev => ({ ...prev, department: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                >
-                  <option value="">Select Department</option>
-                  {departments.map((dept, index) => (
-                    <option key={`dept-${index}`} value={dept}>{dept}</option>
-                  ))}
-                </select>
+                  options={departments}
+                  placeholder="Select Department"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Organisation</label>
-                <select
+                <Combobox
                   value={realUserForm.organisation}
                   onChange={(e) => setRealUserForm(prev => ({ ...prev, organisation: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                >
-                  <option value="">Select Organisation</option>
-                  {organisations.map((org, index) => (
-                    <option key={`org-${index}`} value={org}>{org}</option>
-                  ))}
-                </select>
+                  options={organisations}
+                  placeholder="Select Organisation"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Mobile Number</label>
@@ -1869,30 +1852,20 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Privilege</label>
-                <select
+                <Combobox
                   value={inviteUserForm.privilege}
                   onChange={(e) => setInviteUserForm(prev => ({ ...prev, privilege: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white"
-                >
-                  <option value="Viewer">Viewer</option>
-                  <option value="Viewer+">Viewer+</option>
-                  <option value="Editor">Editor</option>
-                  <option value="Editor+">Editor+</option>
-                  <option value="Admin">Admin</option>
-                </select>
+                  options={["Viewer", "Viewer+", "Editor", "Editor+", "Admin"]}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Team Role</label>
-                <select
+                <Combobox
                   value={inviteUserForm.team_role}
                   onChange={(e) => setInviteUserForm(prev => ({ ...prev, team_role: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white"
-                >
-                  <option value="">Select Team Role</option>
-                  {teamRoles.map((role, index) => (
-                    <option key={`team-role-${index}`} value={role}>{role}</option>
-                  ))}
-                </select>
+                  options={teamRoles}
+                  placeholder="Select Team Role"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Hire Date</label>
@@ -1915,29 +1888,21 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Department</label>
-                <select
+                <Combobox
                   value={inviteUserForm.department}
                   onChange={(e) => setInviteUserForm(prev => ({ ...prev, department: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white"
-                >
-                  <option value="">Select Department</option>
-                  {departments.map((dept, index) => (
-                    <option key={`dept-${index}`} value={dept}>{dept}</option>
-                  ))}
-                </select>
+                  options={departments}
+                  placeholder="Select Department"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Organisation</label>
-                <select
+                <Combobox
                   value={inviteUserForm.organisation}
                   onChange={(e) => setInviteUserForm(prev => ({ ...prev, organisation: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 bg-white"
-                >
-                  <option value="">Select Organisation</option>
-                  {organisations.map((org, index) => (
-                    <option key={`org-${index}`} value={org}>{org}</option>
-                  ))}
-                </select>
+                  options={organisations}
+                  placeholder="Select Organisation"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Mobile Number</label>
@@ -2051,20 +2016,12 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Team Role</label>
-                <select
+                <Combobox
                   value={dummyUserForm.team_role}
                   onChange={(e) => setDummyUserForm(prev => ({ ...prev, team_role: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-900"
-                  style={{
-                    backgroundColor: 'white',
-                    color: '#111827'
-                  }}
-                >
-                  <option value="" style={{ backgroundColor: 'white', color: '#111827' }}>Select Team Role</option>
-                  {(teamRoles.length > 0 ? teamRoles : fallbackTeamRoles).map(role => (
-                    <option key={role} value={role} style={{ backgroundColor: 'white', color: '#111827' }}>{role}</option>
-                  ))}
-                </select>
+                  options={teamRoles.length > 0 ? teamRoles : fallbackTeamRoles}
+                  placeholder="Select Team Role"
+                />
                 {teamRoles.length === 0 && fallbackTeamRoles.length > 0 && (
                   <p className="text-xs text-gray-500 mt-1">
                     Using fallback team roles. Check database configuration for dynamic options.
@@ -2073,20 +2030,12 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Department</label>
-                <select
+                <Combobox
                   value={dummyUserForm.department}
                   onChange={(e) => setDummyUserForm(prev => ({ ...prev, department: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-900"
-                  style={{
-                    backgroundColor: 'white',
-                    color: '#111827'
-                  }}
-                >
-                  <option value="" style={{ backgroundColor: 'white', color: '#111827' }}>Select Department</option>
-                  {(departments.length > 0 ? departments : fallbackDepartments).map(dept => (
-                    <option key={dept} value={dept} style={{ backgroundColor: 'white', color: '#111827' }}>{dept}</option>
-                  ))}
-                </select>
+                  options={departments.length > 0 ? departments : fallbackDepartments}
+                  placeholder="Select Department"
+                />
                 {departments.length === 0 && fallbackDepartments.length > 0 && (
                   <p className="text-xs text-gray-500 mt-1">
                     Using fallback departments. Check database configuration for dynamic options.
@@ -2095,20 +2044,12 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Organisation</label>
-                <select
+                <Combobox
                   value={dummyUserForm.organisation}
                   onChange={(e) => setDummyUserForm(prev => ({ ...prev, organisation: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-900"
-                  style={{
-                    backgroundColor: 'white',
-                    color: '#111827'
-                  }}
-                >
-                  <option value="" style={{ backgroundColor: 'white', color: '#111827' }}>Select Organisation</option>
-                  {(organisations.length > 0 ? organisations : fallbackOrganisations).map(org => (
-                    <option key={org} value={org} style={{ backgroundColor: 'white', color: '#111827' }}>{org}</option>
-                  ))}
-                </select>
+                  options={organisations.length > 0 ? organisations : fallbackOrganisations}
+                  placeholder="Select Organisation"
+                />
                 {organisations.length === 0 && fallbackOrganisations.length > 0 && (
                   <p className="text-xs text-gray-500 mt-1">
                     Using fallback organisations. Check database configuration for dynamic options.
@@ -2238,57 +2179,39 @@ const UserAdmin = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Team Role</label>
-                      <select
+                      <Combobox
                         value={editingUser.team_role || ''}
                         onChange={(e) => setEditingUser({ ...editingUser, team_role: e.target.value })}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                      >
-                        <option value="">Select Role</option>
-                        {teamRoles.map(role => (
-                          <option key={role} value={role}>{role}</option>
-                        ))}
-                      </select>
+                        options={teamRoles}
+                        placeholder="Select Role"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Privilege</label>
-                      <select
+                      <Combobox
                         value={editingUser.privilege || 'Viewer'}
                         onChange={(e) => setEditingUser({ ...editingUser, privilege: e.target.value })}
                         disabled={editingUser.privilege === 'Admin' && !isSuperAdmin}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 bg-white disabled:bg-gray-100"
-                      >
-                        <option value="Viewer">Viewer</option>
-                        <option value="Viewer+">Viewer+</option>
-                        <option value="Editor">Editor</option>
-                        <option value="Editor+">Editor+</option>
-                        <option value="Admin">Admin</option>
-                      </select>
+                        options={["Viewer", "Viewer+", "Editor", "Editor+", "Admin"]}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                      <select
+                      <Combobox
                         value={editingUser.department || ''}
                         onChange={(e) => setEditingUser({ ...editingUser, department: e.target.value })}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                      >
-                        <option value="">Select Department</option>
-                        {departments.map(dept => (
-                          <option key={dept} value={dept}>{dept}</option>
-                        ))}
-                      </select>
+                        options={departments}
+                        placeholder="Select Department"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Organisation</label>
-                      <select
+                      <Combobox
                         value={editingUser.organisation || ''}
                         onChange={(e) => setEditingUser({ ...editingUser, organisation: e.target.value })}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                      >
-                        <option value="">Select Organisation</option>
-                        {organisations.map(org => (
-                          <option key={org} value={org}>{org}</option>
-                        ))}
-                      </select>
+                        options={organisations}
+                        placeholder="Select Organisation"
+                      />
                     </div>
                   </div>
                 </div>

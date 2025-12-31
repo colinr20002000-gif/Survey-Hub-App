@@ -40,7 +40,7 @@ import PasswordChangePrompt from './components/PasswordChangePrompt';
 import CustomConfirmationModal from './components/ConfirmationModal';
 import AdminDocumentManager from './components/pages/AdminDocumentManager';
 import Chatbot from './components/Chatbot';
-import { Button, Input, ConfirmationModal, Select, Combobox, ReadOnlyField, RichTextEditor, Modal, Switch, StatusBadge } from './components/ui';
+import { Button, Input, ConfirmationModal, Combobox, ReadOnlyField, RichTextEditor, Modal, Switch, StatusBadge } from './components/ui';
 import FileManagementSystem from './components/FileManagement/FileManagementSystem';
 import EquipmentPage from './components/Equipment/EquipmentPage';
 import VehiclesPage from './components/Vehicles/VehiclesPage';
@@ -1741,16 +1741,27 @@ const UserModal = ({ isOpen, onClose, onSave, user }) => {
                         />
                         {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
                     </div>
-                    <Select label="Privilege" name="privilege" value={formData.privilege} onChange={handleChange}>
-                        {Object.keys(userPrivileges).map(p => <option key={p}>{p}</option>)}
-                    </Select>
-                    <Select label="Team Role" name="teamRole" value={formData.teamRole} onChange={handleChange}>
-                        {teamRolesLoading ? (
-                            <option>Loading...</option>
-                        ) : (
-                            teamRoles.map(role => <option key={role.value} value={role.value}>{role.display_text}</option>)
-                        )}
-                    </Select>
+                    <Combobox 
+                        label="Privilege" 
+                        name="privilege" 
+                        value={formData.privilege} 
+                        onChange={handleChange}
+                        options={Object.keys(userPrivileges)}
+                    />
+                    <Combobox 
+                        label="Team Role" 
+                        name="teamRole" 
+                        value={teamRolesLoading ? 'Loading...' : (teamRoles.find(r => r.value === formData.teamRole)?.display_text || '')} 
+                        onChange={(e) => {
+                            const selectedText = e.target.value;
+                            const role = teamRoles.find(r => r.display_text === selectedText);
+                            if (role) {
+                                // Mimic event object for handleChange
+                                handleChange({ target: { name: 'teamRole', value: role.value } });
+                            }
+                        }}
+                        options={teamRolesLoading ? ['Loading...'] : teamRoles.map(r => r.display_text)}
+                    />
                     <Input
                         label="Hire Date"
                         name="hire_date"

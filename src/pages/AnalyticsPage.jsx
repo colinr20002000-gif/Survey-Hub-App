@@ -6,7 +6,7 @@ import { useProjects } from '../contexts/ProjectContext';
 import { useJobs } from '../contexts/JobContext';
 import { useDeliveryTasks } from '../contexts/DeliveryTaskContext';
 import { useUsers } from '../contexts/UserContext';
-import { Button, Select, Input } from '../components/ui';
+import { Button, Select, Input, Combobox } from '../components/ui';
 import { getWeekStartDate, getFiscalWeek, addDays, formatDateForDisplay, formatDateForKey } from '../utils/dateHelpers';
 import { jobStatuses } from '../constants';
 
@@ -1127,24 +1127,21 @@ const ProjectsAnalyticsToolbar = ({
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Date Range
                     </label>
-                    <select
-                        value={filters.predefinedRange}
+                    <Combobox
+                        value={filters.predefinedRange && predefinedRanges[filters.predefinedRange] ? predefinedRanges[filters.predefinedRange].label : ''}
                         onChange={(e) => {
-                            const value = e.target.value;
+                            const selectedLabel = e.target.value;
+                            const entry = Object.entries(predefinedRanges).find(([key, range]) => range.label === selectedLabel);
+                            const value = entry ? entry[0] : '';
+                            
                             setFilters(prev => ({ ...prev, predefinedRange: value }));
                             if (value && predefinedRanges[value]) {
                                 onPredefinedRange(value);
                             }
                         }}
-                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                        <option value="">Custom Range</option>
-                        {Object.entries(predefinedRanges).map(([key, range]) => (
-                            <option key={key} value={key}>
-                                {range.label}
-                            </option>
-                        ))}
-                    </select>
+                        options={Object.values(predefinedRanges).map(r => r.label)}
+                        placeholder="Custom Range"
+                    />
                 </div>
 
                 {/* Custom Date Inputs */}
@@ -1231,15 +1228,14 @@ const ProjectsAnalyticsToolbar = ({
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Status
                     </label>
-                    <select
-                        value={filters.archived}
-                        onChange={(e) => setFilters(prev => ({ ...prev, archived: e.target.value }))}
-                        className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                        <option value="all">All Projects</option>
-                        <option value="active">Active Only</option>
-                        <option value="archived">Archived Only</option>
-                    </select>
+                    <Combobox
+                        value={filters.archived === 'active' ? 'Active Only' : (filters.archived === 'archived' ? 'Archived Only' : 'All Projects')}
+                        onChange={(e) => {
+                            const map = { 'All Projects': 'all', 'Active Only': 'active', 'Archived Only': 'archived' };
+                            setFilters(prev => ({ ...prev, archived: map[e.target.value] || 'all' }));
+                        }}
+                        options={['All Projects', 'Active Only', 'Archived Only']}
+                    />
                 </div>
 
                 {/* Action Buttons */}

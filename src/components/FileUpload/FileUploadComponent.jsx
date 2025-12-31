@@ -10,6 +10,7 @@ import {
   Plus,
   Tag
 } from 'lucide-react';
+import { Combobox } from '../ui';
 import { uploadFile, validateFile, ALLOWED_FILE_TYPES, formatFileSize } from '../../utils/fileManager';
 
 const FileUploadComponent = ({
@@ -431,25 +432,12 @@ const FileUploadItem = ({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Folder
                 </label>
-                <select
-                  value={fileData.selectedFolderPath}
-                  onChange={(e) => onUpdate({ selectedFolderPath: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                <Combobox
+                  value={fileData.selectedFolderPath || 'Root folder'}
+                  onChange={(e) => onUpdate({ selectedFolderPath: e.target.value === 'Root folder' ? '' : e.target.value })}
+                  options={['Root folder', ...folders.map(f => f.full_path)]}
                   disabled={uploading}
-                >
-                  <option value="">Root folder</option>
-                  {/* Show current folder first if it's not in the folders list */}
-                  {fileData.selectedFolderPath && !folders.find(f => f.full_path === fileData.selectedFolderPath) && (
-                    <option value={fileData.selectedFolderPath}>
-                      {fileData.selectedFolderPath} (current)
-                    </option>
-                  )}
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.full_path}>
-                      {folder.full_path}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               {/* Description */}

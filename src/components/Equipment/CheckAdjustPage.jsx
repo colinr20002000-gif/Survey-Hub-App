@@ -29,7 +29,7 @@ import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import { Card, Button, Input, Select, Modal, Pagination } from '../ui';
+import { Button, Input, Modal, Combobox, Card, Pagination } from '../ui';
 
 const LogCertificateView = React.forwardRef(({ log }, ref) => {
     if (!log) return null;
@@ -1378,20 +1378,18 @@ const CheckAdjustPage = () => {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Unit *</label>
-                            <select 
+                            <Combobox 
                                 name="equipment_id" 
-                                value={formData.equipment_id} 
-                                onChange={handleInputChange}
-                                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                value={formData.equipment_id ? (equipment.find(u => u.id === formData.equipment_id) ? `${equipment.find(u => u.id === formData.equipment_id).name} ${equipment.find(u => u.id === formData.equipment_id).serial_number ? `(${equipment.find(u => u.id === formData.equipment_id).serial_number})` : ''}` : '') : ''} 
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    const unit = equipment.find(u => `${u.name} ${u.serial_number ? `(${u.serial_number})` : ''}` === val);
+                                    if (unit) handleInputChange({ target: { name: 'equipment_id', value: unit.id } });
+                                }}
+                                options={equipment.map(unit => `${unit.name} ${unit.serial_number ? `(${unit.serial_number})` : ''}`)}
+                                placeholder="Select Total Station"
                                 required
-                            >
-                                <option value="">-- Select Total Station --</option>
-                                {equipment.map(unit => (
-                                    <option key={unit.id} value={unit.id}>
-                                        {unit.name} {unit.serial_number ? `(${unit.serial_number})` : ''}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Check Date *</label>
@@ -1498,15 +1496,12 @@ const CheckAdjustPage = () => {
 
                          <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
-                            <select 
+                            <Combobox 
                                 name="status" 
                                 value={formData.status} 
                                 onChange={handleInputChange}
-                                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
-                            >
-                                <option value="Pass">Pass</option>
-                                <option value="Fail">Fail</option>
-                            </select>
+                                options={["Pass", "Fail"]}
+                            />
                         </div>
 
                     <div>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 
 import RichTextEditor from './RichTextEditor';
 
@@ -25,8 +25,14 @@ export const Card = ({ title, icon, children, className, ...props }) => (
 // Combobox Component
 export const Combobox = ({ label, name, value, onChange, options = [], placeholder, required, className, disabled }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [inputValue, setInputValue] = useState(value || '');
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
     const wrapperRef = useRef(null);
+
+    // Sync local state with prop
+    useEffect(() => {
+        setInputValue(value || '');
+    }, [value]);
 
     // Update position
     const updatePosition = () => {
@@ -62,46 +68,72 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
                 (!dropdown || !dropdown.contains(event.target))
             ) {
                 setIsOpen(false);
+                // Reset input value to match committed value if user clicks away without selecting
+                // But only if we are strictly controlled. Here we are somewhat hybrid.
+                // It is safer to reset to 'value' prop to ensure consistency.
+                setInputValue(value || '');
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [name]);
+    }, [name, value]);
 
-    const filteredOptions = options.filter(option => 
-        typeof option === 'string' && option.toLowerCase().includes((value || '').toLowerCase()) && option !== value
-    );
+    const filteredOptions = (inputValue === '' || options.some(option => typeof option === 'string' && option.toLowerCase() === (inputValue || '').toLowerCase()))
+        ? options
+        : options.filter(option => 
+            typeof option === 'string' && option.toLowerCase().includes((inputValue || '').toLowerCase())
+        );
 
     const handleSelect = (option) => {
         onChange({ target: { name, value: option } });
+        setInputValue(option);
         setIsOpen(false);
     };
 
     return (
         <div className={`relative ${className || ''}`} ref={wrapperRef}>
             {label && <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>}
-            <input
-                type="text"
-                name={name}
-                value={value || ''}
-                onChange={(e) => {
-                    onChange(e);
-                    setIsOpen(true);
-                }}
-                onFocus={() => {
-                    setIsOpen(true);
-                    updatePosition();
-                }}
-                placeholder={placeholder}
-                required={required}
-                disabled={disabled}
-                autoComplete="off"
-                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                    disabled
-                        ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
-                }`}
-            />
+            <div className="relative">
+                <input
+                    type="text"
+                    name={name}
+                    value={inputValue}
+                    onChange={(e) => {
+                        setInputValue(e.target.value);
+                        onChange(e); // Still notify parent
+                        setIsOpen(true);
+                    }}
+                    onFocus={(e) => {
+                        setIsOpen(true);
+                        updatePosition();
+                        e.target.select(); // Select all text on focus for easy replacement
+                    }}
+                    placeholder={placeholder}
+                    required={required}
+                    disabled={disabled}
+                    autoComplete="off"
+                    className={`w-full px-3 pr-10 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${
+                        disabled
+                            ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white'
+                    }`}
+                />
+                <div 
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer"
+                    onClick={(e) => {
+                        if (disabled) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsOpen(!isOpen);
+                        if (!isOpen && wrapperRef.current) {
+                            const input = wrapperRef.current.querySelector('input');
+                            if (input) input.focus();
+                        }
+                    }}
+                >
+                    <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </div>
+            </div>
             {isOpen && filteredOptions.length > 0 && !disabled && createPortal(
                 <div 
                     id={`combobox-dropdown-${name}`}
@@ -275,11 +307,12 @@ export const Pagination = ({ currentPage, setCurrentPage, totalPages, itemsPerPa
                 {itemsPerPage && setItemsPerPage ? (
                     <>
                         <span>Rows per page:</span>
-                        <Select value={itemsPerPage} onChange={e => setItemsPerPage(Number(e.target.value))} className="ml-2 !py-1 !text-sm">
-                            <option value={5}>5</option>
-                            <option value={10}>10</option>
-                            <option value={20}>20</option>
-                        </Select>
+                        <Combobox 
+                            value={String(itemsPerPage)} 
+                            onChange={e => setItemsPerPage(Number(e.target.value))} 
+                            options={['5', '10', '20']}
+                            className="ml-2 w-20 !py-1 !text-sm"
+                        />
                         <span className="ml-4">
                             {startItem}-{endItem} of {totalItems}
                         </span>

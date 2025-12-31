@@ -6,7 +6,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useToast } from '../contexts/ToastContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useDebouncedValue } from '../utils/debounce';
-import { Button, Select, Input, Switch, Modal } from '../components/ui';
+import { Button, Input, Pagination, ConfirmationModal, Combobox, Modal } from '../components/ui';
 import CustomConfirmationModal from '../components/ConfirmationModal';
 import { ANNOUNCEMENT_PRIORITIES } from '../constants';
 import { sendAnnouncementFCMNotification } from '../utils/fcmNotifications';
@@ -360,19 +360,16 @@ const AnnouncementsPage = () => {
                         />
                     </div>
                     <div className="flex flex-col sm:flex-row gap-4">
-                        <Select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
-                            <option value="All">All Categories</option>
-                            {Array.isArray(categories) && categories.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                        </Select>
-                        <Select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)}>
-                            <option value="All">All Priorities</option>
-                            <option value="Low">Low</option>
-                            <option value="Medium">Medium</option>
-                            <option value="High">High</option>
-                            <option value="Urgent">Urgent</option>
-                        </Select>
+                        <Combobox 
+                            value={selectedCategory === 'All' ? 'All Categories' : selectedCategory} 
+                            onChange={(e) => setSelectedCategory(e.target.value === 'All Categories' ? 'All' : e.target.value)}
+                            options={['All Categories', ...(Array.isArray(categories) ? categories : [])]}
+                        />
+                        <Combobox 
+                            value={selectedPriority === 'All' ? 'All Priorities' : selectedPriority} 
+                            onChange={(e) => setSelectedPriority(e.target.value === 'All Priorities' ? 'All' : e.target.value)}
+                            options={['All Priorities', 'Low', 'Medium', 'High', 'Urgent']}
+                        />
                     </div>
                 </div>
             </div>
@@ -809,7 +806,7 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={announcement ? 'Edit Announcement' : 'Create Announcement'}>
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto max-h-[80vh]">
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <Input
                         label="Title"
@@ -913,38 +910,19 @@ const AnnouncementModal = ({ isOpen, onClose, onSave, announcement }) => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Select
+                        <Combobox
                             label="Category"
                             value={formData.category}
                             onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                        >
-                            {Array.isArray(categories) && categories.length > 0 ? (
-                                categories.map(category => (
-                                    <option key={category} value={category}>{category}</option>
-                                ))
-                            ) : (
-                                <>
-                                    <option value="General">General (Loading...)</option>
-                                    <option value="Safety">Safety</option>
-                                    <option value="Equipment">Equipment</option>
-                                    <option value="Policy">Policy</option>
-                                    <option value="Training">Training</option>
-                                    <option value="Project Updates">Project Updates</option>
-                                    <option value="Maintenance">Maintenance</option>
-                                </>
-                            )}
-                        </Select>
+                            options={Array.isArray(categories) && categories.length > 0 ? categories : ['General', 'Safety', 'Equipment', 'Policy', 'Training', 'Project Updates', 'Maintenance']}
+                        />
 
-                        <Select
+                        <Combobox
                             label="Priority"
-                            value={formData.priority}
-                            onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value }))}
-                        >
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                            <option value="urgent">Urgent</option>
-                        </Select>
+                            value={formData.priority.charAt(0).toUpperCase() + formData.priority.slice(1)}
+                            onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value.toLowerCase() }))}
+                            options={['Low', 'Medium', 'High', 'Urgent']}
+                        />
                     </div>
 
                     <Input

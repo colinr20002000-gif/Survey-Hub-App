@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Filter, PlusCircle, Edit, Trash2, MoreVertical, Copy, Archive, ArchiveRestore } from 'lucide-react';
 import { useProjects } from '../contexts/ProjectContext';
 import { usePermissions } from '../hooks/usePermissions';
-import { Select, Button, Switch, Pagination, ConfirmationModal } from '../components/ui';
+import { Button, Switch, Pagination, ConfirmationModal, Combobox } from '../components/ui';
 import ProjectModal from '../components/modals/ProjectModal';
 import { useDebouncedValue } from '../utils/debounce';
 
@@ -198,17 +198,21 @@ const ProjectsPage = ({ onViewProject }) => {
                                 <div className="absolute right-0 sm:right-0 mt-2 w-full sm:w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
                                     <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                                         <h4 className="font-semibold mb-2">Client</h4>
-                                        <Select value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
-                                            <option value="">All Clients</option>
-                                            {uniqueClients.map(client => <option key={client}>{client}</option>)}
-                                        </Select>
+                                        <Combobox 
+                                            value={clientFilter} 
+                                            onChange={e => setClientFilter(e.target.value)}
+                                            options={uniqueClients}
+                                            placeholder="All Clients"
+                                        />
                                     </div>
                                     <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                                         <h4 className="font-semibold mb-2">Year</h4>
-                                        <Select value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
-                                            <option value="">All Years</option>
-                                            {uniqueYears.map(year => <option key={year}>{year}</option>)}
-                                        </Select>
+                                        <Combobox 
+                                            value={yearFilter} 
+                                            onChange={e => setYearFilter(e.target.value)}
+                                            options={uniqueYears.map(String)}
+                                            placeholder="All Years"
+                                        />
                                     </div>
                                     <div className="p-2 bg-gray-50 dark:bg-gray-900/50 flex justify-end">
                                         <Button variant="outline" onClick={clearFilters}>Clear</Button>

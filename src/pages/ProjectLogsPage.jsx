@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Upload, Filter, X, Calendar, ExternalLink, TrendingUp, Clock, AlertCircle, Users, XCircle, ChevronDown, Check, Download, Eye, FileSpreadsheet, Image } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { Button, Select, Input, Pagination, Modal } from '../components/ui';
+import { Button, Input, Pagination, Combobox, Modal } from '../components/ui';
 import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -1392,21 +1392,35 @@ const ProjectLogsPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Date Range */}
                     <div>
-                        <Select
+                        <Combobox
                             label="Date Range"
-                            value={dateRange}
-                            onChange={(e) => setDateRange(e.target.value)}
-                        >
-                            <option value="last7">Last 7 Days</option>
-                            <option value="last30">Last 30 Days</option>
-                            <option value="last90">Last 3 Months</option>
-                            <option value="thisMonth">This Month</option>
-                            <option value="lastMonth">Last Month</option>
-                            <option value="thisQuarter">This Quarter</option>
-                            <option value="thisYear">This Year</option>
-                            <option value="allTime">All Time</option>
-                            <option value="custom">Custom Range</option>
-                        </Select>
+                            value={{
+                                'last7': 'Last 7 Days',
+                                'last30': 'Last 30 Days',
+                                'last90': 'Last 3 Months',
+                                'thisMonth': 'This Month',
+                                'lastMonth': 'Last Month',
+                                'thisQuarter': 'This Quarter',
+                                'thisYear': 'This Year',
+                                'allTime': 'All Time',
+                                'custom': 'Custom Range'
+                            }[dateRange] || 'Last 7 Days'}
+                            onChange={(e) => {
+                                const map = {
+                                    'Last 7 Days': 'last7',
+                                    'Last 30 Days': 'last30',
+                                    'Last 3 Months': 'last90',
+                                    'This Month': 'thisMonth',
+                                    'Last Month': 'lastMonth',
+                                    'This Quarter': 'thisQuarter',
+                                    'This Year': 'thisYear',
+                                    'All Time': 'allTime',
+                                    'Custom Range': 'custom'
+                                };
+                                setDateRange(map[e.target.value] || 'last7');
+                            }}
+                            options={['Last 7 Days', 'Last 30 Days', 'Last 3 Months', 'This Month', 'Last Month', 'This Quarter', 'This Year', 'All Time', 'Custom Range']}
+                        />
                     </div>
 
                     {dateRange === 'custom' && (
@@ -1607,26 +1621,23 @@ const ProjectLogsPage = () => {
                     </div>
 
                     {/* Shift Type */}
-                    <Select
+                    <Combobox
                         label="Shift Type"
-                        value={shiftType}
-                        onChange={(e) => setShiftType(e.target.value)}
-                    >
-                        <option value="all">All</option>
-                        <option value="Day">Day</option>
-                        <option value="Night">Night</option>
-                    </Select>
+                        value={shiftType === 'all' ? 'All' : shiftType}
+                        onChange={(e) => setShiftType(e.target.value === 'All' ? 'all' : e.target.value)}
+                        options={['All', 'Day', 'Night']}
+                    />
 
                     {/* Cancelled Filter */}
-                    <Select
+                    <Combobox
                         label="Cancelled"
-                        value={cancelledFilter}
-                        onChange={(e) => setCancelledFilter(e.target.value)}
-                    >
-                        <option value="all">All</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                    </Select>
+                        value={cancelledFilter === 'all' ? 'All' : (cancelledFilter === 'yes' ? 'Yes' : 'No')}
+                        onChange={(e) => {
+                            const map = { 'All': 'all', 'Yes': 'yes', 'No': 'no' };
+                            setCancelledFilter(map[e.target.value] || 'all');
+                        }}
+                        options={['All', 'Yes', 'No']}
+                    />
 
                     {/* Day of Week Filter */}
                     <div className="relative" ref={daysOfWeekRef}>

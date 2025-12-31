@@ -13,6 +13,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { getDepartmentColor, getAvatarText } from '../../utils/avatarColors';
 import { useDebouncedValue } from '../../utils/debounce';
+import { Combobox } from '../ui';
 
 
 // Vehicle Management Page Component
@@ -1718,16 +1719,12 @@ const VehiclesPage = () => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Category</label>
-                                        <select
+                                        <Combobox
                                             value={vehicleForm.category}
                                             onChange={(e) => setVehicleForm({ ...vehicleForm, category: e.target.value })}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        >
-                                            <option value="">Select Category</option>
-                                            {categories.map(cat => (
-                                                <option key={cat.id} value={cat.value}>{cat.value}</option>
-                                            ))}
-                                        </select>
+                                            options={categories.map(cat => cat.value)}
+                                            placeholder="Select Category"
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Registration</label>
@@ -1740,14 +1737,11 @@ const VehiclesPage = () => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Status</label>
-                                        <select
-                                            value={vehicleForm.status}
-                                            onChange={(e) => setVehicleForm({ ...vehicleForm, status: e.target.value })}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        >
-                                            <option value="available">Available</option>
-                                            <option value="maintenance">Maintenance</option>
-                                        </select>
+                                        <Combobox
+                                            value={vehicleForm.status === 'available' ? 'Available' : (vehicleForm.status === 'maintenance' ? 'Maintenance' : '')}
+                                            onChange={(e) => setVehicleForm({ ...vehicleForm, status: e.target.value.toLowerCase() })}
+                                            options={['Available', 'Maintenance']}
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Purchase Date</label>
@@ -1827,16 +1821,12 @@ const VehiclesPage = () => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Category</label>
-                                        <select
+                                        <Combobox
                                             value={vehicleForm.category}
                                             onChange={(e) => setVehicleForm({ ...vehicleForm, category: e.target.value })}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        >
-                                            <option value="">Select Category</option>
-                                            {categories.map(cat => (
-                                                <option key={cat.id} value={cat.value}>{cat.value}</option>
-                                            ))}
-                                        </select>
+                                            options={categories.map(cat => cat.value)}
+                                            placeholder="Select Category"
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Registration</label>
@@ -1849,14 +1839,11 @@ const VehiclesPage = () => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Status</label>
-                                        <select
-                                            value={vehicleForm.status}
-                                            onChange={(e) => setVehicleForm({ ...vehicleForm, status: e.target.value })}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        >
-                                            <option value="available">Available</option>
-                                            <option value="maintenance">Maintenance</option>
-                                        </select>
+                                        <Combobox
+                                            value={vehicleForm.status === 'available' ? 'Available' : (vehicleForm.status === 'maintenance' ? 'Maintenance' : '')}
+                                            onChange={(e) => setVehicleForm({ ...vehicleForm, status: e.target.value.toLowerCase() })}
+                                            options={['Available', 'Maintenance']}
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Purchase Date</label>

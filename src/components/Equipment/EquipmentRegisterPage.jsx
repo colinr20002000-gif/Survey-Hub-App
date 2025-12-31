@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import { Card, Button, Input, Select, Modal, ConfirmationModal } from '../ui';
+import { Button, Input, ConfirmationModal, Modal, StatusBadge, Combobox, Card } from '../ui';
 import AssetTable from './AssetTable';
 import ImportAssetsButton from './ImportAssetsButton';
 import { Loader2, Search, Download, Edit, PlusCircle, Trash2, Eye, Archive, Trash } from 'lucide-react';
@@ -855,14 +855,11 @@ const EquipmentRegisterPage = () => {
                                 />
                             </div>
                             <div className="w-full md:w-64">
-                                <Select 
+                                <Combobox 
                                     value={selectedCategoryFilter} 
                                     onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                                >
-                                    {filterCategories.map(cat => (
-                                        <option key={cat} value={cat}>{cat}</option>
-                                    ))}
-                                </Select>
+                                    options={filterCategories}
+                                />
                             </div>
                         </div>
                     </div>
@@ -1065,28 +1062,34 @@ const EquipmentRegisterPage = () => {
                     <div className="grid grid-cols-2 gap-4">
                          <div>
                             <label className="block text-sm font-medium mb-1">{isAssetMode ? 'Equipment Type' : 'Category'}</label>
-                            <Select
+                            <Combobox
                                 value={editForm.category}
                                 onChange={(e) => setEditForm({...editForm, category: e.target.value})}
-                            >
-                                <option value="">Select {isAssetMode ? 'Type' : 'Category'}</option>
-                                {availableCategories.map(cat => (
-                                    <option key={cat.id} value={cat.value}>{cat.value}</option>
-                                ))}
-                            </Select>
+                                options={availableCategories.map(cat => cat.value)}
+                                placeholder={`Select ${isAssetMode ? 'Type' : 'Category'}`}
+                            />
                         </div>
                         {!isAssetMode && (
                              <div>
                                 <label className="block text-sm font-medium mb-1">Status</label>
-                                <Select
-                                    value={editForm.status}
-                                    onChange={(e) => setEditForm({...editForm, status: e.target.value})}
-                                >
-                                    <option value="available">Available</option>
-                                    <option value="assigned">Assigned</option>
-                                    <option value="maintenance">Maintenance</option>
-                                    <option value="retired">Archived</option>
-                                </Select>
+                                <Combobox
+                                    value={{
+                                        'available': 'Available',
+                                        'assigned': 'Assigned',
+                                        'maintenance': 'Maintenance',
+                                        'retired': 'Archived'
+                                    }[editForm.status] || 'Available'}
+                                    onChange={(e) => {
+                                        const map = {
+                                            'Available': 'available',
+                                            'Assigned': 'assigned',
+                                            'Maintenance': 'maintenance',
+                                            'Archived': 'retired'
+                                        };
+                                        setEditForm({...editForm, status: map[e.target.value] || 'available'});
+                                    }}
+                                    options={['Available', 'Assigned', 'Maintenance', 'Archived']}
+                                />
                             </div>
                         )}
                     </div>

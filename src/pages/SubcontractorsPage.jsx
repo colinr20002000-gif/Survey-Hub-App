@@ -3,7 +3,7 @@ import { Mail, Phone, User, Users, Plus, Trash2, Edit2, X, Save, MessageSquare }
 import { supabase } from '../supabaseClient';
 import { getDepartmentColor } from '../utils/avatarColors';
 import { usePermissions } from '../hooks/usePermissions';
-import { Button, Select } from '../components/ui';
+import { Button, Select, Combobox } from '../components/ui';
 
 const SubcontractorsPage = () => {
     const { canAddSubcontractors, canEditSubcontractors, canDeleteSubcontractors } = usePermissions();
@@ -420,18 +420,13 @@ const SubcontractorsPage = () => {
                                     </div>
 
                                     <div>
-                                        <Select
+                                        <Combobox
                                             label="Discipline"
                                             value={formData.department}
                                             onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                                        >
-                                            <option value="">Select Discipline</option>
-                                            {disciplines.map(discipline => (
-                                                <option key={discipline.value} value={discipline.display_text}>
-                                                    {discipline.display_text}
-                                                </option>
-                                            ))}
-                                        </Select>
+                                            options={disciplines.map(d => d.display_text)}
+                                            placeholder="Select Discipline"
+                                        />
                                     </div>
 
                                     <div>

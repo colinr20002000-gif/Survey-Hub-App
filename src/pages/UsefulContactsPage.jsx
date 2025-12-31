@@ -3,7 +3,7 @@ import { Mail, Phone, User, Users, Plus, Trash2, Edit2, X, Save, Globe, FileText
 import { supabase } from '../supabaseClient';
 import { getDepartmentColor } from '../utils/avatarColors';
 import { usePermissions } from '../hooks/usePermissions';
-import { Button, Select } from '../components/ui';
+import { Button, Select, Combobox } from '../components/ui';
 
 const UsefulContactsPage = () => {
     const { canAddUsefulContacts, canEditUsefulContacts, canDeleteUsefulContacts } = usePermissions();
@@ -426,18 +426,13 @@ const UsefulContactsPage = () => {
                                     </div>
 
                                     <div>
-                                        <Select
+                                        <Combobox
                                             label="Discipline"
                                             value={formData.discipline}
                                             onChange={(e) => setFormData({ ...formData, discipline: e.target.value })}
-                                        >
-                                            <option value="">Select Discipline</option>
-                                            {disciplines.map(discipline => (
-                                                <option key={discipline.value} value={discipline.display_text}>
-                                                    {discipline.display_text}
-                                                </option>
-                                            ))}
-                                        </Select>
+                                            options={disciplines.map(d => d.display_text)}
+                                            placeholder="Select Discipline"
+                                        />
                                     </div>
 
                                     <div>

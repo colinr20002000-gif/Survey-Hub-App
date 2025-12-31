@@ -75,7 +75,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project }) => {
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={project ? 'Edit Project' : 'New Project'}>
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto max-h-[80vh]">
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <Input label="Project Name" name="project_name" value={formData.project_name} onChange={handleChange} required />
                     <Input label="Project Number" name="project_number" value={formData.project_number} onChange={handleChange} required />

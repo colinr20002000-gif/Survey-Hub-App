@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { Card, Button, Input, Modal, Select } from '../components/ui';
+import { Button, Input, Modal, ConfirmationModal, Combobox, Card } from '../components/ui';
 import { Car, Plus, Search, Calendar, AlertTriangle, CheckCircle, Clock, FileText, ChevronRight, Filter, Loader2, Eye, X, Camera, Upload, Trash2, Download, ZoomIn, FileImage, Wand2 } from 'lucide-react';
 import { exportAsImage, exportAsPDF } from '../utils/inspectionExport';
 import { hasPermission } from '../utils/privileges';
@@ -919,27 +919,45 @@ const VehicleMileageLogsPage = () => {
                         <div className="flex flex-row gap-2 md:gap-3 w-full md:w-auto">
                             <div className="flex items-center space-x-2 w-full md:w-auto">
                                 <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
-                                <Select value={filterUser} onChange={(e) => setFilterUser(e.target.value)} className="flex-1 md:w-48">
-                                    <option value="all">All Users</option>
-                                    {users
+                                <Combobox 
+                                    value={filterUser === 'all' ? 'All Users' : (users.find(u => u.id === filterUser)?.name || 'All Users')} 
+                                    onChange={(e) => {
+                                        const selectedName = e.target.value;
+                                        const selectedUser = users.find(u => u.name === selectedName);
+                                        setFilterUser(selectedUser ? selectedUser.id : 'all');
+                                    }} 
+                                    options={['All Users', ...users
                                         .filter(u => assignments.some(a => (a.user_id === u.id || a.dummy_user_id === u.id) && !a.returned_at))
                                         .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-                                        .map(u => (
-                                            <option key={u.id} value={u.id}>{u.name}</option>
-                                        ))
-                                    }
-                                </Select>
+                                        .map(u => u.name)
+                                    ]}
+                                    className="flex-1 md:w-48"
+                                />
                             </div>
                             <div className="flex items-center space-x-2 w-full md:w-auto">
                                 <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
-                                <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="flex-1 md:w-48">
-                                    <option value="all">All Status</option>
-                                    <option value="compliant">Compliant</option>
-                                    <option value="upcoming">Due Soon</option>
-                                    <option value="overdue">Overdue</option>
-                                    <option value="never">Never Inspected</option>
-                                    <option value="defects">With Defects</option>
-                                </Select>
+                                <Combobox 
+                                    value={filterStatus === 'all' ? 'All Status' : {
+                                        'compliant': 'Compliant',
+                                        'upcoming': 'Due Soon',
+                                        'overdue': 'Overdue',
+                                        'never': 'Never Inspected',
+                                        'defects': 'With Defects'
+                                    }[filterStatus] || 'All Status'} 
+                                    onChange={(e) => {
+                                        const map = {
+                                            'All Status': 'all',
+                                            'Compliant': 'compliant',
+                                            'Due Soon': 'upcoming',
+                                            'Overdue': 'overdue',
+                                            'Never Inspected': 'never',
+                                            'With Defects': 'defects'
+                                        };
+                                        setFilterStatus(map[e.target.value] || 'all');
+                                    }} 
+                                    options={['All Status', 'Compliant', 'Due Soon', 'Overdue', 'Never Inspected', 'With Defects']}
+                                    className="flex-1 md:w-48"
+                                />
                             </div>
                             <Button
                                 onClick={() => setFilterUser(filterUser === user.id ? 'all' : user.id)}
@@ -1093,20 +1111,28 @@ const VehicleMileageLogsPage = () => {
 
                                 {/* Date Filter */}
                                 <div className="flex flex-col sm:flex-row gap-2">
-                                    <Select
-                                        value={summaryDateFilter}
+                                    <Combobox
+                                        value={{
+                                            'all': 'All Time',
+                                            'today': 'Today',
+                                            'week': 'Last 7 Days',
+                                            'month': 'Last 30 Days',
+                                            'custom': 'Custom Range'
+                                        }[summaryDateFilter] || 'All Time'}
                                         onChange={(e) => {
-                                            setSummaryDateFilter(e.target.value);
+                                            const map = {
+                                                'All Time': 'all',
+                                                'Today': 'today',
+                                                'Last 7 Days': 'week',
+                                                'Last 30 Days': 'month',
+                                                'Custom Range': 'custom'
+                                            };
+                                            setSummaryDateFilter(map[e.target.value] || 'all');
                                             setSummaryCurrentPage(1);
                                         }}
+                                        options={['All Time', 'Today', 'Last 7 Days', 'Last 30 Days', 'Custom Range']}
                                         className="w-full sm:w-auto"
-                                    >
-                                        <option value="all">All Time</option>
-                                        <option value="today">Today</option>
-                                        <option value="week">Last 7 Days</option>
-                                        <option value="month">Last 30 Days</option>
-                                        <option value="custom">Custom Range</option>
-                                    </Select>
+                                    />
 
                                     {summaryDateFilter === 'custom' && (
                                         <div className="flex gap-2">
@@ -1751,19 +1777,22 @@ const InspectionModal = ({ vehicle, inspection, onClose, onSave }) => {
                             {vehicle ? (
                                 <p className="text-sm font-semibold text-gray-900 dark:text-white">{vehicle.name}</p>
                             ) : (
-                                <Select
-                                    value={formData.vehicle_id}
+                                <Combobox
+                                    value={formData.vehicle_id ? (() => {
+                                        const v = vehicles.find(veh => veh.id === formData.vehicle_id);
+                                        return v ? `${v.name} (${v.serial_number || 'No Reg'})` : '';
+                                    })() : ''}
                                     onChange={(e) => {
-                                        const v = vehicles.find(v => v.id === e.target.value);
-                                        setSelectedVehicle(v);
+                                        const selectedString = e.target.value;
+                                        const v = vehicles.find(v => `${v.name} (${v.serial_number || 'No Reg'})` === selectedString);
+                                        if (v) {
+                                            setSelectedVehicle(v);
+                                        }
                                     }}
+                                    options={vehicles.map(v => `${v.name} (${v.serial_number || 'No Reg'})`)}
+                                    placeholder="Select Vehicle"
                                     className="mt-1"
-                                >
-                                    <option value="">Select Vehicle</option>
-                                    {vehicles.map(v => (
-                                        <option key={v.id} value={v.id}>{v.name} ({v.serial_number || 'No Reg'})</option>
-                                    ))}
-                                </Select>
+                                />
                             )}
                         </div>
                         <div className="col-span-2 md:col-span-1">

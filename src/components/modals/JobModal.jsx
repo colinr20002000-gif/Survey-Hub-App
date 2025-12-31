@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useProjects } from '../../contexts/ProjectContext';
-import { Modal, Input, Select, Button, Combobox } from '../ui';
+import { Modal, Input, Button, Combobox } from '../ui';
 
 const JobModal = ({ isOpen, onClose, onSave, job }) => {
     const { projects, addProject } = useProjects();
@@ -62,7 +62,7 @@ const JobModal = ({ isOpen, onClose, onSave, job }) => {
                         .eq('category_id', yearCategory.id)
                         .eq('is_active', true)
                         .order('sort_order');
-                    setYearOptions(items || []);
+                    setYearOptions(items ? items.map(i => i.display_text) : []);
                 }
 
                 // Fetch Job Types (Disciplines)
@@ -255,12 +255,7 @@ const JobModal = ({ isOpen, onClose, onSave, job }) => {
                                                     <Input label="Project Name" name="project_name" value={newProjectData.project_name} onChange={handleNewProjectInputChange} required />
                                                     <Input label="Project Number" name="project_number" value={newProjectData.project_number} onChange={handleNewProjectInputChange} required />
                                                     <Combobox label="Client" name="client" value={newProjectData.client} onChange={handleNewProjectInputChange} options={clientOptions} required />
-                                                    <Select label="Year" name="year" value={newProjectData.year} onChange={handleNewProjectInputChange} required>
-                                                        <option value="">Select Year</option>
-                                                        {yearOptions.map(option => (
-                                                            <option key={option.display_text} value={option.display_text}>{option.display_text}</option>
-                                                        ))}
-                                                    </Select>
+                                                    <Combobox label="Year" name="year" value={newProjectData.year} onChange={handleNewProjectInputChange} options={yearOptions} required />
                                                 </div>
                                             ) : (
                                                 <>
@@ -329,9 +324,13 @@ const JobModal = ({ isOpen, onClose, onSave, job }) => {
                         options={disciplineOptions}
                         required 
                     />
-                    <Select label="Status" name="status" value={formData.status} onChange={handleChange}>
-                        {deliveryStatusOptions.map(status => <option key={status}>{status}</option>)}
-                    </Select>
+                    <Combobox 
+                        label="Status" 
+                        name="status" 
+                        value={formData.status} 
+                        onChange={handleChange} 
+                        options={deliveryStatusOptions}
+                    />
                     <div className="md:col-span-2">
                         <Input label="Comments" name="comments" value={formData.comments} onChange={handleChange} />
                     </div>
