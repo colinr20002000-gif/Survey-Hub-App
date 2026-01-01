@@ -16,7 +16,7 @@ export const ProjectProvider = ({ children }) => {
             const { data, error: fetchError } = await supabase
                 .from('projects')
                 .select('id, project_number, project_name, client, description, team, startDate, targetDate, tasksText, date_created, created_by, assigned_to, project_manager, year, archived, site_info_sections, site_info_photos, survey_brief_items')
-                .order('id', { ascending: false });
+                .order('project_number', { ascending: false });
 
             if (fetchError) {
                 setError(fetchError.message);
@@ -132,15 +132,24 @@ export const ProjectProvider = ({ children }) => {
         }
     }, []); // No dependencies
 
+    // Memoize and sort projects by project_number descending (largest first)
+    const sortedProjects = useMemo(() => {
+        return [...projects].sort((a, b) => {
+            const numA = a.project_number || '';
+            const numB = b.project_number || '';
+            return numB.localeCompare(numA, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }, [projects]);
+
     // Memoize the context value to prevent unnecessary re-renders
     const value = useMemo(() => ({
-        projects,
+        projects: sortedProjects,
         addProject,
         updateProject,
         deleteProject,
         loading,
         error
-    }), [projects, addProject, updateProject, deleteProject, loading, error]);
+    }), [sortedProjects, addProject, updateProject, deleteProject, loading, error]);
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 };
