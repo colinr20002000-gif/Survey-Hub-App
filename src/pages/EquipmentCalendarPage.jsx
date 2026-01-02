@@ -56,7 +56,7 @@ const EquipmentCalendarPage = () => {
     const { user: currentUser } = useAuth();
     const { canAllocateResources, isEditorOrAbove, can } = usePermissions();
     const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
-    const { showPrivilegeError, showErrorModal } = useToast();
+    const { showPrivilegeError, showErrorModal, addToast } = useToast();
 
     const [equipment, setEquipment] = useState([]);
     const [equipmentLoading, setEquipmentLoading] = useState(true);
@@ -90,6 +90,10 @@ const EquipmentCalendarPage = () => {
     const scrollPositionRef = useRef(0);
     const calendarRef = useRef(null);
     const justClosedMenuRef = useRef(false);
+
+    // Multi-select state
+    const [selectedCells, setSelectedCells] = useState(new Set());
+    const lastSelectedCellRef = useRef(null);
 
     // Week caching for performance optimization
     const weekCacheRef = useRef({}); // Stores fetched week data: { weekKey: { data, timestamp } }
@@ -748,11 +752,88 @@ const EquipmentCalendarPage = () => {
         return Array.from({ length: 7 }).map((_, i) => addDays(currentWeekStart, i));
     }, [currentWeekStart]);
 
+    // Clear selection when week changes to prevent cross-week selections
+    useEffect(() => {
+        if (selectedCells.size > 0) {
+            setSelectedCells(new Set());
+            addToast({ message: 'Selection cleared - multi-select only works within the current week', type: 'info' });
+        }
+    }, [currentWeekStart, addToast]); // Note: selectedCells intentionally not in deps to avoid infinite loop
+
+    // Handle cell selection (Click, Shift+Click, Ctrl+Click)
+    const handleCellSelection = useCallback((e, userId, dayIndex) => {
+        if (!isDesktop) return; // Only for desktop for now
+
+        console.log('👆 Cell selection clicked:', { userId, dayIndex, type: e.ctrlKey ? 'ctrl' : e.shiftKey ? 'shift' : 'single' });
+
+        // Don't select if right clicking (context menu)
+        if (e.button === 2) return;
+
+        // Prevent text selection when using shift or ctrl/cmd key
+        if (e.shiftKey || e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+        }
+
+        const cellId = `${userId}::${dayIndex}`;
+        const newSelected = new Set(selectedCells);
+
+        if (e.ctrlKey || e.metaKey) {
+            // Toggle selection
+            if (newSelected.has(cellId)) {
+                newSelected.delete(cellId);
+            } else {
+                newSelected.add(cellId);
+            }
+            lastSelectedCellRef.current = { userId, dayIndex };
+        } else if (e.shiftKey && lastSelectedCellRef.current) {
+            // Range selection
+            const startUser = lastSelectedCellRef.current.userId;
+            const startDay = lastSelectedCellRef.current.dayIndex;
+            const endUser = userId;
+            const endDay = dayIndex;
+
+            // Find indices in displayedUsers
+            const displayedUserIds = displayedUsers.map(u => u.id);
+            const startRowIndex = displayedUserIds.indexOf(startUser);
+            const endRowIndex = displayedUserIds.indexOf(endUser);
+
+            if (startRowIndex !== -1 && endRowIndex !== -1) {
+                const minRow = Math.min(startRowIndex, endRowIndex);
+                const maxRow = Math.max(startRowIndex, endRowIndex);
+                const minDay = Math.min(startDay, endDay);
+                const maxDay = Math.max(startDay, endDay);
+
+                // Clear previous if just Shift
+                newSelected.clear();
+
+                for (let r = minRow; r <= maxRow; r++) {
+                    for (let d = minDay; d <= maxDay; d++) {
+                        newSelected.add(`${displayedUserIds[r]}::${d}`);
+                    }
+                }
+            }
+        } else {
+            // Single selection - toggle if clicking the same cell
+            if (newSelected.has(cellId) && newSelected.size === 1) {
+                // Clicking the only selected cell - deselect it
+                newSelected.clear();
+                lastSelectedCellRef.current = null;
+            } else {
+                // Select this cell and clear others
+                newSelected.clear();
+                newSelected.add(cellId);
+                lastSelectedCellRef.current = { userId, dayIndex };
+            }
+        }
+
+        console.log('✅ Updated selection size:', newSelected.size);
+        setSelectedCells(newSelected);
+    }, [isDesktop, selectedCells, displayedUsers]);
+
     // Sync a single cell to database (used by undo)
     const syncCellToDatabase = async (userId, dayIndex, assignment, date) => {
         const user = allUsers.find(u => u.id === userId);
-        const isDummyUser = user?.isDummy === true;
-        const tableName = isDummyUser ? 'dummy_equipment_allocations' : 'equipment_allocations';
+        const tableName = 'equipment_calendar';
         const allocationDateString = formatDateForKey(date);
 
         try {
@@ -840,22 +921,11 @@ const EquipmentCalendarPage = () => {
         }
     }, [undoHistory, allocations]);
 
-    // Keyboard listener for Ctrl+Z / Cmd+Z
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-                e.preventDefault();
-                handleUndo();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handleUndo]);
-
     const handleActionClick = (e, userId, dayIndex, assignment, equipmentIndex = null) => {
         e.stopPropagation();
         e.preventDefault();
+
+        console.log('🖱️ Right-click detected:', { userId, dayIndex, selectedCellsSize: selectedCells.size });
 
         // If we just closed the menu, don't immediately reopen it
         if (justClosedMenuRef.current) {
@@ -874,17 +944,32 @@ const EquipmentCalendarPage = () => {
             return;
         }
 
+        // Check if this cell is part of a multi-selection
+        const cellId = `${userId}::${dayIndex}`;
+        console.log('🔍 Checking selection for:', cellId, 'Is selected:', selectedCells.has(cellId));
+        
+        // In desktop mode, require the cell to be selected before showing context menu
+        if (isDesktop && !selectedCells.has(cellId)) {
+            addToast({ message: 'Please select the tile first (left-click) before right-clicking', type: 'info' });
+            return;
+        }
+
         // Check if menu would have any items before opening
         // In Equipment Calendar, all menu items require canAllocateResources permission
         if (!canAllocateResources) {
             return; // Don't open empty menu
         }
 
+        const isMultiSelect = selectedCells.has(cellId) && selectedCells.size > 1;
+        console.log('✨ isMultiSelect:', isMultiSelect);
+
         setContextMenu({
             visible: true,
             x: e.pageX,
             y: e.pageY,
-            cellData: { userId, dayIndex, assignment, date: weekDates[dayIndex], equipmentIndex }
+            cellData: { userId, dayIndex, assignment, date: weekDates[dayIndex], equipmentIndex },
+            isMultiSelect,
+            selectedCount: isMultiSelect ? selectedCells.size : 0
         });
     };
 
@@ -999,6 +1084,311 @@ const EquipmentCalendarPage = () => {
             }
         }
     };
+
+    // Copy selected cells
+    const handleCopySelection = useCallback(() => {
+        if (selectedCells.size === 0) return;
+
+        const selectedData = [];
+        let minRow = Infinity;
+        let minCol = Infinity;
+
+        const displayedUserIds = displayedUsers.map(u => u.id);
+        const weekKey = formatDateForKey(currentWeekStart);
+
+        selectedCells.forEach(cellId => {
+            const [userId, dayIndexStr] = cellId.split('::');
+            const dayIndex = parseInt(dayIndexStr);
+
+            // Safety check: Only copy cells from current week (dayIndex 0-6)
+            if (dayIndex < 0 || dayIndex > 6) {
+                console.warn('Skipping copy for cell outside current week:', cellId);
+                return;
+            }
+
+            const rowIndex = displayedUserIds.indexOf(userId);
+
+            if (rowIndex !== -1) {
+                if (rowIndex < minRow) minRow = rowIndex;
+                if (dayIndex < minCol) minCol = dayIndex;
+
+                const assignment = allocations[weekKey]?.[userId]?.assignments[dayIndex];
+                if (assignment) {
+                    selectedData.push({
+                        userId,
+                        dayIndex,
+                        rowIndex,
+                        colIndex: dayIndex,
+                        assignment
+                    });
+                }
+            }
+        });
+
+        if (selectedData.length === 0) return;
+
+        // Normalize coordinates
+        const normalizedData = selectedData.map(item => ({
+            ...item,
+            relRow: item.rowIndex - minRow,
+            relCol: item.colIndex - minCol
+        }));
+
+        setClipboard({
+            type: 'multi',
+            data: normalizedData
+        });
+
+        if (normalizedData.length > 1) {
+            addToast({ message: `Copied ${normalizedData.length} items - Click target cell and paste to apply pattern`, type: 'success' });
+        } else {
+            addToast({ message: `Copied 1 item - Select multiple cells and paste to apply to all`, type: 'success' });
+        }
+    }, [selectedCells, displayedUsers, currentWeekStart, allocations, addToast]);
+
+    // Paste selection starting at target cell (Pattern Paste)
+    const handlePasteSelection = useCallback(async (targetUserId, targetDayIndex) => {
+        console.log('📋 handlePasteSelection called:', { targetUserId, targetDayIndex, clipboardType: clipboard.type, hasData: !!clipboard.data });
+
+        if (clipboard.type !== 'multi' || !clipboard.data) {
+            console.warn('📋 Paste aborted: clipboard type is not multi or no data');
+            addToast({ message: 'No multi-selection to paste', type: 'error' });
+            return;
+        }
+
+        const displayedUserIds = displayedUsers.map(u => u.id);
+        const targetRowIndex = displayedUserIds.indexOf(targetUserId);
+        const targetColIndex = targetDayIndex;
+
+        if (targetRowIndex === -1) {
+            console.warn('📋 Paste aborted: target user not found in displayed users');
+            return;
+        }
+
+        const weekKey = formatDateForKey(currentWeekStart);
+        const promises = [];
+        const updates = [];
+
+        for (const item of clipboard.data) {
+            const destRowIndex = targetRowIndex + item.relRow;
+            const destColIndex = targetColIndex + item.relCol;
+
+            // Check bounds
+            if (destRowIndex < displayedUserIds.length && destColIndex >= 0 && destColIndex < 7) {
+                const destUserId = displayedUserIds[destRowIndex];
+                const targetDate = weekDates[destColIndex];
+                const assignment = item.assignment;
+
+                // Optimistic update data
+                updates.push({
+                    userId: destUserId,
+                    dayIndex: destColIndex,
+                    assignment: assignment
+                });
+
+                promises.push(syncCellToDatabase(destUserId, destColIndex, assignment, targetDate));
+            }
+        }
+
+        // Apply optimistic updates
+        setAllocations(prev => {
+            const newAllocations = JSON.parse(JSON.stringify(prev));
+            if (!newAllocations[weekKey]) newAllocations[weekKey] = {};
+            
+            updates.forEach(update => {
+                if (!newAllocations[weekKey][update.userId]) {
+                    newAllocations[weekKey][update.userId] = { assignments: Array(7).fill(null) };
+                }
+                newAllocations[weekKey][update.userId].assignments[update.dayIndex] = update.assignment;
+            });
+            return newAllocations;
+        });
+
+        try {
+            await Promise.all(promises);
+            console.log('✅ Paste completed successfully:', updates.length, 'items');
+            setSelectedCells(new Set()); // Clear selection after paste
+            addToast({ message: `Pasted ${clipboard.data.length} item(s) as pattern to ${updates.length} cell(s)`, type: 'success' });
+        } catch (error) {
+            console.error('❌ Error pasting selection:', error);
+            showPrivilegeError(error);
+        }
+    }, [clipboard, displayedUsers, currentWeekStart, weekDates, syncCellToDatabase, addToast, showPrivilegeError]);
+
+    // Paste to all currently selected cells (Paste to Selection)
+    const handlePasteToSelection = useCallback(async () => {
+        if (!clipboard.data || selectedCells.size === 0) {
+            console.warn('📋 Paste to selection aborted: no clipboard data or no selection');
+            return;
+        }
+
+        const weekKey = formatDateForKey(currentWeekStart);
+        const promises = [];
+        const updates = [];
+
+        // Determine what to paste based on clipboard type
+        let assignmentToPaste = null;
+
+        if (clipboard.type === 'multi' && clipboard.data.length === 1) {
+            // Single item copied via multi-select
+            assignmentToPaste = clipboard.data[0].assignment;
+        } else if (clipboard.type === 'copy' || clipboard.type === 'cut') {
+            // Single item copied via right-click context menu
+            assignmentToPaste = clipboard.data;
+        } else if (clipboard.type === 'multi' && clipboard.data.length > 1) {
+            addToast({ message: 'Cannot paste multiple items to selection. Use paste at anchor instead.', type: 'error' });
+            return;
+        }
+
+        if (!assignmentToPaste) return;
+
+        // Paste to all selected cells
+        selectedCells.forEach(cellId => {
+            const [userId, dayIndexStr] = cellId.split('::');
+            const dayIndex = parseInt(dayIndexStr);
+
+            if (dayIndex < 0 || dayIndex > 6) return;
+
+            const targetDate = weekDates[dayIndex];
+
+            updates.push({
+                userId,
+                dayIndex,
+                assignment: assignmentToPaste
+            });
+
+            promises.push(syncCellToDatabase(userId, dayIndex, assignmentToPaste, targetDate));
+        });
+
+        // Apply optimistic updates
+        setAllocations(prev => {
+            const newAllocations = JSON.parse(JSON.stringify(prev));
+            if (!newAllocations[weekKey]) newAllocations[weekKey] = {};
+
+            updates.forEach(update => {
+                if (!newAllocations[weekKey][update.userId]) {
+                    newAllocations[weekKey][update.userId] = { assignments: Array(7).fill(null) };
+                }
+                newAllocations[weekKey][update.userId].assignments[update.dayIndex] = update.assignment;
+            });
+            return newAllocations;
+        });
+
+        setSelectedCells(new Set());
+
+        try {
+            await Promise.all(promises);
+            addToast({ message: `Pasted to ${updates.length} cells successfully`, type: 'success' });
+
+            // If it was a cut operation, delete the source
+            if (clipboard.type === 'cut' && clipboard.sourceCell) {
+                const sourceDate = clipboard.sourceCell.date || weekDates[clipboard.sourceCell.dayIndex];
+                await syncCellToDatabase(clipboard.sourceCell.userId, clipboard.sourceCell.dayIndex, null, sourceDate);
+                setClipboard({ type: null, data: null, sourceCell: null, sourceIndex: null });
+            }
+        } catch (error) {
+            console.error('❌ Error pasting to selection:', error);
+            showPrivilegeError(error);
+        }
+    }, [clipboard, selectedCells, currentWeekStart, weekDates, syncCellToDatabase, addToast, showPrivilegeError]);
+
+    const handleDeleteSelection = async () => {
+        if (selectedCells.size === 0) return;
+
+        // Save current state to history before making changes
+        saveToHistory();
+
+        const weekKey = formatDateForKey(currentWeekStart);
+        const promises = [];
+        const updates = [];
+
+        selectedCells.forEach(cellId => {
+            const [userId, dayIndexStr] = cellId.split('::');
+            const dayIndex = parseInt(dayIndexStr);
+
+            // Safety check: Only delete cells from current week (dayIndex 0-6)
+            if (dayIndex < 0 || dayIndex > 6) {
+                console.warn('Skipping delete for cell outside current week:', cellId);
+                return;
+            }
+
+            const date = weekDates[dayIndex];
+
+            // Optimistic update data
+            updates.push({
+                userId,
+                dayIndex
+            });
+
+            // DB Delete logic
+            promises.push(syncCellToDatabase(userId, dayIndex, null, date));
+        });
+
+        // Apply optimistic updates
+        setAllocations(prev => {
+            const newAllocations = JSON.parse(JSON.stringify(prev));
+            if (!newAllocations[weekKey]) newAllocations[weekKey] = {};
+            
+            updates.forEach(update => {
+                if (newAllocations[weekKey][update.userId]) {
+                    newAllocations[weekKey][update.userId].assignments[update.dayIndex] = null;
+                }
+            });
+            return newAllocations;
+        });
+
+        try {
+            await Promise.all(promises);
+            addToast({ message: `Deleted ${updates.length} items`, type: 'success' });
+            setSelectedCells(new Set()); // Clear selection after deletion
+        } catch (error) {
+            console.error('Error deleting selection:', error);
+            showPrivilegeError(error);
+        }
+    };
+
+    // Keyboard listener for Ctrl+Z / Cmd+Z, Copy/Paste, and Delete/Backspace
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                handleUndo();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+                if (selectedCells.size > 0) {
+                    e.preventDefault();
+                    handleCopySelection();
+                }
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                console.log('⌨️ Ctrl+V pressed, clipboard:', { type: clipboard.type, hasData: !!clipboard.data });
+                if (clipboard.type === 'multi' && clipboard.data && clipboard.data.length > 1) {
+                    e.preventDefault();
+                    if (lastSelectedCellRef.current) {
+                        handlePasteSelection(lastSelectedCellRef.current.userId, lastSelectedCellRef.current.dayIndex);
+                    } else {
+                        addToast({ message: 'Click on a cell first to set the paste location', type: 'info' });
+                    }
+                } else if (clipboard.data) {
+                    e.preventDefault();
+                    handlePasteToSelection();
+                }
+            }
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                // Avoid deleting if user is typing in an input field
+                const target = e.target;
+                const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+                
+                if (!isInput && selectedCells.size > 0) {
+                    e.preventDefault();
+                    handleDeleteSelection();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleUndo, handleDeleteSelection, handleCopySelection, handlePasteSelection, handlePasteToSelection, selectedCells, clipboard, addToast]);
 
     const handleEditArrayItem = async (allocationData, cellToUpdate) => {
         const { userId, date, editingIndex } = cellToUpdate;
@@ -1274,21 +1664,50 @@ const EquipmentCalendarPage = () => {
             }
         } else {
             // Original behavior for whole cell operations
+            // Fallback: If selection exists (>1) but single action triggered, redirect to multi-action
+            if (selectedCells.size > 1 && (action === 'delete' || action === 'copy' || action === 'cut' || action === 'paste' || action === 'allocate' || action === 'addSecondEquipment')) {
+                 console.log('🔄 Redirecting single action to multi-select handler:', action);
+                 if (action === 'delete') handleDeleteSelection();
+                 else if (action === 'copy') handleCopySelection();
+                 else if (action === 'cut') { handleCopySelection(); handleDeleteSelection(); }
+                 else if (action === 'paste') {
+                     if (clipboard.type === 'multi' && clipboard.data && clipboard.data.length > 1) {
+                         handlePasteSelection(cellToUpdate.userId, cellToUpdate.dayIndex);
+                     } else {
+                         handlePasteToSelection();
+                     }
+                 }
+                 else if (action === 'allocate') {
+                     setSelectedCell({ isMultiCellAllocation: true });
+                     setIsAllocationModalOpen(true);
+                 }
+                 else if (action === 'addSecondEquipment') {
+                     setSelectedCell({ isMultiCellAllocation: true, isSecondEquipment: true });
+                     setIsAllocationModalOpen(true);
+                 }
+                 setContextMenu({ visible: false });
+                 return;
+            }
+
             if (action === 'copy' || action === 'cut') {
                 setClipboard({ type: action, data: cellData.assignment, sourceCell: cellToUpdate });
             } else if (action === 'delete') {
                 handleSaveAllocation(null, cellToUpdate);
             } else if (action === 'paste') {
-                // Check if we're pasting a single item that was cut/copied from an array
-                const isPastingSingleItem = !Array.isArray(clipboard.data);
-                const targetHasContent = cellData.assignment !== null;
-
-                if (isPastingSingleItem && targetHasContent) {
-                    // Add to existing content instead of replacing
-                    handleSaveAllocation(clipboard.data, cellToUpdate, true); // Use isSecondEquipment flag
+                if (clipboard.type === 'multi' && clipboard.data && clipboard.data.length > 1) {
+                    handlePasteSelection(cellToUpdate.userId, cellToUpdate.dayIndex);
                 } else {
-                    // Replace entire cell content
-                    handleSaveAllocation(clipboard.data, cellToUpdate);
+                    // Check if we're pasting a single item that was cut/copied from an array
+                    const isPastingSingleItem = !Array.isArray(clipboard.data);
+                    const targetHasContent = cellData.assignment !== null;
+
+                    if (isPastingSingleItem && targetHasContent) {
+                        // Add to existing content instead of replacing
+                        handleSaveAllocation(clipboard.data, cellToUpdate, true); // Use isSecondEquipment flag
+                    } else {
+                        // Replace entire cell content
+                        handleSaveAllocation(clipboard.data, cellToUpdate);
+                    }
                 }
 
                 if (clipboard.type === 'cut') {
@@ -1353,6 +1772,30 @@ const EquipmentCalendarPage = () => {
                 setIsAllocationModalOpen(true);
             } else if (action === 'addSecondEquipment') {
                 setSelectedCell({ ...cellToUpdate, isSecondEquipment: true });
+                setIsAllocationModalOpen(true);
+            } else if (action === 'multiAllocate') {
+                console.log('🚀 Triggering multiAllocate for', selectedCells.size, 'cells');
+                // Open allocation modal for multiple cells
+                setSelectedCell({ isMultiCellAllocation: true });
+                setIsAllocationModalOpen(true);
+            } else if (action === 'deleteSelection') {
+                handleDeleteSelection();
+            } else if (action === 'copySelection') {
+                handleCopySelection();
+            } else if (action === 'cutSelection') {
+                handleCopySelection();
+                handleDeleteSelection();
+            } else if (action === 'pasteSelection') {
+                // Paste multi-selection using the right-clicked cell as anchor
+                console.log('🖱️ Right-click paste triggered, cellToUpdate:', cellToUpdate);
+                handlePasteSelection(cellToUpdate.userId, cellToUpdate.dayIndex);
+            } else if (action === 'pasteToSelection') {
+                // Paste to all selected cells
+                console.log('🖱️ Right-click paste to selection triggered');
+                handlePasteToSelection();
+            } else if (action === 'addMoreEquipmentSelection') {
+                // Open allocation modal for multiple cells with isSecondEquipment=true
+                setSelectedCell({ isMultiCellAllocation: true, isSecondEquipment: true });
                 setIsAllocationModalOpen(true);
             }
         }
@@ -2298,7 +2741,7 @@ const EquipmentCalendarPage = () => {
                     onMouseDown={handlePanStart}
                     style={{ cursor: isDesktop && !isPanning ? 'grab' : isPanning ? 'grabbing' : undefined }}
                 >
-                    <table className="w-full text-sm text-left" style={{ tableLayout: 'fixed' }}>
+                    <table className="w-full text-sm text-left select-none" style={{ tableLayout: 'fixed' }}>
                                                         <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800 sticky top-0 z-10">
                                                             <tr>
                                                                 <th className="px-4 py-3 w-[250px] bg-orange-500 dark:bg-orange-600 border-r border-orange-600 dark:border-orange-800">Staff Member</th>
@@ -2419,14 +2862,15 @@ const EquipmentCalendarPage = () => {
 
                                     const showContextMenuButton = canAllocateResources || assignment;
                                     const isArrayTile = Array.isArray(assignment);
+                                    const isSelected = selectedCells.has(`${user.id}::${dayIndex}`);
 
                                     return (
                                         <td key={date.toISOString()} className="p-1 align-top h-32 relative group">
                                             <div
                                                 data-empty={!assignment ? "true" : undefined}
                                                 onContextMenu={isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                onClick={!isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                className={`w-full h-full text-left rounded-md ${!assignment && isDesktop ? 'cursor-grab hover:cursor-grab' : ''}`}
+                                                onClick={isDesktop ? (e) => handleCellSelection(e, user.id, dayIndex) : (!isDesktop && showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined)}
+                                                className={`w-full h-full text-left rounded-md ${!assignment && isDesktop ? 'cursor-grab hover:cursor-grab' : ''} ${isSelected ? 'ring-4 ring-blue-500 z-20' : ''}`}
                                             >
                                                 <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop || !canAllocateResources}>
                                                     {cellContent}
@@ -2466,16 +2910,30 @@ const EquipmentCalendarPage = () => {
                     isOpen={isAllocationModalOpen}
                     onClose={() => setIsAllocationModalOpen(false)}
                     onSave={(allocationData) => {
-                        if (selectedCell.editingItem && selectedCell.editingIndex !== undefined) {
+                        console.log('💾 AllocationModal onSave:', { allocationData, selectedCell, selectedCellsSize: selectedCells.size });
+                        // Fallback: If multiple cells are selected but isMultiCellAllocation flag wasn't set (e.g. context menu glitch), treat as multi-allocation unless editing a specific item
+                        const isMulti = selectedCell.isMultiCellAllocation || (selectedCells.size > 1 && !selectedCell.editingItem);
+                        
+                        if (isMulti) {
+                            console.log('🔄 Processing multi-cell allocation for', selectedCells.size, 'cells');
+                            // Apply allocation to all selected cells
+                            selectedCells.forEach(cellId => {
+                                const [userId, dayIndex] = cellId.split('::');
+                                const cellDate = weekDates[parseInt(dayIndex)];
+                                console.log('👉 Allocating to cell:', cellId, { userId, dayIndex, cellDate });
+                                handleSaveAllocation(allocationData, { userId, dayIndex: parseInt(dayIndex), date: cellDate }, selectedCell.isSecondEquipment || false);
+                            });
+                            setSelectedCells(new Set()); // Clear selection after applying
+                        } else if (selectedCell.editingItem && selectedCell.editingIndex !== undefined) {
                             // Handle editing a specific item in an array
                             handleEditArrayItem(allocationData, selectedCell);
                         } else {
                             handleSaveAllocation(allocationData, selectedCell, selectedCell.isSecondEquipment);
                         }
                     }}
-                    user={selectedUser}
-                    date={selectedCell.date}
-                    currentAssignment={selectedCell.editingItem || currentWeekAllocations[selectedCell.userId]?.assignments[selectedCell.dayIndex] || null}
+                    user={(selectedCell.isMultiCellAllocation || (selectedCells.size > 1 && !selectedCell.editingItem)) ? { name: `${selectedCells.size} cells selected` } : selectedUser}
+                    date={(selectedCell.isMultiCellAllocation || (selectedCells.size > 1 && !selectedCell.editingItem)) ? null : selectedCell.date}
+                    currentAssignment={(selectedCell.isMultiCellAllocation || (selectedCells.size > 1 && !selectedCell.editingItem)) ? null : (selectedCell.editingItem || currentWeekAllocations[selectedCell.userId]?.assignments[selectedCell.dayIndex] || null)}
                     equipment={equipment}
                     isSecondEquipment={selectedCell.isSecondEquipment}
                     isEditingArrayItem={!!selectedCell.editingItem}
@@ -2617,7 +3075,7 @@ const EquipmentCalendarPage = () => {
     );
 };
 
-const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate }) => {
+const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate, isMultiSelect, selectedCount }) => {
     const menuRef = useRef(null);
     const [position, setPosition] = useState({ top: y, left: x });
 
@@ -2655,6 +3113,56 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
             setPosition({ top: adjustedY, left: adjustedX });
         }
     }, [x, y]);
+
+    if (isMultiSelect) {
+        return (
+            <div
+                ref={menuRef}
+                style={{ top: position.top, left: position.left }}
+                className="absolute z-50 w-56 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 py-1"
+            >
+                <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 mb-1">
+                    {selectedCount} items selected
+                </div>
+                {canAllocate && (
+                    <>
+                        <button onClick={() => onAction('copySelection')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <Copy size={14} className="mr-2" />Copy Selection
+                        </button>
+                        <button onClick={() => onAction('cutSelection')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>Cut Selection
+                        </button>
+                        
+                        {clipboard.data && clipboard.type === 'multi' && clipboard.data.length > 1 && (
+                             <button onClick={() => onAction('pasteSelection')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <ClipboardCheck size={14} className="mr-2" />Paste Pattern
+                             </button>
+                        )}
+                        {clipboard.data && (
+                             <button onClick={() => onAction('pasteToSelection')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <ClipboardCheck size={14} className="mr-2" />Paste to Selection
+                             </button>
+                        )}
+
+                        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
+                        <button onClick={() => onAction('multiAllocate')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <PlusCircle size={14} className="mr-2" />Allocate Equipment
+                        </button>
+                        <button onClick={() => onAction('addMoreEquipmentSelection')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <PlusCircle size={14} className="mr-2" />Add More Equipment
+                        </button>
+
+                        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
+                        <button onClick={() => onAction('deleteSelection')} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <Trash2 size={14} className="mr-2" />Delete Selection
+                        </button>
+                    </>
+                )}
+            </div>
+        );
+    }
 
     const hasAssignment = !!cellData.assignment;
     const canAddMoreEquipment = hasAssignment;
@@ -2703,22 +3211,17 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                                     </button>
                                 </>
                             )}
-                            {/* Only show copy/cut/delete for single items or individual array items, not for whole multi-item tiles */}
-                            {!isMultiItemTile || isArrayItemOperation ? (
-                                <>
-                                    <button onClick={() => onAction('copy')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2" />Copy</button>
-                                    <button onClick={() => onAction('cut')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                                            <circle cx="6" cy="6" r="3"></circle>
-                                            <circle cx="6" cy="18" r="3"></circle>
-                                            <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
-                                            <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
-                                            <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
-                                        </svg>Cut
-                                    </button>
-                                    <button onClick={() => onAction('delete')} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={14} className="mr-2" />Delete</button>
-                                </>
-                            ) : null}
+                            <button onClick={() => onAction('copy')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><Copy size={14} className="mr-2" />Copy</button>
+                            <button onClick={() => onAction('cut')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                                    <circle cx="6" cy="6" r="3"></circle>
+                                    <circle cx="6" cy="18" r="3"></circle>
+                                    <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
+                                    <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
+                                    <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
+                                </svg>Cut
+                            </button>
+                            <button onClick={() => onAction('delete')} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={14} className="mr-2" />Delete</button>
                             {clipboard.data && (
                                 <button onClick={() => onAction('paste')} className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"><ClipboardCheck size={14} className="mr-2" />Paste</button>
                             )}
