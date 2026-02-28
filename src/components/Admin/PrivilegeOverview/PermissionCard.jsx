@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Check, X, CheckCircle, XCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Check, X, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 import PermissionRow from './PermissionRow';
 
 /**
@@ -12,6 +12,8 @@ import PermissionRow from './PermissionRow';
  * @param {boolean} props.isEditing - Whether in edit mode
  * @param {Function} props.onTogglePermission - Callback when individual permission toggled
  * @param {Function} props.onBulkToggle - Callback for bulk category toggle
+ * @param {boolean} props.isUserOverrideMode - Whether in user override mode
+ * @param {Function} props.onClearOverride - Callback to clear a specific user override
  */
 const PermissionCard = ({
     category,
@@ -19,9 +21,11 @@ const PermissionCard = ({
     modifiedPermissions = new Set(),
     isEditing = false,
     onTogglePermission,
-    onBulkToggle
+    onBulkToggle,
+    isUserOverrideMode = false,
+    onClearOverride
 }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(isUserOverrideMode);
 
     // Calculate statistics
     const totalPermissions = permissions.length;
@@ -41,29 +45,40 @@ const PermissionCard = ({
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
+        <div className={`bg-white dark:bg-gray-800 border rounded-lg overflow-hidden shadow-sm transition-all duration-200 ${
+            isUserOverrideMode ? 'border-purple-200 dark:border-purple-900/50' : 'border-gray-200 dark:border-gray-700'
+        }`}>
             {/* Card Header */}
             <div
-                className="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 cursor-pointer"
+                className={`px-4 py-3 border-b cursor-pointer transition-colors ${
+                    isUserOverrideMode 
+                        ? 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30' 
+                        : 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700'
+                }`}
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 <div className="flex items-center justify-between">
                     {/* Category Name & Expand Icon */}
                     <div className="flex items-center gap-2">
                         {isExpanded ? (
-                            <ChevronDown className="w-5 h-5 text-gray-500" />
+                            <ChevronDown className={`w-5 h-5 ${isUserOverrideMode ? 'text-purple-500' : 'text-gray-500'}`} />
                         ) : (
-                            <ChevronRight className="w-5 h-5 text-gray-500" />
+                            <ChevronRight className={`w-5 h-5 ${isUserOverrideMode ? 'text-purple-500' : 'text-gray-500'}`} />
                         )}
 
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <h3 className={`text-sm font-semibold ${isUserOverrideMode ? 'text-purple-900 dark:text-purple-100' : 'text-gray-900 dark:text-gray-100'}`}>
                             {category}
                         </h3>
 
                         {/* Modified Badge */}
                         {modifiedCount > 0 && (
-                            <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded">
-                                {modifiedCount} modified
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded flex items-center gap-1 ${
+                                isUserOverrideMode 
+                                    ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' 
+                                    : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
+                            }`}>
+                                {isUserOverrideMode && <RotateCcw size={10} />}
+                                {modifiedCount} {isUserOverrideMode ? 'overridden' : 'modified'}
                             </span>
                         )}
                     </div>
@@ -83,8 +98,8 @@ const PermissionCard = ({
                             </span>
                         </div>
 
-                        {/* Bulk Action Buttons (Edit Mode Only) */}
-                        {isEditing && (
+                        {/* Bulk Action Buttons (Edit Mode Only - Disabled in User Override Mode) */}
+                        {isEditing && !isUserOverrideMode && (
                             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                 <button
                                     onClick={() => handleBulkToggle(true)}
@@ -140,6 +155,9 @@ const PermissionCard = ({
                                 isModified={modifiedPermissions.has(perm.permission)}
                                 isEditing={isEditing}
                                 onToggle={onTogglePermission}
+                                isUserOverrideMode={isUserOverrideMode}
+                                isOverride={perm.is_override}
+                                onClearOverride={() => onClearOverride && onClearOverride(perm.permission)}
                             />
                         ))
                     ) : (

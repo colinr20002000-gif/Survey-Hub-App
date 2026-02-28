@@ -225,15 +225,21 @@ export const PERMISSIONS = {
  * @param {string} userPrivilege - User's privilege level
  * @param {string} permission - Permission to check (from PERMISSIONS)
  * @param {Object} [dynamicPermissions] - Optional dynamic permissions object from database (overrides hardcoded PERMISSIONS)
+ * @param {Object} [userOverrides] - Optional user-specific overrides {permission_key: boolean}
  * @returns {boolean}
  */
-export const hasPermission = (userPrivilege, permission, dynamicPermissions = null) => {
-    // 1. If dynamic permissions are provided, try to find the key there
+export const hasPermission = (userPrivilege, permission, dynamicPermissions = null, userOverrides = null) => {
+    // 1. Check user-specific override first (highest priority)
+    if (userOverrides && userOverrides[permission] !== undefined) {
+        return userOverrides[permission];
+    }
+
+    // 2. If dynamic permissions are provided, try to find the key there
     if (dynamicPermissions && dynamicPermissions[permission] !== undefined) {
         return dynamicPermissions[permission].includes(userPrivilege);
     }
 
-    // 2. Fall back to hardcoded PERMISSIONS if not found in dynamic source
+    // 3. Fall back to hardcoded PERMISSIONS if not found in dynamic source
     const allowedPrivileges = PERMISSIONS[permission];
     if (!allowedPrivileges) {
         console.warn(`Permission "${permission}" not found in hardcoded PERMISSIONS or dynamic source`);

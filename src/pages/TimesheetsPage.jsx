@@ -35,10 +35,19 @@ const TimesheetsPage = ({ userId: externalUserId, onBack, externalDate }) => {
     useEffect(() => {
         if (externalUserId) {
             const fetchUserInfo = async () => {
-                const { data } = await supabase.from('users').select('name, line_manager_id').eq('id', externalUserId).single();
-                if (data) {
-                    setTargetUser(data);
-                    setTargetUserName(data.name);
+                // Try users table first
+                const { data: userData } = await supabase.from('users').select('name, line_manager_id').eq('id', externalUserId).single();
+                
+                if (userData) {
+                    setTargetUser({ ...userData, is_dummy: false });
+                    setTargetUserName(userData.name);
+                } else {
+                    // Try dummy_users table
+                    const { data: dummyData } = await supabase.from('dummy_users').select('name, line_manager_id').eq('id', externalUserId).single();
+                    if (dummyData) {
+                        setTargetUser({ ...dummyData, is_dummy: true });
+                        setTargetUserName(dummyData.name);
+                    }
                 }
             };
             fetchUserInfo();

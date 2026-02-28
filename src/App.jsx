@@ -29,6 +29,7 @@ import { handleSupabaseError, isRLSError } from './utils/rlsErrorHandler';
 import { useFcm } from './hooks/useFcm';
 import { useSubscription } from './hooks/useSubscription';
 import { usePermissions } from './hooks/usePermissions';
+import { useDynamicPermissions } from './hooks/useDynamicPermissions';
 import { useDebouncedValue } from './utils/debounce';
 import { PrivilegeOverviewPage } from './components/Admin/PrivilegeOverview';
 import { PERMISSIONS, PERMISSION_DESCRIPTIONS } from './utils/privileges';
@@ -685,8 +686,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         canAccessAuditTrail,
         canAccessCalendarColours
     } = usePermissions();
+    const { userOverrides } = useDynamicPermissions();
     const [isAdminMode, setIsAdminMode] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [managedStaffCount, setManagedStaffCount] = useState(0);
     const [expandedGroups, setExpandedGroups] = useState({
         'Resource': false,
         'Equipment': false,
@@ -698,6 +701,32 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         'Admin': false
     });
     const sidebarRef = useRef(null);
+
+    // Fetch managed staff count to determine if "Approvals" should be shown
+    useEffect(() => {
+        const fetchManagedStaffCount = async () => {
+            if (!user?.id) return;
+            
+            try {
+                // Check both real and dummy users
+                const [realUsers, dummyUsers] = await Promise.all([
+                    supabase.from('users').select('id', { count: 'exact', head: true }).eq('line_manager_id', user.id),
+                    supabase.from('dummy_users').select('id', { count: 'exact', head: true }).eq('line_manager_id', user.id)
+                ]);
+                
+                setManagedStaffCount((realUsers.count || 0) + (dummyUsers.count || 0));
+            } catch (err) {
+                console.error('Error fetching managed staff count:', err);
+            }
+        };
+
+        fetchManagedStaffCount();
+    }, [user?.id]);
+
+    // Check if user has an explicit "Force Allow" override for Approvals
+    const hasApprovalsOverride = useMemo(() => 
+        userOverrides['VIEW_APPROVALS'] === true,
+    [userOverrides]);
 
     // Check if user can access admin mode
     const isAdminUser = canAccessAdmin();
@@ -722,7 +751,11 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             subItems: [
                 { name: 'Weekly Entry', displayName: 'Weekly Entry', parent: 'Timesheets', show: can('VIEW_WEEKLY_ENTRY') },
                 { name: 'Team Overview', parent: 'Timesheets', show: can('VIEW_TEAM_OVERVIEW') },
-                { name: 'Approvals', parent: 'Timesheets', show: can('VIEW_APPROVALS') },
+                { 
+                    name: 'Approvals', 
+                    parent: 'Timesheets', 
+                    show: can('VIEW_APPROVALS') && (managedStaffCount > 0 || user?.privilege === 'Admin' || hasApprovalsOverride)
+                },
                 { name: 'Timesheet Tasks', parent: 'Timesheets', show: can('VIEW_TIMESHEET_TASKS') }
             ]
         },
@@ -5617,7 +5650,7 @@ const MainLayout = () => {
             case 'Timesheets': return can('VIEW_TIMESHEETS') ? <TimesheetsPage /> : <AccessDenied />;
             case 'Team Overview': return <TeamOverviewPage />;
             case 'Approvals': return <TimesheetApprovalsPage />;
-            case 'Timesheet Tasks': return can('MANAGE_TIMESHEET_TASKS') ? <TimesheetSettingsPage /> : <AccessDenied />;
+            case 'Timesheet Tasks': return can('VIEW_TIMESHEET_TASKS') ? <TimesheetSettingsPage /> : <AccessDenied />;
             case 'Projects': return can('VIEW_PROJECTS') ? <ProjectsPage onViewProject={handleViewProject} /> : <AccessDenied />;
             case 'Announcements': return can('VIEW_ANNOUNCEMENTS') ? <Suspense fallback={<LoadingFallback />}><AnnouncementsPage /></Suspense> : <AccessDenied />;
             case 'Feedback': return <FeedbackPage />;

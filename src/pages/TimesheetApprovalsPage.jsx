@@ -40,22 +40,41 @@ const TimesheetApprovalsPage = () => {
     const fetchPendingTimesheets = useCallback(async () => {
         setLoading(true);
         try {
-            // 1. Fetch all users where CURRENT user is line manager
-            const { data: staff, error: staffError } = await supabase
-                .from('users')
-                .select('id, name, department, email, line_manager_id')
-                .eq('line_manager_id', user.id);
-            
-            if (staffError) throw staffError;
+            // 1. Determine if user is Admin/Super Admin
+            const isAdmin = user?.privilege === 'Admin' || user?.privilege === 'Super Admin';
 
-            // 2. Fetch all timesheets for these users for the selected week
-            const staffIds = (staff || []).map(s => s.id);
+            // 2. Fetch staff (Real and Dummy)
+            let staffQuery;
+            let dummyStaffQuery;
+
+            if (isAdmin) {
+                // Admins see everyone
+                staffQuery = supabase.from('users').select('id, name, department, email, line_manager_id').is('deleted_at', null);
+                dummyStaffQuery = supabase.from('dummy_users').select('id, name, team_role, email, line_manager_id').is('deleted_at', null);
+            } else {
+                // Managers see only their staff
+                staffQuery = supabase.from('users').select('id, name, department, email, line_manager_id').eq('line_manager_id', user.id).is('deleted_at', null);
+                dummyStaffQuery = supabase.from('dummy_users').select('id, name, team_role, email, line_manager_id').eq('line_manager_id', user.id).is('deleted_at', null);
+            }
+
+            const [staffResult, dummyStaffResult] = await Promise.all([staffQuery, dummyStaffQuery]);
             
-            if (staffIds.length === 0) {
+            if (staffResult.error) throw staffResult.error;
+            if (dummyStaffResult.error) throw dummyStaffResult.error;
+
+            const allStaff = [
+                ...(staffResult.data || []).map(s => ({ ...s, is_dummy: false })),
+                ...(dummyStaffResult.data || []).map(s => ({ ...s, is_dummy: true, department: s.team_role }))
+            ];
+            
+            if (allStaff.length === 0) {
                 setTimesheets([]);
                 return;
             }
 
+            // 3. Fetch all timesheets for these users for the selected week
+            const staffIds = allStaff.map(s => s.id);
+            
             const { data: tsData, error: tsError } = await supabase
                 .from('timesheets')
                 .select('*')
@@ -64,8 +83,8 @@ const TimesheetApprovalsPage = () => {
             
             if (tsError) throw tsError;
 
-            // 3. Combine staff data with timesheet data
-            const statusData = staff.map(member => {
+            // 4. Combine staff data with timesheet data
+            const statusData = allStaff.map(member => {
                 const ts = tsData?.find(t => t.user_id === member.id);
                 return {
                     id: ts?.id || `new-${member.id}`,
@@ -75,16 +94,20 @@ const TimesheetApprovalsPage = () => {
                     total_hours: ts?.total_hours || 0,
                     week_start_date: weekStartStr,
                     is_placeholder: !ts,
-                    rejection_comment: ts?.rejection_comment
+                    rejection_comment: ts?.rejection_comment,
+                    is_dummy: member.is_dummy
                 };
             });
             
-            // 4. Further filter by status
+            // 5. Further filter by status
             const filtered = filterStatus === 'All' 
                 ? statusData 
                 : filterStatus === 'Pending'
                     ? statusData.filter(ts => ['Submitted', 'Draft', 'Not Started'].includes(ts.status))
                     : statusData.filter(ts => ts.status === filterStatus);
+
+            // Sort by name
+            filtered.sort((a, b) => a.user.name.localeCompare(b.user.name));
 
             setTimesheets(filtered);
         } catch (error) {

@@ -1,13 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { Edit2, Trash2, ShieldAlert, X, Save, UserPlus, Mail, RefreshCw, Check, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Edit2, Trash2, ShieldAlert, X, Save, UserPlus, Mail, RefreshCw, Check, AlertTriangle, ShieldCheck, RotateCcw, Search, ChevronRight, ChevronDown } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDynamicPermissions } from '../../hooks/useDynamicPermissions';
 import {
   checkUserActiveAssignments,
   returnAllUserAssignments
 } from '../../utils/userAssignmentCleanup';
 import { getDepartmentColor, getAvatarText } from '../../utils/avatarColors';
-import { Combobox } from '../ui';
+import { Combobox, Modal, Button, Switch } from '../ui';
+
+// Categories for grouping permissions
+const CATEGORY_DISPLAY_ORDER = [
+    'View Access',
+    'Settings',
+    'Admin',
+    'Projects',
+    'Announcements',
+    'Timesheets',
+    'Resource - Resource Calendar',
+    'Resource - To Do List',
+    'Resource - Close Calls',
+    'Resource - Media',
+    'Equipment - Calendar',
+    'Equipment - Assignments',
+    'Equipment - Register',
+    'Equipment - Check & Adjust',
+    'Vehicles - Vehicle Management',
+    'Vehicles - Vehicle Inspection',
+    'Vehicles - Mileage Log',
+    'Delivery - To Do List',
+    'Training Centre - Document Hub',
+    'Contact Details - On-Call Contacts',
+    'Contact Details - Subcontractors',
+    'Contact Details - Useful Contacts',
+    'Analytics - Project Logs',
+    'Analytics - AFV',
+    'Leaderboard'
+];
 
 const UserAdmin = () => {
   const { user } = useAuth();
@@ -28,6 +58,10 @@ const UserAdmin = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isDummyUserEdit, setIsDummyUserEdit] = useState(false);
+
+  // Overrides State
+  const [showOverridesModal, setShowOverridesModal] = useState(false);
+  const [overridesTargetUser, setOverridesTargetUser] = useState(null);
 
   // MFA management states
   const [mfaStatuses, setMfaStatuses] = useState({});
@@ -1402,6 +1436,16 @@ const UserAdmin = () => {
                         {isSuperAdmin && (
                           <>
                             <button
+                              onClick={() => {
+                                setOverridesTargetUser(userItem);
+                                setShowOverridesModal(true);
+                              }}
+                              className="p-1.5 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded transition-colors"
+                              title="Permissions & Overrides"
+                            >
+                              <ShieldCheck size={18} />
+                            </button>
+                            <button
                               onClick={() => handleEditUser(userItem)}
                               className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
                               title="Edit User"
@@ -1413,7 +1457,7 @@ const UserAdmin = () => {
                               className="p-1.5 text-orange-600 hover:text-orange-900 hover:bg-orange-50 rounded transition-colors"
                               title="Reset MFA"
                             >
-                              <ShieldAlert size={18} />
+                              <RotateCcw size={18} />
                             </button>
                           </>
                         )}
@@ -1573,6 +1617,16 @@ const UserAdmin = () => {
                       <div className="flex items-center gap-2">
                         {isAdmin && (
                           <>
+                            <button
+                              onClick={() => {
+                                setOverridesTargetUser(dummyUser);
+                                setShowOverridesModal(true);
+                              }}
+                              className="p-1.5 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded transition-colors"
+                              title="Permissions & Overrides"
+                            >
+                              <ShieldCheck size={18} />
+                            </button>
                             <button
                               onClick={() => handleEditUser(dummyUser, true)}
                               className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
@@ -2439,7 +2493,232 @@ const UserAdmin = () => {
           </div>
         </div>
       )}
+
+      {/* Permission Overrides Modal */}
+      {showOverridesModal && overridesTargetUser && (
+        <UserPermissionOverridesModal 
+          isOpen={showOverridesModal} 
+          onClose={() => {
+            setShowOverridesModal(false);
+            setOverridesTargetUser(null);
+          }}
+          targetUser={overridesTargetUser}
+        />
+      )}
     </div>
+  );
+};
+
+const UserPermissionOverridesModal = ({ isOpen, onClose, targetUser }) => {
+  const { getUserOverrides, updateUserOverride, clearUserOverride } = useDynamicPermissions();
+  const [loading, setLoading] = useState(true);
+  const [overrides, setOverrides] = useState([]);
+  const [availablePermissions, setAvailablePermissions] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState(['View Access', 'Timesheets']);
+
+  // Load all possible permissions and current user overrides
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        // 1. Get all unique permission keys from privilege_permissions
+        const { data: allPerms, error: permsError } = await supabase
+          .from('privilege_permissions')
+          .select('permission_key, permission_label, permission_category')
+          .order('display_order', { ascending: true });
+        
+        if (permsError) throw permsError;
+
+        // Deduplicate by key (since multiple privilege levels share keys)
+        const uniquePerms = [];
+        const seenKeys = new Set();
+        allPerms.forEach(p => {
+          if (!seenKeys.has(p.permission_key)) {
+            uniquePerms.push(p);
+            seenKeys.add(p.permission_key);
+          }
+        });
+        setAvailablePermissions(uniquePerms);
+
+        // 2. Get current overrides for this user
+        const userOverrides = await getUserOverrides(targetUser.id);
+        setOverrides(userOverrides || []);
+      } catch (err) {
+        console.error('Error loading override data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (isOpen) loadData();
+  }, [isOpen, targetUser.id, getUserOverrides]);
+
+  const handleToggleOverride = async (permKey, currentOverride, isGranted) => {
+    try {
+      if (currentOverride && currentOverride.is_granted === isGranted) {
+        // Clearing override (back to default)
+        const res = await clearUserOverride(targetUser.id, permKey);
+        if (res.success) {
+          setOverrides(prev => prev.filter(o => o.permission_key !== permKey));
+        }
+      } else {
+        // Setting/Changing override
+        const res = await updateUserOverride(targetUser.id, permKey, isGranted, 'Admin override');
+        if (res.success) {
+          // Refresh list
+          const updated = await getUserOverrides(targetUser.id);
+          setOverrides(updated);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const toggleCategory = (cat) => {
+    setExpandedCategories(prev => 
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  };
+
+  // Group permissions by category
+  const groupedPerms = useMemo(() => {
+    const groups = {};
+    const filtered = searchTerm 
+      ? availablePermissions.filter(p => 
+          p.permission_label.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          p.permission_key.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : availablePermissions;
+
+    filtered.forEach(p => {
+      const cat = p.permission_category || 'Other';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(p);
+    });
+    return groups;
+  }, [availablePermissions, searchTerm]);
+
+  // Determine sorted categories
+  const sortedCategories = useMemo(() => {
+    const existing = Object.keys(groupedPerms);
+    return [
+      ...CATEGORY_DISPLAY_ORDER.filter(c => existing.includes(c)),
+      ...existing.filter(c => !CATEGORY_DISPLAY_ORDER.includes(c))
+    ];
+  }, [groupedPerms]);
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Permission Overrides: ${targetUser.name}`} maxWidth="max-w-3xl">
+      <div className="flex flex-col h-[70vh]">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-orange-50 dark:bg-orange-900/10">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="text-orange-600 shrink-0" size={20} />
+            <div>
+              <p className="text-xs font-bold text-orange-800 dark:text-orange-200 uppercase">Individual Overrides</p>
+              <p className="text-xs text-orange-700 dark:text-orange-300">
+                These settings will override the user's global <strong>{targetUser.privilege}</strong> privilege level. 
+                Use these to grant specific access to a single user without changing their entire role.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Search permissions..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 text-sm border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 focus:ring-orange-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-gray-400" /></div>
+          ) : (
+            sortedCategories.map(cat => (
+              <div key={cat} className="space-y-1">
+                <button 
+                  onClick={() => toggleCategory(cat)}
+                  className="w-full flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg text-left transition-colors group"
+                >
+                  <span className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    {expandedCategories.includes(cat) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    {cat}
+                    <span className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-[10px] font-bold">{groupedPerms[cat].length}</span>
+                  </span>
+                  <div className="h-px bg-gray-100 dark:bg-gray-700 flex-1 ml-4 group-hover:bg-gray-200 transition-colors"></div>
+                </button>
+
+                {expandedCategories.includes(cat) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2 ml-2">
+                    {groupedPerms[cat].map(perm => {
+                      const override = overrides.find(o => o.permission_key === perm.permission_key);
+                      return (
+                        <div key={perm.permission_key} className={`p-3 rounded-xl border transition-all flex flex-col justify-between h-full ${
+                          override 
+                            ? 'border-purple-200 bg-purple-50/30 dark:border-purple-900/50 dark:bg-purple-900/10' 
+                            : 'border-gray-100 dark:border-gray-800'
+                        }`}>
+                          <div className="flex justify-between items-start gap-2 mb-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-gray-900 dark:text-white truncate" title={perm.permission_label}>{perm.permission_label}</p>
+                              <p className="text-[10px] font-mono text-gray-400 truncate">{perm.permission_key}</p>
+                            </div>
+                            {override && (
+                              <button 
+                                onClick={() => clearUserOverride(targetUser.id, perm.permission_key).then(() => getUserOverrides(targetUser.id).then(setOverrides))}
+                                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                                title="Clear Override"
+                              >
+                                <RotateCcw size={14} />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => handleToggleOverride(perm.permission_key, override, true)}
+                              className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
+                                override?.is_granted === true
+                                  ? 'bg-green-600 border-green-600 text-white shadow-sm'
+                                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 hover:border-green-500 hover:text-green-600'
+                              }`}
+                            >
+                              Force Allow
+                            </button>
+                            <button 
+                              onClick={() => handleToggleOverride(perm.permission_key, override, false)}
+                              className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
+                                override?.is_granted === false
+                                  ? 'bg-red-600 border-red-600 text-white shadow-sm'
+                                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 hover:border-red-500 hover:text-red-600'
+                              }`}
+                            >
+                              Force Deny
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </Modal>
   );
 };
 
