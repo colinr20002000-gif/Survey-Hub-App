@@ -2,7 +2,7 @@ import React, { useState, useEffect, createContext, useContext, useMemo, useRef,
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link, ArrowUpDown, ArrowUp, ArrowDown, Trophy, Image as ImageIcon, Mail, ClipboardCopy } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, Settings, Search, Bell, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PlusCircle, Filter, Edit, Trash2, FileText, FileSpreadsheet, Presentation, Sun, Moon, LogOut, Upload, Download, MoreVertical, X, FolderKanban, File, Archive, Copy, ClipboardCheck, ClipboardList, Bug, ClipboardPaste, History, ArchiveRestore, TrendingUp, Shield, Palette, Loader2, Megaphone, Calendar, AlertTriangle, FolderOpen, List, MessageSquare, Wrench, BookUser, Phone, Check, Bot, RefreshCw, Eye, ExternalLink, Car, Menu, Link, ArrowUpDown, ArrowUp, ArrowDown, Trophy, Image as ImageIcon, Mail, ClipboardCopy, Clock, LayoutGrid } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -56,6 +56,10 @@ import OnCallContactsPage from './pages/OnCallContactsPage';
 import FeedbackPage from './pages/FeedbackPage';
 import DeliveryTasksPage from './pages/DeliveryTasksPage';
 import RailComponentsPage from './pages/RailComponentsPage';
+import TimesheetsPage from './pages/TimesheetsPage';
+import TimesheetSettingsPage from './pages/TimesheetSettingsPage';
+import TimesheetApprovalsPage from './pages/TimesheetApprovalsPage';
+import TeamOverviewPage from './pages/TeamOverviewPage';
 
 // Lazy-loaded pages for better performance
 const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
@@ -710,6 +714,18 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
     const regularNavItems = [
         { name: 'Dashboard', icon: BarChartIcon, show: true },
         { name: 'Projects', icon: FolderKanban, show: can('VIEW_PROJECTS') },
+        {
+            name: 'Timesheets',
+            icon: Clock,
+            show: can('VIEW_TIMESHEETS'),
+            isGroup: true,
+            subItems: [
+                { name: 'Weekly Entry', displayName: 'Weekly Entry', parent: 'Timesheets', show: can('VIEW_WEEKLY_ENTRY') },
+                { name: 'Team Overview', parent: 'Timesheets', show: can('VIEW_TEAM_OVERVIEW') },
+                { name: 'Approvals', parent: 'Timesheets', show: can('VIEW_APPROVALS') },
+                { name: 'Timesheet Tasks', parent: 'Timesheets', show: can('VIEW_TIMESHEET_TASKS') }
+            ]
+        },
         { name: 'Announcements', icon: Megaphone, show: can('VIEW_ANNOUNCEMENTS') },
         {
             name: 'Resource',
@@ -833,6 +849,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         if(window.innerWidth < 768) setIsOpen(false);
     };
 
+    const isTimesheetsActive = activeTab === 'Weekly Entry' || activeTab === 'Team Overview' || activeTab === 'Timesheet Tasks' || activeTab === 'Approvals';
     const isDeliveryActive = activeTab === 'Delivery Tracker' || activeTab === 'Delivery Team - To Do List';
     const isResourceActive = activeTab === 'Resource Calendar' || activeTab === 'To Do List';
     const isEquipmentActive = activeTab === 'Calendar' || activeTab === 'Assignments' || activeTab === 'Register' || activeTab === 'Check & Adjust';
@@ -914,6 +931,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                 <button
                                     onClick={(e) => handleItemClick(item, e)}
                                     className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                                        (item.name === 'Timesheets' && isTimesheetsActive) ||
                                         (item.name === 'Delivery' && isDeliveryActive) ||
                                         (item.name === 'Resource' && isResourceActive) ||
                                         (item.name === 'Equipment' && isEquipmentActive) ||
@@ -5595,6 +5613,11 @@ const MainLayout = () => {
 
         switch (activeTab) {
             case 'Dashboard': return <DashboardPage onViewProject={handleViewProject} setActiveTab={setActiveTab} />;
+            case 'Weekly Entry':
+            case 'Timesheets': return can('VIEW_TIMESHEETS') ? <TimesheetsPage /> : <AccessDenied />;
+            case 'Team Overview': return <TeamOverviewPage />;
+            case 'Approvals': return <TimesheetApprovalsPage />;
+            case 'Timesheet Tasks': return can('MANAGE_TIMESHEET_TASKS') ? <TimesheetSettingsPage /> : <AccessDenied />;
             case 'Projects': return can('VIEW_PROJECTS') ? <ProjectsPage onViewProject={handleViewProject} /> : <AccessDenied />;
             case 'Announcements': return can('VIEW_ANNOUNCEMENTS') ? <Suspense fallback={<LoadingFallback />}><AnnouncementsPage /></Suspense> : <AccessDenied />;
             case 'Feedback': return <FeedbackPage />;
@@ -5891,6 +5914,15 @@ const MainAppLayout = () => {
     switch (activeTab) {
       case 'Dashboard':
         return <DashboardPage onViewProject={setSelectedProject} setActiveTab={handleSetActiveTab} />;
+      case 'Weekly Entry':
+      case 'Timesheets':
+        return <TimesheetsPage />;
+      case 'Team Overview':
+        return <TeamOverviewPage />;
+      case 'Approvals':
+        return <TimesheetApprovalsPage />;
+      case 'Timesheet Tasks':
+        return <TimesheetSettingsPage />;
       case 'Projects':
         return <ProjectsPage onViewProject={setSelectedProject} />;
       case 'Resource Calendar':

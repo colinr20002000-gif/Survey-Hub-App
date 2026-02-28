@@ -49,7 +49,8 @@ const UserAdmin = () => {
     avatar: '',
     pts_number: '',
     hire_date: '',
-    termination_date: ''
+    termination_date: '',
+    line_manager_id: ''
   });
 
   // Invite user states (same as real user but without password)
@@ -66,7 +67,8 @@ const UserAdmin = () => {
     avatar: '',
     pts_number: '',
     hire_date: '',
-    termination_date: ''
+    termination_date: '',
+    line_manager_id: ''
   });
 
   // Dummy user states
@@ -86,7 +88,8 @@ const UserAdmin = () => {
     available_saturday: false,
     available_sunday: false,
     hire_date: '',
-    termination_date: ''
+    termination_date: '',
+    line_manager_id: ''
   });
 
   const handleEditUser = (userItem, isDummy = false) => {
@@ -120,6 +123,7 @@ const UserAdmin = () => {
         pts_number: editingUser.pts_number,
         hire_date: editingUser.hire_date || null,
         termination_date: editingUser.termination_date || null,
+        line_manager_id: editingUser.line_manager_id || null,
         // Only update privilege if not dummy (or if dummy supports it, which it does)
         privilege: editingUser.privilege
       };
@@ -411,6 +415,28 @@ const UserAdmin = () => {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
+  };
+
+  const updateLineManager = async (userId, managerId, isDummy = false) => {
+    try {
+      const table = isDummy ? 'dummy_users' : 'users';
+      const { error } = await supabase
+        .from(table)
+        .update({ line_manager_id: managerId || null })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      if (isDummy) {
+        setDummyUsers(prev => prev.map(u => u.id === userId ? { ...u, line_manager_id: managerId } : u));
+      } else {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, line_manager_id: managerId } : u));
+      }
+      alert('Line manager updated');
+    } catch (err) {
+      console.error('Error updating line manager:', err);
+      alert(`Error: ${err.message}`);
+    }
   };
 
   const getSortedData = (data) => {
@@ -891,6 +917,7 @@ const UserAdmin = () => {
           available_sunday: dummyUserForm.available_sunday || false,
           hire_date: dummyUserForm.hire_date || null,
           termination_date: dummyUserForm.termination_date || null,
+          line_manager_id: dummyUserForm.line_manager_id || null,
           created_by: user.id,
           updated_by: user.id
         }])
@@ -916,7 +943,8 @@ const UserAdmin = () => {
         available_saturday: false,
         available_sunday: false,
         hire_date: '',
-        termination_date: ''
+        termination_date: '',
+        line_manager_id: ''
       });
       setShowAddDummyUser(false);
       alert('Dummy user created successfully');
@@ -1302,7 +1330,7 @@ const UserAdmin = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Avatar', 'Name', 'Username', 'Email', 'Mobile', 'Privilege', 'Role & Dept', 'Organisation', 'Status', 'Actions'].map((header) => (
+                  {['Avatar', 'Name', 'Username', 'Email', 'Mobile', 'Privilege', 'Role & Dept', 'Organisation', 'Line Manager', 'Status', 'Actions'].map((header) => (
                     <th
                       key={header}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -1345,6 +1373,19 @@ const UserAdmin = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {userItem.organisation || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={userItem.line_manager_id || ''}
+                        onChange={(e) => updateLineManager(userItem.id, e.target.value)}
+                        className="text-xs border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-2 py-1 focus:ring-blue-500"
+                      >
+                        <option value="">No Manager</option>
+                        {users.map(u => (
+                            <option key={u.id} value={u.id}>{u.name}</option>
+                          ))
+                        }
+                      </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {mfaStatuses[userItem.id] ? (
@@ -1435,6 +1476,7 @@ const UserAdmin = () => {
                     { label: 'Name', key: 'name' },
                     { label: 'Username', key: 'username' },
                     { label: 'Email', key: 'email' },
+                    { label: 'Line Manager', key: 'line_manager_id' },
                     { label: 'Mobile', key: 'mobile_number' },
                     { label: 'Role & Dept', key: 'team_role' }, // Sort by team_role primarily
                     { label: 'Organisation', key: 'organisation' },
@@ -1477,6 +1519,18 @@ const UserAdmin = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {dummyUser.email}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={dummyUser.line_manager_id || ''}
+                        onChange={(e) => updateLineManager(dummyUser.id, e.target.value, true)}
+                        className="text-xs border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-2 py-1 focus:ring-blue-500"
+                      >
+                        <option value="">No Manager</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {dummyUser.mobile_number || '-'}
@@ -1712,6 +1766,19 @@ const UserAdmin = () => {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700">Line Manager</label>
+                <select
+                  value={realUserForm.line_manager_id}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">No Manager</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700">Team Role</label>
                 <Combobox
                   value={realUserForm.team_role}
@@ -1857,6 +1924,19 @@ const UserAdmin = () => {
                   onChange={(e) => setInviteUserForm(prev => ({ ...prev, privilege: e.target.value }))}
                   options={["Viewer", "Viewer+", "Editor", "Editor+", "Admin"]}
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Line Manager</label>
+                <select
+                  value={inviteUserForm.line_manager_id}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm"
+                >
+                  <option value="">No Manager</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Team Role</label>
@@ -2057,6 +2137,19 @@ const UserAdmin = () => {
                 )}
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700">Line Manager</label>
+                <select
+                  value={dummyUserForm.line_manager_id}
+                  onChange={(e) => setDummyUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">No Manager</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700">PTS Number</label>
                 <input
                   type="text"
@@ -2203,6 +2296,20 @@ const UserAdmin = () => {
                         options={departments}
                         placeholder="Select Department"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Line Manager</label>
+                      <select
+                        value={editingUser.line_manager_id || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, line_manager_id: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      >
+                        <option value="">No Manager</option>
+                        {users.map(u => (
+                            <option key={u.id} value={u.id}>{u.name}</option>
+                          ))
+                        }
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Organisation</label>

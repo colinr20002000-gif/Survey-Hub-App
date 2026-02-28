@@ -255,11 +255,12 @@ export const Modal = ({ isOpen, onClose, title, children }) => (
 );
 
 // ConfirmationModal Component
-export const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = "Confirm", confirmVariant = "primary" }) => (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm" disableBackdropClick={true}>
+export const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, children, confirmText = "Confirm", confirmVariant = "primary" }) => (
+    <Modal isOpen={isOpen} onClose={onClose} title={title}>
         <div className="p-6">
-            <p className="text-gray-600 dark:text-gray-300">{message}</p>
-            <div className="flex justify-end space-x-2 mt-6">
+            {message && <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm">{message}</p>}
+            {children}
+            <div className="flex justify-end space-x-3 mt-8">
                 <Button variant="outline" onClick={onClose}>Cancel</Button>
                 <Button variant={confirmVariant} onClick={onConfirm}>{confirmText}</Button>
             </div>
@@ -291,6 +292,11 @@ export const StatusBadge = ({ status }) => {
         'SYSTEM_EVENT': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
         // Task Statuses
         'To Do': 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+        // Timesheet Statuses
+        'Draft': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+        'Submitted': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+        'Approved': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+        'Rejected': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
     };
     return <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${statusClasses[status] || statusClasses['On Hold']}`}>{status}</span>;
 };

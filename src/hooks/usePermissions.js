@@ -104,6 +104,13 @@ export const usePermissions = () => {
             canDeleteProjects: can('DELETE_PROJECTS'),
             canEditSiteInformation: can('EDIT_SITE_INFORMATION'),
 
+            canViewTimesheets: can('VIEW_TIMESHEETS'),
+            canViewWeeklyEntry: can('VIEW_WEEKLY_ENTRY'),
+            canViewTeamOverview: can('VIEW_TEAM_OVERVIEW'),
+            canViewApprovals: can('VIEW_APPROVALS'),
+            canViewTimesheetTasks: can('VIEW_TIMESHEET_TASKS'),
+            canManageTimesheetTasks: can('MANAGE_TIMESHEET_TASKS'),
+
             canCompleteTasks: can('COMPLETE_PROJECT_TASKS'),
             canCreateTasks: can('CREATE_TASKS'),
             canAssignTasks: can('ASSIGN_TASKS'),

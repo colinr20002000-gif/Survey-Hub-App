@@ -370,20 +370,24 @@ Deno.serve(async (req) => {
     console.log('[DEBUG] Step 3.5: Validating active user sessions.');
     const userIds = subscriptions.map(sub => sub.user_id);
 
-    // Skip active session validation for announcements AND task assignments
+    // Skip active session validation for announcements, task assignments, and timesheet updates
     // Push notifications should go to all subscribed users regardless of recent login
     const notificationType = notification.data?.type || 'announcement';
     const isTaskNotification = notificationType === 'delivery_task_assignment' || notificationType === 'project_task_assignment';
     const isAnnouncement = notificationType === 'announcement';
+    const isTimesheetNotification = notificationType === 'timesheet_submitted' || 
+                                   notificationType === 'timesheet_approved' || 
+                                   notificationType === 'timesheet_rejected';
 
     console.log(`[DEBUG] Notification type: ${notificationType}`);
     console.log(`[DEBUG] Is task notification: ${isTaskNotification}`);
     console.log(`[DEBUG] Is announcement: ${isAnnouncement}`);
+    console.log(`[DEBUG] Is timesheet notification: ${isTimesheetNotification}`);
     console.log(`[DEBUG] Full notification data:`, notification.data);
 
     let activeSubscriptions;
-    if (isTaskNotification || isAnnouncement) {
-      console.log('[DEBUG] Task/Announcement notification - skipping active session validation');
+    if (isTaskNotification || isAnnouncement || isTimesheetNotification) {
+      console.log('[DEBUG] High-priority notification - skipping active session validation');
       activeSubscriptions = subscriptions;
     } else {
       console.log('[DEBUG] Other notification type - applying active session validation');

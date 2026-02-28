@@ -20,6 +20,7 @@ const CATEGORY_DISPLAY_ORDER = [
     'Admin',
     'Projects',
     'Announcements',
+    'Timesheets',
     'Resource - Resource Calendar',
     'Resource - To Do List',
     'Resource - Close Calls',

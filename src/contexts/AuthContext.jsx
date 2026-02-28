@@ -453,7 +453,7 @@ export const AuthProvider = ({ children }) => {
           try {
             const authUserCheckPromise = supabase.auth.getUser();
             const authTimeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Auth user check timeout')), 3000)
+              setTimeout(() => reject(new Error('Auth user check timeout')), 10000)
             );
 
             const { data: authData, error: authError } = await Promise.race([
@@ -480,7 +480,7 @@ export const AuthProvider = ({ children }) => {
               .maybeSingle();
 
             const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Deletion check timeout')), 3000)
+              setTimeout(() => reject(new Error('Deletion check timeout')), 10000)
             );
 
             const { data: quickCheck, error: checkError } = await Promise.race([
@@ -628,7 +628,7 @@ export const AuthProvider = ({ children }) => {
                   })();
 
                   const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('MFA check timeout')), 5000)
+                    setTimeout(() => reject(new Error('MFA check timeout')), 10000)
                   );
 
                   const { currentLevel, nextLevel, hasMFA } = await Promise.race([mfaCheckPromise, timeoutPromise]);
@@ -724,7 +724,7 @@ export const AuthProvider = ({ children }) => {
               .maybeSingle();
 
             const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Deletion check timeout')), 3000)
+              setTimeout(() => reject(new Error('Deletion check timeout')), 10000)
             );
 
             const { data: quickCheck, error: checkError } = await Promise.race([
