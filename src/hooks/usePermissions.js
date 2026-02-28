@@ -108,6 +108,8 @@ export const usePermissions = () => {
             canViewWeeklyEntry: can('VIEW_WEEKLY_ENTRY'),
             canViewTeamOverview: can('VIEW_TEAM_OVERVIEW'),
             canViewApprovals: can('VIEW_APPROVALS'),
+            canViewAllApprovals: can('VIEW_ALL_APPROVALS'),
+            canManageTeamTimesheets: can('MANAGE_TEAM_TIMESHEETS'),
             canViewTimesheetTasks: can('VIEW_TIMESHEET_TASKS'),
             canManageTimesheetTasks: can('MANAGE_TIMESHEET_TASKS'),
 
@@ -156,7 +158,7 @@ export const usePermissions = () => {
             canImportAssets: can('IMPORT_ASSETS_CSV'),
             canDeleteAllAssets: can('DELETE_ALL_ASSETS'),
         };
-    }, [userPrivilege, dynamicPermissions]);
+    }, [userPrivilege, dynamicPermissions, userOverrides]);
 
     return permissions;
 };

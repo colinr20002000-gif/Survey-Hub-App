@@ -69,8 +69,6 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
             ) {
                 setIsOpen(false);
                 // Reset input value to match committed value if user clicks away without selecting
-                // But only if we are strictly controlled. Here we are somewhat hybrid.
-                // It is safer to reset to 'value' prop to ensure consistency.
                 setInputValue(value || '');
             }
         };
@@ -78,15 +76,29 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [name, value]);
 
-    const filteredOptions = (inputValue === '' || options.some(option => typeof option === 'string' && option.toLowerCase() === (inputValue || '').toLowerCase()))
+    const getOptionLabel = (option) => {
+        if (typeof option === 'string') return option;
+        return option.label || option.value || '';
+    };
+
+    const getOptionValue = (option) => {
+        if (typeof option === 'string') return option;
+        return option.value || '';
+    };
+
+    const filteredOptions = (inputValue === '')
         ? options
-        : options.filter(option => 
-            typeof option === 'string' && option.toLowerCase().includes((inputValue || '').toLowerCase())
-        );
+        : options.filter(option => {
+            const searchStr = (inputValue || '').toLowerCase();
+            const label = getOptionLabel(option).toLowerCase();
+            const val = getOptionValue(option).toLowerCase();
+            return label.includes(searchStr) || val.includes(searchStr);
+        });
 
     const handleSelect = (option) => {
-        onChange({ target: { name, value: option } });
-        setInputValue(option);
+        const selectedValue = getOptionValue(option);
+        onChange({ target: { name, value: selectedValue } });
+        setInputValue(selectedValue);
         setIsOpen(false);
     };
 
@@ -137,7 +149,7 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
             {isOpen && filteredOptions.length > 0 && !disabled && createPortal(
                 <div 
                     id={`combobox-dropdown-${name}`}
-                    className="fixed z-[9999] mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                    className="fixed z-[9999] mt-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
                     style={{
                         top: coords.top - window.scrollY, // Adjust for fixed positioning relative to viewport
                         left: coords.left - window.scrollX,
@@ -150,7 +162,7 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
                             className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-gray-600 cursor-pointer"
                             onClick={() => handleSelect(option)}
                         >
-                            {option}
+                            {getOptionLabel(option)}
                         </div>
                     ))}
                 </div>,
@@ -204,6 +216,7 @@ export const Button = ({ children, variant = 'primary', size = 'md', ...props })
         primary: 'text-white bg-orange-500 hover:bg-orange-600 focus:ring-orange-500',
         success: 'text-white bg-green-500 hover:bg-green-600 focus:ring-green-500',
         outline: 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 focus:ring-orange-500',
+        ghost: 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 focus:ring-gray-500',
         danger: 'text-white bg-red-600 hover:bg-red-700 focus:ring-red-500',
     };
      const sizes = {

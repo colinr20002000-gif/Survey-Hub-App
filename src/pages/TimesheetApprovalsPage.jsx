@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { useToast } from '../contexts/ToastContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { 
     CheckCircle, 
     XCircle, 
@@ -17,9 +18,10 @@ import {
     Calendar,
     Edit3,
     Send,
-    AlertTriangle
+    AlertTriangle,
+    Users
 } from 'lucide-react';
-import { Button, Card, StatusBadge, Combobox } from '../components/ui';
+import { Button, Card, StatusBadge, Combobox, Switch } from '../components/ui';
 import { getWeekStartDate, addDays, formatDateForDisplay, formatDateForKey } from '../utils/dateHelpers';
 import { sendFCMNotification } from '../utils/fcmNotifications';
 import TimesheetsPage from './TimesheetsPage';
@@ -28,6 +30,7 @@ const TimesheetApprovalsPage = () => {
     const { user } = useAuth();
     const { showToast } = useToast();
     const { projects } = useProjects();
+    const { can } = usePermissions();
     
     const [loading, setLoading] = useState(true);
     const [timesheets, setTimesheets] = useState([]);
@@ -40,22 +43,16 @@ const TimesheetApprovalsPage = () => {
     const fetchPendingTimesheets = useCallback(async () => {
         setLoading(true);
         try {
-            // 1. Determine if user is Admin/Super Admin
-            const isAdmin = user?.privilege === 'Admin' || user?.privilege === 'Super Admin';
-
-            // 2. Fetch staff (Real and Dummy)
-            let staffQuery;
-            let dummyStaffQuery;
-
-            if (isAdmin) {
-                // Admins see everyone
-                staffQuery = supabase.from('users').select('id, name, department, email, line_manager_id').is('deleted_at', null);
-                dummyStaffQuery = supabase.from('dummy_users').select('id, name, team_role, email, line_manager_id').is('deleted_at', null);
-            } else {
-                // Managers see only their staff
-                staffQuery = supabase.from('users').select('id, name, department, email, line_manager_id').eq('line_manager_id', user.id).is('deleted_at', null);
-                dummyStaffQuery = supabase.from('dummy_users').select('id, name, team_role, email, line_manager_id').eq('line_manager_id', user.id).is('deleted_at', null);
-            }
+            // 1. Fetch only managed staff (Real and Dummy)
+            const staffQuery = supabase.from('users')
+                .select('id, name, department, email, line_manager_id')
+                .eq('line_manager_id', user.id)
+                .is('deleted_at', null);
+                
+            const dummyStaffQuery = supabase.from('dummy_users')
+                .select('id, name, team_role, email, line_manager_id')
+                .eq('line_manager_id', user.id)
+                .is('deleted_at', null);
 
             const [staffResult, dummyStaffResult] = await Promise.all([staffQuery, dummyStaffQuery]);
             
@@ -72,7 +69,7 @@ const TimesheetApprovalsPage = () => {
                 return;
             }
 
-            // 3. Fetch all timesheets for these users for the selected week
+            // 2. Fetch all timesheets for these users for the selected week
             const staffIds = allStaff.map(s => s.id);
             
             const { data: tsData, error: tsError } = await supabase
@@ -83,7 +80,7 @@ const TimesheetApprovalsPage = () => {
             
             if (tsError) throw tsError;
 
-            // 4. Combine staff data with timesheet data
+            // 3. Combine staff data with timesheet data
             const statusData = allStaff.map(member => {
                 const ts = tsData?.find(t => t.user_id === member.id);
                 return {
@@ -99,7 +96,7 @@ const TimesheetApprovalsPage = () => {
                 };
             });
             
-            // 5. Further filter by status
+            // 4. Further filter by status
             const filtered = filterStatus === 'All' 
                 ? statusData 
                 : filterStatus === 'Pending'
@@ -217,7 +214,7 @@ const TimesheetApprovalsPage = () => {
                     <p className="text-sm text-gray-500 mt-1">Review and manage timesheets for your assigned team.</p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                         <Button variant="ghost" size="xs" onClick={() => setSelectedDate(prev => addDays(prev, -7))}>
                             <ChevronLeft size={16} />
@@ -262,7 +259,7 @@ const TimesheetApprovalsPage = () => {
                         <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
                             <Clock size={48} className="mx-auto text-gray-300 mb-4" />
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white">No timesheets found</h3>
-                            <p className="text-gray-500">There are no {filterStatus.toLowerCase()} timesheets for this week.</p>
+                            <p className="text-gray-500">There are no {filterStatus.toLowerCase()} timesheets for your team this week.</p>
                         </div>
                     )}
                 </div>
@@ -440,7 +437,7 @@ const ApprovalCard = ({ timesheet, onAction, onEdit }) => {
                             
                             <div className="overflow-x-auto rounded-lg border border-gray-200">
                                 <table className="w-full text-xs text-left">
-                                    <thead className="bg-gray-100 dark:bg-gray-800 text-gray-600">
+                                    <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
                                         <tr>
                                             <th className="p-2">Date</th>
                                             <th className="p-2">Project</th>

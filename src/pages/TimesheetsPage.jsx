@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useProjects } from '../contexts/ProjectContext';
 import { Button, StatusBadge, Combobox, ConfirmationModal } from '../components/ui';
-import { getWeekStartDate, addDays, formatDateForDisplay, formatDateForKey } from '../utils/dateHelpers';
+import { getWeekStartDate, addDays, formatDateForDisplay, formatDateForKey, getFiscalWeek } from '../utils/dateHelpers';
 
 // Helper for more specific formatting without date-fns
 const formatDayName = (date) => date.toLocaleDateString('en-GB', { weekday: 'short' });
@@ -25,7 +25,7 @@ const TimesheetsPage = ({ userId: externalUserId, onBack, externalDate }) => {
     const { loading, timesheet, entries, saveEntry, deleteEntry, submitTimesheet } = useTimesheets(weekStartStr, externalUserId);
     const { projects } = useProjects();
     const { user: authUser } = useAuth();
-    const { isEditorOrAbove } = usePermissions();
+    const { canManageTeamTimesheets } = usePermissions();
     const [timesheetItems, setTimesheetItems] = useState([]);
     const [globalSubtasks, setGlobalSubtasks] = useState([]);
     const [targetUser, setTargetUser] = useState(null);
@@ -192,49 +192,60 @@ const TimesheetsPage = ({ userId: externalUserId, onBack, externalDate }) => {
     }, [entries, globalSubtasks]);
 
     const isLineManager = targetUser?.line_manager_id === authUser?.id;
-    const isAdminEditing = !!externalUserId && (isEditorOrAbove || isLineManager);
-    const isLocked = !isAdminEditing && (timesheet?.status === 'Approved' || timesheet?.status === 'Submitted');
+    const canEditOthers = canManageTeamTimesheets || isLineManager;
+    const isAdminEditing = !!externalUserId && canEditOthers;
+
+    // Logic for isLocked:
+    // 1. If viewing another user (externalUserId):
+    //    - If they have authority (canEditOthers), it's NOT locked (Admins can edit everything).
+    //    - If they don't have authority, it's ALWAYS locked.
+    // 2. If viewing own timesheet (no externalUserId):
+    //    - It's locked if status is Approved or Submitted.
+    const isLocked = !!externalUserId ? !canEditOthers : (timesheet?.status === 'Approved' || timesheet?.status === 'Submitted');
 
     if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-orange-500" /></div>;
+
 
     return (
         <div className="p-4 md:p-6 space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 w-full md:w-auto">
                     {onBack && (
-                        <Button variant="outline" size="sm" onClick={onBack} title="Back to Overview">
+                        <Button variant="outline" size="sm" onClick={onBack} title="Back to Overview" className="shrink-0">
                             <ChevronLeft size={20} />
                         </Button>
                     )}
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white truncate">
                             {externalUserId ? `Timesheet: ${targetUserName || 'Loading...'}` : 'Weekly Timesheet'}
                         </h1>
                         <div className="flex items-center gap-2 mt-1">
                             <StatusBadge status={timesheet?.status} />
-                            <span className="text-sm text-gray-500">Week Starting: {formatFullDisplay(selectedDate)}</span>
+                            <span className="text-[10px] md:text-sm text-gray-500 truncate font-medium">Week Starting: {formatFullDisplay(selectedDate)}</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handlePrevWeek}>
-                        <ChevronLeft size={16} />
-                    </Button>
-                    <span className="text-sm font-medium px-2 min-w-[150px] text-center">
-                        {formatDateForDisplay(selectedDate)} - {formatDateForDisplay(addDays(selectedDate, 6))}
-                    </span>
-                    <Button variant="outline" size="sm" onClick={handleNextWeek}>
-                        <ChevronRight size={16} />
-                    </Button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                    <div className="flex items-center bg-gray-50 dark:bg-gray-900/50 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
+                        <Button variant="ghost" size="sm" onClick={handlePrevWeek} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 shrink-0">
+                            <ChevronLeft size={16} />
+                        </Button>
+                        <span className="text-[11px] md:text-sm font-bold px-2 flex-1 md:min-w-[150px] text-center text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                            Week {getFiscalWeek(selectedDate)}: {formatDateForDisplay(selectedDate)} - {formatDateForDisplay(addDays(selectedDate, 6))}
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={handleNextWeek} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 shrink-0">
+                            <ChevronRight size={16} />
+                        </Button>
+                    </div>
                     
                     {!isLocked && (
                         <Button 
-                            className="ml-4 bg-orange-600 hover:bg-orange-700 text-white" 
+                            className="bg-orange-600 hover:bg-orange-700 text-white shadow-sm h-10 px-6 font-bold w-full sm:w-auto" 
                             onClick={handleConfirmSubmit}
                             disabled={entries.length === 0}
                         >
-                            <Send size={16} className="mr-2" />
+                            <Send size={16} className="mr-2 shrink-0" />
                             Submit
                         </Button>
                     )}
@@ -371,11 +382,18 @@ const EditableRow = ({ row, idx, weekDays, isLocked, projects, timesheetItems, g
 
     const projectOptions = useMemo(() => {
         const options = projects.map(p => ({
-            value: p.id,
-            label: `${p.project_number} - ${p.project_name}`
+            value: p.project_number,
+            id: p.id,
+            label: `${p.project_number} - ${p.project_name}`,
+            isItem: false
         }));
         timesheetItems.forEach(item => {
-            options.push({ value: `item-${item.value}`, label: item.display_text.toUpperCase() });
+            options.push({ 
+                value: item.display_text.toUpperCase(), 
+                id: `item-${item.value}`,
+                label: item.display_text.toUpperCase(), 
+                isItem: true
+            });
         });
         return options;
     }, [projects, timesheetItems]);
@@ -386,11 +404,13 @@ const EditableRow = ({ row, idx, weekDays, isLocked, projects, timesheetItems, g
 
         let updateData = { [field]: value };
         
-        // If project changes
+        // If project changes (value is the selected value from Combobox, which is project_number)
         if (field === 'project_id_raw') {
-            const isItem = typeof value === 'string' && value.startsWith('item-');
-            if (isItem) {
-                const item = timesheetItems.find(i => `item-${i.value}` === value);
+            const opt = projectOptions.find(o => o.value === value);
+            if (!opt) return;
+
+            if (opt.isItem) {
+                const item = timesheetItems.find(i => `item-${i.value}` === opt.id);
                 updateData = { 
                     project_id: null, 
                     project_number: item ? item.display_text : 'INTERNAL',
@@ -398,10 +418,9 @@ const EditableRow = ({ row, idx, weekDays, isLocked, projects, timesheetItems, g
                     subtask_id: null
                 };
             } else {
-                const proj = projects.find(p => p.id === value);
                 updateData = { 
-                    project_id: value, 
-                    project_number: proj ? proj.project_number : 'UNKNOWN',
+                    project_id: opt.id, 
+                    project_number: opt.value,
                     task_id: null,
                     subtask_id: null
                 };
@@ -423,13 +442,10 @@ const EditableRow = ({ row, idx, weekDays, isLocked, projects, timesheetItems, g
                     </div>
                 ) : (
                     <Combobox 
-                        options={projectOptions.map(o => o.label)}
-                        value={isDropdownItem 
-                            ? row.project_number.toUpperCase() 
-                            : projectOptions.find(o => o.value === currentProjectId)?.label || row.project_number}
+                        options={projectOptions}
+                        value={row.project_number}
                         onChange={(e) => {
-                            const opt = projectOptions.find(o => o.label === e.target.value);
-                            if (opt) handleUpdateMeta('project_id_raw', opt.value);
+                            handleUpdateMeta('project_id_raw', e.target.value);
                         }}
                         placeholder="Project #"
                         className="min-w-[140px]"
@@ -520,6 +536,7 @@ const EditableRow = ({ row, idx, weekDays, isLocked, projects, timesheetItems, g
 
 const NewEntryRow = ({ weekDays, projects, timesheetItems, globalSubtasks, onSave }) => {
     const [selectedProjectId, setSelectedProjectId] = useState('');
+    const [selectedDisplayValue, setSelectedDisplayValue] = useState('');
     const [row, setRow] = useState({
         task_id: '',
         subtask_id: '',
@@ -536,15 +553,19 @@ const NewEntryRow = ({ weekDays, projects, timesheetItems, globalSubtasks, onSav
 
     const projectOptions = useMemo(() => {
         const options = projects.map(p => ({
-            value: p.id,
-            label: `${p.project_number} - ${p.project_name}`
+            value: p.project_number,
+            id: p.id,
+            label: `${p.project_number} - ${p.project_name}`,
+            isItem: false
         }));
         
         // Add dynamic Timesheet Items at the bottom
         timesheetItems.forEach(item => {
             options.push({ 
-                value: `item-${item.value}`, 
-                label: item.display_text.toUpperCase() 
+                value: item.display_text.toUpperCase(), 
+                id: `item-${item.value}`, 
+                label: item.display_text.toUpperCase(),
+                isItem: true
             });
         });
         
@@ -583,6 +604,7 @@ const NewEntryRow = ({ weekDays, projects, timesheetItems, globalSubtasks, onSav
         
         // Reset
         setSelectedProjectId('');
+        setSelectedDisplayValue('');
         setRow({ task_id: '', subtask_id: '', hours: {} });
     };
 
@@ -590,11 +612,14 @@ const NewEntryRow = ({ weekDays, projects, timesheetItems, globalSubtasks, onSav
         <tr className="bg-orange-50/30 dark:bg-orange-900/10">
             <td className="p-2">
                 <Combobox 
-                    options={projectOptions.map(o => o.label)}
-                    value={projectOptions.find(o => o.value === selectedProjectId)?.label || ''}
+                    options={projectOptions}
+                    value={selectedDisplayValue}
                     onChange={(e) => {
-                        const opt = projectOptions.find(o => o.label === e.target.value);
-                        if (opt) setSelectedProjectId(opt.value);
+                        const opt = projectOptions.find(o => o.value === e.target.value);
+                        if (opt) {
+                            setSelectedProjectId(opt.id);
+                            setSelectedDisplayValue(opt.value);
+                        }
                     }}
                     placeholder="Select Project"
                     className="min-w-[150px]"

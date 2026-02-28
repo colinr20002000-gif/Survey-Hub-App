@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { 
     CheckCircle, 
     XCircle, 
@@ -14,21 +15,24 @@ import {
     AlertCircle,
     User as UserIcon,
     Calendar,
-    AlertTriangle
+    AlertTriangle,
+    Edit3
 } from 'lucide-react';
 import { Button, Card, StatusBadge } from '../components/ui';
 import MultiSelectFilter from '../components/ui/MultiSelectFilter';
-import { getWeekStartDate, addDays, formatDateForDisplay, formatDateForKey } from '../utils/dateHelpers';
+import { getWeekStartDate, addDays, formatDateForDisplay, formatDateForKey, getFiscalWeek } from '../utils/dateHelpers';
 import TimesheetsPage from './TimesheetsPage';
 
 const TeamOverviewPage = () => {
     const { user } = useAuth();
     const { showToast } = useToast();
+    const { canManageTeamTimesheets } = usePermissions();
     
     const [loading, setLoading] = useState(true);
     const [users, setUsers] = useState([]);
     const [timesheets, setTimesheets] = useState([]);
     const [editingUserId, setEditingUserId] = useState(null);
+    const [isManageMode, setIsManageMode] = useState(false);
     
     // Filters
     const [selectedDate, setSelectedDate] = useState(getWeekStartDate(new Date()));
@@ -198,17 +202,30 @@ const TeamOverviewPage = () => {
                     <p className="text-gray-500 dark:text-gray-400">Monitor timesheet submissions and approvals</p>
                 </div>
 
-                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                    <button onClick={handlePrevWeek} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors" title="Previous Week">
-                        <ChevronLeft size={20} />
-                    </button>
-                    <button onClick={handleCurrentWeek} className="px-3 py-1 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex items-center gap-2">
-                        <Calendar size={16} />
-                        {formatDateForDisplay(selectedDate)}
-                    </button>
-                    <button onClick={handleNextWeek} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors" title="Next Week">
-                        <ChevronRight size={20} />
-                    </button>
+                <div className="flex flex-wrap items-center gap-3">
+                    {canManageTeamTimesheets && (
+                        <Button 
+                            variant={isManageMode ? "primary" : "outline"}
+                            size="sm"
+                            onClick={() => setIsManageMode(!isManageMode)}
+                        >
+                            <Edit3 size={16} className="mr-2" />
+                            {isManageMode ? 'Exit Manage' : 'Manage'}
+                        </Button>
+                    )}
+
+                    <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                        <button onClick={handlePrevWeek} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors" title="Previous Week">
+                            <ChevronLeft size={20} />
+                        </button>
+                        <button onClick={handleCurrentWeek} className="px-3 py-1 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex items-center gap-2">
+                            <Calendar size={16} />
+                            Week {getFiscalWeek(selectedDate)}: {formatDateForDisplay(selectedDate)} - {formatDateForDisplay(addDays(selectedDate, 6))}, {selectedDate.getFullYear()}
+                        </button>
+                        <button onClick={handleNextWeek} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors" title="Next Week">
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -237,28 +254,28 @@ const TeamOverviewPage = () => {
 
             <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-900/50 dark:text-gray-300">
+                    <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 border-collapse">
+                        <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
                             <tr>
                                 <th className="px-6 py-4 font-semibold">User</th>
                                 <th className="px-6 py-4 font-semibold">Department</th>
                                 <th className="px-6 py-4 font-semibold">Line Manager</th>
                                 <th className="px-6 py-4 font-semibold text-center">Total Hours</th>
                                 <th className="px-6 py-4 font-semibold">Status</th>
-                                <th className="px-6 py-4 font-semibold text-left">Actions</th>
+                                {isManageMode && <th className="px-6 py-4 font-semibold text-left">Actions</th>}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {loading ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-8 text-center">
+                                    <td colSpan={isManageMode ? "6" : "5"} className="px-6 py-8 text-center">
                                         <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500 mb-2" />
                                         <p>Loading overview data...</p>
                                     </td>
                                 </tr>
                             ) : filteredData.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                                    <td colSpan={isManageMode ? "6" : "5"} className="px-6 py-8 text-center text-gray-500">
                                         No users match the selected filters.
                                     </td>
                                 </tr>
@@ -280,15 +297,17 @@ const TeamOverviewPage = () => {
                                         <td className="px-6 py-4">
                                             {getStatusBadge(item.status)}
                                         </td>
-                                        <td className="px-6 py-4 text-left">
-                                            <Button 
-                                                variant="outline" 
-                                                size="sm"
-                                                onClick={() => setEditingUserId(item.user.id)}
-                                            >
-                                                Edit
-                                            </Button>
-                                        </td>
+                                        {isManageMode && (
+                                            <td className="px-6 py-4 text-left">
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm"
+                                                    onClick={() => setEditingUserId(item.user.id)}
+                                                >
+                                                    Edit
+                                                </Button>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))
                             )}
