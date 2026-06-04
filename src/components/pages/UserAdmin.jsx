@@ -237,6 +237,12 @@ const UserAdmin = () => {
   const isAdmin = user?.privilege === 'Admin';
   const isSuperAdmin = user?.email === 'colin.rogers@inorail.co.uk';
 
+  // Standardized user options for Line Manager Comboboxes
+  const userOptions = useMemo(() => [
+    { value: '', label: 'No Manager' },
+    ...users.map(u => ({ value: u.id, label: u.name }))
+  ], [users]);
+
   // Fetch team roles from database
   const fetchTeamRoles = async () => {
     try {
@@ -1335,9 +1341,9 @@ const UserAdmin = () => {
       </div>
 
       {activeTab === 'real-users' ? (
-        <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-            <h2 className="text-lg font-medium text-gray-900">Real Users</h2>
+        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Real Users</h2>
             <div className="flex gap-2">
               <button
                 onClick={handleAddRealUserClick}
@@ -1361,37 +1367,37 @@ const UserAdmin = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
                   {['Avatar', 'Name', 'Username', 'Email', 'Mobile', 'Privilege', 'Role & Dept', 'Organisation', 'Line Manager', 'Status', 'Actions'].map((header) => (
                     <th
                       key={header}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
                     >
                       {header}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {getSortedData(users).map((userItem) => (
-                  <tr key={userItem.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={userItem.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`h-10 w-10 rounded-full ${getDepartmentColor(userItem.department)} flex items-center justify-center text-white font-medium shadow-sm`}>
                         {getAvatarText(userItem)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{userItem.name}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{userItem.name}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       @{userItem.username}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {userItem.email}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {userItem.mobile_number || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1399,20 +1405,24 @@ const UserAdmin = () => {
                         {userItem.privilege}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex flex-col">
-                        <span className="font-medium text-gray-700">{userItem.team_role || '-'}</span>
-                        <span className="text-xs text-gray-400">{userItem.department || '-'}</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{userItem.team_role || '-'}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">{userItem.department || '-'}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {userItem.organisation || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
                         value={userItem.line_manager_id || ''}
                         onChange={(e) => updateLineManager(userItem.id, e.target.value)}
+<<<<<<< HEAD
                         className="text-xs border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-2 py-1 focus:ring-blue-500"
+=======
+                        className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500 w-full"
+>>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
                       >
                         <option value="">No Manager</option>
                         {users.map(u => (
@@ -1433,7 +1443,7 @@ const UserAdmin = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center gap-2">
-                        {isSuperAdmin && (
+                        {isAdmin && (
                           <>
                             <button
                               onClick={() => {
@@ -1461,7 +1471,7 @@ const UserAdmin = () => {
                             </button>
                           </>
                         )}
-                        {userItem.id !== user?.id && isSuperAdmin && (
+                        {userItem.id !== user?.id && isAdmin && (
                           <button
                             onClick={() => deleteUser(userItem.id, userItem.email)}
                             className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
@@ -1490,10 +1500,10 @@ const UserAdmin = () => {
         </div>
       ) : activeTab === 'dummy-users' ? (
         // Dummy Users Tab
-        <div className="bg-white shadow-sm rounded-lg border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Dummy Users</h2>
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Dummy Users</h2>
               <div className="flex gap-2">
                 <button
                   onClick={handleAddDummyUserClick}
@@ -1512,8 +1522,8 @@ const UserAdmin = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
                   {[
                     { label: 'Avatar', key: 'avatar' },
@@ -1531,7 +1541,7 @@ const UserAdmin = () => {
                   ].map((col) => (
                     <th
                       key={col.key}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                       onClick={() => handleSort(col.key)}
                     >
                       <div className="flex items-center">
@@ -1541,34 +1551,38 @@ const UserAdmin = () => {
                     </th>
                   ))}
                   {isAdmin && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Actions
                     </th>
                   )}
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {getSortedData(dummyUsers).map((dummyUser) => (
-                  <tr key={dummyUser.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={dummyUser.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="h-10 w-10 rounded-full bg-green-600 flex items-center justify-center text-white font-medium shadow-sm">
                         {dummyUser.avatar || 'DU'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{dummyUser.name}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{dummyUser.name}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       @{dummyUser.username}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {dummyUser.email}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
                         value={dummyUser.line_manager_id || ''}
                         onChange={(e) => updateLineManager(dummyUser.id, e.target.value, true)}
+<<<<<<< HEAD
                         className="text-xs border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-2 py-1 focus:ring-blue-500"
+=======
+                        className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500 w-full"
+>>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
                       >
                         <option value="">No Manager</option>
                         {users.map(u => (
@@ -1576,24 +1590,28 @@ const UserAdmin = () => {
                         ))}
                       </select>
                     </td>
+<<<<<<< HEAD
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+=======
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+>>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
                       {dummyUser.mobile_number || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex flex-col">
-                        <span className="font-medium text-gray-700">{dummyUser.team_role || '-'}</span>
-                        <span className="text-xs text-gray-400">{dummyUser.department || '-'}</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{dummyUser.team_role || '-'}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">{dummyUser.department || '-'}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {dummyUser.organisation || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       <span className="truncate max-w-[150px] block" title={dummyUser.competencies}>
                         {dummyUser.competencies || '-'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {dummyUser.pts_number || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1610,7 +1628,7 @@ const UserAdmin = () => {
                         {dummyUser.is_active ? 'Active' : 'Inactive'}
                       </button>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(dummyUser.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -1705,7 +1723,7 @@ const UserAdmin = () => {
                     ...deletedUsers.map(u => ({ ...u, type: 'Real User' })),
                     ...deletedDummyUsers.map(u => ({ ...u, type: 'Dummy User' }))
                   ]).map((deletedUser) => (
-                    <tr key={`${deletedUser.type}-${deletedUser.id}`} className="hover:bg-gray-50 transition-colors">
+                    <tr key={`${deletedUser.type}-${deletedUser.id}`} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
@@ -1718,18 +1736,18 @@ const UserAdmin = () => {
                             </div>
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
                               {deletedUser.type === 'Real User' ? deletedUser.username : deletedUser.name}
                             </div>
                             {deletedUser.type === 'Dummy User' && (
-                              <div className="text-sm text-gray-500">{deletedUser.username}</div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">{deletedUser.username}</div>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{deletedUser.email}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{deletedUser.type}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{deletedUser.email}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{deletedUser.type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {new Date(deletedUser.deleted_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -1821,6 +1839,7 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Line Manager</label>
+<<<<<<< HEAD
                 <select
                   value={realUserForm.line_manager_id}
                   onChange={(e) => setRealUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
@@ -1831,6 +1850,14 @@ const UserAdmin = () => {
                     <option key={u.id} value={u.id}>{u.name}</option>
                   ))}
                 </select>
+=======
+                <Combobox
+                  value={realUserForm.line_manager_id}
+                  onChange={(e) => setRealUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
+                  options={userOptions}
+                  placeholder="Select Manager"
+                />
+>>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Team Role</label>
@@ -1981,6 +2008,7 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Line Manager</label>
+<<<<<<< HEAD
                 <select
                   value={inviteUserForm.line_manager_id}
                   onChange={(e) => setInviteUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
@@ -1991,6 +2019,14 @@ const UserAdmin = () => {
                     <option key={u.id} value={u.id}>{u.name}</option>
                   ))}
                 </select>
+=======
+                <Combobox
+                  value={inviteUserForm.line_manager_id}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
+                  options={userOptions}
+                  placeholder="Select Manager"
+                />
+>>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Team Role</label>
@@ -2192,6 +2228,7 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Line Manager</label>
+<<<<<<< HEAD
                 <select
                   value={dummyUserForm.line_manager_id}
                   onChange={(e) => setDummyUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
@@ -2202,6 +2239,14 @@ const UserAdmin = () => {
                     <option key={u.id} value={u.id}>{u.name}</option>
                   ))}
                 </select>
+=======
+                <Combobox
+                  value={dummyUserForm.line_manager_id}
+                  onChange={(e) => setDummyUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
+                  options={userOptions}
+                  placeholder="Select Manager"
+                />
+>>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">PTS Number</label>
@@ -2353,6 +2398,7 @@ const UserAdmin = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Line Manager</label>
+<<<<<<< HEAD
                       <select
                         value={editingUser.line_manager_id || ''}
                         onChange={(e) => setEditingUser({ ...editingUser, line_manager_id: e.target.value })}
@@ -2364,6 +2410,14 @@ const UserAdmin = () => {
                           ))
                         }
                       </select>
+=======
+                      <Combobox
+                        value={editingUser.line_manager_id || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, line_manager_id: e.target.value })}
+                        options={userOptions}
+                        placeholder="Select Manager"
+                      />
+>>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Organisation</label>

@@ -26,12 +26,14 @@ export const Card = ({ title, icon, children, className, ...props }) => (
 export const Combobox = ({ label, name, value, onChange, options = [], placeholder, required, className, disabled }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [inputValue, setInputValue] = useState(value || '');
+    const [isFiltering, setIsFiltering] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
     const wrapperRef = useRef(null);
 
     // Sync local state with prop
     useEffect(() => {
         setInputValue(value || '');
+        setIsFiltering(false);
     }, [value]);
 
     // Update position
@@ -68,6 +70,7 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
                 (!dropdown || !dropdown.contains(event.target))
             ) {
                 setIsOpen(false);
+                setIsFiltering(false);
                 // Reset input value to match committed value if user clicks away without selecting
                 setInputValue(value || '');
             }
@@ -86,7 +89,7 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
         return option.value || '';
     };
 
-    const filteredOptions = (inputValue === '')
+    const filteredOptions = (inputValue === '' || !isFiltering)
         ? options
         : options.filter(option => {
             const searchStr = (inputValue || '').toLowerCase();
@@ -99,6 +102,7 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
         const selectedValue = getOptionValue(option);
         onChange({ target: { name, value: selectedValue } });
         setInputValue(selectedValue);
+        setIsFiltering(false);
         setIsOpen(false);
     };
 
@@ -112,11 +116,13 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
                     value={inputValue}
                     onChange={(e) => {
                         setInputValue(e.target.value);
+                        setIsFiltering(true);
                         onChange(e); // Still notify parent
                         setIsOpen(true);
                     }}
                     onFocus={(e) => {
                         setIsOpen(true);
+                        setIsFiltering(false);
                         updatePosition();
                         e.target.select(); // Select all text on focus for easy replacement
                     }}
@@ -136,8 +142,10 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
                         if (disabled) return;
                         e.preventDefault();
                         e.stopPropagation();
-                        setIsOpen(!isOpen);
-                        if (!isOpen && wrapperRef.current) {
+                        const nextOpen = !isOpen;
+                        setIsOpen(nextOpen);
+                        setIsFiltering(false);
+                        if (nextOpen && wrapperRef.current) {
                             const input = wrapperRef.current.querySelector('input');
                             if (input) input.focus();
                         }
