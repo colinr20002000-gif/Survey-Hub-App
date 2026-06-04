@@ -1418,11 +1418,7 @@ const UserAdmin = () => {
                       <select
                         value={userItem.line_manager_id || ''}
                         onChange={(e) => updateLineManager(userItem.id, e.target.value)}
-<<<<<<< HEAD
-                        className="text-xs border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-2 py-1 focus:ring-blue-500"
-=======
                         className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500 w-full"
->>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
                       >
                         <option value="">No Manager</option>
                         {users.map(u => (
@@ -1578,11 +1574,7 @@ const UserAdmin = () => {
                       <select
                         value={dummyUser.line_manager_id || ''}
                         onChange={(e) => updateLineManager(dummyUser.id, e.target.value, true)}
-<<<<<<< HEAD
-                        className="text-xs border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-2 py-1 focus:ring-blue-500"
-=======
                         className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500 w-full"
->>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
                       >
                         <option value="">No Manager</option>
                         {users.map(u => (
@@ -1590,11 +1582,7 @@ const UserAdmin = () => {
                         ))}
                       </select>
                     </td>
-<<<<<<< HEAD
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-=======
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
->>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
                       {dummyUser.mobile_number || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -1839,25 +1827,12 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Line Manager</label>
-<<<<<<< HEAD
-                <select
-                  value={realUserForm.line_manager_id}
-                  onChange={(e) => setRealUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
-                >
-                  <option value="">No Manager</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-=======
                 <Combobox
                   value={realUserForm.line_manager_id}
                   onChange={(e) => setRealUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
                   options={userOptions}
                   placeholder="Select Manager"
                 />
->>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Team Role</label>
@@ -2008,25 +1983,12 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Line Manager</label>
-<<<<<<< HEAD
-                <select
-                  value={inviteUserForm.line_manager_id}
-                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm"
-                >
-                  <option value="">No Manager</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-=======
                 <Combobox
                   value={inviteUserForm.line_manager_id}
                   onChange={(e) => setInviteUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
                   options={userOptions}
                   placeholder="Select Manager"
                 />
->>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Team Role</label>
@@ -2228,25 +2190,12 @@ const UserAdmin = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Line Manager</label>
-<<<<<<< HEAD
-                <select
-                  value={dummyUserForm.line_manager_id}
-                  onChange={(e) => setDummyUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
-                >
-                  <option value="">No Manager</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-=======
                 <Combobox
                   value={dummyUserForm.line_manager_id}
                   onChange={(e) => setDummyUserForm(prev => ({ ...prev, line_manager_id: e.target.value }))}
                   options={userOptions}
                   placeholder="Select Manager"
                 />
->>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">PTS Number</label>
@@ -2398,26 +2347,12 @@ const UserAdmin = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Line Manager</label>
-<<<<<<< HEAD
-                      <select
-                        value={editingUser.line_manager_id || ''}
-                        onChange={(e) => setEditingUser({ ...editingUser, line_manager_id: e.target.value })}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      >
-                        <option value="">No Manager</option>
-                        {users.map(u => (
-                            <option key={u.id} value={u.id}>{u.name}</option>
-                          ))
-                        }
-                      </select>
-=======
                       <Combobox
                         value={editingUser.line_manager_id || ''}
                         onChange={(e) => setEditingUser({ ...editingUser, line_manager_id: e.target.value })}
                         options={userOptions}
                         placeholder="Select Manager"
                       />
->>>>>>> 6626bde (V287 - Fixes for JD (Gemini))
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Organisation</label>
