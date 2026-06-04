@@ -25,16 +25,35 @@ export const Card = ({ title, icon, children, className, ...props }) => (
 // Combobox Component
 export const Combobox = ({ label, name, value, onChange, options = [], placeholder, required, className, disabled }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [inputValue, setInputValue] = useState(value || '');
+    
+    const getOptionLabel = (option) => {
+        if (typeof option === 'string') return option;
+        return option.label || option.value || '';
+    };
+
+    const getOptionValue = (option) => {
+        if (typeof option === 'string') return option;
+        return option.value || '';
+    };
+
+    // Helper to find label for a given value
+    const getValueLabel = (val) => {
+        if (!val) return '';
+        const option = options.find(opt => String(getOptionValue(opt)) === String(val));
+        return option ? getOptionLabel(option) : val;
+    };
+
+    const [inputValue, setInputValue] = useState(getValueLabel(value));
     const [isFiltering, setIsFiltering] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
     const wrapperRef = useRef(null);
 
     // Sync local state with prop
     useEffect(() => {
-        setInputValue(value || '');
-        setIsFiltering(false);
-    }, [value]);
+        if (!isFiltering) {
+            setInputValue(getValueLabel(value));
+        }
+    }, [value, options]);
 
     // Update position
     const updatePosition = () => {
@@ -72,22 +91,12 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
                 setIsOpen(false);
                 setIsFiltering(false);
                 // Reset input value to match committed value if user clicks away without selecting
-                setInputValue(value || '');
+                setInputValue(getValueLabel(value));
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [name, value]);
-
-    const getOptionLabel = (option) => {
-        if (typeof option === 'string') return option;
-        return option.label || option.value || '';
-    };
-
-    const getOptionValue = (option) => {
-        if (typeof option === 'string') return option;
-        return option.value || '';
-    };
+    }, [name, value, options]);
 
     const filteredOptions = (inputValue === '' || !isFiltering)
         ? options
@@ -100,8 +109,9 @@ export const Combobox = ({ label, name, value, onChange, options = [], placehold
 
     const handleSelect = (option) => {
         const selectedValue = getOptionValue(option);
+        const selectedLabel = getOptionLabel(option);
         onChange({ target: { name, value: selectedValue } });
-        setInputValue(selectedValue);
+        setInputValue(selectedLabel);
         setIsFiltering(false);
         setIsOpen(false);
     };

@@ -338,7 +338,7 @@ const UserAdmin = () => {
   const fetchOrganisations = async () => {
     try {
       console.log('🏛️ Fetching organisations...');
-      const { data, error } = await supabase
+      const { data, error = null } = await supabase
         .from('dropdown_items')
         .select(`
           display_text,
@@ -395,7 +395,7 @@ const UserAdmin = () => {
   const fetchCompetencies = async () => {
     try {
       console.log('🎓 Fetching competencies...');
-      const { data, error } = await supabase
+      const { data, error = null } = await supabase
         .from('dropdown_items')
         .select(`
           display_text,
@@ -475,6 +475,29 @@ const UserAdmin = () => {
       alert('Line manager updated');
     } catch (err) {
       console.error('Error updating line manager:', err);
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  const toggleCalendarVisibility = async (userItem, isDummy = false) => {
+    try {
+      const table = isDummy ? 'dummy_users' : 'users';
+      const newValue = userItem.show_in_resource_calendar === false ? true : false;
+      
+      const { error } = await supabase
+        .from(table)
+        .update({ show_in_resource_calendar: newValue })
+        .eq('id', userItem.id);
+
+      if (error) throw error;
+
+      if (isDummy) {
+        setDummyUsers(prev => prev.map(u => u.id === userItem.id ? { ...u, show_in_resource_calendar: newValue } : u));
+      } else {
+        setUsers(prev => prev.map(u => u.id === userItem.id ? { ...u, show_in_resource_calendar: newValue } : u));
+      }
+    } catch (err) {
+      console.error('Error toggling calendar visibility:', err);
       alert(`Error: ${err.message}`);
     }
   };
@@ -606,8 +629,6 @@ const UserAdmin = () => {
       console.error('Error fetching deleted dummy users:', err);
     }
   };
-
-  // [Deleted individual update functions to use unified modal editing]
 
   const deleteUser = async (userId, userEmail) => {
     if (!isAdmin) {
@@ -1206,8 +1227,6 @@ const UserAdmin = () => {
     }
   };
 
-  // [Deleted dummy field editing functions]
-
   const formatDate = (dateString) => {
     if (!dateString) return 'Never';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -1229,7 +1248,6 @@ const UserAdmin = () => {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
-
 
   if (!isAdmin) {
     return (
@@ -1370,7 +1388,7 @@ const UserAdmin = () => {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  {['Avatar', 'Name', 'Username', 'Email', 'Mobile', 'Privilege', 'Role & Dept', 'Organisation', 'Line Manager', 'Status', 'Actions'].map((header) => (
+                  {['Avatar', 'Name', 'Username', 'Email', 'Mobile', 'Privilege', 'Role & Dept', 'Organisation', 'Line Manager', 'Calendar', 'Status', 'Actions'].map((header) => (
                     <th
                       key={header}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
@@ -1426,6 +1444,19 @@ const UserAdmin = () => {
                           ))
                         }
                       </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => toggleCalendarVisibility(userItem, false)}
+                        className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full transition-colors ${
+                          userItem.show_in_resource_calendar !== false
+                            ? 'bg-orange-100 text-orange-800 hover:bg-orange-200'
+                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                        title="Toggle visibility in Resource Calendar"
+                      >
+                        {userItem.show_in_resource_calendar !== false ? 'Visible' : 'Hidden'}
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {mfaStatuses[userItem.id] ? (
@@ -1528,10 +1559,11 @@ const UserAdmin = () => {
                     { label: 'Email', key: 'email' },
                     { label: 'Line Manager', key: 'line_manager_id' },
                     { label: 'Mobile', key: 'mobile_number' },
-                    { label: 'Role & Dept', key: 'team_role' }, // Sort by team_role primarily
+                    { label: 'Role & Dept', key: 'team_role' },
                     { label: 'Organisation', key: 'organisation' },
                     { label: 'Competencies', key: 'competencies' },
                     { label: 'PTS', key: 'pts_number' },
+                    { label: 'Calendar', key: 'show_in_resource_calendar' },
                     { label: 'Status', key: 'is_active' },
                     { label: 'Created', key: 'created_at' }
                   ].map((col) => (
@@ -1601,6 +1633,19 @@ const UserAdmin = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {dummyUser.pts_number || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => toggleCalendarVisibility(dummyUser, true)}
+                        className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full transition-colors ${
+                          dummyUser.show_in_resource_calendar !== false
+                            ? 'bg-orange-100 text-orange-800 hover:bg-orange-200'
+                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                        title="Toggle visibility in Resource Calendar"
+                      >
+                        {dummyUser.show_in_resource_calendar !== false ? 'Visible' : 'Hidden'}
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button

@@ -16,7 +16,7 @@ export const UserProvider = ({ children }) => {
             // Soft-deleted users with termination dates should appear on calendars up to their termination date
             const { data: realUsers, error: realUsersError} = await supabase
                 .from('users')
-                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, deleted_at')
+                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, deleted_at, show_in_resource_calendar')
                 .or('deleted_at.is.null,and(deleted_at.not.is.null,termination_date.not.is.null)')
                 .order('name', { ascending: true });
 
@@ -24,7 +24,7 @@ export const UserProvider = ({ children }) => {
             // Soft-deleted dummy users with termination dates should appear on calendars up to their termination date
             const { data: dummyUsers, error: dummyUsersError } = await supabase
                 .from('dummy_users')
-                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, is_active, deleted_at')
+                .select('id, name, username, email, privilege, team_role, department, organisation, avatar, mobile_number, pts_number, available_saturday, available_sunday, hire_date, termination_date, employment_status, is_active, deleted_at, show_in_resource_calendar')
                 .eq('is_active', true)
                 .or('deleted_at.is.null,and(deleted_at.not.is.null,termination_date.not.is.null)')
                 .order('name', { ascending: true });

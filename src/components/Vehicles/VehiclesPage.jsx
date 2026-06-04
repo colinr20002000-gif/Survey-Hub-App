@@ -48,7 +48,6 @@ const VehiclesPage = () => {
     const [showReturnConfirm, setShowReturnConfirm] = useState(false);
     const [vehicleToReturn, setVehicleToReturn] = useState(null);
     const [showMaintenanceVehicle, setShowMaintenanceVehicle] = useState(false);
-    const [showAvailableVehicles, setShowAvailableVehicles] = useState(true); // true = Available, false = Maintenance
     const [showAuditTrail, setShowAuditTrail] = useState(false);
     const [auditTrailData, setAuditTrailData] = useState([]);
     const [auditTrailError, setAuditTrailError] = useState(null);
@@ -1148,238 +1147,86 @@ const VehiclesPage = () => {
 
             {/* Vehicle Sections */}
             <div className="space-y-6">
-                {/* Available & Maintenance Vehicles - Merged Section */}
+                {/* Available Vehicles Section */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
                     <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                        <div className="flex justify-between items-center">
-                            <h2 className={`text-xl font-semibold ${
-                                showAvailableVehicles
-                                    ? 'text-green-600 dark:text-green-400'
-                                    : 'text-yellow-600 dark:text-yellow-400'
-                            }`}>
-                                {showAvailableVehicles
-                                    ? `Available Vehicles (${availableVehicles.length})`
-                                    : `Maintenance Vehicles (${maintenanceVehicles.length})`
-                                }
-                            </h2>
-                            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                                <button
-                                    onClick={() => setShowAvailableVehicles(true)}
-                                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                                        showAvailableVehicles
-                                            ? 'bg-green-500 text-white'
-                                            : 'text-gray-600 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400'
-                                    }`}
-                                >
-                                    Available ({availableVehicles.length})
-                                </button>
-                                <button
-                                    onClick={() => setShowAvailableVehicles(false)}
-                                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                                        !showAvailableVehicles
-                                            ? 'bg-yellow-500 text-white'
-                                            : 'text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400'
-                                    }`}
-                                >
-                                    Maintenance ({maintenanceVehicles.length})
-                                </button>
-                            </div>
-                        </div>
+                        <h2 className="text-xl font-semibold text-green-600 dark:text-green-400">
+                            Available Vehicles ({availableVehicles.length})
+                        </h2>
                     </div>
                     <div className="p-6">
-                        {showAvailableVehicles ? (
-                            // Available Vehicles Content
-                            availableVehicles.length === 0 ? (
-                                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No available vehicles found.</p>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {availableVehicles.map(vehicle => {
-                                        const assignment = getCurrentAssignment(vehicle.id);
-                                        const isAssigned = assignment !== undefined;
-                                        const assignedUser = isAssigned ? getUserById(assignment.user_id) : null;
-
-                                        return (
-                                            <div key={vehicle.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-md transition-shadow">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <div className="flex-1">
-                                                        <div className="flex justify-between items-center">
-                                                            <h3 className="font-semibold text-gray-800 dark:text-white">{vehicle.name}</h3>
-                                                            <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(isAssigned ? 'assigned' : 'available')}`}>
-                                                                {isAssigned ? 'Assigned' : 'Available'}
-                                                            </span>
-                                                        </div>
-                                                        {isAssigned && assignedUser && (
-                                                            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                                                                Assigned to: {assignedUser.name}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex gap-1">
-                                                        {canAssignVehicles && (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setSelectedVehicle(vehicle);
-                                                                    setShowAssignModal(true);
-                                                                }}
-                                                                className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900 rounded"
-                                                                title="Assign vehicle"
-                                                            >
-                                                                <Users className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-                                                        {isEditorOrAbove && (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setVehicleForm({
-                                                                        name: vehicle.name || '',
-                                                                        description: vehicle.description || '',
-                                                                        category: vehicle.category || '',
-                                                                        serial_number: vehicle.serial_number || '',
-                                                                        status: vehicle.status || 'available',
-                                                                        purchase_date: vehicle.purchase_date || '',
-                                                                        warranty_expiry: vehicle.warranty_expiry || '',
-                                                                        location: vehicle.location || ''
-                                                                    });
-                                                                    setVehicleToEdit(vehicle);
-                                                                    setShowEditVehicle(true);
-                                                                }}
-                                                                className="p-1 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
-                                                                title="Edit vehicle"
-                                                            >
-                                                                <Edit className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-                                                        {isEditorOrAbove && (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setVehicleToDelete(vehicle);
-                                                                    setShowDeleteConfirm(true);
-                                                                }}
-                                                                className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900 rounded"
-                                                                title="Delete vehicle"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() => setShowComments(showComments === vehicle.id ? null : vehicle.id)}
-                                                            className="p-1 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
-                                                            title="Comments"
-                                                        >
-                                                            <MessageSquare className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                                    {vehicle.purchase_date && (
-                                                        <p><span className="font-medium">Purchased:</span> {new Date(vehicle.purchase_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
-                                                    )}
-                                                </div>
-
-                                                {/* Comments Section */}
-                                                {showComments === vehicle.id && (
-                                                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                                                        <h4 className="font-medium text-gray-800 dark:text-white mb-2">Comments</h4>
-                                                        <div className="space-y-2 max-h-32 overflow-y-auto">
-                                                            {comments.filter(c => c.vehicle_id === vehicle.id).map(comment => {
-                                                                const user = getUserById(comment.created_by);
-                                                                return (
-                                                                    <div key={comment.id} className="text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                                                                        <div className="flex justify-between items-start">
-                                                                            <div className="flex-grow">
-                                                                                <p className="text-gray-800 dark:text-white">{comment.comment}</p>
-                                                                                <p className="text-gray-500 dark:text-gray-400 mt-1">
-                                                                                    {user?.name || 'Unknown'} - {new Date(comment.created_at).toLocaleString('en-US', {
-                                                                                        year: 'numeric',
-                                                                                        month: 'short',
-                                                                                        day: 'numeric',
-                                                                                        hour: 'numeric',
-                                                                                        minute: '2-digit',
-                                                                                        hour12: true
-                                                                                    })}
-                                                                                </p>
-                                                                            </div>
-                                                                            {(canDeleteVehicleComments || comment.created_by === currentUser.id) && (
-                                                                                <button
-                                                                                    onClick={() => handleDeleteComment(comment.id)}
-                                                                                    className="ml-2 text-red-500 hover:text-red-700 flex-shrink-0"
-                                                                                    title="Delete comment"
-                                                                                >
-                                                                                    <Trash2 className="w-3 h-3" />
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                        {canAddVehicleComments && (
-                                                            <div className="flex gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={newComment}
-                                                                    onChange={(e) => setNewComment(e.target.value)}
-                                                                    placeholder="Add a comment..."
-                                                                    className="flex-1 text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
-                                                                    onKeyPress={(e) => {
-                                                                        if (e.key === 'Enter') {
-                                                                            handleAddComment(vehicle.id);
-                                                                        }
-                                                                    }}
-                                                                />
-                                                                <button
-                                                                    onClick={() => handleAddComment(vehicle.id)}
-                                                                    className="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600"
-                                                                >
-                                                                    Add
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )
+                        {availableVehicles.length === 0 ? (
+                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No available vehicles found.</p>
                         ) : (
-                            // Maintenance Vehicles Content
-                            maintenanceVehicles.length === 0 ? (
-                                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No vehicles in maintenance found.</p>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {maintenanceVehicles.map(vehicle => (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {availableVehicles.map(vehicle => {
+                                    const assignment = getCurrentAssignment(vehicle.id);
+                                    const isAssigned = assignment !== undefined;
+                                    const assignedUser = isAssigned ? getUserById(assignment.user_id) : null;
+
+                                    return (
                                         <div key={vehicle.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-md transition-shadow">
                                             <div className="flex justify-between items-start mb-2">
                                                 <div className="flex-1">
                                                     <div className="flex justify-between items-center">
                                                         <h3 className="font-semibold text-gray-800 dark:text-white">{vehicle.name}</h3>
-                                                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor('maintenance')}`}>
-                                                            Maintenance
+                                                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(isAssigned ? 'assigned' : 'available')}`}>
+                                                            {isAssigned ? 'Assigned' : 'Available'}
                                                         </span>
                                                     </div>
+                                                    {isAssigned && assignedUser && (
+                                                        <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                                                            Assigned to: {assignedUser.name}
+                                                        </p>
+                                                    )}
                                                 </div>
                                                 <div className="flex gap-1">
-                                                    <button
-                                                        onClick={() => {
-                                                            setVehicleForm({
-                                                                name: vehicle.name || '',
-                                                                description: vehicle.description || '',
-                                                                category: vehicle.category || '',
-                                                                serial_number: vehicle.serial_number || '',
-                                                                status: vehicle.status || 'available',
-                                                                purchase_date: vehicle.purchase_date || '',
-                                                                warranty_expiry: vehicle.warranty_expiry || '',
-                                                                location: vehicle.location || ''
-                                                            });
-                                                            setVehicleToEdit(vehicle);
-                                                            setShowEditVehicle(true);
-                                                        }}
-                                                        className="p-1 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
-                                                        title="Edit vehicle"
-                                                    >
-                                                        <Edit className="w-4 h-4" />
-                                                    </button>
+                                                    {canAssignVehicles && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedVehicle(vehicle);
+                                                                setShowAssignModal(true);
+                                                            }}
+                                                            className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900 rounded"
+                                                            title="Assign vehicle"
+                                                        >
+                                                            <Users className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {isEditorOrAbove && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setVehicleForm({
+                                                                    name: vehicle.name || '',
+                                                                    description: vehicle.description || '',
+                                                                    category: vehicle.category || '',
+                                                                    serial_number: vehicle.serial_number || '',
+                                                                    status: vehicle.status || 'available',
+                                                                    purchase_date: vehicle.purchase_date || '',
+                                                                    warranty_expiry: vehicle.warranty_expiry || '',
+                                                                    location: vehicle.location || ''
+                                                                });
+                                                                setVehicleToEdit(vehicle);
+                                                                setShowEditVehicle(true);
+                                                            }}
+                                                            className="p-1 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
+                                                            title="Edit vehicle"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {isEditorOrAbove && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setVehicleToDelete(vehicle);
+                                                                setShowDeleteConfirm(true);
+                                                            }}
+                                                            className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900 rounded"
+                                                            title="Delete vehicle"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={() => setShowComments(showComments === vehicle.id ? null : vehicle.id)}
                                                         className="p-1 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
@@ -1390,6 +1237,9 @@ const VehiclesPage = () => {
                                                 </div>
                                             </div>
                                             <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                                {vehicle.purchase_date && (
+                                                    <p><span className="font-medium">Purchased:</span> {new Date(vehicle.purchase_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                                                )}
                                             </div>
 
                                             {/* Comments Section */}
@@ -1415,7 +1265,7 @@ const VehiclesPage = () => {
                                                                                 })}
                                                                             </p>
                                                                         </div>
-                                                                        {(currentUser.privilege === 'Admin' || comment.created_by === currentUser.id) && (
+                                                                        {(canDeleteVehicleComments || comment.created_by === currentUser.id) && (
                                                                             <button
                                                                                 onClick={() => handleDeleteComment(comment.id)}
                                                                                 className="ml-2 text-red-500 hover:text-red-700 flex-shrink-0"
@@ -1454,9 +1304,133 @@ const VehiclesPage = () => {
                                                 </div>
                                             )}
                                         </div>
-                                    ))}
-                                </div>
-                            )
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Maintenance Vehicles Section */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                        <h2 className="text-xl font-semibold text-yellow-600 dark:text-yellow-400">
+                            Maintenance Vehicles ({maintenanceVehicles.length})
+                        </h2>
+                    </div>
+                    <div className="p-6">
+                        {maintenanceVehicles.length === 0 ? (
+                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No vehicles in maintenance found.</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {maintenanceVehicles.map(vehicle => (
+                                    <div key={vehicle.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-center">
+                                                    <h3 className="font-semibold text-gray-800 dark:text-white">{vehicle.name}</h3>
+                                                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor('maintenance')}`}>
+                                                        Maintenance
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => {
+                                                        setVehicleForm({
+                                                            name: vehicle.name || '',
+                                                            description: vehicle.description || '',
+                                                            category: vehicle.category || '',
+                                                            serial_number: vehicle.serial_number || '',
+                                                            status: vehicle.status || 'available',
+                                                            purchase_date: vehicle.purchase_date || '',
+                                                            warranty_expiry: vehicle.warranty_expiry || '',
+                                                            location: vehicle.location || ''
+                                                        });
+                                                        setVehicleToEdit(vehicle);
+                                                        setShowEditVehicle(true);
+                                                    }}
+                                                    className="p-1 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
+                                                    title="Edit vehicle"
+                                                >
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowComments(showComments === vehicle.id ? null : vehicle.id)}
+                                                    className="p-1 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
+                                                    title="Comments"
+                                                >
+                                                    <MessageSquare className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                        </div>
+
+                                        {/* Comments Section */}
+                                        {showComments === vehicle.id && (
+                                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                                                <h4 className="font-medium text-gray-800 dark:text-white mb-2">Comments</h4>
+                                                <div className="space-y-2 max-h-32 overflow-y-auto">
+                                                    {comments.filter(c => c.vehicle_id === vehicle.id).map(comment => {
+                                                        const user = getUserById(comment.created_by);
+                                                        return (
+                                                            <div key={comment.id} className="text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                                                                <div className="flex justify-between items-start">
+                                                                    <div className="flex-grow">
+                                                                        <p className="text-gray-800 dark:text-white">{comment.comment}</p>
+                                                                        <p className="text-gray-500 dark:text-gray-400 mt-1">
+                                                                            {user?.name || 'Unknown'} - {new Date(comment.created_at).toLocaleString('en-US', {
+                                                                                year: 'numeric',
+                                                                                month: 'short',
+                                                                                day: 'numeric',
+                                                                                hour: 'numeric',
+                                                                                minute: '2-digit',
+                                                                                hour12: true
+                                                                            })}
+                                                                        </p>
+                                                                    </div>
+                                                                    {(currentUser.privilege === 'Admin' || comment.created_by === currentUser.id) && (
+                                                                        <button
+                                                                            onClick={() => handleDeleteComment(comment.id)}
+                                                                            className="ml-2 text-red-500 hover:text-red-700 flex-shrink-0"
+                                                                            title="Delete comment"
+                                                                        >
+                                                                            <Trash2 className="w-3 h-3" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {canAddVehicleComments && (
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={newComment}
+                                                            onChange={(e) => setNewComment(e.target.value)}
+                                                            placeholder="Add a comment..."
+                                                            className="flex-1 text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                                                            onKeyPress={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    handleAddComment(vehicle.id);
+                                                                }
+                                                            }}
+                                                        />
+                                                        <button
+                                                            onClick={() => handleAddComment(vehicle.id)}
+                                                            className="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600"
+                                                        >
+                                                            Add
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 </div>
