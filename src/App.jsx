@@ -972,8 +972,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                         (item.name === 'Contact Details' && isContactDetailsActive) ||
                                         (item.name === 'Vehicles' && isVehiclesActive) ||
                                         (item.name === 'Analytics' && isAnalyticsActive)
-                                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-600/40 dark:text-orange-200'
-                                            : 'text-gray-700 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100'
+                                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-600/40 dark:text-orange-500'
+                                            : 'text-gray-700 hover:bg-orange-50 hover:text-orange-800 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-orange-500'
                                     }`}
                                     title={isCollapsed ? item.name : ''}
                                 >
@@ -986,8 +986,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                     onClick={(e) => handleItemClick(item, e)}
                                     className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-2.5 my-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
                                         activeTab === item.name
-                                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-600/40 dark:text-orange-200'
-                                            : 'text-gray-600 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100'
+                                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-600/40 dark:text-orange-500'
+                                            : 'text-gray-600 hover:bg-orange-50 hover:text-orange-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-orange-500'
                                     }`}
                                     title={isCollapsed ? item.name : ''}
                                 >
@@ -1004,8 +1004,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                                                 onClick={(e) => handleSubItemClick(subItem, e)}
                                                 className={`flex items-center px-4 py-2 text-sm rounded-lg transition-colors duration-200 ${
                                                     activeTab === subItem.name
-                                                        ? 'bg-orange-50 text-orange-800 dark:bg-orange-600/30 dark:text-orange-200'
-                                                        : 'text-gray-600 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                                                        ? 'bg-orange-50 text-orange-800 dark:bg-orange-600/30 dark:text-orange-500'
+                                                        : 'text-gray-600 hover:bg-orange-50 hover:text-orange-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-orange-500'
                                                 }`}
                                             >
                                                 <span className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full mr-3"></span>
