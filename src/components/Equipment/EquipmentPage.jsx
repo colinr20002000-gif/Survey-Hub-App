@@ -47,7 +47,6 @@ const EquipmentPage = () => {
     const [equipmentToDelete, setEquipmentToDelete] = useState(null);
     const [showReturnConfirm, setShowReturnConfirm] = useState(false);
     const [equipmentToReturn, setEquipmentToReturn] = useState(null);
-    const [showMaintenanceEquipment, setShowMaintenanceEquipment] = useState(false);
     const [showAuditTrail, setShowAuditTrail] = useState(false);
     const [auditTrailData, setAuditTrailData] = useState([]);
     const [auditTrailError, setAuditTrailError] = useState(null);
@@ -57,6 +56,7 @@ const EquipmentPage = () => {
     const [discrepanciesData, setDiscrepanciesData] = useState([]); // eslint-disable-line no-unused-vars
     const [loadingDiscrepancies, setLoadingDiscrepancies] = useState(false); // eslint-disable-line no-unused-vars
     const [copied, setCopied] = useState(false);
+    const [isManageMode, setIsManageMode] = useState(false);
 
     // Equipment form state
     const [equipmentForm, setEquipmentForm] = useState({
@@ -1294,6 +1294,192 @@ CREATE TABLE equipment_audit_log (
         }
     };
 
+    const renderEquipmentGrid = (status, title, emptyMessage) => {
+        const items = filteredEquipment.filter(item => item.status === status);
+        
+        return (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                        {title} ({items.length})
+                    </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {items.map(item => {
+                        const equipmentComments = getEquipmentComments(item.id);
+                        const mostRecentAssignment = getMostRecentAssignment(item.id);
+                        return (
+                            <div key={item.id} className={`rounded-lg p-4 border transition-all ${
+                                isManageMode && isEditorOrAbove ? 'ring-2 ring-orange-500/30 border-orange-500/50 shadow-md' : ''
+                            } ${
+                                item.status === 'maintenance'
+                                    ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400 dark:border-yellow-600'
+                                    : item.status === 'assigned'
+                                    ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                                    : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
+                            }`}>
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
+                                        <h4 className={`font-medium ${
+                                            item.status === 'maintenance' 
+                                                ? 'text-yellow-950 dark:text-yellow-100' 
+                                                : item.status === 'assigned'
+                                                ? 'text-blue-900 dark:text-blue-200'
+                                                : 'text-gray-800 dark:text-white'
+                                        }`}>{item.name}</h4>
+                                        {item.status === 'available' && mostRecentAssignment && mostRecentAssignment.returned_at && (
+                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                                Last returned: {new Date(mostRecentAssignment.returned_at).toLocaleString([], {
+                                                    year: 'numeric',
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                                {(() => {
+                                                    const returnedByUser = getReturnedByUser(mostRecentAssignment);
+                                                    return returnedByUser ? ` by ${returnedByUser.name}` : '';
+                                                })()}
+                                            </p>
+                                        )}
+                                        {item.status === 'maintenance' && (
+                                            <p className="text-xs text-yellow-800 dark:text-yellow-300 mt-1 font-semibold">
+                                                Under Maintenance
+                                            </p>
+                                        )}
+                                        {item.status === 'assigned' && (() => {
+                                            const currentAssignment = getCurrentAssignment(item.id);
+                                            const assignedUser = currentAssignment ? getUserById(currentAssignment.user_id) : null;
+                                            return assignedUser && (
+                                                <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                                                    Assigned to: <strong>{assignedUser.name}</strong>
+                                                </p>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(item.status)}`}>
+                                            {item.status === 'maintenance' ? 'Maintenance' : item.status === 'assigned' ? 'Assigned' : 'Available'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-1 mt-3 flex-wrap">
+                                    {isManageMode && isEditorOrAbove && (
+                                        <button
+                                            onClick={() => openEditModal(item)}
+                                            className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center shadow-sm"
+                                            title="Edit Equipment"
+                                        >
+                                            <Edit className="w-3 h-3 mr-1" />
+                                            Edit
+                                        </button>
+                                    )}
+                                    {item.status === 'available' && canAssignEquipment && (
+                                        <button
+                                            onClick={() => {
+                                                setSelectedEquipment(item);
+                                                setShowAssignModal(true);
+                                            }}
+                                            className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
+                                        >
+                                            Assign
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setShowComments(showComments === item.id ? null : item.id)}
+                                        className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 flex items-center"
+                                    >
+                                        <MessageSquare className="w-3 h-3 mr-1" />
+                                        {equipmentComments.length}
+                                    </button>
+                                </div>
+
+                                {/* Comments Section */}
+                                {showComments === item.id && (
+                                    <div className="mt-3 p-3 bg-white dark:bg-gray-600 rounded">
+                                        <h5 className="text-xs font-medium mb-2">Comments</h5>
+                                        <div className="space-y-1 mb-2 max-h-24 overflow-y-auto">
+                                            {equipmentComments.map(comment => {
+                                                const commentUser = getUserById(comment.user_id);
+                                                const canDeleteComment = comment.user_id === currentUser.id || canDeleteEquipmentComments;
+                                                return (
+                                                    <div key={comment.id} className="text-xs">
+                                                        <div className="flex justify-between items-start">
+                                                            <div className="flex-1">
+                                                                <div className="flex justify-between">
+                                                                    <strong>{commentUser.name}</strong>
+                                                                    <span className="text-gray-500">
+                                                                        {new Date(comment.created_at).toLocaleString([], {
+                                                                            year: 'numeric',
+                                                                            month: 'short',
+                                                                            day: 'numeric',
+                                                                            hour: '2-digit',
+                                                                            minute: '2-digit'
+                                                                        })}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-gray-700 dark:text-gray-300">{comment.comment}</p>
+                                                            </div>
+                                                            {canDeleteComment && (
+                                                                <button
+                                                                    onClick={() => handleDeleteComment(comment.id)}
+                                                                    className="ml-2 text-red-500 hover:text-red-700 flex-shrink-0"
+                                                                    title="Delete comment"
+                                                                >
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {canAddEquipmentComments && (
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Add comment..."
+                                                    value={newComment}
+                                                    onChange={(e) => setNewComment(e.target.value)}
+                                                    className="flex-1 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-500"
+                                                    onKeyPress={(e) => e.key === 'Enter' && handleAddComment(item.id)}
+                                                />
+                                                <button
+                                                    onClick={() => handleAddComment(item.id)}
+                                                    className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
+                                                >
+                                                    Add
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {item.location && (
+                                    <div className={`mt-2 text-xs ${
+                                        item.status === 'maintenance' 
+                                            ? 'text-yellow-800 dark:text-yellow-400' 
+                                            : item.status === 'assigned'
+                                            ? 'text-blue-700 dark:text-blue-400'
+                                            : 'text-gray-600 dark:text-gray-400'
+                                    }`}>
+                                        📍 {item.location}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                    {items.length === 0 && (
+                        <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
+                            {emptyMessage}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -1327,6 +1513,19 @@ CREATE TABLE equipment_audit_log (
                         <p className="text-gray-600 dark:text-gray-400">Manage equipment assignments and track usage</p>
                     </div>
                     <div className="flex items-center gap-2">
+                        {can('SHOW_EQUIPMENT_ASSIGNMENTS_MANAGE_BUTTON') && (
+                            <button
+                                onClick={() => setIsManageMode(!isManageMode)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                                    isManageMode 
+                                        ? 'bg-orange-600 text-white hover:bg-orange-700' 
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                                }`}
+                            >
+                                <Edit className="w-5 h-5" />
+                                {isManageMode ? 'Done' : 'Manage'}
+                            </button>
+                        )}
                         {can('SHOW_EQUIPMENT_AUDIT_TRAIL') && (
                             <button
                                 onClick={() => {
@@ -1499,185 +1698,14 @@ CREATE TABLE equipment_audit_log (
 
             {/* Equipment Grid View */}
             <div className="space-y-6">
-                    {/* Available Equipment Section with Toggle */}
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                                {showMaintenanceEquipment ? 'Equipment Under Maintenance' : 'Available Equipment'}
-                            </h3>
-                            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                                <button
-                                    onClick={() => setShowMaintenanceEquipment(false)}
-                                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                                        !showMaintenanceEquipment
-                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    Available ({filteredEquipment.filter(item => item.status === 'available').length})
-                                </button>
-                                <button
-                                    onClick={() => setShowMaintenanceEquipment(true)}
-                                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                                        showMaintenanceEquipment
-                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                    Maintenance ({filteredEquipment.filter(item => item.status === 'maintenance').length})
-                                </button>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredEquipment.filter(item =>
-                                showMaintenanceEquipment ? item.status === 'maintenance' : item.status === 'available'
-                            ).map(item => {
-                                const equipmentComments = getEquipmentComments(item.id);
-                                const mostRecentAssignment = getMostRecentAssignment(item.id);
-                                return (
-                                    <div key={item.id} className={`rounded-lg p-4 border ${
-                                        item.status === 'maintenance'
-                                            ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
-                                            : item.status === 'assigned'
-                                            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-                                            : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
-                                    }`}>
-                                        <div className="flex items-start justify-between mb-2">
-                                            <div className="flex-1">
-                                                <h4 className="font-medium text-gray-800 dark:text-white">{item.name}</h4>
-                                                {item.status === 'available' && mostRecentAssignment && mostRecentAssignment.returned_at && (
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                                        Last returned: {new Date(mostRecentAssignment.returned_at).toLocaleString([], {
-                                                            year: 'numeric',
-                                                            month: 'short',
-                                                            day: 'numeric',
-                                                            hour: '2-digit',
-                                                            minute: '2-digit'
-                                                        })}
-                                                        {(() => {
-                                                            const returnedByUser = getReturnedByUser(mostRecentAssignment);
-                                                            return returnedByUser ? ` by ${returnedByUser.name}` : '';
-                                                        })()}
-                                                    </p>
-                                                )}
-                                                {item.status === 'assigned' && (() => {
-                                                    const currentAssignment = getCurrentAssignment(item.id);
-                                                    const assignedUser = currentAssignment ? getUserById(currentAssignment.user_id) : null;
-                                                    return assignedUser && (
-                                                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                                            Assigned to: <strong>{assignedUser.name}</strong>
-                                                        </p>
-                                                    );
-                                                })()}
-                                            </div>
-                                            <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(item.status)}`}>
-                                                {item.status === 'maintenance' ? 'Maintenance' : item.status === 'assigned' ? 'Assigned' : 'Available'}
-                                            </span>
-                                        </div>
+                {/* Available Equipment Section */}
+                {renderEquipmentGrid('available', 'Available Equipment', 'No available equipment')}
 
-                                        <div className="flex gap-1 mt-3 flex-wrap">
-                                            {item.status === 'available' && canAssignEquipment && (
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedEquipment(item);
-                                                        setShowAssignModal(true);
-                                                    }}
-                                                    className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
-                                                >
-                                                    Assign
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={() => setShowComments(showComments === item.id ? null : item.id)}
-                                                className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 flex items-center"
-                                            >
-                                                <MessageSquare className="w-3 h-3 mr-1" />
-                                                {equipmentComments.length}
-                                            </button>
-                                        </div>
+                {/* Maintenance Section */}
+                {renderEquipmentGrid('maintenance', 'Equipment Under Maintenance', 'No equipment under maintenance')}
 
-                                        {/* Comments Section */}
-                                        {showComments === item.id && (
-                                            <div className="mt-3 p-3 bg-white dark:bg-gray-600 rounded">
-                                                <h5 className="text-xs font-medium mb-2">Comments</h5>
-                                                <div className="space-y-1 mb-2 max-h-24 overflow-y-auto">
-                                                    {equipmentComments.map(comment => {
-                                                        const commentUser = getUserById(comment.user_id);
-                                                        const canDeleteComment = comment.user_id === currentUser.id || canDeleteEquipmentComments;
-                                                        return (
-                                                            <div key={comment.id} className="text-xs">
-                                                                <div className="flex justify-between items-start">
-                                                                    <div className="flex-1">
-                                                                        <div className="flex justify-between">
-                                                                            <strong>{commentUser.name}</strong>
-                                                                            <span className="text-gray-500">
-                                                                                {new Date(comment.created_at).toLocaleString([], {
-                                                                                    year: 'numeric',
-                                                                                    month: 'short',
-                                                                                    day: 'numeric',
-                                                                                    hour: '2-digit',
-                                                                                    minute: '2-digit'
-                                                                                })}
-                                                                            </span>
-                                                                        </div>
-                                                                        <p className="text-gray-700 dark:text-gray-300">{comment.comment}</p>
-                                                                    </div>
-                                                                    {canDeleteComment && (
-                                                                        <button
-                                                                            onClick={() => handleDeleteComment(comment.id)}
-                                                                            className="ml-2 text-red-500 hover:text-red-700 flex-shrink-0"
-                                                                            title="Delete comment"
-                                                                        >
-                                                                            <Trash2 className="w-3 h-3" />
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                                {canAddEquipmentComments && (
-                                                    <div className="flex gap-2">
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Add comment..."
-                                                            value={newComment}
-                                                            onChange={(e) => setNewComment(e.target.value)}
-                                                            className="flex-1 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-500"
-                                                            onKeyPress={(e) => e.key === 'Enter' && handleAddComment(item.id)}
-                                                        />
-                                                        <button
-                                                            onClick={() => handleAddComment(item.id)}
-                                                            className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
-                                                        >
-                                                            Add
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {item.location && (
-                                            <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                                                📍 {item.location}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                            {filteredEquipment.filter(item =>
-                                showMaintenanceEquipment ? item.status === 'maintenance' : item.status === 'available'
-                            ).length === 0 && (
-                                <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
-                                    {showMaintenanceEquipment ? 'No equipment under maintenance' : 'No available equipment'}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-
-                    {/* Users and Their Assigned Equipment */}
-                    <div className="mb-4">
+                {/* Users and Their Assigned Equipment */}
+                <div className="mb-4">
                         <div className="flex justify-between items-center mb-2">
                             <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
                                 Team Equipment Assignments
@@ -1794,8 +1822,8 @@ CREATE TABLE equipment_audit_log (
                                                     <div key={item.id} className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
                                                         <div className="flex items-start justify-between mb-2">
                                                             <div className="flex-1">
-                                                                <h4 className="font-medium text-blue-800 dark:text-blue-300">{item.name}</h4>
-                                                                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                                                <h4 className="font-medium text-blue-900 dark:text-blue-300">{item.name}</h4>
+                                                                <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
                                                                     Assigned: {new Date(item.assignment.assigned_at).toLocaleString([], {
                                                                         year: 'numeric',
                                                                         month: 'short',
@@ -1806,12 +1834,24 @@ CREATE TABLE equipment_audit_log (
                                                                     {assignedByUser && ` by ${assignedByUser.name}`}
                                                                 </p>
                                                             </div>
-                                                            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
-                                                                Assigned
-                                                            </span>
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
+                                                                    Assigned
+                                                                </span>
+                                                            </div>
                                                         </div>
 
-                                                        <div className="flex gap-2 mt-3">
+                                                        <div className="flex gap-2 mt-3 flex-wrap">
+                                                            {isManageMode && isEditorOrAbove && (
+                                                                <button
+                                                                    onClick={() => openEditModal(item)}
+                                                                    className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center shadow-sm"
+                                                                    title="Edit Equipment"
+                                                                >
+                                                                    <Edit className="w-3 h-3 mr-1" />
+                                                                    Edit
+                                                                </button>
+                                                            )}
                                                             {canReturnEquipment && (
                                                                 <button
                                                                     onClick={() => openReturnConfirm(item.id)}
@@ -1826,7 +1866,7 @@ CREATE TABLE equipment_audit_log (
                                                                         setSelectedEquipment(item);
                                                                         setShowAssignModal(true);
                                                                     }}
-                                                                    className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                                    className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
                                                                 >
                                                                     Transfer
                                                                 </button>

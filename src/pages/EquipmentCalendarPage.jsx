@@ -668,7 +668,8 @@ const EquipmentCalendarPage = () => {
     }, [allUsers]);
 
     const displayedUsers = useMemo(() => {
-        let usersToDisplay = allUsers;
+        // Filter out users who are explicitly hidden from the calendar via User Administration
+        let usersToDisplay = allUsers.filter(user => user.show_in_resource_calendar !== false);
 
         // Helper function to normalize dates to midnight local time for comparison
         const normalizeDate = (dateInput) => {
