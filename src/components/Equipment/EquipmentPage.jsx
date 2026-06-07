@@ -10,6 +10,7 @@ import {
     Check
 } from 'lucide-react';
 import { Combobox } from '../ui';
+import ConfirmationModal from '../ConfirmationModal';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -52,6 +53,8 @@ const EquipmentPage = () => {
     const [auditTrailData, setAuditTrailData] = useState([]);
     const [auditTrailError, setAuditTrailError] = useState(null);
     const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
+    const [showConfirmEquipmentModal, setShowConfirmEquipmentModal] = useState(false);
+    const [userToConfirm, setUserToConfirm] = useState(null);
     const [showOnlyUsersWithEquipment, setShowOnlyUsersWithEquipment] = useState(true);
     const [showDiscrepancies, setShowDiscrepancies] = useState(false);
     const [discrepanciesData, setDiscrepanciesData] = useState([]); // eslint-disable-line no-unused-vars
@@ -266,10 +269,13 @@ const EquipmentPage = () => {
         }
     };
 
-    const handleConfirmEquipment = async (userToConfirm) => {
-        if (!confirm(`Confirm that all equipment assigned to ${userToConfirm.name} is up to date?`)) {
-            return;
-        }
+    const handleConfirmEquipment = (user) => {
+        setUserToConfirm(user);
+        setShowConfirmEquipmentModal(true);
+    };
+
+    const executeConfirmEquipment = async () => {
+        if (!userToConfirm) return;
 
         try {
             const confirmedAt = new Date().toISOString();
@@ -291,6 +297,9 @@ const EquipmentPage = () => {
                 ? { ...u, equipment_confirmed_at: confirmedAt, equipment_confirmed_by_name: currentUser.name } 
                 : u
             ));
+
+            setUserToConfirm(null);
+            setShowConfirmEquipmentModal(false);
 
         } catch (err) {
             console.error('Error confirming equipment:', err);
@@ -1818,44 +1827,46 @@ CREATE TABLE equipment_audit_log (
                             });
 
                             return (
-                                <div key={user.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 relative">
-                                    {/* Confirmation Button - Only for current user's card */}
-                                    {currentUser?.id === user.id && (
-                                        <button
-                                            onClick={() => handleConfirmEquipment(user)}
-                                            className="absolute top-4 right-4 p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors border border-green-200 dark:border-green-800 flex items-center gap-1.5 text-xs font-medium"
-                                            title="Confirm your equipment is up to date"
-                                        >
-                                            <Check className="w-4 h-4" />
-                                            Confirm Up to Date
-                                        </button>
-                                    )}
-
-                                    <div className="flex items-center space-x-3 mb-4">
-                                        <div className={`w-12 h-12 ${getDepartmentColor(user.department)} rounded-full flex items-center justify-center text-white font-semibold`}>
-                                            {getAvatarText(user)}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{user.name}</h3>
-                                                {user.isDummy && (
-                                                    <span className="px-2 py-1 text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full">
-                                                        Dummy User
-                                                    </span>
-                                                )}
-                                                {selectedDepartments.length > 0 && !selectedDepartments.includes(user.department) && userEquipment.length > 0 && (
-                                                    <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
-                                                        Has Equipment
-                                                    </span>
-                                                )}
+                                <div key={user.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+                                        <div className="flex items-center space-x-3">
+                                            <div className={`w-12 h-12 ${getDepartmentColor(user.department)} rounded-full flex items-center justify-center text-white font-semibold`}>
+                                                {getAvatarText(user)}
                                             </div>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                                {user.department || 'No Department'}
-                                            </p>
-                                            <p className="text-xs text-orange-600 dark:text-orange-400">
-                                                {userEquipment.length} item{userEquipment.length !== 1 ? 's' : ''} assigned
-                                            </p>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{user.name}</h3>
+                                                    {user.isDummy && (
+                                                        <span className="px-2 py-1 text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full">
+                                                            Dummy User
+                                                        </span>
+                                                    )}
+                                                    {selectedDepartments.length > 0 && !selectedDepartments.includes(user.department) && userEquipment.length > 0 && (
+                                                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
+                                                            Has Equipment
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                    {user.department || 'No Department'}
+                                                </p>
+                                                <p className="text-xs text-orange-600 dark:text-orange-400">
+                                                    {userEquipment.length} item{userEquipment.length !== 1 ? 's' : ''} assigned
+                                                </p>
+                                            </div>
                                         </div>
+
+                                        {/* Confirmation Button - Only for current user's card */}
+                                        {currentUser?.id === user.id && (
+                                            <button
+                                                onClick={() => handleConfirmEquipment(user)}
+                                                className="flex items-center justify-center gap-1.5 p-2 px-3 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors border border-green-200 dark:border-green-800 text-xs font-medium w-full sm:w-auto"
+                                                title="Confirm your equipment is up to date"
+                                            >
+                                                <Check className="w-4 h-4" />
+                                                Confirm Up to Date
+                                            </button>
+                                        )}
                                     </div>
 
                                     {userEquipment.length > 0 ? (
@@ -2340,88 +2351,46 @@ CREATE TABLE equipment_audit_log (
             )}
 
             {/* Delete Equipment Confirmation Modal */}
-            {showDeleteConfirm && equipmentToDelete && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4 text-red-600">Delete Equipment</h2>
-                        <p className="mb-4 text-gray-600 dark:text-gray-400">
-                            Are you sure you want to delete <strong>{equipmentToDelete.name}</strong>?
-                        </p>
-                        <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
-                            This action cannot be undone. All assignment history and comments will also be deleted.
-                        </p>
-                        <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => {
-                                    setShowDeleteConfirm(false);
-                                    setEquipmentToDelete(null);
-                                }}
-                                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 dark:text-gray-400 dark:border-gray-600 dark:hover:bg-gray-700"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleDeleteEquipment}
-                                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                            >
-                                Delete Equipment
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmationModal
+                isOpen={showDeleteConfirm && !!equipmentToDelete}
+                onClose={() => {
+                    setShowDeleteConfirm(false);
+                    setEquipmentToDelete(null);
+                }}
+                onConfirm={handleDeleteEquipment}
+                title="Delete Equipment"
+                message={`Are you sure you want to delete ${equipmentToDelete?.name}? This action cannot be undone. All assignment history and comments will also be deleted.`}
+                confirmText="Delete Equipment"
+                type="danger"
+            />
 
             {/* Return Equipment Confirmation Modal */}
-            {showReturnConfirm && equipmentToReturn && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4 text-green-600">Return Equipment</h2>
-                        <p className="mb-4 text-gray-600 dark:text-gray-400">
-                            Are you sure you want to return <strong>{equipmentToReturn.name}</strong>?
-                        </p>
-                        {(() => {
-                            const currentAssignment = getCurrentAssignment(equipmentToReturn.id);
-                            const assignedUser = currentAssignment ? users.find(u => u.id === currentAssignment.user_id) : null;
-                            return assignedUser && (
-                                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                    <p className="text-sm text-blue-800 dark:text-blue-300">
-                                        Currently assigned to: <strong>{assignedUser.name}</strong>
-                                    </p>
-                                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                        Since: {new Date(currentAssignment.assigned_at).toLocaleString([], {
-                                            year: 'numeric',
-                                            month: 'short',
-                                            day: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                        })}
-                                    </p>
-                                </div>
-                            );
-                        })()}
-                        <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
-                            This will mark the equipment as available and end the current assignment.
-                        </p>
-                        <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => {
-                                    setShowReturnConfirm(false);
-                                    setEquipmentToReturn(null);
-                                }}
-                                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 dark:text-gray-400 dark:border-gray-600 dark:hover:bg-gray-700"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmReturn}
-                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                            >
-                                Return Equipment
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmationModal
+                isOpen={showReturnConfirm && !!equipmentToReturn}
+                onClose={() => {
+                    setShowReturnConfirm(false);
+                    setEquipmentToReturn(null);
+                }}
+                onConfirm={confirmReturn}
+                title="Return Equipment"
+                message={`Are you sure you want to return ${equipmentToReturn?.name}? This will mark the equipment as available and end the current assignment.`}
+                confirmText="Return Equipment"
+                type="success"
+            />
+
+            {/* Equipment Assignment Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={showConfirmEquipmentModal && !!userToConfirm}
+                onClose={() => {
+                    setShowConfirmEquipmentModal(false);
+                    setUserToConfirm(null);
+                }}
+                onConfirm={executeConfirmEquipment}
+                title="Confirm Equipment"
+                message={`Confirm that all equipment assigned to ${userToConfirm?.name} is up to date?`}
+                confirmText="Confirm"
+                type="success"
+            />
 
             {/* Equipment Audit Trail Modal */}
             {showAuditTrail && (
@@ -2639,39 +2608,15 @@ ON equipment_audit_log(created_at DESC);`}
             )}
 
             {/* Clear Audit Trail Confirmation Modal */}
-            {showClearAuditConfirm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="flex-shrink-0 w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                                <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                </svg>
-                            </div>
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                Clear Audit Trail
-                            </h3>
-                        </div>
-                        <p className="text-gray-600 dark:text-gray-400 mb-6">
-                            Are you sure you want to clear all audit trail entries? This will permanently delete all equipment movement records and cannot be undone.
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            <button
-                                onClick={() => setShowClearAuditConfirm(false)}
-                                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={clearAuditTrail}
-                                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-                            >
-                                Clear All
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmationModal
+                isOpen={showClearAuditConfirm}
+                onClose={() => setShowClearAuditConfirm(false)}
+                onConfirm={clearAuditTrail}
+                title="Clear Audit Trail"
+                message="Are you sure you want to clear all audit trail entries? This will permanently delete all equipment movement records and cannot be undone."
+                confirmText="Clear All"
+                type="danger"
+            />
 
             {/* Discrepancies Modal */}
             {showDiscrepancies && (
