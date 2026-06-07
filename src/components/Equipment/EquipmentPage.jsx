@@ -6,7 +6,8 @@ import {
     Edit,
     Trash2,
     Loader2,
-    History
+    History,
+    Check
 } from 'lucide-react';
 import { Combobox } from '../ui';
 import { supabase } from '../../supabaseClient';
@@ -211,14 +212,14 @@ const EquipmentPage = () => {
             // Fetch real users (exclude soft deleted users)
             const { data: realUsers, error: realUsersError } = await supabase
                 .from('users')
-                .select('id, name, email, department')
+                .select('id, name, email, department, equipment_confirmed_at, equipment_confirmed_by_name')
                 .is('deleted_at', null)
                 .order('name');
 
             // Fetch active dummy users (exclude soft deleted users)
             const { data: dummyUsers, error: dummyUsersError } = await supabase
                 .from('dummy_users')
-                .select('id, name, email, department')
+                .select('id, name, email, department, equipment_confirmed_at, equipment_confirmed_by_name')
                 .eq('is_active', true)
                 .is('deleted_at', null)
                 .order('name');
@@ -262,6 +263,38 @@ const EquipmentPage = () => {
         } catch (error) {
             console.error('Error loading users:', error);
             throw error;
+        }
+    };
+
+    const handleConfirmEquipment = async (userToConfirm) => {
+        if (!confirm(`Confirm that all equipment assigned to ${userToConfirm.name} is up to date?`)) {
+            return;
+        }
+
+        try {
+            const confirmedAt = new Date().toISOString();
+            const tableName = userToConfirm.isDummy ? 'dummy_users' : 'users';
+            
+            const { error } = await supabase
+                .from(tableName)
+                .update({
+                    equipment_confirmed_at: confirmedAt,
+                    equipment_confirmed_by_name: currentUser.name
+                })
+                .eq('id', userToConfirm.id);
+
+            if (error) throw error;
+
+            // Update local state
+            setUsers(prev => prev.map(u => 
+                u.id === userToConfirm.id && u.isDummy === userToConfirm.isDummy
+                ? { ...u, equipment_confirmed_at: confirmedAt, equipment_confirmed_by_name: currentUser.name } 
+                : u
+            ));
+
+        } catch (err) {
+            console.error('Error confirming equipment:', err);
+            alert('Failed to confirm equipment: ' + err.message);
         }
     };
 
@@ -1785,7 +1818,19 @@ CREATE TABLE equipment_audit_log (
                             });
 
                             return (
-                                <div key={user.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                                <div key={user.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 relative">
+                                    {/* Confirmation Button - Only for current user's card */}
+                                    {currentUser?.id === user.id && (
+                                        <button
+                                            onClick={() => handleConfirmEquipment(user)}
+                                            className="absolute top-4 right-4 p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors border border-green-200 dark:border-green-800 flex items-center gap-1.5 text-xs font-medium"
+                                            title="Confirm your equipment is up to date"
+                                        >
+                                            <Check className="w-4 h-4" />
+                                            Confirm Up to Date
+                                        </button>
+                                    )}
+
                                     <div className="flex items-center space-x-3 mb-4">
                                         <div className={`w-12 h-12 ${getDepartmentColor(user.department)} rounded-full flex items-center justify-center text-white font-semibold`}>
                                             {getAvatarText(user)}
@@ -1935,6 +1980,27 @@ CREATE TABLE equipment_audit_log (
                                         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                                             <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                                             <p className="text-sm">No equipment assigned</p>
+                                        </div>
+                                    )}
+
+                                    {/* Confirmation Status Footer */}
+                                    {user.equipment_confirmed_at && (
+                                        <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-1">
+                                            <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500">
+                                                Last Confirmation
+                                            </p>
+                                            <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                                                <Check className="w-3 h-3" />
+                                                <span>
+                                                    Confirmed by <strong>{user.equipment_confirmed_by_name}</strong> on {new Date(user.equipment_confirmed_at).toLocaleString([], {
+                                                        year: 'numeric',
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

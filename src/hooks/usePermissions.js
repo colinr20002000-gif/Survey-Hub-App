@@ -1,7 +1,6 @@
 import { useMemo, useContext } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { PermissionContext } from '../contexts/PermissionContext';
-import { useDynamicPermissions } from './useDynamicPermissions';
 import {
     hasPermission,
     canAccessAdminMode,
@@ -24,8 +23,12 @@ export const usePermissions = () => {
     const { user } = useAuth();
     const userPrivilege = user?.privilege || PRIVILEGES.VIEWER;
 
-    // Get dynamic permissions and user-specific overrides
-    const { permissions: dynamicPermissions, userOverrides } = useDynamicPermissions();
+    // Get dynamic permissions and user-specific overrides from context
+    const permissionContext = useContext(PermissionContext);
+    
+    // Safety check for context
+    const dynamicPermissions = permissionContext?.permissions || null;
+    const userOverrides = permissionContext?.userOverrides || {};
 
     // Memoize permission checks
     const permissions = useMemo(() => {

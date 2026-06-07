@@ -21,7 +21,7 @@ import { JobProvider, useJobs } from './contexts/JobContext';
 import { DeliveryTaskProvider, useDeliveryTasks } from './contexts/DeliveryTaskContext';
 import { ProjectTaskProvider, useProjectTasks } from './contexts/ProjectTaskContext';
 import { UserProvider, useUsers } from './contexts/UserContext';
-import { PermissionProvider } from './contexts/PermissionContext';
+import { PermissionProvider, usePermissionContext } from './contexts/PermissionContext';
 import { sendAnnouncementFCMNotification, sendDeliveryTaskAssignmentNotification, sendProjectTaskAssignmentNotification } from './utils/fcmNotifications';
 import { notificationManager } from './utils/realTimeNotifications';
 import { getDepartmentColor, getAvatarText, getAvatarProps } from './utils/avatarColors';
@@ -686,7 +686,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         canAccessAuditTrail,
         canAccessCalendarColours
     } = usePermissions();
-    const { userOverrides } = useDynamicPermissions();
+    const { userOverrides } = usePermissionContext();
     const [isAdminMode, setIsAdminMode] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [managedStaffCount, setManagedStaffCount] = useState(0);
@@ -798,7 +798,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
         {
             name: 'Delivery',
             icon: ClipboardPaste,
-            show: true,
+            show: can('VIEW_DELIVERY'),
             isGroup: true,
             subItems: [
                 { name: 'Delivery Tracker', parent: 'Delivery', show: can('VIEW_DELIVERY_TRACKER') },
