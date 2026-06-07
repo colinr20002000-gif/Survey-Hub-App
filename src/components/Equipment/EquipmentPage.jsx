@@ -1549,16 +1549,16 @@ CREATE TABLE equipment_audit_log (
     return (
         <div className="p-6">
             <div className="mb-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Assignments</h1>
                         <p className="text-gray-600 dark:text-gray-400">Manage equipment assignments and track usage</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col min-[400px]:flex-row items-stretch min-[400px]:items-center gap-2 w-full sm:w-auto">
                         {can('SHOW_EQUIPMENT_ASSIGNMENTS_MANAGE_BUTTON') && (
                             <button
                                 onClick={() => setIsManageMode(!isManageMode)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors whitespace-nowrap w-full min-[400px]:w-auto ${
                                     isManageMode 
                                         ? 'bg-orange-600 text-white hover:bg-orange-700' 
                                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
@@ -1574,7 +1574,7 @@ CREATE TABLE equipment_audit_log (
                                     setShowAuditTrail(true);
                                     loadAuditTrail();
                                 }}
-                                className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors whitespace-nowrap w-full min-[400px]:w-auto"
                             >
                                 <History className="w-5 h-5" />
                                 Audit Trail
@@ -2022,15 +2022,15 @@ CREATE TABLE equipment_audit_log (
 
             {/* Add Equipment Modal */}
             {showAddEquipment && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] flex flex-col">
                         <h2 className="text-xl font-bold mb-4">Add New Equipment</h2>
                         {error && (
                             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
                                 <p className="text-sm">{error}</p>
                             </div>
                         )}
-                        <form onSubmit={handleAddEquipment}>
+                        <form onSubmit={handleAddEquipment} className="overflow-y-auto pr-2">
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Name *</label>
@@ -2146,54 +2146,56 @@ CREATE TABLE equipment_audit_log (
 
             {/* Assignment Modal */}
             {showAssignModal && selectedEquipment && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] flex flex-col">
                         <h2 className="text-xl font-bold mb-4">
                             {getCurrentAssignment(selectedEquipment.id) ? 'Transfer Equipment' : 'Assign Equipment'}
                         </h2>
-                        <p className="mb-4 text-gray-600 dark:text-gray-400">
-                            {getCurrentAssignment(selectedEquipment.id) ? 'Transfer' : 'Assign'} <strong>{selectedEquipment.name}</strong> to:
-                        </p>
-                        {getCurrentAssignment(selectedEquipment.id) && (() => {
-                            const currentAssignment = getCurrentAssignment(selectedEquipment.id);
-                            const currentUser = currentAssignment ? getUserById(currentAssignment.user_id) : null;
-                            return currentUser && (
-                                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                    <p className="text-sm text-blue-800 dark:text-blue-300">
-                                        Currently assigned to: <strong>{currentUser.name}</strong>
-                                    </p>
-                                </div>
-                            );
-                        })()}
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {users.filter(user => {
-                                const matchesDepartmentFilter = selectedDepartments.length === 0 || selectedDepartments.length === departments.length || selectedDepartments.includes(user.department);
-                                const matchesUserFilter = selectedUsers.length === 0 || selectedUsers.length === users.filter(u => u.name && u.name.trim() !== '').length || selectedUsers.includes(user.id);
-
-                                // For transfers, exclude the currently assigned user
+                        <div className="overflow-y-auto pr-2">
+                            <p className="mb-4 text-gray-600 dark:text-gray-400">
+                                {getCurrentAssignment(selectedEquipment.id) ? 'Transfer' : 'Assign'} <strong>{selectedEquipment.name}</strong> to:
+                            </p>
+                            {getCurrentAssignment(selectedEquipment.id) && (() => {
                                 const currentAssignment = getCurrentAssignment(selectedEquipment.id);
-                                if (currentAssignment && currentAssignment.user_id === user.id) {
-                                    return false;
-                                }
-
-                                return matchesDepartmentFilter && matchesUserFilter;
-                            }).map(user => (
-                                <button
-                                    key={user.id}
-                                    onClick={() => handleAssignEquipment(selectedEquipment.id, user.id)}
-                                    className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-medium">{user.name}</span>
-                                        {user.isDummy && (
-                                            <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded">
-                                                Dummy
-                                            </span>
-                                        )}
+                                const currentUser = currentAssignment ? getUserById(currentAssignment.user_id) : null;
+                                return currentUser && (
+                                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <p className="text-sm text-blue-800 dark:text-blue-300">
+                                            Currently assigned to: <strong>{currentUser.name}</strong>
+                                        </p>
                                     </div>
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">{user.department || 'No Department'}</div>
-                                </button>
-                            ))}
+                                );
+                            })()}
+                            <div className="space-y-2">
+                                {users.filter(user => {
+                                    const matchesDepartmentFilter = selectedDepartments.length === 0 || selectedDepartments.length === departments.length || selectedDepartments.includes(user.department);
+                                    const matchesUserFilter = selectedUsers.length === 0 || selectedUsers.length === users.filter(u => u.name && u.name.trim() !== '').length || selectedUsers.includes(user.id);
+
+                                    // For transfers, exclude the currently assigned user
+                                    const currentAssignment = getCurrentAssignment(selectedEquipment.id);
+                                    if (currentAssignment && currentAssignment.user_id === user.id) {
+                                        return false;
+                                    }
+
+                                    return matchesDepartmentFilter && matchesUserFilter;
+                                }).map(user => (
+                                    <button
+                                        key={user.id}
+                                        onClick={() => handleAssignEquipment(selectedEquipment.id, user.id)}
+                                        className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium">{user.name}</span>
+                                            {user.isDummy && (
+                                                <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded">
+                                                    Dummy
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">{user.department || 'No Department'}</div>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <div className="flex justify-end mt-4">
                             <button
@@ -2212,10 +2214,10 @@ CREATE TABLE equipment_audit_log (
 
             {/* Edit Equipment Modal */}
             {showEditEquipment && equipmentToEdit && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] flex flex-col">
                         <h2 className="text-xl font-bold mb-4">Edit Equipment</h2>
-                        <form onSubmit={handleEditEquipment}>
+                        <form onSubmit={handleEditEquipment} className="overflow-y-auto pr-2">
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Name *</label>
@@ -2394,8 +2396,8 @@ CREATE TABLE equipment_audit_log (
 
             {/* Equipment Audit Trail Modal */}
             {showAuditTrail && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-6xl h-5/6 flex flex-col">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-6xl max-h-[90vh] flex flex-col">
                         {/* Header */}
                         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                             <div className="flex items-center gap-3">
@@ -2620,8 +2622,8 @@ ON equipment_audit_log(created_at DESC);`}
 
             {/* Discrepancies Modal */}
             {showDiscrepancies && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[80vh] flex flex-col">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
                         {/* Header */}
                         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                             <div className="flex items-center gap-3">
