@@ -2414,20 +2414,19 @@ CREATE TABLE equipment_audit_log (
                             </button>
                         </div>
 
-                        {/* Content */}
-                        <div className="flex-1 overflow-hidden">
-                            <div className="h-full overflow-y-auto p-6">
-                                {auditTrailError ? (
-                                    <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                                        <div className="text-center max-w-2xl">
-                                            <History className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                            {auditTrailError === 'table_not_found' ? (
-                                                <>
-                                                    <h3 className="text-lg font-medium mb-2">Audit Trail Setup Required</h3>
-                                                    <p className="mb-4">The audit trail table needs to be created in your database to track equipment movements.</p>
-                                                    <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-left">
-                                                        <h4 className="font-medium mb-2">Run this SQL in your Supabase SQL Editor:</h4>
-                                                        <pre className="text-sm bg-gray-200 dark:bg-gray-900 p-2 rounded overflow-x-auto">
+                        {/* Content area that scrolls */}
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+                            {auditTrailError ? (
+                                <div className="flex items-center justify-center min-h-[300px] text-gray-500 dark:text-gray-400">
+                                    <div className="text-center max-w-2xl">
+                                        <History className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                        {auditTrailError === 'table_not_found' ? (
+                                            <>
+                                                <h3 className="text-lg font-medium mb-2">Audit Trail Setup Required</h3>
+                                                <p className="mb-4 text-sm">The audit trail table needs to be created in your database to track equipment movements.</p>
+                                                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-left overflow-x-auto max-w-full">
+                                                    <h4 className="font-medium mb-2 text-xs uppercase text-gray-500 tracking-wider">Run this SQL in Supabase:</h4>
+                                                    <pre className="text-xs bg-gray-200 dark:bg-black/40 p-3 rounded font-mono text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700">
 {`CREATE TABLE equipment_audit_log (
     id SERIAL PRIMARY KEY,
     equipment_id UUID,
@@ -2446,135 +2445,133 @@ ON equipment_audit_log(equipment_id);
 
 CREATE INDEX idx_equipment_audit_log_created_at
 ON equipment_audit_log(created_at DESC);`}
-                                                        </pre>
-                                                    </div>
-                                                    <p className="mt-4 text-sm">After creating the table, refresh this page to start tracking equipment movements.</p>
-                                                    <button
-                                                        onClick={loadAuditTrail}
-                                                        className="mt-3 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
-                                                    >
-                                                        Retry Loading
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <h3 className="text-lg font-medium mb-2">Error Loading Audit Trail</h3>
-                                                    <p className="mb-4 text-red-600 dark:text-red-400">{auditTrailError}</p>
-                                                    <button
-                                                        onClick={loadAuditTrail}
-                                                        className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
-                                                    >
-                                                        Retry Loading
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
+                                                    </pre>
+                                                </div>
+                                                <p className="mt-4 text-xs text-gray-500">After creating the table, refresh to start tracking moves.</p>
+                                                <button
+                                                    onClick={loadAuditTrail}
+                                                    className="mt-4 px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors font-medium shadow-sm"
+                                                >
+                                                    Retry Loading
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <h3 className="text-lg font-medium mb-2">Error Loading Audit Trail</h3>
+                                                <p className="mb-4 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-900/30">{auditTrailError}</p>
+                                                <button
+                                                    onClick={loadAuditTrail}
+                                                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+                                                >
+                                                    Retry Loading
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
-                                ) : auditTrailData.length === 0 ? (
-                                    <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                                        <div className="text-center">
-                                            <History className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                            <h3 className="text-lg font-medium mb-2">No Audit Trail Entries</h3>
-                                            <p>No equipment movements have been recorded yet.</p>
-                                        </div>
+                                </div>
+                            ) : auditTrailData.length === 0 ? (
+                                <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+                                    <div className="text-center">
+                                        <History className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                        <h3 className="text-lg font-medium mb-2">No Audit Trail Entries</h3>
+                                        <p className="text-sm">No equipment movements have been recorded yet.</p>
                                     </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {auditTrailData.map(entry => {
-                                            const actionColor = (() => {
-                                                switch (entry.action_type) {
-                                                    case 'assigned':
-                                                        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-                                                    case 'returned':
-                                                        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-                                                    case 'transferred':
-                                                        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
-                                                    case 'created':
-                                                        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
-                                                    case 'updated':
-                                                        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-                                                    case 'deleted':
-                                                        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-                                                    default:
-                                                        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {auditTrailData.map(entry => {
+                                        const actionColor = (() => {
+                                            switch (entry.action_type) {
+                                                case 'assigned':
+                                                    return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+                                                case 'returned':
+                                                    return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+                                                case 'transferred':
+                                                    return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
+                                                case 'created':
+                                                    return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
+                                                case 'updated':
+                                                    return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+                                                case 'deleted':
+                                                    return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+                                                default:
+                                                    return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+                                            }
+                                        })();
+
+                                        const getActionDescription = (entry) => {
+                                            const equipmentName = entry.equipment?.name || 'Unknown Equipment';
+                                            const performedBy = entry.performed_by?.name || 'Unknown User';
+
+                                            switch (entry.action_type) {
+                                                case 'assigned': {
+                                                    const assignedTo = entry.assigned_to_user?.name || 'Unknown User';
+                                                    return `${equipmentName} was assigned to ${assignedTo} by ${performedBy}`;
                                                 }
-                                            })();
-
-                                            // Generate meaningful description based on action type
-                                            const getActionDescription = (entry) => {
-                                                const equipmentName = entry.equipment?.name || 'Unknown Equipment';
-                                                const performedBy = entry.performed_by?.name || 'Unknown User';
-
-                                                switch (entry.action_type) {
-                                                    case 'assigned': {
-                                                        const assignedTo = entry.assigned_to_user?.name || 'Unknown User';
-                                                        return `${equipmentName} was assigned to ${assignedTo} by ${performedBy}`;
-                                                    }
-                                                    case 'returned': {
-                                                        const returnedFrom = entry.user?.name || entry.previous_user?.name || 'Unknown User';
-                                                        return `${equipmentName} was returned from ${returnedFrom} by ${performedBy}`;
-                                                    }
-                                                    case 'transferred': {
-                                                        const transferredFrom = entry.previous_user?.name || 'Unknown User';
-                                                        const transferredTo = entry.assigned_to_user?.name || 'Unknown User';
-                                                        return `${equipmentName} was transferred from ${transferredFrom} to ${transferredTo} by ${performedBy}`;
-                                                    }
-                                                    default:
-                                                        return `${equipmentName} was ${entry.action_type} by ${performedBy}`;
+                                                case 'returned': {
+                                                    const returnedFrom = entry.user?.name || entry.previous_user?.name || 'Unknown User';
+                                                    return `${equipmentName} was returned from ${returnedFrom} by ${performedBy}`;
                                                 }
-                                            };
+                                                case 'transferred': {
+                                                    const transferredFrom = entry.previous_user?.name || 'Unknown User';
+                                                    const transferredTo = entry.assigned_to_user?.name || 'Unknown User';
+                                                    return `${equipmentName} was transferred from ${transferredFrom} to ${transferredTo} by ${performedBy}`;
+                                                }
+                                                default:
+                                                    return `${equipmentName} was ${entry.action_type} by ${performedBy}`;
+                                            }
+                                        };
 
-                                            return (
-                                                <div key={entry.id} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600 hover:shadow-sm transition-shadow">
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="flex items-start gap-3 flex-1">
-                                                            <span className={`px-3 py-1 text-xs font-medium rounded-full ${actionColor} flex-shrink-0 mt-0.5`}>
-                                                                {entry.action_type.toUpperCase()}
-                                                            </span>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-gray-900 dark:text-white font-medium leading-relaxed">
-                                                                    {getActionDescription(entry)}
+                                        return (
+                                            <div key={entry.id} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600 hover:shadow-sm transition-shadow">
+                                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                                    <div className="flex items-start gap-3 flex-1">
+                                                        <span className={`px-3 py-1 text-[10px] font-bold rounded-full ${actionColor} flex-shrink-0 mt-0.5 uppercase tracking-wider`}>
+                                                            {entry.action_type}
+                                                        </span>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-gray-900 dark:text-white font-medium leading-relaxed">
+                                                                {getActionDescription(entry)}
+                                                            </p>
+                                                            {entry.equipment?.serial_number && (
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                    Serial Number: {entry.equipment.serial_number}
                                                                 </p>
-                                                                {entry.equipment?.serial_number && (
-                                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                                        Serial Number: {entry.equipment.serial_number}
-                                                                    </p>
-                                                                )}
-                                                            </div>
+                                                            )}
                                                         </div>
-                                                        <div className="text-sm text-gray-500 dark:text-gray-400 text-right flex-shrink-0 ml-4">
-                                                            <div>
-                                                                {new Date(entry.created_at).toLocaleDateString([], {
-                                                                    year: 'numeric',
-                                                                    month: 'short',
-                                                                    day: 'numeric'
-                                                                })}
-                                                            </div>
-                                                            <div className="text-xs">
-                                                                {new Date(entry.created_at).toLocaleTimeString([], {
-                                                                    hour: '2-digit',
-                                                                    minute: '2-digit'
-                                                                })}
-                                                            </div>
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 sm:text-right flex-shrink-0">
+                                                        <div className="font-medium">
+                                                            {new Date(entry.created_at).toLocaleDateString(undefined, {
+                                                                year: 'numeric',
+                                                                month: 'short',
+                                                                day: 'numeric'
+                                                            })}
+                                                        </div>
+                                                        <div className="opacity-75">
+                                                            {new Date(entry.created_at).toLocaleTimeString(undefined, {
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            })}
                                                         </div>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
                         {/* Footer */}
-                        <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700">
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 gap-4 flex-shrink-0 rounded-b-lg">
+                            <span className="text-sm text-gray-500 dark:text-gray-400 order-last sm:order-first">
                                 {auditTrailData.length} {auditTrailData.length === 1 ? 'entry' : 'entries'} shown
                             </span>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
                                 <button
                                     onClick={loadAuditTrail}
-                                    className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                                 >
                                     Refresh
                                 </button>
@@ -2582,7 +2579,7 @@ ON equipment_audit_log(created_at DESC);`}
                                     <>
                                         <button
                                             onClick={exportAuditTrailCSV}
-                                            className="px-4 py-2 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
+                                            className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center justify-center gap-2 transition-colors"
                                         >
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -2591,7 +2588,7 @@ ON equipment_audit_log(created_at DESC);`}
                                         </button>
                                         <button
                                             onClick={() => setShowClearAuditConfirm(true)}
-                                            className="px-4 py-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 border border-red-300 dark:border-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
+                                            className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 border border-red-300 dark:border-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                         >
                                             Clear All
                                         </button>
@@ -2599,7 +2596,7 @@ ON equipment_audit_log(created_at DESC);`}
                                 )}
                                 <button
                                     onClick={() => setShowAuditTrail(false)}
-                                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md"
+                                    className="flex-1 sm:flex-none px-6 py-2 text-sm font-medium bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors shadow-sm"
                                 >
                                     Close
                                 </button>

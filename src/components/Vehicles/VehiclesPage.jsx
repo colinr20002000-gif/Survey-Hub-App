@@ -14,6 +14,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { getDepartmentColor, getAvatarText } from '../../utils/avatarColors';
 import { useDebouncedValue } from '../../utils/debounce';
 import { Combobox } from '../ui';
+import ConfirmationModal from '../ConfirmationModal';
 
 
 // Vehicle Management Page Component
@@ -52,6 +53,7 @@ const VehiclesPage = () => {
     const [auditTrailData, setAuditTrailData] = useState([]);
     const [auditTrailError, setAuditTrailError] = useState(null);
     const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
+    const [isManageMode, setIsManageMode] = useState(false);
     const [showOnlyUsersWithVehicles, setShowOnlyUsersWithVehicles] = useState(true);
 
     // Vehicle form state
@@ -2153,14 +2155,14 @@ ON vehicle_audit_log(created_at DESC);`}
                         </div>
 
                         {/* Footer */}
-                        <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700">
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700 gap-4">
+                            <span className="text-sm text-gray-500 dark:text-gray-400 order-2 sm:order-1">
                                 {auditTrailData.length} {auditTrailData.length === 1 ? 'entry' : 'entries'} shown
                             </span>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap justify-center sm:justify-end gap-2 order-1 sm:order-2 w-full sm:w-auto">
                                 <button
                                     onClick={loadAuditTrail}
-                                    className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-sm sm:text-base"
                                 >
                                     Refresh
                                 </button>
@@ -2168,7 +2170,7 @@ ON vehicle_audit_log(created_at DESC);`}
                                     <>
                                         <button
                                             onClick={exportAuditTrailCSV}
-                                            className="px-4 py-2 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
+                                            className="px-4 py-2 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2 text-sm sm:text-base"
                                         >
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -2177,7 +2179,7 @@ ON vehicle_audit_log(created_at DESC);`}
                                         </button>
                                         <button
                                             onClick={() => setShowClearAuditConfirm(true)}
-                                            className="px-4 py-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 border border-red-300 dark:border-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
+                                            className="px-4 py-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 border border-red-300 dark:border-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-sm sm:text-base"
                                         >
                                             Clear All
                                         </button>
@@ -2185,7 +2187,7 @@ ON vehicle_audit_log(created_at DESC);`}
                                 )}
                                 <button
                                     onClick={() => setShowAuditTrail(false)}
-                                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md"
+                                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-sm sm:text-base"
                                 >
                                     Close
                                 </button>
