@@ -79,6 +79,7 @@ const EquipmentRegisterPage = lazy(() => import('./components/Equipment/Equipmen
 const CloseCallsPage = lazy(() => import('./pages/CloseCallsPage'));
 const MediaPage = lazy(() => import('./pages/MediaPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
+const VehicleSummaryPage = lazy(() => import('./pages/VehicleSummaryPage'));
 
 import MultiSelectFilter from './components/ui/MultiSelectFilter';
 import { DeliveryTaskItem, DeliveryTaskModal } from './components/tasks/TaskComponents';
@@ -791,6 +792,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             isGroup: true,
             subItems: [
                 { name: 'Vehicle Management', parent: 'Vehicles', show: can('VIEW_VEHICLES') },
+                { name: 'Vehicle Summary', parent: 'Vehicles', show: can('VIEW_VEHICLE_SUMMARY') },
                 { name: 'Mileage Logs', parent: 'Vehicles', show: can('VIEW_VEHICLE_MILEAGE') },
                 { name: 'Vehicle Inspection', parent: 'Vehicles', show: can('VIEW_VEHICLE_INSPECTION') }
             ]
@@ -5665,6 +5667,7 @@ const MainLayout = () => {
             case 'Register': return can('VIEW_EQUIPMENT_REGISTER') ? <Suspense fallback={<LoadingFallback />}><EquipmentRegisterPage /></Suspense> : <AccessDenied />;
             case 'Check & Adjust': return can('VIEW_CHECK_ADJUST') ? <Suspense fallback={<LoadingFallback />}><CheckAdjustPage /></Suspense> : <AccessDenied />;
                                     case 'Vehicle Management': return can('VIEW_VEHICLES') ? <VehiclesPage /> : <AccessDenied />;
+                                    case 'Vehicle Summary': return can('VIEW_VEHICLE_SUMMARY') ? <VehicleSummaryPage /> : <AccessDenied />;
                                     case 'Mileage Logs': return can('VIEW_VEHICLE_MILEAGE') ? <Suspense fallback={<LoadingFallback />}><VehicleMileagePage /></Suspense> : <AccessDenied />;
                                     case 'Vehicle Inspection': return can('VIEW_VEHICLE_INSPECTION') ? <Suspense fallback={<LoadingFallback />}><VehicleMileageLogsPage /></Suspense> : <AccessDenied />;            case 'Delivery Tracker': return can('VIEW_DELIVERY_TRACKER') ? <DeliveryTrackerPage /> : <AccessDenied />;
             case 'Delivery Team - To Do List': return can('VIEW_DELIVERY_TODO') ? <DeliveryTasksPage /> : <AccessDenied />;
