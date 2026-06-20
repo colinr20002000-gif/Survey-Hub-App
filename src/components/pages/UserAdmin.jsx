@@ -54,6 +54,13 @@ const UserAdmin = () => {
   const [error, setError] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
+  // Filter States
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterPrivilege, setFilterPrivilege] = useState('');
+  const [filterDepartment, setFilterDepartment] = useState('');
+  const [filterTeamRole, setFilterTeamRole] = useState('');
+
   // Modern Editing State
   const [editingUser, setEditingUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -180,8 +187,10 @@ const UserAdmin = () => {
       if (data && data[0]) {
         if (isDummyUserEdit) {
           setDummyUsers(prev => prev.map(u => u.id === editingUser.id ? data[0] : u));
+          setDeletedDummyUsers(prev => prev.map(u => u.id === editingUser.id ? data[0] : u));
         } else {
           setUsers(prev => prev.map(u => u.id === editingUser.id ? data[0] : u));
+          setDeletedUsers(prev => prev.map(u => u.id === editingUser.id ? data[0] : u));
         }
         alert('User updated successfully');
         setShowEditModal(false);
@@ -234,7 +243,7 @@ const UserAdmin = () => {
   }, [users]);
 
   // Check if current user has admin privileges
-  const isAdmin = user?.privilege === 'Admin';
+  const isAdmin = user?.privilege === 'Admin' || user?.privilege === 'Super Admin';
   const isSuperAdmin = user?.email === 'colin.rogers@inorail.co.uk';
 
   // Standardized user options for Line Manager Comboboxes
@@ -242,6 +251,45 @@ const UserAdmin = () => {
     { value: '', label: 'No Manager' },
     ...users.map(u => ({ value: u.id, label: u.name }))
   ], [users]);
+
+  const getFilteredData = (data, listType) => {
+    return data.filter(item => {
+      // 1. User Type filter (Real User vs Dummy User)
+      if (filterType) {
+        if (listType === 'real' && filterType !== 'Real User') return false;
+        if (listType === 'dummy' && filterType !== 'Dummy User') return false;
+        if (listType === 'deleted' && item.type !== filterType) return false;
+      }
+      
+      // 2. Search filter (Name, Username, Email)
+      const searchMatch = !userSearchTerm || 
+        item.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        item.username?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        item.email?.toLowerCase().includes(userSearchTerm.toLowerCase());
+      
+      // 3. Privilege filter
+      const privilegeMatch = !filterPrivilege || item.privilege === filterPrivilege;
+      
+      // 4. Department filter
+      const departmentMatch = !filterDepartment || item.department === filterDepartment;
+      
+      // 5. Team Role filter
+      const teamRoleMatch = !filterTeamRole || item.team_role === filterTeamRole;
+      
+      return searchMatch && privilegeMatch && departmentMatch && teamRoleMatch;
+    });
+  };
+
+  // Memoized Filtered Lists
+  const filteredUsers = useMemo(() => getFilteredData(users, 'real'), [users, userSearchTerm, filterType, filterPrivilege, filterDepartment, filterTeamRole]);
+  const filteredDummyUsers = useMemo(() => getFilteredData(dummyUsers, 'dummy'), [dummyUsers, userSearchTerm, filterType, filterPrivilege, filterDepartment, filterTeamRole]);
+  
+  const rawDeletedList = useMemo(() => [
+    ...deletedUsers.map(u => ({ ...u, type: 'Real User' })),
+    ...deletedDummyUsers.map(u => ({ ...u, type: 'Dummy User' }))
+  ], [deletedUsers, deletedDummyUsers]);
+  
+  const filteredDeletedUsers = useMemo(() => getFilteredData(rawDeletedList, 'deleted'), [rawDeletedList, userSearchTerm, filterType, filterPrivilege, filterDepartment, filterTeamRole]);
 
   // Fetch team roles from database
   const fetchTeamRoles = async () => {
@@ -508,6 +556,11 @@ const UserAdmin = () => {
       sortableData.sort((a, b) => {
         let aValue = a[sortConfig.key];
         let bValue = b[sortConfig.key];
+
+        if (sortConfig.key === 'mfa') {
+          aValue = mfaStatuses[a.id] ? 1 : 0;
+          bValue = mfaStatuses[b.id] ? 1 : 0;
+        }
 
         // Handle null/undefined values
         if (aValue == null) aValue = '';
@@ -1240,6 +1293,7 @@ const UserAdmin = () => {
 
   const getPrivilegeColor = (privilege) => {
     switch (privilege) {
+      case 'Super Admin': return 'bg-red-200 text-red-900 font-semibold';
       case 'Admin': return 'bg-red-100 text-red-800';
       case 'Editor+': return 'bg-orange-100 text-orange-800';
       case 'Editor': return 'bg-yellow-100 text-yellow-800';
@@ -1358,6 +1412,84 @@ const UserAdmin = () => {
         </div>
       </div>
 
+      {/* Filters Bar */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 mb-6 flex flex-wrap gap-4 items-center shadow-sm">
+        <div className="flex-1 min-w-[240px] relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Search by name, username, or email..."
+            value={userSearchTerm}
+            onChange={(e) => setUserSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
+        </div>
+        <div className="w-[180px]">
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All User Types</option>
+            <option value="Real User">Real Users</option>
+            <option value="Dummy User">Dummy Users</option>
+          </select>
+        </div>
+        <div className="w-[180px]">
+          <select
+            value={filterPrivilege}
+            onChange={(e) => setFilterPrivilege(e.target.value)}
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Privileges</option>
+            <option value="Viewer">Viewer</option>
+            <option value="Viewer+">Viewer+</option>
+            <option value="Editor">Editor</option>
+            <option value="Editor+">Editor+</option>
+            <option value="Admin">Admin</option>
+            <option value="Super Admin">Super Admin</option>
+          </select>
+        </div>
+        <div className="w-[180px]">
+          <select
+            value={filterDepartment}
+            onChange={(e) => setFilterDepartment(e.target.value)}
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Departments</option>
+            {departments.map(dept => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
+        </div>
+        <div className="w-[180px]">
+          <select
+            value={filterTeamRole}
+            onChange={(e) => setFilterTeamRole(e.target.value)}
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Team Roles</option>
+            {teamRoles.map(role => (
+              <option key={role} value={role}>{role}</option>
+            ))}
+          </select>
+        </div>
+        {(userSearchTerm || filterType || filterPrivilege || filterDepartment || filterTeamRole) && (
+          <button
+            onClick={() => {
+              setUserSearchTerm('');
+              setFilterType('');
+              setFilterPrivilege('');
+              setFilterDepartment('');
+              setFilterTeamRole('');
+            }}
+            className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium px-2.5 py-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+          >
+            Clear Filters
+          </button>
+        )}
+      </div>
+
       {activeTab === 'real-users' ? (
         <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
@@ -1388,18 +1520,39 @@ const UserAdmin = () => {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  {['Avatar', 'Name', 'Username', 'Email', 'Mobile', 'Privilege', 'Role & Dept', 'Organisation', 'Line Manager', 'Calendar', 'Status', 'Actions'].map((header) => (
+                  {[
+                    { label: 'Avatar', key: 'avatar' },
+                    { label: 'Name', key: 'name' },
+                    { label: 'Username', key: 'username' },
+                    { label: 'Email', key: 'email' },
+                    { label: 'Mobile', key: 'mobile_number' },
+                    { label: 'Privilege', key: 'privilege' },
+                    { label: 'Role & Dept', key: 'team_role' },
+                    { label: 'Organisation', key: 'organisation' },
+                    { label: 'Line Manager', key: 'line_manager_id' },
+                    { label: 'Calendar', key: 'show_in_resource_calendar' },
+                    { label: 'Status', key: 'mfa' }
+                  ].map((col) => (
                     <th
-                      key={header}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                      key={col.key}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => handleSort(col.key)}
                     >
-                      {header}
+                      <div className="flex items-center">
+                        {col.label}
+                        <span className="ml-1">{getSortIcon(col.key)}</span>
+                      </div>
                     </th>
                   ))}
+                  {isAdmin && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {getSortedData(users).map((userItem) => (
+                {getSortedData(filteredUsers).map((userItem) => (
                   <tr key={userItem.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`h-10 w-10 rounded-full ${getDepartmentColor(userItem.department)} flex items-center justify-center text-white font-medium shadow-sm`}>
@@ -1515,7 +1668,7 @@ const UserAdmin = () => {
             </table>
           </div>
 
-          {users.length === 0 && (
+          {users.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <UserPlus size={32} className="text-gray-400" />
@@ -1523,7 +1676,15 @@ const UserAdmin = () => {
               <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
               <p className="mt-1 text-sm text-gray-500">Get started by creating a new user account.</p>
             </div>
-          )}
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search size={32} className="text-gray-400" />
+              </div>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No matching users</h3>
+              <p className="mt-1 text-sm text-gray-500">Try adjusting your filters or search terms.</p>
+            </div>
+          ) : null}
         </div>
       ) : activeTab === 'dummy-users' ? (
         // Dummy Users Tab
@@ -1586,7 +1747,7 @@ const UserAdmin = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {getSortedData(dummyUsers).map((dummyUser) => (
+                {getSortedData(filteredDummyUsers).map((dummyUser) => (
                   <tr key={dummyUser.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="h-10 w-10 rounded-full bg-green-600 flex items-center justify-center text-white font-medium shadow-sm">
@@ -1702,7 +1863,7 @@ const UserAdmin = () => {
             </table>
           </div>
 
-          {dummyUsers.length === 0 && (
+          {dummyUsers.length === 0 ? (
             <div className="text-center py-12">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 0a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
@@ -1710,7 +1871,15 @@ const UserAdmin = () => {
               <h3 className="mt-2 text-sm font-medium text-gray-900">No dummy users found</h3>
               <p className="mt-1 text-sm text-gray-500">Get started by creating a new dummy user.</p>
             </div>
-          )}
+          ) : filteredDummyUsers.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search size={32} className="text-gray-400" />
+              </div>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No matching dummy users</h3>
+              <p className="mt-1 text-sm text-gray-500">Try adjusting your filters or search terms.</p>
+            </div>
+          ) : null}
         </div>
       ) : (
         // Deleted Users Tab
@@ -1721,82 +1890,107 @@ const UserAdmin = () => {
 
           {(deletedUsers.length > 0 || deletedDummyUsers.length > 0) ? (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                      onClick={() => handleSort('name')}
-                    >
-                      <div className="flex items-center">Name <span className="ml-1">{getSortIcon('name')}</span></div>
-                    </th>
-                    <th
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                      onClick={() => handleSort('email')}
-                    >
-                      <div className="flex items-center">Email <span className="ml-1">{getSortIcon('email')}</span></div>
-                    </th>
-                    <th
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                      onClick={() => handleSort('type')}
-                    >
-                      <div className="flex items-center">Type <span className="ml-1">{getSortIcon('type')}</span></div>
-                    </th>
-                    <th
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                      onClick={() => handleSort('deleted_at')}
-                    >
-                      <div className="flex items-center">Deleted At <span className="ml-1">{getSortIcon('deleted_at')}</span></div>
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {getSortedData([
-                    ...deletedUsers.map(u => ({ ...u, type: 'Real User' })),
-                    ...deletedDummyUsers.map(u => ({ ...u, type: 'Dummy User' }))
-                  ]).map((deletedUser) => (
-                    <tr key={`${deletedUser.type}-${deletedUser.id}`} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <div className={`h-10 w-10 rounded-full ${deletedUser.type === 'Real User' ? 'bg-gray-300' : 'bg-blue-300'} flex items-center justify-center`}>
-                              <span className={`text-sm font-medium ${deletedUser.type === 'Real User' ? 'text-gray-700' : 'text-white'}`}>
-                                {deletedUser.type === 'Real User'
-                                  ? deletedUser.username?.substring(0, 2).toUpperCase()
-                                  : (deletedUser.avatar || deletedUser.name?.substring(0, 2).toUpperCase())}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {deletedUser.type === 'Real User' ? deletedUser.username : deletedUser.name}
-                            </div>
-                            {deletedUser.type === 'Dummy User' && (
-                              <div className="text-sm text-gray-500 dark:text-gray-400">{deletedUser.username}</div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{deletedUser.email}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{deletedUser.type}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {new Date(deletedUser.deleted_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          className="text-green-600 hover:text-green-900 text-xs bg-green-50 px-2 py-1 rounded hover:bg-green-100"
-                          onClick={() => deletedUser.type === 'Real User' 
-                            ? restoreRealUser(deletedUser.id, deletedUser.username) 
-                            : restoreDummyUser(deletedUser.id, deletedUser.name)}
-                        >
-                          Restore
-                        </button>
-                      </td>
+              {filteredDeletedUsers.length > 0 ? (
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('name')}
+                      >
+                        <div className="flex items-center">Name <span className="ml-1">{getSortIcon('name')}</span></div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('email')}
+                      >
+                        <div className="flex items-center">Email <span className="ml-1">{getSortIcon('email')}</span></div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('type')}
+                      >
+                        <div className="flex items-center">Type <span className="ml-1">{getSortIcon('type')}</span></div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('termination_date')}
+                      >
+                        <div className="flex items-center">Termination Date <span className="ml-1">{getSortIcon('termination_date')}</span></div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('deleted_at')}
+                      >
+                        <div className="flex items-center">Deleted At <span className="ml-1">{getSortIcon('deleted_at')}</span></div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {getSortedData(filteredDeletedUsers).map((deletedUser) => (
+                      <tr key={`${deletedUser.type}-${deletedUser.id}`} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <div className={`h-10 w-10 rounded-full ${deletedUser.type === 'Real User' ? 'bg-gray-300' : 'bg-blue-300'} flex items-center justify-center`}>
+                                <span className={`text-sm font-medium ${deletedUser.type === 'Real User' ? 'text-gray-700' : 'text-white'}`}>
+                                  {deletedUser.type === 'Real User'
+                                    ? deletedUser.username?.substring(0, 2).toUpperCase()
+                                    : (deletedUser.avatar || deletedUser.name?.substring(0, 2).toUpperCase())}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                {deletedUser.type === 'Real User' ? deletedUser.username : deletedUser.name}
+                              </div>
+                              {deletedUser.type === 'Dummy User' && (
+                                <div className="text-sm text-gray-500 dark:text-gray-400">{deletedUser.username}</div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{deletedUser.email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{deletedUser.type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {deletedUser.termination_date ? new Date(deletedUser.termination_date).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {new Date(deletedUser.deleted_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditUser(deletedUser, deletedUser.type === 'Dummy User')}
+                              className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                              title="Edit Deleted User"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              className="text-green-600 hover:text-green-900 text-xs bg-green-50 px-2 py-1 rounded hover:bg-green-100"
+                              onClick={() => deletedUser.type === 'Real User' 
+                                ? restoreRealUser(deletedUser.id, deletedUser.username) 
+                                : restoreDummyUser(deletedUser.id, deletedUser.name)}
+                            >
+                              Restore
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Search size={32} className="text-gray-400" />
+                  </div>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No matching deleted users</h3>
+                  <p className="mt-1 text-sm text-gray-500">Try adjusting your filters or search terms.</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="px-6 py-12 text-center">

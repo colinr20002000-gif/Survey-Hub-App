@@ -8,11 +8,12 @@ const UserContactsPage = () => {
     const { users: allUsersRaw, loading: usersLoading } = useUsers();
     const [competencies, setCompetencies] = useState([]);
 
-    // Filter out Subcontractor and Track Handback departments
+    // Filter out Subcontractor and Track Handback departments, and users with a termination date
     const allUsers = useMemo(() => {
         return allUsersRaw.filter(user => {
             const dept = user.department?.toLowerCase() || '';
-            return dept !== 'subcontractor' && dept !== 'track handback';
+            const isTerminated = !!user.termination_date;
+            return dept !== 'subcontractor' && dept !== 'track handback' && !isTerminated;
         });
     }, [allUsersRaw]);
 
