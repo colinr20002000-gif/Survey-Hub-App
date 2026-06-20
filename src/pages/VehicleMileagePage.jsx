@@ -1318,7 +1318,7 @@ const VehicleMileagePage = () => {
                                             return (
                                                 <tr 
                                                     key={item.id} 
-                                                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                                                    className="cursor-pointer transition-colors"
                                                     onClick={() => handleSelectVehicle(item.id)}
                                                 >
                                                     <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap text-center">
@@ -1361,9 +1361,9 @@ const VehicleMileagePage = () => {
                                                     </td>
                                                     <td className="px-4 py-4 text-center whitespace-nowrap">
                                                         {item.overdueList.length > 0 ? (
-                                                            <span className="inline-flex flex-col items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 whitespace-nowrap">
                                                                 <span>{item.overdueList.length > 1 ? `${item.overdueList.length} Pending` : 'Overdue'}</span>
-                                                                <span className="text-[10px] opacity-75">{item.overdueList[0]}</span>
+                                                                <span className="text-[10px] opacity-75">({item.overdueList[0]})</span>
                                                             </span>
                                                         ) : (
                                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
@@ -1673,7 +1673,7 @@ const VehicleMileagePage = () => {
                                                 [...selectedMonthGroup.logs]
                                                 .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort newest top
                                                 .map(log => (
-                                                    <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                                    <tr key={log.id}>
                                                         <td className="px-4 py-3 whitespace-nowrap font-medium">{new Date(log.date).getDate()} {new Date(log.date).toLocaleDateString('default', { month: 'short' })}</td>
                                                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{log.start_location}</td>
                                                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{log.end_location}</td>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Input, Modal, ConfirmationModal, Combobox, Card } from '../components/ui';
-import { Car, Plus, Search, Calendar, AlertTriangle, CheckCircle, Clock, FileText, ChevronRight, Filter, Loader2, Eye, X, Camera, Upload, Trash2, Download, ZoomIn, FileImage, Wand2 } from 'lucide-react';
+import { Car, Plus, Search, Calendar, AlertTriangle, CheckCircle, Clock, FileText, ChevronRight, Filter, Loader2, Eye, X, Camera, Upload, Trash2, Download, ZoomIn, FileImage, Wand2, History, Settings } from 'lucide-react';
 import { exportAsImage, exportAsPDF } from '../utils/inspectionExport';
 import { hasPermission } from '../utils/privileges';
 import InspectionExportWizard from '../components/Vehicles/InspectionExportWizard';
@@ -32,6 +32,7 @@ const VehicleMileageLogsPage = () => {
     const summaryItemsPerPage = 20;
     const [exportingInspection, setExportingInspection] = useState(null);
     const [showExportWizard, setShowExportWizard] = useState(false);
+    const [showActions, setShowActions] = useState(false);
 
     // Fetch vehicles from vehicles table
     const fetchVehicles = useCallback(async () => {
@@ -245,14 +246,12 @@ const VehicleMileageLogsPage = () => {
             filtered = filtered.filter(inspection => inspection.user_id === filterUser);
         }
 
-        // Apply status filter (based on defects)
+        // Apply status filter (based on defects/passed)
         if (filterStatus !== 'all') {
             if (filterStatus === 'defects') {
                 filtered = filtered.filter(inspection => inspection.has_defects);
-            } else {
-                // For other status filters, we need to check vehicle status
-                // This is more complex, so for now we'll just filter by defects
-                // You can extend this later for overdue/upcoming/compliant
+            } else if (filterStatus === 'passed') {
+                filtered = filtered.filter(inspection => !inspection.has_defects);
             }
         }
 
@@ -858,6 +857,18 @@ const VehicleMileageLogsPage = () => {
                         </div>
                     </div>
                     <div className="flex items-center space-x-2">
+                        <Button
+                            variant={showActions ? "solid" : "outline"}
+                            onClick={() => setShowActions(!showActions)}
+                            className={`flex items-center space-x-2 ${
+                                showActions 
+                                    ? 'bg-orange-500 hover:bg-orange-600 text-white' 
+                                    : 'border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20'
+                            }`}
+                        >
+                            <Settings className="w-4 h-4" />
+                            <span>{showActions ? 'Hide Actions' : 'Manage'}</span>
+                        </Button>
                         {hasPermission(user?.privilege, 'EXPORT_VEHICLE_INSPECTIONS') && (
                             <>
                                 <Button
@@ -916,7 +927,7 @@ const VehicleMileageLogsPage = () => {
                 <div className="bg-white dark:bg-gray-800 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         {/* Filters */}
-                        <div className="flex flex-row gap-2 md:gap-3 w-full md:w-auto">
+                        <div className="flex flex-row flex-wrap gap-2 md:gap-3 w-full md:w-auto">
                             <div className="flex items-center space-x-2 w-full md:w-auto">
                                 <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
                                 <Combobox 
@@ -938,27 +949,71 @@ const VehicleMileageLogsPage = () => {
                                 <Filter className="w-5 h-5 text-gray-400 hidden sm:block" />
                                 <Combobox 
                                     value={filterStatus === 'all' ? 'All Status' : {
-                                        'compliant': 'Compliant',
-                                        'upcoming': 'Due Soon',
-                                        'overdue': 'Overdue',
-                                        'never': 'Never Inspected',
-                                        'defects': 'With Defects'
+                                        'passed': 'Passed',
+                                        'defects': 'Defects Found'
                                     }[filterStatus] || 'All Status'} 
                                     onChange={(e) => {
                                         const map = {
                                             'All Status': 'all',
-                                            'Compliant': 'compliant',
-                                            'Due Soon': 'upcoming',
-                                            'Overdue': 'overdue',
-                                            'Never Inspected': 'never',
-                                            'With Defects': 'defects'
+                                            'Passed': 'passed',
+                                            'Defects Found': 'defects'
                                         };
                                         setFilterStatus(map[e.target.value] || 'all');
                                     }} 
-                                    options={['All Status', 'Compliant', 'Due Soon', 'Overdue', 'Never Inspected', 'With Defects']}
+                                    options={['All Status', 'Passed', 'Defects Found']}
                                     className="flex-1 md:w-48"
                                 />
                             </div>
+                            <div className="flex items-center space-x-2 w-full md:w-auto">
+                                <Calendar className="w-5 h-5 text-gray-400 hidden sm:block" />
+                                <Combobox
+                                    value={{
+                                        'all': 'All Time',
+                                        'today': 'Today',
+                                        'week': 'Last 7 Days',
+                                        'month': 'Last 30 Days',
+                                        'custom': 'Custom Range'
+                                    }[summaryDateFilter] || 'All Time'}
+                                    onChange={(e) => {
+                                        const map = {
+                                            'All Time': 'all',
+                                            'Today': 'today',
+                                            'Last 7 Days': 'week',
+                                            'Last 30 Days': 'month',
+                                            'Custom Range': 'custom'
+                                        };
+                                        setSummaryDateFilter(map[e.target.value] || 'all');
+                                        setSummaryCurrentPage(1);
+                                    }}
+                                    options={['All Time', 'Today', 'Last 7 Days', 'Last 30 Days', 'Custom Range']}
+                                    className="flex-1 md:w-48"
+                                />
+                            </div>
+
+                            {summaryDateFilter === 'custom' && (
+                                <div className="flex gap-2 w-full md:w-auto">
+                                    <Input
+                                        type="date"
+                                        value={summaryStartDate}
+                                        onChange={(e) => {
+                                            setSummaryStartDate(e.target.value);
+                                            setSummaryCurrentPage(1);
+                                        }}
+                                        placeholder="Start Date"
+                                        className="w-full sm:w-auto"
+                                    />
+                                    <Input
+                                        type="date"
+                                        value={summaryEndDate}
+                                        onChange={(e) => {
+                                            setSummaryEndDate(e.target.value);
+                                            setSummaryCurrentPage(1);
+                                        }}
+                                        placeholder="End Date"
+                                        className="w-full sm:w-auto"
+                                    />
+                                </div>
+                            )}
                             <Button
                                 onClick={() => setFilterUser(filterUser === user.id ? 'all' : user.id)}
                                 className={`flex items-center space-x-2 whitespace-nowrap ${filterUser === user.id ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-700'}`}
@@ -1024,144 +1079,11 @@ const VehicleMileageLogsPage = () => {
                             </Button>
                         )}
                     </div>
-                </div>
-
-                {/* Vehicle Status Table */}
-                <div className="p-4 md:p-6">
-                    <Card className="overflow-hidden mb-6">
-                        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Vehicle Status Summary</h2>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left font-medium tracking-wider">Vehicle</th>
-                                        <th className="px-4 py-3 text-left font-medium tracking-wider">Registration</th>
-                                        <th className="px-4 py-3 text-left font-medium tracking-wider">Assigned To</th>
-                                        <th className="px-4 py-3 text-left font-medium tracking-wider">Last Inspection</th>
-                                        <th className="px-4 py-3 text-left font-medium tracking-wider">Next Due</th>
-                                        <th className="px-4 py-3 text-left font-medium tracking-wider">Status</th>
-                                        <th className="px-4 py-3 text-right font-medium tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                    {filteredVehicles.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="7" className="px-4 py-8 text-center text-gray-500">No vehicles found</td>
-                                        </tr>
-                                    ) : (
-                                        filteredVehicles.map(vehicle => {
-                                            const status = getVehicleStatus(vehicle.id);
-                                            const badge = getStatusBadge(status.status);
-                                            const assignedUser = getAssignedUser(vehicle.id);
-
-                                            return (
-                                                <tr key={vehicle.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                                    <td className="px-4 py-4 whitespace-nowrap font-medium text-gray-900 dark:text-white">{vehicle.name}</td>
-                                                    <td className="px-4 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">{vehicle.serial_number || '-'}</td>
-                                                    <td className="px-4 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">{assignedUser?.name || 'Unassigned'}</td>
-                                                    <td className="px-4 py-4 whitespace-nowrap text-gray-900 dark:text-white">
-                                                        {status.lastInspection ? formatDate(status.lastInspection.inspection_date) : 'Never'}
-                                                    </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap text-gray-900 dark:text-white">
-                                                        {status.nextInspectionDate ? formatDate(status.nextInspectionDate) : '-'}
-                                                    </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                        <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold ${badge.color}`}>
-                                                            {badge.icon}
-                                                            <span>{badge.text}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap text-right">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => handleViewHistory(vehicle)}
-                                                            className="flex items-center gap-1 ml-auto"
-                                                        >
-                                                            <Eye className="w-3 h-3" />
-                                                            History
-                                                        </Button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-                </div>
+                 </div>
 
                 {/* Summary Table */}
                 <div className="p-4 md:p-6">
-                    <Card className="overflow-hidden">
-                        <div className="p-4 md:p-6 border-b border-gray-200 dark:border-gray-700">
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                <div>
-                                    <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                                        <FileText className="w-5 h-5 md:w-6 md:h-6 mr-2 text-orange-500" />
-                                        Inspection Summary
-                                    </h2>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                        Complete list of all vehicle inspections
-                                    </p>
-                                </div>
-
-                                {/* Date Filter */}
-                                <div className="flex flex-col sm:flex-row gap-2">
-                                    <Combobox
-                                        value={{
-                                            'all': 'All Time',
-                                            'today': 'Today',
-                                            'week': 'Last 7 Days',
-                                            'month': 'Last 30 Days',
-                                            'custom': 'Custom Range'
-                                        }[summaryDateFilter] || 'All Time'}
-                                        onChange={(e) => {
-                                            const map = {
-                                                'All Time': 'all',
-                                                'Today': 'today',
-                                                'Last 7 Days': 'week',
-                                                'Last 30 Days': 'month',
-                                                'Custom Range': 'custom'
-                                            };
-                                            setSummaryDateFilter(map[e.target.value] || 'all');
-                                            setSummaryCurrentPage(1);
-                                        }}
-                                        options={['All Time', 'Today', 'Last 7 Days', 'Last 30 Days', 'Custom Range']}
-                                        className="w-full sm:w-auto"
-                                    />
-
-                                    {summaryDateFilter === 'custom' && (
-                                        <div className="flex gap-2">
-                                            <Input
-                                                type="date"
-                                                value={summaryStartDate}
-                                                onChange={(e) => {
-                                                    setSummaryStartDate(e.target.value);
-                                                    setSummaryCurrentPage(1);
-                                                }}
-                                                placeholder="Start Date"
-                                                className="w-full sm:w-auto"
-                                            />
-                                            <Input
-                                                type="date"
-                                                value={summaryEndDate}
-                                                onChange={(e) => {
-                                                    setSummaryEndDate(e.target.value);
-                                                    setSummaryCurrentPage(1);
-                                                }}
-                                                placeholder="End Date"
-                                                className="w-full sm:w-auto"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden max-w-5xl mx-auto">
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
@@ -1178,9 +1100,6 @@ const VehicleMileageLogsPage = () => {
                                         <th className="px-4 md:px-6 py-3 text-left font-medium tracking-wider">
                                             Status
                                         </th>
-                                        <th className="px-4 md:px-6 py-3 text-left font-medium tracking-wider">
-                                            Overdue
-                                        </th>
                                         <th className="px-4 md:px-6 py-3 text-right font-medium tracking-wider">
                                             Actions
                                         </th>
@@ -1189,7 +1108,7 @@ const VehicleMileageLogsPage = () => {
                                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                     {paginatedSummaryInspections.length === 0 ? (
                                         <tr>
-                                            <td colSpan="6" className="px-4 md:px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                            <td colSpan="5" className="px-4 md:px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                                                 <FileText className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                                                 <p className="text-sm">No inspections found</p>
                                             </td>
@@ -1202,7 +1121,7 @@ const VehicleMileageLogsPage = () => {
                                                 : { text: 'Passed', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: <CheckCircle className="w-3 h-3" /> };
 
                                             return (
-                                                <tr key={inspection.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                <tr key={inspection.id} className="transition-colors">
                                                     <td className="px-4 md:px-6 py-4 whitespace-nowrap">
                                                         <div className="flex items-center text-sm text-gray-900 dark:text-white">
                                                             <Calendar className="w-4 h-4 mr-2 text-gray-400" />
@@ -1238,19 +1157,6 @@ const VehicleMileageLogsPage = () => {
                                                             <span>{statusBadge.text}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-4 md:px-6 py-4 whitespace-nowrap">
-                                                        {wasInspectionOverdue(inspection) ? (
-                                                            <div className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                                                                <AlertTriangle className="w-3 h-3" />
-                                                                <span>Yes</span>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                                                <CheckCircle className="w-3 h-3" />
-                                                                <span>No</span>
-                                                            </div>
-                                                        )}
-                                                    </td>
                                                     <td className="px-4 md:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         <div className="flex items-center justify-end space-x-2">
                                                             <Button
@@ -1262,23 +1168,37 @@ const VehicleMileageLogsPage = () => {
                                                                 <Eye className="w-4 h-4" />
                                                                 <span className="hidden sm:inline">View</span>
                                                             </Button>
-                                                            {hasPermission(user?.privilege, 'EXPORT_VEHICLE_INSPECTIONS') && (
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => handleQuickExport(inspection)}
-                                                                    disabled={exportingInspection?.id === inspection.id}
-                                                                    className="flex items-center space-x-1"
-                                                                >
-                                                                    {exportingInspection?.id === inspection.id ? (
-                                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                                    ) : (
-                                                                        <Download className="w-4 h-4" />
+                                                            {showActions && (
+                                                                <>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => handleViewHistory(inspection.vehicles)}
+                                                                        disabled={!inspection.vehicles}
+                                                                        className="flex items-center space-x-1"
+                                                                    >
+                                                                        <History className="w-4 h-4" />
+                                                                        <span className="hidden sm:inline">History</span>
+                                                                    </Button>
+                                                                    {hasPermission(user?.privilege, 'EXPORT_VEHICLE_INSPECTIONS') && (
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => handleQuickExport(inspection)}
+                                                                            disabled={exportingInspection?.id === inspection.id}
+                                                                            className="flex items-center space-x-1"
+                                                                        >
+                                                                            {exportingInspection?.id === inspection.id ? (
+                                                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                                            ) : (
+                                                                                <Download className="w-4 h-4" />
+                                                                            )}
+                                                                            <span className="hidden sm:inline">
+                                                                                {exportingInspection?.id === inspection.id ? 'Exporting...' : 'Download'}
+                                                                            </span>
+                                                                        </Button>
                                                                     )}
-                                                                    <span className="hidden sm:inline">
-                                                                        {exportingInspection?.id === inspection.id ? 'Exporting...' : 'Download'}
-                                                                    </span>
-                                                                </Button>
+                                                                </>
                                                             )}
                                                         </div>
                                                     </td>
@@ -1344,7 +1264,7 @@ const VehicleMileageLogsPage = () => {
                                 </div>
                             </div>
                         )}
-                    </Card>
+                    </div>
                 </div>
             </div>
 
