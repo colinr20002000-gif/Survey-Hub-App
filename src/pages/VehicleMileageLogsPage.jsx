@@ -857,18 +857,20 @@ const VehicleMileageLogsPage = () => {
                         </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <Button
-                            variant={showActions ? "solid" : "outline"}
-                            onClick={() => setShowActions(!showActions)}
-                            className={`flex items-center space-x-2 ${
-                                showActions 
-                                    ? 'bg-orange-500 hover:bg-orange-600 text-white' 
-                                    : 'border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20'
-                            }`}
-                        >
-                            <Settings className="w-4 h-4" />
-                            <span>{showActions ? 'Hide Actions' : 'Manage'}</span>
-                        </Button>
+                        {hasPermission(user?.privilege, 'SHOW_VEHICLE_INSPECTIONS_MANAGE_BUTTON') && (
+                            <Button
+                                variant={showActions ? "solid" : "outline"}
+                                onClick={() => setShowActions(!showActions)}
+                                className={`flex items-center space-x-2 ${
+                                    showActions 
+                                        ? 'bg-orange-500 hover:bg-orange-600 text-white' 
+                                        : 'border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20'
+                                }`}
+                            >
+                                <Settings className="w-4 h-4" />
+                                <span>{showActions ? 'Hide Actions' : 'Manage'}</span>
+                            </Button>
+                        )}
                         {hasPermission(user?.privilege, 'EXPORT_VEHICLE_INSPECTIONS') && (
                             <>
                                 <Button

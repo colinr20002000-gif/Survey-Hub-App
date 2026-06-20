@@ -31,7 +31,7 @@ const CATEGORY_DISPLAY_ORDER = [
     'Equipment - Assignments',
     'Equipment - Register',
     'Equipment - Check & Adjust',
-    'Vehicles - Vehicle Management',
+    'Vehicles - Vehicle Tracker',
     'Vehicles - Vehicle Inspection',
     'Vehicles - Mileage Log',
     'Delivery - To Do List',
