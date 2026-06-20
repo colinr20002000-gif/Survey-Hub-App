@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, Button, Select, Input, Modal, ConfirmationModal, Combobox } from '../components/ui';
-import { Car, Plus, Search, Calendar, FileText, Filter, Loader2, Trash2, Edit, Download, ChevronRight, ArrowLeft, Wand2, RotateCcw } from 'lucide-react';
+import { Car, Plus, Search, Calendar, FileText, Filter, Loader2, Trash2, Edit, Download, ChevronRight, ArrowLeft, Wand2, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateXlsx } from '../utils/xlsxGenerator';
+import { getDepartmentColor } from '../utils/avatarColors';
 
 const VehicleMileagePage = () => {
     const { user } = useAuth();
@@ -21,6 +22,9 @@ const VehicleMileagePage = () => {
     // View state
     const [viewMode, setViewMode] = useState('vehicle_list'); // 'vehicle_list', 'summary', 'detail'
     const [selectedMonthGroup, setSelectedMonthGroup] = useState(null); // { vehicleId, monthKey, monthLabel, vehicleName, logs }
+
+    // Sorting state
+    const [sortConfig, setSortConfig] = useState({ key: 'assignedUser', direction: 'ascending' });
 
     // Filter state
     const [filterVehicle, setFilterVehicle] = useState('all');
@@ -135,14 +139,14 @@ const VehicleMileagePage = () => {
             // 3. Fetch Users (Real + Dummy)
             const { data: realUsers, error: realUsersError } = await supabase
                 .from('users')
-                .select('id, name')
+                .select('id, name, department')
                 .is('deleted_at', null);
             
             if (realUsersError) throw realUsersError;
 
             const { data: dummyUsers, error: dummyUsersError } = await supabase
                 .from('dummy_users')
-                .select('id, name')
+                .select('id, name, team_role')
                 .eq('is_active', true)
                 .is('deleted_at', null);
 
@@ -150,8 +154,8 @@ const VehicleMileagePage = () => {
 
             // Combine and index for fast lookup
             const combinedUsers = [
-                ...(realUsers || []),
-                ...(dummyUsers || [])
+                ...(realUsers || []).map(u => ({ ...u, isDummy: false })),
+                ...(dummyUsers || []).map(u => ({ ...u, isDummy: true, department: u.team_role }))
             ];
             setUsersList(combinedUsers);
 
@@ -327,6 +331,151 @@ const VehicleMileagePage = () => {
 
         return Object.values(groups).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
     }, [allLogs, filterMonth]);
+
+    const requestSort = (key) => {
+        let direction = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIndicator = (key) => {
+        if (sortConfig.key !== key) return <ArrowUpDown className="w-3.5 h-3.5 ml-1 text-orange-200" />;
+        return sortConfig.direction === 'ascending' 
+            ? <ArrowUp className="w-3.5 h-3.5 ml-1 text-white" /> 
+            : <ArrowDown className="w-3.5 h-3.5 ml-1 text-white" />;
+    };
+
+    // Memoized vehicles table data with pre-calculated metrics for filtering and sorting
+    const processedVehiclesData = useMemo(() => {
+        return vehicles.map(vehicle => {
+            // Get logs for this vehicle
+            const vehicleLogs = allLogs.filter(l => l.vehicle_id === vehicle.id);
+            const journeysCount = vehicleLogs.length;
+            
+            // Calculate unique monthly logs (YYYY-MM)
+            const months = new Set(vehicleLogs.map(l => {
+                const d = new Date(l.date);
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            }));
+            const monthlyLogsCount = months.size;
+
+            // Determine latest status
+            const today = new Date();
+            const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+            const latestStatus = getMonthStatus(vehicle.id, currentMonthKey);
+            
+            // Get last submitted month string
+            const lastSubmitted = getLastSubmittedMonth(vehicle.id);
+            
+            // Get overdue status list
+            const overdueList = getOverdueStatus(vehicle.id);
+
+            // Find assigned user
+            const assignment = assignments.find(a => a.vehicle_id === vehicle.id);
+            let assignedUser = 'Unassigned';
+            let assignedUserId = null;
+            let assignedUserDepartment = null;
+            if (assignment) {
+                assignedUserId = assignment.user_id;
+                const userObj = usersList.find(u => u.id === assignment.user_id);
+                if (userObj) {
+                    assignedUser = userObj.name;
+                    assignedUserDepartment = userObj.department;
+                }
+            }
+
+            // Get current mileage (from latest log)
+            const sortedVehicleLogs = [...vehicleLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
+            const currentMileage = sortedVehicleLogs.length > 0 ? sortedVehicleLogs[0].end_mileage : 0;
+
+            // Determine sorting value for Last Submitted
+            const submittedLogs = monthlyLogStatuses
+                .filter(l => l.vehicle_id === vehicle.id && l.status === 'submitted')
+                .sort((a, b) => {
+                    if (a.year !== b.year) return b.year - a.year;
+                    return b.month - a.month;
+                });
+            const lastSubmittedSortVal = submittedLogs.length > 0 
+                ? submittedLogs[0].year * 12 + submittedLogs[0].month 
+                : 0;
+
+            return {
+                id: vehicle.id,
+                name: vehicle.name,
+                serial_number: vehicle.serial_number || '',
+                currentMileage,
+                assignedUser,
+                assignedUserId,
+                assignedUserDepartment,
+                monthlyLogsCount,
+                journeysCount,
+                lastSubmitted,
+                lastSubmittedSortVal,
+                overdueList,
+                overdueCount: overdueList.length,
+            };
+        });
+    }, [vehicles, allLogs, assignments, usersList, monthlyLogStatuses]);
+
+    // Filtered and sorted vehicles list
+    const filteredAndSortedVehicles = useMemo(() => {
+        let data = processedVehiclesData.filter(item => {
+            // 1. Vehicle Multi-Select Filter
+            if (selectedVehicleIds.length > 0 && !selectedVehicleIds.includes(item.id)) {
+                return false;
+            }
+
+            // 2. User Multi-Select Filter
+            if (selectedUserIds.length > 0) {
+                if (!item.assignedUserId || !selectedUserIds.includes(item.assignedUserId)) {
+                    return false;
+                }
+            }
+
+            // 3. My Vehicles Filter (Quick Filter)
+            if (myVehiclesFilter) {
+                if (item.assignedUserId !== user.id) return false;
+            }
+
+            // 4. Overdue Status Filter
+            if (filterOverdue !== 'all') {
+                if (filterOverdue === 'overdue' && item.overdueCount === 0) return false;
+                if (filterOverdue === 'up_to_date' && item.overdueCount > 0) return false;
+            }
+
+            return true;
+        });
+
+        if (sortConfig.key) {
+            data.sort((a, b) => {
+                if (sortConfig.key === 'assignedUser') {
+                    const aIsUnassigned = a.assignedUser === 'Unassigned';
+                    const bIsUnassigned = b.assignedUser === 'Unassigned';
+                    
+                    if (aIsUnassigned && !bIsUnassigned) return 1; // Unassigned always goes to bottom
+                    if (!aIsUnassigned && bIsUnassigned) return -1; // Unassigned always goes to bottom
+                    if (aIsUnassigned && bIsUnassigned) return 0;
+                }
+
+                let aValue = a[sortConfig.key];
+                let bValue = b[sortConfig.key];
+
+                // Handle string comparisons case-insensitively
+                if (typeof aValue === 'string') {
+                    aValue = aValue.toLowerCase();
+                    bValue = bValue.toLowerCase();
+                }
+
+                if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+                if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        return data;
+    }, [processedVehiclesData, selectedVehicleIds, selectedUserIds, myVehiclesFilter, filterOverdue, sortConfig, user.id]);
 
     const handleSelectVehicle = (vehicleId) => {
         setFilterVehicle(vehicleId);
@@ -862,91 +1011,94 @@ const VehicleMileagePage = () => {
         <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
             {/* Header */}
             <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-2 md:py-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center space-x-3">
-                        {viewMode === 'summary' && (
-                            <button onClick={handleBackToVehicles} className="mr-2 p-1 hover:bg-gray-100 rounded-full dark:hover:bg-gray-700">
-                                <ArrowLeft className="w-5 h-5 text-gray-500" />
-                            </button>
-                        )}
-                        {viewMode === 'detail' && (
-                            <button onClick={handleCloseMonth} className="mr-2 p-1 hover:bg-gray-100 rounded-full dark:hover:bg-gray-700">
-                                <ArrowLeft className="w-5 h-5 text-gray-500" />
-                            </button>
-                        )}
-                        <Car className="w-6 h-6 md:w-8 md:h-8 text-orange-500" />
-                        <div>
-                            <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex flex-wrap items-center gap-2">
-                                {viewMode === 'detail' ? (
-                                    <>
-                                        <span className="whitespace-nowrap">Mileage: {selectedMonthGroup?.monthLabel}</span>
-                                        <span className={`px-2 py-0.5 text-xs rounded-full ${
-                                            selectedMonthGroup?.status === 'submitted' 
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
-                                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                                        }`}>
-                                            {selectedMonthGroup?.status === 'submitted' ? 'Submitted' : 'Draft'}
-                                        </span>
-                                    </>
-                                ) : 
-                                 viewMode === 'summary' ? `Logs: ${vehicles.find(v => v.id === filterVehicle)?.name || 'Vehicle'}` : 
-                                 'Mileage Logs'}
-                            </h1>
-                            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
-                                {viewMode === 'detail' ? `${selectedMonthGroup?.vehicleName} (${selectedMonthGroup?.serialNumber})` : 
-                                 viewMode === 'summary' ? 'Monthly vehicle usage summaries' :
-                                 'Select a vehicle to view logs'}
-                            </p>
+                <div className="max-w-7xl mx-auto w-full">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center space-x-3">
+                            {viewMode === 'summary' && (
+                                <button onClick={handleBackToVehicles} className="mr-2 p-1 hover:bg-gray-100 rounded-full dark:hover:bg-gray-700">
+                                    <ArrowLeft className="w-5 h-5 text-gray-500" />
+                                </button>
+                            )}
+                            {viewMode === 'detail' && (
+                                <button onClick={handleCloseMonth} className="mr-2 p-1 hover:bg-gray-100 rounded-full dark:hover:bg-gray-700">
+                                    <ArrowLeft className="w-5 h-5 text-gray-500" />
+                                </button>
+                            )}
+                            <Car className="w-6 h-6 md:w-8 md:h-8 text-orange-500" />
+                            <div>
+                                <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex flex-wrap items-center gap-2">
+                                    {viewMode === 'detail' ? (
+                                        <>
+                                            <span className="whitespace-nowrap">Mileage: {selectedMonthGroup?.monthLabel}</span>
+                                            <span className={`px-2 py-0.5 text-xs rounded-full ${
+                                                selectedMonthGroup?.status === 'submitted' 
+                                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
+                                                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                                            }`}>
+                                                {selectedMonthGroup?.status === 'submitted' ? 'Submitted' : 'Draft'}
+                                            </span>
+                                        </>
+                                    ) : 
+                                     viewMode === 'summary' ? `Logs: ${vehicles.find(v => v.id === filterVehicle)?.name || 'Vehicle'}` : 
+                                     'Mileage Logs'}
+                                </h1>
+                                <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
+                                    {viewMode === 'detail' ? `${selectedMonthGroup?.vehicleName} (${selectedMonthGroup?.serialNumber})` : 
+                                     viewMode === 'summary' ? 'Monthly vehicle usage summaries' :
+                                     'Select a vehicle to view logs'}
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        {viewMode === 'detail' && selectedMonthGroup?.status !== 'submitted' && can('SHOW_MILEAGE_SUBMIT_LOG') && (
-                            <Button onClick={() => handleSubmitMonth(selectedMonthGroup)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2">
-                                <FileText className="w-4 h-4" /> Submit Log
-                            </Button>
-                        )}
-                        {viewMode === 'detail' && selectedMonthGroup?.status === 'submitted' && can('SHOW_MILEAGE_SUBMIT_LOG') && (
-                            <Button onClick={() => handleUnsubmitMonth(selectedMonthGroup)} variant="outline" className="flex-1 md:flex-none flex items-center justify-center gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 py-2">
-                                <RotateCcw className="w-4 h-4" /> Unsubmit
-                            </Button>
-                        )}
-                        {viewMode === 'vehicle_list' && (
-                            <>
-                                <Button onClick={() => setShowSelectVehicleModal(true)} className="w-full md:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white py-2">
-                                    <Car className="w-4 h-4" /> Select Vehicle
+                        <div className="flex flex-wrap items-center gap-2">
+                            {viewMode === 'detail' && selectedMonthGroup?.status !== 'submitted' && can('SHOW_MILEAGE_SUBMIT_LOG') && (
+                                <Button onClick={() => handleSubmitMonth(selectedMonthGroup)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2">
+                                    <FileText className="w-4 h-4" /> Submit Log
                                 </Button>
-                                {can('SHOW_MILEAGE_BULK_EXPORT') && (
-                                    <Button onClick={() => setShowExportWizard(true)} variant="outline" className="w-full md:w-auto flex items-center justify-center gap-2 py-2">
-                                        <Wand2 className="w-4 h-4" /> Bulk Export
+                            )}
+                            {viewMode === 'detail' && selectedMonthGroup?.status === 'submitted' && can('SHOW_MILEAGE_SUBMIT_LOG') && (
+                                <Button onClick={() => handleUnsubmitMonth(selectedMonthGroup)} variant="outline" className="flex-1 md:flex-none flex items-center justify-center gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 py-2">
+                                    <RotateCcw className="w-4 h-4" /> Unsubmit
+                                </Button>
+                            )}
+                            {viewMode === 'vehicle_list' && (
+                                <>
+                                    <Button onClick={() => setShowSelectVehicleModal(true)} className="w-full md:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white py-2">
+                                        <Car className="w-4 h-4" /> Select Vehicle
                                     </Button>
-                                )}
-                            </>
-                        )}
-                        {viewMode === 'summary' && can('SHOW_MILEAGE_MANAGE_BUTTON') && (
-                            <Button 
-                                onClick={() => setIsManageMode(!isManageMode)} 
-                                variant={isManageMode ? "primary" : "outline"}
-                                className="w-full md:w-auto flex items-center justify-center gap-2 py-2"
-                            >
-                                <Edit className="w-4 h-4" /> {isManageMode ? 'Done' : 'Manage'}
-                            </Button>
-                        )}
-                        {viewMode === 'detail' && can('VIEW_VEHICLE_MILEAGE') && (
-                            <>
-                                <Button onClick={() => handleExportExcel(selectedMonthGroup)} variant="outline" className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2">
-                                    <FileText className="w-4 h-4" /> Excel
+                                    {can('SHOW_MILEAGE_BULK_EXPORT') && (
+                                        <Button onClick={() => setShowExportWizard(true)} variant="outline" className="w-full md:w-auto flex items-center justify-center gap-2 py-2">
+                                            <Wand2 className="w-4 h-4" /> Bulk Export
+                                        </Button>
+                                    )}
+                                </>
+                            )}
+                            {viewMode === 'summary' && can('SHOW_MILEAGE_MANAGE_BUTTON') && (
+                                <Button 
+                                    onClick={() => setIsManageMode(!isManageMode)} 
+                                    variant={isManageMode ? "primary" : "outline"}
+                                    className="w-full md:w-auto flex items-center justify-center gap-2 py-2"
+                                >
+                                    <Edit className="w-4 h-4" /> {isManageMode ? 'Done' : 'Manage'}
                                 </Button>
-                                <Button onClick={() => handleExportMonth(selectedMonthGroup)} variant="outline" className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2">
-                                    <Download className="w-4 h-4" /> PDF
-                                </Button>
-                            </>
-                        )}
+                            )}
+                            {viewMode === 'detail' && can('VIEW_VEHICLE_MILEAGE') && (
+                                <>
+                                    <Button onClick={() => handleExportExcel(selectedMonthGroup)} variant="outline" className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2">
+                                        <FileText className="w-4 h-4" /> Excel
+                                    </Button>
+                                    <Button onClick={() => handleExportMonth(selectedMonthGroup)} variant="outline" className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2">
+                                        <Download className="w-4 h-4" /> PDF
+                                    </Button>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-auto p-4 md:p-6">
+                <div className="max-w-7xl mx-auto w-full">
 
                 {/* Vehicle List View */}
                 {viewMode === 'vehicle_list' && (
@@ -1068,20 +1220,84 @@ const VehicleMileagePage = () => {
                             </div>
                         </div>
 
-                    <Card className="overflow-hidden">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="text-xs text-black dark:text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
+                                <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
                                     <tr>
-                                        <th className="px-6 py-3 font-bold">Vehicle Name</th>
-                                        <th className="px-6 py-3 font-bold">Registration</th>
-                                        <th className="px-6 py-3 font-bold text-center">Current Mileage</th>
-                                        <th className="px-6 py-3 font-bold">Assigned To</th>
-                                        <th className="px-6 py-3 font-bold text-center">Monthly Logs</th>
-                                        <th className="px-6 py-3 font-bold text-center">Total Journeys</th>
-                                        <th className="px-6 py-3 font-bold text-center">Last Submitted</th>
-                                        <th className="px-6 py-3 font-bold text-center">Overdue Status</th>
-                                        <th className="px-6 py-3 font-bold text-right">Actions</th>
+                                        <th 
+                                            className="px-4 py-4 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors text-center"
+                                            onClick={() => requestSort('name')}
+                                        >
+                                            <div className="flex items-center justify-center">
+                                                Vehicle Name
+                                                {getSortIndicator('name')}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="px-4 py-4 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors text-center"
+                                            onClick={() => requestSort('serial_number')}
+                                        >
+                                            <div className="flex items-center justify-center">
+                                                Registration
+                                                {getSortIndicator('serial_number')}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="px-4 py-4 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors text-center"
+                                            onClick={() => requestSort('currentMileage')}
+                                        >
+                                            <div className="flex items-center justify-center">
+                                                Current Mileage
+                                                {getSortIndicator('currentMileage')}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="px-4 py-4 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors text-center"
+                                            onClick={() => requestSort('assignedUser')}
+                                        >
+                                            <div className="flex items-center justify-center">
+                                                Assigned To
+                                                {getSortIndicator('assignedUser')}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="px-4 py-4 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors text-center"
+                                            onClick={() => requestSort('monthlyLogsCount')}
+                                        >
+                                            <div className="flex items-center justify-center">
+                                                Monthly Logs
+                                                {getSortIndicator('monthlyLogsCount')}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="px-4 py-4 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors text-center"
+                                            onClick={() => requestSort('journeysCount')}
+                                        >
+                                            <div className="flex items-center justify-center">
+                                                Total Journeys
+                                                {getSortIndicator('journeysCount')}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="px-4 py-4 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors text-center"
+                                            onClick={() => requestSort('lastSubmittedSortVal')}
+                                        >
+                                            <div className="flex items-center justify-center">
+                                                Last Submitted
+                                                {getSortIndicator('lastSubmittedSortVal')}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="px-4 py-4 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors text-center"
+                                            onClick={() => requestSort('overdueCount')}
+                                        >
+                                            <div className="flex items-center justify-center">
+                                                Overdue Status
+                                                {getSortIndicator('overdueCount')}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-4 text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
@@ -1093,125 +1309,61 @@ const VehicleMileagePage = () => {
                                                 </div>
                                             </td>
                                         </tr>
-                                    ) : vehicles.length === 0 ? (
+                                    ) : filteredAndSortedVehicles.length === 0 ? (
                                         <tr>
                                             <td colSpan="9" className="px-6 py-8 text-center text-gray-500">No vehicles found.</td>
                                         </tr>
                                     ) : (
-                                        vehicles.filter(vehicle => {
-                                            // 1. Vehicle Multi-Select Filter
-                                            if (selectedVehicleIds.length > 0 && !selectedVehicleIds.includes(vehicle.id)) {
-                                                return false;
-                                            }
-
-                                            // Find assigned user for this vehicle
-                                            const assignment = assignments.find(a => a.vehicle_id === vehicle.id);
-                                            const assignedUserId = assignment?.user_id;
-
-                                            // 2. User Multi-Select Filter
-                                            if (selectedUserIds.length > 0) {
-                                                if (!assignedUserId || !selectedUserIds.includes(assignedUserId)) {
-                                                    return false;
-                                                }
-                                            }
-
-                                            // 3. My Vehicles Filter (Quick Filter)
-                                            if (myVehiclesFilter) {
-                                                if (assignedUserId !== user.id) return false;
-                                            }
-
-                                            // 4. Overdue Status Filter
-                                            if (filterOverdue !== 'all') {
-                                                const overdueList = getOverdueStatus(vehicle.id);
-                                                if (filterOverdue === 'overdue' && overdueList.length === 0) return false;
-                                                if (filterOverdue === 'up_to_date' && overdueList.length > 0) return false;
-                                            }
-
-                                            return true;
-                                        }).map(vehicle => {
-                                            // Get logs for this vehicle
-                                            const vehicleLogs = allLogs.filter(l => l.vehicle_id === vehicle.id);
-                                            const journeysCount = vehicleLogs.length;
-                                            
-                                            // Calculate unique monthly logs (YYYY-MM)
-                                            const months = new Set(vehicleLogs.map(l => {
-                                                const d = new Date(l.date);
-                                                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                                            }));
-                                            const monthlyLogsCount = months.size;
-
-                                            // Determine latest status
-                                            // Find the status of the current month, or the latest submitted month
-                                            const today = new Date();
-                                            const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-                                            const latestStatus = getMonthStatus(vehicle.id, currentMonthKey);
-                                            
-                                            // Get last submitted month
-                                            const lastSubmitted = getLastSubmittedMonth(vehicle.id);
-                                            
-                                            // Get overdue status
-                                            const overdueList = getOverdueStatus(vehicle.id);
-
-                                            // Find assigned user
-                                            const assignment = assignments.find(a => a.vehicle_id === vehicle.id);
-                                            let assignedUser = 'Unassigned';
-                                            if (assignment) {
-                                                const userObj = usersList.find(u => u.id === assignment.user_id);
-                                                if (userObj) assignedUser = userObj.name;
-                                            }
-
-                                            // Get current mileage (from latest log)
-                                            // Sort logs by date descending to find the latest
-                                            const sortedVehicleLogs = [...vehicleLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
-                                            const currentMileage = sortedVehicleLogs.length > 0 ? sortedVehicleLogs[0].end_mileage : 0;
-
+                                        filteredAndSortedVehicles.map(item => {
                                             return (
                                                 <tr 
-                                                    key={vehicle.id} 
+                                                    key={item.id} 
                                                     className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                                                    onClick={() => handleSelectVehicle(vehicle.id)}
+                                                    onClick={() => handleSelectVehicle(item.id)}
                                                 >
-                                                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                                                        <div className="flex items-center gap-2">
+                                                    <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap text-center">
+                                                        <div className="flex items-center justify-center gap-2">
                                                             <Car className="w-4 h-4 text-orange-500" />
-                                                            {vehicle.name}
+                                                            {item.name}
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4 font-mono text-gray-600 dark:text-gray-300">{vehicle.serial_number}</td>
-                                                    <td className="px-6 py-4 text-center font-mono text-gray-900 dark:text-white font-medium">
-                                                        {currentMileage.toLocaleString()}
+                                                    <td className="px-4 py-4 font-mono text-gray-600 dark:text-gray-300 whitespace-nowrap text-center">{item.serial_number}</td>
+                                                    <td className="px-4 py-4 text-center font-mono text-gray-900 dark:text-white font-medium whitespace-nowrap">
+                                                        {item.currentMileage.toLocaleString()}
                                                     </td>
-                                                    <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                            assignedUser !== 'Unassigned' 
-                                                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' 
-                                                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                                                        }`}>
-                                                            {assignedUser}
-                                                        </span>
+                                                    <td className="px-4 py-4 text-gray-600 dark:text-gray-300 whitespace-nowrap text-center">
+                                                        {item.assignedUser !== 'Unassigned' ? (
+                                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold text-white shadow-sm ${getDepartmentColor(item.assignedUserDepartment)}`}>
+                                                                {item.assignedUser}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                                                {item.assignedUser}
+                                                            </span>
+                                                        )}
                                                     </td>
-                                                    <td className="px-6 py-4 text-center text-gray-900 dark:text-white font-medium">
-                                                        {monthlyLogsCount}
+                                                    <td className="px-4 py-4 text-center text-gray-900 dark:text-white font-medium whitespace-nowrap">
+                                                        {item.monthlyLogsCount}
                                                     </td>
-                                                    <td className="px-6 py-4 text-center">
+                                                    <td className="px-4 py-4 text-center whitespace-nowrap">
                                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                                            {journeysCount}
+                                                            {item.journeysCount}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-center">
+                                                    <td className="px-4 py-4 text-center whitespace-nowrap">
                                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                            lastSubmitted !== 'Never' 
+                                                            item.lastSubmitted !== 'Never' 
                                                                 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
                                                                 : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                                                         }`}>
-                                                            {lastSubmitted}
+                                                            {item.lastSubmitted}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        {overdueList.length > 0 ? (
+                                                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                                                        {item.overdueList.length > 0 ? (
                                                             <span className="inline-flex flex-col items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
-                                                                <span>{overdueList.length > 1 ? `${overdueList.length} Pending` : 'Overdue'}</span>
-                                                                <span className="text-[10px] opacity-75">{overdueList[0]}</span>
+                                                                <span>{item.overdueList.length > 1 ? `${item.overdueList.length} Pending` : 'Overdue'}</span>
+                                                                <span className="text-[10px] opacity-75">{item.overdueList[0]}</span>
                                                             </span>
                                                         ) : (
                                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
@@ -1219,15 +1371,15 @@ const VehicleMileagePage = () => {
                                                             </span>
                                                         )}
                                                     </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <div className="flex justify-end">
+                                                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                                                        <div className="flex justify-center">
                                                             <Button 
                                                                 variant="outline" 
                                                                 size="sm"
-                                                                className="hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400"
+                                                                className="hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400 whitespace-nowrap"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    handleSelectVehicle(vehicle.id);
+                                                                    handleSelectVehicle(item.id);
                                                                 }}
                                                             >
                                                                 View Logs <ChevronRight className="w-3 h-3 ml-1" />
@@ -1241,7 +1393,7 @@ const VehicleMileagePage = () => {
                                 </tbody>
                             </table>
                         </div>
-                    </Card>
+                    </div>
                     </>
                 )}
                 
@@ -1495,14 +1647,14 @@ const VehicleMileagePage = () => {
 
                         {/* Right Column: List of Journeys */}
                         <div className={`${can('MANAGE_VEHICLE_MILEAGE') ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-                            <Card className="overflow-hidden">
+                            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
                                 <div className="p-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center">
                                     <h3 className="font-bold text-gray-700 dark:text-gray-200">Trip Log</h3>
                                     <span className="text-sm text-gray-500">{selectedMonthGroup.logs.length} entries</span>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-left">
-                                        <thead className="text-xs text-black dark:text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
+                                        <thead className="text-xs text-white uppercase bg-orange-500 dark:bg-orange-600 border-b border-orange-600 dark:border-orange-800">
                                             <tr>
                                                 <th className="px-4 py-3">Date</th>
                                                 <th className="px-4 py-3">From</th>
@@ -1552,10 +1704,11 @@ const VehicleMileagePage = () => {
                                         )}
                                     </table>
                                 </div>
-                            </Card>
+                            </div>
                         </div>
                     </div>
                 )}
+                </div>
             </div>
 
             <ConfirmationModal

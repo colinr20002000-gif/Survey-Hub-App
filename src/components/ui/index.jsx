@@ -14,10 +14,12 @@ export const Card = ({ title, icon, children, className, ...props }) => (
         className={`bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden ${className}`}
         {...props}
     >
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
-            {icon}
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white ml-2">{title}</h3>
-        </div>
+        {(title || icon) && (
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
+                {icon}
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white ml-2">{title}</h3>
+            </div>
+        )}
         <div className="p-4">{children}</div>
     </div>
 );
