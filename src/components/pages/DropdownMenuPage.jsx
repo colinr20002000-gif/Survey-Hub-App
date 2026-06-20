@@ -395,7 +395,7 @@ const DropdownMenuPage = () => {
                             categories.map((category) => (
                                 <div
                                     key={category.id}
-                                    className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                                    className={`p-4 ${
                                         selectedCategory?.id === category.id ? 'bg-orange-50 dark:bg-orange-500/10 border-r-4 border-orange-500' : ''
                                     }`}
                                 >
@@ -507,7 +507,7 @@ const DropdownMenuPage = () => {
                                 </div>
                             ) : (
                                 items.map((item, index) => (
-                                    <div key={item.id} className="p-4 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <div key={item.id} className="p-4 flex justify-between items-center">
                                         <div className="flex-1 flex items-center gap-3">
                                             {isAdminOrSuperAdmin && (
                                                 <div className="flex flex-col gap-1">

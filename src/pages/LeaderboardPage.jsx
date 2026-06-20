@@ -446,7 +446,7 @@ const LeaderboardPage = () => {
                             </tr>
                         ) : (
                             data.map((entry, index) => (
-                                <tr key={index} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                <tr key={index} className="border-b dark:border-gray-700">
                                     <td className="px-6 py-4 font-medium text-center">
                                         {index + 1 === 1 && <span className="text-xl" title="1st Place">🥇</span>}
                                         {index + 1 === 2 && <span className="text-xl" title="2nd Place">🥈</span>}

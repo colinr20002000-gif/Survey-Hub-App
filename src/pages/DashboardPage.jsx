@@ -96,7 +96,7 @@ const DashboardPage = ({ onViewProject, setActiveTab }) => {
                     <Card title="Recent Projects" icon={<FolderKanban className="text-orange-500" />}>
                         <ul className="space-y-3">
                             {projects.slice(0, 4).map(p => (
-                                <li key={p.id} className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                <li key={p.id} className="flex justify-between items-center p-2 rounded-lg">
                                     <button onClick={() => onViewProject(p)} className="text-left w-full">
                                         <p className="font-semibold text-gray-700 dark:text-gray-200 hover:text-orange-500">{p.project_name}</p>
                                         <p className="text-sm text-gray-500 dark:text-gray-400">{p.project_number}</p>

@@ -1167,7 +1167,7 @@ const CheckAdjustPage = () => {
                                 </tr>
                             ) : (
                                 totalStationSummary.map((unit) => (
-                                    <tr key={unit.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <tr key={unit.id} className="border-b dark:border-gray-700">
                                         <td className="px-6 py-4">
                                             <div className="font-medium text-gray-900 dark:text-white">{unit.name}</div>
                                             <div className="text-xs text-gray-500">{unit.model} - {unit.serial_number}</div>
@@ -1241,7 +1241,7 @@ const CheckAdjustPage = () => {
                                 paginatedLogs.map(log => {
                                     const isOverdue = new Date(log.next_due_date) < new Date();
                                     return (
-                                        <tr key={log.id} className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${isOverdue ? 'border-l-4 border-l-red-500' : ''}`}>
+                                        <tr key={log.id} className={`border-b dark:border-gray-700 ${isOverdue ? 'border-l-4 border-l-red-500' : ''}`}>
                                             <td className="px-6 py-4">
                                                 {new Date(log.check_date).toLocaleDateString()} 
                                                 <span className="text-xs text-gray-400 block">

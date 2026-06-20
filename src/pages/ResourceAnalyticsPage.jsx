@@ -2081,7 +2081,7 @@ const ResourceAnalyticsPage = () => {
                             </thead>
                             <tbody>
                                 {paginatedProjects.map((project, index) => (
-                                    <tr key={project.projectNumber} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
+                                    <tr key={project.projectNumber} className="border-b dark:border-gray-700">
                                         <td className="px-4 py-3 font-medium text-blue-500">{project.projectNumber}</td>
                                         <td className="px-4 py-3">{project.projectName}</td>
                                         <td className="px-4 py-3">{project.client}</td>
@@ -2223,7 +2223,7 @@ const ResourceAnalyticsPage = () => {
                             </thead>
                             <tbody>
                                 {paginatedUsers.map((user, index) => (
-                                    <tr key={user.userId} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/20">
+                                    <tr key={user.userId} className="border-b dark:border-gray-700">
                                         <td className="px-4 py-3 font-medium">{user.name}</td>
                                         <td className="px-4 py-3">{user.department || '-'}</td>
                                         <td className="px-4 py-3 text-center">
@@ -2404,7 +2404,7 @@ const ResourceAnalyticsPage = () => {
                                                 return (
                                                     <tr
                                                         key={index}
-                                                        className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                                        className="border-b dark:border-gray-700"
                                                     >
                                                         <td className="px-4 py-3 font-medium">{allocation.allocation_date}</td>
                                                         <td className="px-4 py-3">{dayName}</td>

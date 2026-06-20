@@ -326,7 +326,7 @@ const UsefulLinksPage = () => {
                                 {/* Category Header */}
                                 <div 
                                     onClick={() => toggleCategory(category)}
-                                    className="px-6 py-4 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                                    className="px-6 py-4 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between cursor-pointer select-none transition-colors"
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className={`p-2 rounded-lg shadow-sm border transition-all ${isCollapsed ? 'bg-gray-100 border-gray-200 text-gray-500' : 'bg-white dark:bg-gray-700 border-gray-100 dark:border-gray-600 text-orange-500'}`}>
@@ -352,7 +352,7 @@ const UsefulLinksPage = () => {
                                                 <div
                                                     key={link.id}
                                                     onClick={() => window.open(link.url.startsWith('http') ? link.url : `https://${link.url}`, '_blank')}
-                                                    className="group relative p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all cursor-pointer flex items-center gap-4 sm:gap-6"
+                                                    className="group relative p-4 transition-all cursor-pointer flex items-center gap-4 sm:gap-6"
                                                 >
                                                     {/* Icon */}
                                                     <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm ${categoryColor} group-hover:scale-110 transition-transform duration-300`}>

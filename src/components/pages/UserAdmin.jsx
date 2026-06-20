@@ -1553,7 +1553,7 @@ const UserAdmin = () => {
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {getSortedData(filteredUsers).map((userItem) => (
-                  <tr key={userItem.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
+                  <tr key={userItem.id} className="transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`h-10 w-10 rounded-full ${getDepartmentColor(userItem.department)} flex items-center justify-center text-white font-medium shadow-sm`}>
                         {getAvatarText(userItem)}
@@ -1748,7 +1748,7 @@ const UserAdmin = () => {
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {getSortedData(filteredDummyUsers).map((dummyUser) => (
-                  <tr key={dummyUser.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
+                  <tr key={dummyUser.id} className="transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="h-10 w-10 rounded-full bg-green-600 flex items-center justify-center text-white font-medium shadow-sm">
                         {dummyUser.avatar || 'DU'}
@@ -1929,7 +1929,7 @@ const UserAdmin = () => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {getSortedData(filteredDeletedUsers).map((deletedUser) => (
-                      <tr key={`${deletedUser.type}-${deletedUser.id}`} className="hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
+                      <tr key={`${deletedUser.type}-${deletedUser.id}`} className="transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10">

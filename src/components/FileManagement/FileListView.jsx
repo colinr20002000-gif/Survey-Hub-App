@@ -363,7 +363,7 @@ const FileListItem = ({
 
   return (
     <div
-      className={`flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200 group ${file.isFolder ? 'cursor-pointer' : ''}`}
+      className={`flex items-center gap-4 p-4 transition-all duration-200 group ${file.isFolder ? 'cursor-pointer' : ''}`}
       onClick={handleClick}
     >
 

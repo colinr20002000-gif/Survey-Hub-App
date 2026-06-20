@@ -535,7 +535,7 @@ const AuditTrailPage = () => {
 
                                 return (
                                     <React.Fragment key={log.id}>
-                                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-600/20 cursor-pointer" onClick={() => toggleRowExpansion(log.id)}>
+                                        <tr className="cursor-pointer" onClick={() => toggleRowExpansion(log.id)}>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm text-gray-900 dark:text-white font-mono">
                                                     {formatRelativeTime(log.timestamp)}
