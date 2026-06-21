@@ -39,12 +39,15 @@ const ResourceAnalyticsPage = () => {
         return localStorage.getItem('resourceAnalytics_customEndDate') || '';
     });
     const [selectedProjects, setSelectedProjects] = useState([]);
+    const [projectSearchTerm, setProjectSearchTerm] = useState('');
     const [selectedClients, setSelectedClients] = useState([]);
+    const [clientSearchTerm, setClientSearchTerm] = useState('');
     const [selectedShifts, setSelectedShifts] = useState([]);
     const [selectedDaysOfWeek, setSelectedDaysOfWeek] = useState([]);
     const [selectedMonths, setSelectedMonths] = useState([]);
     const [selectedLeaveTypes, setSelectedLeaveTypes] = useState([]);
     const [selectedUsers, setSelectedUsers] = useState([]);
+    const [userSearchTerm, setUserSearchTerm] = useState('');
     const [selectedDepartments, setSelectedDepartments] = useState([]);
     const [selectedStatuses, setSelectedStatuses] = useState([]);
 
@@ -250,6 +253,24 @@ const ResourceAnalyticsPage = () => {
     useEffect(() => {
         localStorage.setItem('resourceAnalytics_customEndDate', customEndDate);
     }, [customEndDate]);
+
+    useEffect(() => {
+        if (!projectsDropdownOpen) {
+            setProjectSearchTerm('');
+        }
+    }, [projectsDropdownOpen]);
+
+    useEffect(() => {
+        if (!clientsDropdownOpen) {
+            setClientSearchTerm('');
+        }
+    }, [clientsDropdownOpen]);
+
+    useEffect(() => {
+        if (!usersDropdownOpen) {
+            setUserSearchTerm('');
+        }
+    }, [usersDropdownOpen]);
 
     // Get unique values for filters
     const uniqueProjects = useMemo(() => {
@@ -1375,23 +1396,42 @@ const ResourceAnalyticsPage = () => {
                         </button>
                         {projectsDropdownOpen && (
                             <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedProjects(uniqueProjects)}
-                                        className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
-                                    >
-                                        Select All
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedProjects([])}
-                                        className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
-                                    >
-                                        Clear All
-                                    </button>
+                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex flex-col gap-2 z-10">
+                                    <input
+                                        type="text"
+                                        placeholder="Search projects..."
+                                        value={projectSearchTerm}
+                                        onChange={(e) => setProjectSearchTerm(e.target.value)}
+                                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const filtered = uniqueProjects.filter(p => p.toLowerCase().includes(projectSearchTerm.toLowerCase()));
+                                                setSelectedProjects(prev => {
+                                                    const next = new Set([...prev, ...filtered]);
+                                                    return Array.from(next);
+                                                });
+                                            }}
+                                            className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                                        >
+                                            Select All
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const filtered = uniqueProjects.filter(p => p.toLowerCase().includes(projectSearchTerm.toLowerCase()));
+                                                setSelectedProjects(prev => prev.filter(p => !filtered.includes(p)));
+                                            }}
+                                            className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
                                 </div>
-                                {uniqueProjects.map(project => (
+                                {uniqueProjects.filter(p => p.toLowerCase().includes(projectSearchTerm.toLowerCase())).map(project => (
                                     <label
                                         key={project}
                                         className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
@@ -1414,6 +1454,11 @@ const ResourceAnalyticsPage = () => {
                                         )}
                                     </label>
                                 ))}
+                                {uniqueProjects.filter(p => p.toLowerCase().includes(projectSearchTerm.toLowerCase())).length === 0 && (
+                                    <div className="p-3 text-xs text-gray-500 text-center">
+                                        No projects found
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1435,23 +1480,42 @@ const ResourceAnalyticsPage = () => {
                         </button>
                         {clientsDropdownOpen && (
                             <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedClients(uniqueClients)}
-                                        className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
-                                    >
-                                        Select All
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedClients([])}
-                                        className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
-                                    >
-                                        Clear All
-                                    </button>
+                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex flex-col gap-2 z-10">
+                                    <input
+                                        type="text"
+                                        placeholder="Search clients..."
+                                        value={clientSearchTerm}
+                                        onChange={(e) => setClientSearchTerm(e.target.value)}
+                                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const filtered = uniqueClients.filter(c => c.toLowerCase().includes(clientSearchTerm.toLowerCase()));
+                                                setSelectedClients(prev => {
+                                                    const next = new Set([...prev, ...filtered]);
+                                                    return Array.from(next);
+                                                });
+                                            }}
+                                            className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                                        >
+                                            Select All
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const filtered = uniqueClients.filter(c => c.toLowerCase().includes(clientSearchTerm.toLowerCase()));
+                                                setSelectedClients(prev => prev.filter(c => !filtered.includes(c)));
+                                            }}
+                                            className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
                                 </div>
-                                {uniqueClients.map(client => (
+                                {uniqueClients.filter(c => c.toLowerCase().includes(clientSearchTerm.toLowerCase())).map(client => (
                                     <label
                                         key={client}
                                         className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
@@ -1474,6 +1538,11 @@ const ResourceAnalyticsPage = () => {
                                         )}
                                     </label>
                                 ))}
+                                {uniqueClients.filter(c => c.toLowerCase().includes(clientSearchTerm.toLowerCase())).length === 0 && (
+                                    <div className="p-3 text-xs text-gray-500 text-center">
+                                        No clients found
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1795,23 +1864,42 @@ const ResourceAnalyticsPage = () => {
                         </button>
                         {usersDropdownOpen && (
                             <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedUsers(availableUsers.map(u => u.id))}
-                                        className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
-                                    >
-                                        Select All
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedUsers([])}
-                                        className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
-                                    >
-                                        Clear All
-                                    </button>
+                                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 flex flex-col gap-2 z-10">
+                                    <input
+                                        type="text"
+                                        placeholder="Search users..."
+                                        value={userSearchTerm}
+                                        onChange={(e) => setUserSearchTerm(e.target.value)}
+                                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const filtered = availableUsers.filter(u => u.name.toLowerCase().includes(userSearchTerm.toLowerCase()));
+                                                setSelectedUsers(prev => {
+                                                    const next = new Set([...prev, ...filtered.map(u => u.id)]);
+                                                    return Array.from(next);
+                                                });
+                                            }}
+                                            className="flex-1 px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                                        >
+                                            Select All
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const filtered = availableUsers.filter(u => u.name.toLowerCase().includes(userSearchTerm.toLowerCase())).map(u => u.id);
+                                                setSelectedUsers(prev => prev.filter(uid => !filtered.includes(uid)));
+                                            }}
+                                            className="flex-1 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
                                 </div>
-                                {availableUsers.map(user => (
+                                {availableUsers.filter(u => u.name.toLowerCase().includes(userSearchTerm.toLowerCase())).map(user => (
                                     <label
                                         key={user.id}
                                         className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
@@ -1834,10 +1922,16 @@ const ResourceAnalyticsPage = () => {
                                         )}
                                     </label>
                                 ))}
-                                {availableUsers.length === 0 && (
+                                {availableUsers.length === 0 ? (
                                     <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                                         No users match the current filters
                                     </div>
+                                ) : (
+                                    availableUsers.filter(u => u.name.toLowerCase().includes(userSearchTerm.toLowerCase())).length === 0 && (
+                                        <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                            No users found
+                                        </div>
+                                    )
                                 )}
                             </div>
                         )}

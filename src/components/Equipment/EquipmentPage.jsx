@@ -734,15 +734,7 @@ CREATE TABLE equipment_audit_log (
         }
     };
 
-    // Filter equipment based on search and filters
-    const filteredEquipment = equipment.filter(item => {
-        const matchesSearch = item.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-                             item.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-                             item.serial_number?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
-        const matchesCategory = selectedCategories.length === 0 || selectedCategories.length === categories.length || selectedCategories.includes(item.category);
 
-        return matchesSearch && matchesCategory;
-    });
 
     // Get current assignment for equipment
     const getCurrentAssignment = (equipmentId) => {
@@ -1336,6 +1328,33 @@ CREATE TABLE equipment_audit_log (
         }
     };
 
+    // Get the department associated with an equipment item (based on current or last assignment)
+    const getEquipmentDepartment = (item) => {
+        // First check current assignment (if assigned)
+        const currentAssignment = getCurrentAssignment(item.id);
+        const lastAssignment = currentAssignment || getMostRecentAssignment(item.id);
+        
+        if (!lastAssignment) return null;
+        
+        const user = getUserById(lastAssignment.user_id);
+        return user?.department || null;
+    };
+
+    // Filter equipment based on search and filters
+    const filteredEquipment = equipment.filter(item => {
+        const matchesSearch = item.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                             item.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                             item.serial_number?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+        const matchesCategory = selectedCategories.length === 0 || selectedCategories.length === categories.length || selectedCategories.includes(item.category);
+        
+        const eqDept = getEquipmentDepartment(item);
+        const matchesDepartment = selectedDepartments.length === 0 || 
+                                   selectedDepartments.length === departments.length || 
+                                   (eqDept && selectedDepartments.includes(eqDept));
+
+        return matchesSearch && matchesCategory && matchesDepartment;
+    });
+
     const renderEquipmentGrid = (status, title, emptyMessage) => {
         const items = filteredEquipment.filter(item => item.status === status);
         
@@ -1786,45 +1805,39 @@ CREATE TABLE equipment_audit_log (
                         {users.filter(user => {
                             const userAssignments = assignments.filter(a => a.user_id === user.id && !a.returned_at);
 
-                            // Apply category filter to user's assigned equipment
+                            // Apply filters (search, category, department) to user's assigned equipment
                             const filteredUserEquipment = userAssignments.map(assignment => {
-                                const equipmentItem = equipment.find(e => e.id === assignment.equipment_id);
+                                const equipmentItem = filteredEquipment.find(e => e.id === assignment.equipment_id);
                                 return equipmentItem;
-                            }).filter(Boolean).filter(item => {
-                                const matchesCategory = selectedCategories.length === 0 || selectedCategories.length === categories.length || selectedCategories.includes(item.category);
-                                return matchesCategory;
-                            });
+                            }).filter(Boolean);
 
                             const hasAssignedEquipment = filteredUserEquipment.length > 0;
                             const matchesDepartmentFilter = selectedDepartments.length === 0 || selectedDepartments.length === departments.length || selectedDepartments.includes(user.department);
                             const matchesUserFilter = selectedUsers.length === 0 || selectedUsers.length === users.filter(u => u.name && u.name.trim() !== '').length || selectedUsers.includes(user.id);
+
+                            // Filter user out if they don't match user or department filter
+                            if (!matchesUserFilter || !matchesDepartmentFilter) {
+                                return false;
+                            }
+
+                            // If search filter or category filter is active, only show users with matching equipment
+                            const isFilterActive = debouncedSearchTerm.trim() !== '' || (selectedCategories.length > 0 && selectedCategories.length < categories.length);
+                            if (isFilterActive && !hasAssignedEquipment) {
+                                return false;
+                            }
 
                             // If "Only Users with Equipment" is enabled, filter out users without equipment
                             if (showOnlyUsersWithEquipment && !hasAssignedEquipment) {
                                 return false;
                             }
 
-                            // If category filter is active, only show users with equipment in that category
-                            if (selectedCategories.length > 0 && selectedCategories.length < categories.length) {
-                                return hasAssignedEquipment && matchesDepartmentFilter && matchesUserFilter;
-                            }
-
-                            // Show user if they match both department and user filters, OR have assigned equipment (when no specific filters)
-                            if (selectedUsers.length > 0 && selectedUsers.length < users.filter(u => u.name && u.name.trim() !== '').length) {
-                                return matchesUserFilter && (selectedDepartments.length === 0 || selectedDepartments.length === departments.length || matchesDepartmentFilter);
-                            } else {
-                                return matchesDepartmentFilter || hasAssignedEquipment;
-                            }
+                            return true;
                         }).map(user => {
                             const userAssignments = assignments.filter(a => a.user_id === user.id && !a.returned_at);
                             const userEquipment = userAssignments.map(assignment => {
-                                const equipmentItem = equipment.find(e => e.id === assignment.equipment_id);
-                                return { ...equipmentItem, assignment };
-                            }).filter(Boolean).filter(item => {
-                                // Apply category filter to assigned equipment
-                                const matchesCategory = selectedCategories.length === 0 || selectedCategories.length === categories.length || selectedCategories.includes(item.category);
-                                return matchesCategory;
-                            });
+                                const equipmentItem = filteredEquipment.find(e => e.id === assignment.equipment_id);
+                                return equipmentItem ? { ...equipmentItem, assignment } : null;
+                            }).filter(Boolean);
 
                             return (
                                 <div key={user.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
