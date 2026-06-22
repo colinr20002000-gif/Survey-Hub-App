@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, Download, Edit, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Copy, Trash2, PlusCircle, FolderKanban, ClipboardCheck, Check, X, Filter, Download, Edit, Calendar, RefreshCw, Link, Share2, Sun, Moon } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, DragOverlay, rectIntersection } from '@dnd-kit/core';
 import { toPng } from 'html-to-image';
 import { supabase } from '../supabaseClient';
@@ -13,6 +13,7 @@ import { getWeekStartDate, getFiscalWeek, addDays, formatDateForDisplay, formatD
 import { getDepartmentColor, getAvatarText, getAvatarProps } from '../utils/avatarColors';
 import { handleSupabaseError, isRLSError } from '../utils/rlsErrorHandler';
 import { shiftColors, leaveColors } from '../constants';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button, Modal, Input, Combobox } from '../components/ui';
 
 // Draggable wrapper component for resource assignments
@@ -87,15 +88,67 @@ const canEditStatus = (assignment, currentUserId, canEdit24H, canEditAny) => {
     return false;
 };
 
-const ResourceCalendarPage = ({ onViewProject }) => {
-    const { user: currentUser } = useAuth();
-    const { canAllocateResources, canSetAvailabilityStatus, canEditAvailabilityStatus24H, canEditAnyAvailabilityStatus, can } = usePermissions();
-    const { users: allUsers, loading: usersLoading, error: usersError } = useUsers();
-    const { projects } = useProjects();
+const ResourceCalendarPage = ({ onViewProject, isSharedReadOnly = false, shareToken = null }) => {
+    const { theme, toggleTheme } = useTheme();
+
+    let currentUser = null;
+    let canAllocateResources = false;
+    let canSetAvailabilityStatus = false;
+    let canEditAvailabilityStatus24H = false;
+    let canEditAnyAvailabilityStatus = false;
+    let canShareCalendar = false;
+    let can = () => false;
+
+    let contextUsers = [];
+    let contextUsersLoading = false;
+    let contextUsersError = null;
+
+    let contextProjects = [];
+
+    try {
+        const auth = useAuth();
+        currentUser = auth?.user;
+    } catch (e) {}
+
+    try {
+        const permissions = usePermissions();
+        canAllocateResources = !isSharedReadOnly && permissions.canAllocateResources;
+        canSetAvailabilityStatus = !isSharedReadOnly && permissions.canSetAvailabilityStatus;
+        canEditAvailabilityStatus24H = !isSharedReadOnly && permissions.canEditAvailabilityStatus24H;
+        canEditAnyAvailabilityStatus = !isSharedReadOnly && permissions.canEditAnyAvailabilityStatus;
+        canShareCalendar = !isSharedReadOnly && permissions.canShareCalendar;
+        can = (perm) => !isSharedReadOnly && permissions.can(perm);
+    } catch (e) {}
+
+    try {
+        const userCtx = useUsers();
+        contextUsers = userCtx.users || [];
+        contextUsersLoading = userCtx.loading;
+        contextUsersError = userCtx.error;
+    } catch (e) {}
+
+    try {
+        const projCtx = useProjects();
+        contextProjects = projCtx.projects || [];
+    } catch (e) {}
+
     const { showPrivilegeError, showErrorModal, addToast } = useToast();
+
+    const [sharedUsers, setSharedUsers] = useState([]);
+    const [sharedProjects, setSharedProjects] = useState([]);
+    const [sharedLoading, setSharedLoading] = useState(isSharedReadOnly);
+    const [sharedError, setSharedError] = useState(null);
+
+    const allUsers = isSharedReadOnly ? sharedUsers : contextUsers;
+    const usersLoading = isSharedReadOnly ? sharedLoading : contextUsersLoading;
+    const usersError = isSharedReadOnly ? sharedError : contextUsersError;
+    const projects = isSharedReadOnly ? sharedProjects : contextProjects;
+
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     // Fetch departments for filtering
     useEffect(() => {
+        if (isSharedReadOnly) return;
         const fetchDepartments = async () => {
             try {
                 const { data, error } = await supabase
@@ -327,6 +380,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     }, []);
 
     useEffect(() => {
+        if (isSharedReadOnly) return;
         fetchCalendarColours();
 
         // Set up real-time subscription for colour changes
@@ -441,24 +495,134 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 console.log(`🔮 Prefetching allocations for week ${cacheKey}: ${startDateString} to ${endDateString}`);
             }
 
-            // Fetch allocations from both tables with date range filter
-            const fetchWithDateRange = async (tableName) => {
-                const { data, error } = await supabase
-                    .from(tableName)
-                    .select('id, user_id, allocation_date, assignment_type, project_id, project_number, project_name, client, task, shift, time, comment, leave_type, created_at')
-                    .gte('allocation_date', startDateString)
-                    .lte('allocation_date', endDateString)
-                    .order('allocation_date', { ascending: true });
+            let formattedAllocations = {};
 
-                if (error) throw error;
-                return data || [];
-            };
+            if (isSharedReadOnly) {
+                const { data, error } = await supabase.rpc('get_shared_calendar_data', {
+                    token_val: shareToken,
+                    start_date: startDateString,
+                    end_date: endDateString
+                });
 
-            // Fetch from both tables in parallel
-            const [realData, dummyData] = await Promise.all([
-                fetchWithDateRange('resource_allocations'),
-                fetchWithDateRange('dummy_resource_allocations')
-            ]);
+                if (error) {
+                    console.error('Error fetching shared calendar data:', error);
+                    setError(error.message);
+                    setSharedError(error.message);
+                    setSharedLoading(false);
+                    return;
+                }
+
+                // Process data from RPC response
+                const allocationsList = data.allocations || [];
+                const usersList = data.users || [];
+                const projectsList = data.projects || [];
+                const coloursList = data.colours || [];
+                const departmentsList = data.departments || [];
+
+                // 1. Process custom colours
+                const shifts = {};
+                const leaves = {};
+                coloursList.forEach(colour => {
+                    if (colour.category_type === 'shift') {
+                        shifts[colour.category_value] = colour.colour;
+                    } else if (colour.category_type === 'leave') {
+                        leaves[colour.category_value] = colour.colour;
+                    }
+                });
+                setCustomShiftColors(shifts);
+                setCustomLeaveColors(leaves);
+
+                // 2. Set departments, users, projects
+                setDepartments(departmentsList);
+                setSharedUsers(usersList);
+                setSharedProjects(projectsList);
+
+                // 3. Process allocations list into formattedAllocations
+                allocationsList.forEach(allocation => {
+                    if (!allocation.allocation_date) {
+                        return;
+                    }
+                    const dateParts = allocation.allocation_date.split('-').map(Number);
+                    const allocationDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+                    const weekStart = getWeekStartDate(allocationDate);
+                    const weekKey = formatDateForKey(weekStart);
+
+                    if (!formattedAllocations[weekKey]) {
+                        formattedAllocations[weekKey] = {};
+                    }
+                    if (!formattedAllocations[weekKey][allocation.user_id]) {
+                        formattedAllocations[weekKey][allocation.allocation_id || allocation.user_id] = {
+                            assignments: Array(7).fill(null)
+                        };
+                    }
+
+                    const dayIndex = (allocationDate.getDay() + 1) % 7; // Saturday = 0, Sunday = 1, etc.
+
+                    let assignmentData = null;
+                    if (allocation.leave_type) {
+                        assignmentData = {
+                            type: 'leave',
+                            leaveType: allocation.leave_type,
+                            comment: allocation.comment || '',
+                            createdAt: allocation.created_at,
+                            time: allocation.time || null
+                        };
+                    } else if (allocation.assignment_type === 'status') {
+                        assignmentData = {
+                            type: 'status',
+                            status: allocation.comment || '',
+                            createdAt: allocation.created_at
+                        };
+                    } else if (allocation.assignment_type === 'project') {
+                        assignmentData = {
+                            type: 'project',
+                            projectNumber: allocation.project_number || '',
+                            projectName: allocation.project_name || '',
+                            client: allocation.client || '',
+                            task: allocation.task || '',
+                            shift: allocation.shift || '',
+                            time: allocation.time || '',
+                            comment: allocation.comment || '',
+                            projectId: allocation.project_id || null,
+                            createdAt: allocation.created_at
+                        };
+                    }
+
+                    if (dayIndex >= 0 && dayIndex < 7) {
+                        const currentAssignment = formattedAllocations[weekKey][allocation.user_id].assignments[dayIndex];
+
+                        if (!currentAssignment) {
+                            formattedAllocations[weekKey][allocation.user_id].assignments[dayIndex] = assignmentData;
+                        } else if (assignmentData) {
+                            if (Array.isArray(currentAssignment)) {
+                                currentAssignment.push(assignmentData);
+                            } else {
+                                formattedAllocations[weekKey][allocation.user_id].assignments[dayIndex] = [currentAssignment, assignmentData];
+                            }
+                        }
+                    }
+                });
+
+                setSharedLoading(false);
+            } else {
+                // Fetch allocations from both tables with date range filter
+                const fetchWithDateRange = async (tableName) => {
+                    const { data, error } = await supabase
+                        .from(tableName)
+                        .select('id, user_id, allocation_date, assignment_type, project_id, project_number, project_name, client, task, shift, time, comment, leave_type, created_at')
+                        .gte('allocation_date', startDateString)
+                        .lte('allocation_date', endDateString)
+                        .order('allocation_date', { ascending: true });
+
+                    if (error) throw error;
+                    return data || [];
+                };
+
+                // Fetch from both tables in parallel
+                const [realData, dummyData] = await Promise.all([
+                    fetchWithDateRange('resource_allocations'),
+                    fetchWithDateRange('dummy_resource_allocations')
+                ]);
 
                 if (!realData && !dummyData) {
                     console.error('Error fetching resource allocations');
@@ -480,8 +644,6 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 if (realData?.length >= 45000 || dummyData?.length >= 45000) {
                     console.warn('⚠️ WARNING: Approaching row limit! Consider implementing pagination.');
                 }
-
-                const formattedAllocations = {};
 
                 allData.forEach(allocation => {
                     if (!allocation.allocation_date) {
@@ -550,6 +712,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                         }
                     }
                 });
+            }
 
             // Update state with the fetched data
             if (!weekStartOverride) {
@@ -647,6 +810,10 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
     useEffect(() => {
         getResourceAllocations();
+
+        if (isSharedReadOnly) {
+            return;
+        }
 
         console.log('🔌 Setting up real-time subscriptions for resource allocations...');
 
@@ -1404,6 +1571,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
     useEffect(() => {
         const handleKeyDown = (e) => {
+            if (isSharedReadOnly) return;
             // Undo: Ctrl+Z
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
                 handleUndo();
@@ -1469,6 +1637,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
 
     const handleActionClick = (e, userId, dayIndex, assignment, itemIndex = null) => {
+        if (isSharedReadOnly) return;
         e.stopPropagation();
         e.preventDefault();
 
@@ -2340,6 +2509,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
     };
 
     const handleDragEnd = async (event) => {
+        if (isSharedReadOnly) return;
         const { active, over } = event;
 
         console.log('🎯 Drag end event:', { active: active?.id, over: over?.id });
@@ -2682,8 +2852,29 @@ const ResourceCalendarPage = ({ onViewProject }) => {
 
     return (
         <div className="p-4 md:p-6">
+            {isSharedReadOnly && (
+                <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4 mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-orange-500 text-white p-2 rounded-lg font-bold text-xl tracking-wider shadow-md">SH</div>
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Survey Hub</h1>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Resource Planner (Read-Only)</p>
+                        </div>
+                    </div>
+                    <div>
+                        <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors shadow-sm border border-gray-200 dark:border-gray-700">
+                            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Resource Allocation</h1>
+                {!isSharedReadOnly ? (
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Resource Allocation</h1>
+                ) : (
+                    <div></div>
+                )}
                 <div className="flex items-center gap-2 flex-wrap justify-center">
                     <Button variant="outline" onClick={() => setCurrentWeekStart(getWeekStartDate(new Date()))}>This Week</Button>
                     <div className="relative" ref={datePickerRef}>
@@ -2752,14 +2943,23 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                     </div>
                     <Button variant="outline" onClick={() => changeWeek(-1)}><ChevronLeft size={16}/></Button>
                     <Button variant="outline" onClick={() => changeWeek(1)}><ChevronRight size={16}/></Button>
-                    <Button onClick={() => setIsManageUsersModalOpen(true)}><Users size={16} className="mr-2"/>Show/Hide User</Button>
-                    <Button
-                        variant={isShowingOnlyMe ? "primary" : "outline"}
-                        onClick={handleOnlyMe}
-                    >
-                        Only Me
-                    </Button>
-                    {can('SHOW_EXPORT_RESOURCE_CALENDAR_IMAGE') && (
+                    {!isSharedReadOnly && (
+                        <Button onClick={() => setIsManageUsersModalOpen(true)}><Users size={16} className="mr-2"/>Show/Hide User</Button>
+                    )}
+                    {!isSharedReadOnly && (
+                        <Button
+                            variant={isShowingOnlyMe ? "primary" : "outline"}
+                            onClick={handleOnlyMe}
+                        >
+                            Only Me
+                        </Button>
+                    )}
+                    {canShareCalendar && (
+                        <Button onClick={() => setIsShareModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white font-medium">
+                            <Link size={16} className="mr-2" /> Share Calendar
+                        </Button>
+                    )}
+                    {(isSharedReadOnly || can('SHOW_EXPORT_RESOURCE_CALENDAR_IMAGE')) && (
                         <Button
                             onClick={handleExportImage}
                             disabled={isExporting}
@@ -2949,12 +3149,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                                     <DraggableResourceItem
                                                                                                         key={index}
                                                                                                         id={`${user.id}::${dayIndex}::${index}`}
-                                                                                                        disabled={!isDesktop}
+                                                                                                        disabled={!isDesktop || isSharedReadOnly}
                                                                                                     >
                                                                                                         <div
                                                                                                             data-assignment="true"
                                                                                                             className={`p-1.5 rounded text-center ${projColor} relative group overflow-hidden h-full flex flex-col justify-center`}
-                                                                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
+                                                                                                            onContextMenu={isDesktop && !isSharedReadOnly ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
                                                                                                             style={projInlineStyle}
                                                                                                         >
                                                                                                             <p className="font-bold text-sm mb-0.5 truncate">{item.projectNumber}</p>
@@ -2976,12 +3176,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                                     <DraggableResourceItem
                                                                                                         key={index}
                                                                                                         id={`${user.id}::${dayIndex}::${index}`}
-                                                                                                        disabled={!isDesktop}
+                                                                                                        disabled={!isDesktop || isSharedReadOnly}
                                                                                                     >
                                                                                                         <div
                                                                                                             data-assignment="true"
                                                                                                             className={`p-1.5 rounded-md h-full flex flex-col justify-center font-bold ${leaveColor}`}
-                                                                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
+                                                                                                            onContextMenu={isDesktop && !isSharedReadOnly ? (e) => handleActionClick(e, user.id, dayIndex, assignment, index) : undefined}
                                                                                                             style={leaveInlineStyle}
                                                                                                         >
                                                                                                             <div className={`text-center ${hasComment ? 'mb-0.5' : ''} text-sm truncate`}>{item.leaveType}</div>
@@ -3015,12 +3215,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                 cellContent = (
                                                                                     <DraggableResourceItem
                                                                                         id={`${user.id}::${dayIndex}::0`}
-                                                                                        disabled={!isDesktop}
+                                                                                        disabled={!isDesktop || isSharedReadOnly}
                                                                                     >
                                                                                         <div
                                                                                             data-assignment="true"
                                                                                             className={`p-2 rounded-md h-full flex flex-col justify-center font-bold ${cellColor}`}
-                                                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                                                            onContextMenu={isDesktop && !isSharedReadOnly ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                                                             style={leaveInlineStyle}
                                                                                         >
                                                                                             <div className={`text-center ${hasComment || assignment.time ? 'mb-1' : ''} text-lg truncate`}>{assignment.leaveType}</div>
@@ -3056,7 +3256,7 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                     <div
                                                                                         data-assignment="true"
                                                                                         className={`flex-1 flex items-center justify-center text-xl font-semibold ${statusColor}`}
-                                                                                        onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                                                        onContextMenu={isDesktop && !isSharedReadOnly ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                                                     >
                                                                                         {assignment.status}
                                                                                     </div>
@@ -3070,12 +3270,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                                                                 cellContent = (
                                                                                     <DraggableResourceItem
                                                                                         id={`${user.id}::${dayIndex}::0`}
-                                                                                        disabled={!isDesktop}
+                                                                                        disabled={!isDesktop || isSharedReadOnly}
                                                                                     >
                                                                                         <div
                                                                                             data-assignment="true"
                                                                                             className={`p-2 rounded-md h-full flex flex-col justify-center text-center ${cellColor}`}
-                                                                                            onContextMenu={isDesktop ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
+                                                                                            onContextMenu={isDesktop && !isSharedReadOnly ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
                                                                                             style={projectInlineStyle}
                                                                                         >
                                                                                                                                                                                                                         <p className="font-bold text-lg mb-0.5 truncate">{assignment.projectNumber}</p>
@@ -3114,16 +3314,16 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                                 
                                                                         const isSelected = selectedCells.has(`${user.id}::${dayIndex}`);
                                                                         const isPartOfMultiSelect = isSelected && selectedCells.size > 1;
-                                                                        const shouldShowContextMenu = showContextMenuButton || isPartOfMultiSelect;
+                                                                        const shouldShowContextMenu = !isSharedReadOnly && (showContextMenuButton || isPartOfMultiSelect);
 
                                                                         return (
                                                                             <td key={date.toISOString()} className="p-2 relative group">
-                                                                                <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop}>
+                                                                                <DroppableCell id={`drop::${user.id}::${dayIndex}`} disabled={!isDesktop || isSharedReadOnly}>
                                                                                     <div
                                                                                         data-empty={!assignment ? "true" : undefined}
                                                                                         onContextMenu={isDesktop && shouldShowContextMenu ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined}
-                                                                                        onClick={isDesktop ? (e) => handleCellSelection(e, user.id, dayIndex) : (showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined)}
-                                                                                        className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${!assignment && isDesktop ? 'cursor-grab hover:cursor-grab' : ''} ${isSelected ? 'ring-4 ring-blue-500 z-20' : ''}`}
+                                                                                        onClick={isSharedReadOnly ? undefined : (isDesktop ? (e) => handleCellSelection(e, user.id, dayIndex) : (showContextMenuButton ? (e) => handleActionClick(e, user.id, dayIndex, assignment) : undefined))}
+                                                                                        className={`w-full h-full text-left rounded-md flex flex-col overflow-hidden ${!assignment && isDesktop && !isSharedReadOnly ? 'cursor-grab hover:cursor-grab' : ''} ${isSelected ? 'ring-4 ring-blue-500 z-20' : ''}`}
                                                                                     >
                                                                                         {cellContent}
                                                                                     </div>
@@ -3196,6 +3396,12 @@ const ResourceCalendarPage = ({ onViewProject }) => {
                 allUsers={allUsers}
                 visibleUserIds={visibleUserIds}
             />
+            {canShareCalendar && (
+                <ShareLinksModal
+                    isOpen={isShareModalOpen}
+                    onClose={() => setIsShareModalOpen(false)}
+                />
+            )}
         </div>
     );
 };
@@ -3401,6 +3607,275 @@ const ContextMenu = ({ x, y, cellData, clipboard, onAction, onClose, canAllocate
                 </>
             )}
         </div>
+    );
+};
+
+const ShareLinksModal = ({ isOpen, onClose }) => {
+    const { addToast } = useToast();
+    const [shares, setShares] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [name, setName] = useState('');
+    const [expiresAt, setExpiresAt] = useState('');
+
+    const fetchShares = async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('calendar_shares')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            setShares(data || []);
+        } catch (err) {
+            console.error('Error fetching calendar shares:', err);
+            addToast({ message: 'Failed to load share links', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchShares();
+            setName('');
+            setExpiresAt('');
+        }
+    }, [isOpen]);
+
+    const handleCreateShare = async (e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+
+        try {
+            const { data, error } = await supabase
+                .from('calendar_shares')
+                .insert([{
+                    name: name.trim(),
+                    expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+                    is_active: true
+                }])
+                .select();
+
+            if (error) throw error;
+
+            addToast({ message: 'Calendar share link generated successfully!', type: 'success' });
+            setName('');
+            setExpiresAt('');
+            fetchShares();
+        } catch (err) {
+            console.error('Error creating share:', err);
+            addToast({ message: 'Failed to generate share link', type: 'error' });
+        }
+    };
+
+    const handleToggleActive = async (id, currentStatus) => {
+        try {
+            const { error } = await supabase
+                .from('calendar_shares')
+                .update({ is_active: !currentStatus })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            addToast({ message: `Share link ${!currentStatus ? 'enabled' : 'disabled'}`, type: 'success' });
+            fetchShares();
+        } catch (err) {
+            console.error('Error updating share status:', err);
+            addToast({ message: 'Failed to update share link status', type: 'error' });
+        }
+    };
+
+    const handleRegenerateToken = async (id) => {
+        if (!window.confirm('Are you sure you want to regenerate this link? The old link will stop working immediately.')) {
+            return;
+        }
+
+        try {
+            const newToken = crypto.randomUUID();
+            const { error } = await supabase
+                .from('calendar_shares')
+                .update({ token: newToken })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            addToast({ message: 'Share link regenerated successfully!', type: 'success' });
+            fetchShares();
+        } catch (err) {
+            console.error('Error regenerating token:', err);
+            addToast({ message: 'Failed to regenerate share link', type: 'error' });
+        }
+    };
+
+    const handleDeleteShare = async (id) => {
+        if (!window.confirm('Are you sure you want to permanently delete this share link? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('calendar_shares')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            addToast({ message: 'Share link deleted successfully!', type: 'success' });
+            fetchShares();
+        } catch (err) {
+            console.error('Error deleting share link:', err);
+            addToast({ message: 'Failed to delete share link', type: 'error' });
+        }
+    };
+
+    const handleCopy = (token) => {
+        const shareUrl = `${window.location.origin}/?shared_calendar=${token}`;
+        navigator.clipboard.writeText(shareUrl)
+            .then(() => {
+                addToast({ message: 'Link copied to clipboard!', type: 'success' });
+            })
+            .catch(err => {
+                console.error('Failed to copy text: ', err);
+                addToast({ message: 'Failed to copy link', type: 'error' });
+            });
+    };
+
+    const isExpired = (expiryStr) => {
+        if (!expiryStr) return false;
+        return new Date(expiryStr) < new Date();
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Manage Shared Calendar Links" size="lg">
+            <div className="p-6 max-h-[85vh] overflow-y-auto">
+                <form onSubmit={handleCreateShare} className="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-200 dark:border-gray-700/80 mb-6 space-y-4">
+                    <h3 className="font-semibold text-sm text-gray-800 dark:text-gray-200">Create New Share Link</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Subcontractor/Purpose Name</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Subcontractor X Plan"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Expiration Date (Optional)</label>
+                            <input
+                                type="datetime-local"
+                                value={expiresAt}
+                                onChange={(e) => setExpiresAt(e.target.value)}
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end">
+                        <Button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white font-medium">
+                             Generate Share Link
+                        </Button>
+                    </div>
+                </form>
+
+                <div className="space-y-4">
+                    <h3 className="font-semibold text-sm text-gray-800 dark:text-gray-200">Active Share Links</h3>
+                    {loading && shares.length === 0 ? (
+                        <div className="text-center py-6 text-gray-500">Loading shares...</div>
+                    ) : shares.length === 0 ? (
+                        <div className="text-center py-6 text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl">
+                            No shared calendar links created yet.
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl">
+                            <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                                <thead className="text-xs uppercase bg-gray-100 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300">
+                                    <tr>
+                                        <th className="px-4 py-3">Name</th>
+                                        <th className="px-4 py-3">Expires</th>
+                                        <th className="px-4 py-3 text-center">Status</th>
+                                        <th className="px-4 py-3 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900/40">
+                                    {shares.map((share) => {
+                                        const expired = isExpired(share.expires_at);
+                                        const active = share.is_active && !expired;
+
+                                        return (
+                                            <tr key={share.id} className="border-b border-gray-100 dark:border-gray-800 last:border-b-0">
+                                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white truncate max-w-[200px]" title={share.name}>
+                                                    {share.name}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap text-xs">
+                                                    {share.expires_at ? new Date(share.expires_at).toLocaleString() : 'Never'}
+                                                </td>
+                                                <td className="px-4 py-3 text-center whitespace-nowrap">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                                        active 
+                                                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
+                                                            : expired 
+                                                                ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' 
+                                                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                                    }`}>
+                                                        {active ? 'Active' : expired ? 'Expired' : 'Disabled'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleCopy(share.token)}
+                                                        title="Copy URL"
+                                                        disabled={!active}
+                                                        className="p-1 h-auto"
+                                                    >
+                                                        <Copy size={14} />
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleToggleActive(share.id, share.is_active)}
+                                                        title={share.is_active ? "Disable Link" : "Enable Link"}
+                                                        disabled={expired}
+                                                        className="p-1 h-auto"
+                                                    >
+                                                        {share.is_active ? <X size={14} className="text-red-500" /> : <Check size={14} className="text-green-500" />}
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleRegenerateToken(share.id)}
+                                                        title="Regenerate URL (invalidates old)"
+                                                        className="p-1 h-auto"
+                                                    >
+                                                        <RefreshCw size={14} />
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteShare(share.id)}
+                                                        title="Delete Link"
+                                                        className="p-1 h-auto text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex justify-end pt-6 border-t border-gray-200 dark:border-gray-700 mt-6">
+                    <Button variant="outline" onClick={onClose}>Close</Button>
+                </div>
+            </div>
+        </Modal>
     );
 };
 

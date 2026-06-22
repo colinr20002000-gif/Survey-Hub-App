@@ -5770,6 +5770,10 @@ const AppContent = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [isPasswordReset, setIsPasswordReset] = React.useState(false);
 
+  // Extract shared calendar token if present in URL
+  const params = React.useMemo(() => new URLSearchParams(window.location.search), []);
+  const shareToken = params.get('shared_calendar') || params.get('share');
+
   // Check if URL has a password reset token (Supabase redirects with hash)
   React.useEffect(() => {
     const checkPasswordReset = () => {
@@ -5804,6 +5808,27 @@ const AppContent = () => {
     window.addEventListener('hashchange', checkPasswordReset);
     return () => window.removeEventListener('hashchange', checkPasswordReset);
   }, [user, isAuthenticated]);
+
+  // Render shared read-only view directly without auth if token is present
+  if (shareToken) {
+    const LoadingFallback = () => (
+      <div className="flex justify-center items-center h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      </div>
+    );
+
+    return (
+      <ThemeProvider>
+        <ToastProvider>
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+            <Suspense fallback={<LoadingFallback />}>
+              <ResourceCalendarPage isSharedReadOnly={true} shareToken={shareToken} />
+            </Suspense>
+          </div>
+        </ToastProvider>
+      </ThemeProvider>
+    );
+  }
 
   if (isLoading && !user) {
     return <LoadingScreen />;

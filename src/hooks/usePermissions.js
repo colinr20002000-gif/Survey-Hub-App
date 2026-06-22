@@ -134,6 +134,7 @@ export const usePermissions = () => {
             canDeleteVehicleComments: can('DELETE_VEHICLE_COMMENTS'),
 
             canAllocateResources: can('ALLOCATE_RESOURCES'),
+            canShareCalendar: can('SHARE_RESOURCE_CALENDAR'),
             canSetAvailabilityStatus: can('SET_AVAILABILITY_STATUS'),
             canEditAvailabilityStatus24H: can('EDIT_AVAILABILITY_STATUS_24H'),
             canEditAnyAvailabilityStatus: can('EDIT_ANY_AVAILABILITY_STATUS'),
