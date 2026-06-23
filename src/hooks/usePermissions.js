@@ -130,6 +130,7 @@ export const usePermissions = () => {
             canReturnVehicles: can('RETURN_VEHICLES'),
             canAddVehicles: can('ADD_VEHICLES'),
             canViewVehicleSummary: can('VIEW_VEHICLE_SUMMARY'),
+            canShowVehicleSummaryManageButton: can('SHOW_VEHICLE_SUMMARY_MANAGE_BUTTON'),
             canAddVehicleComments: can('ADD_VEHICLE_COMMENTS'),
             canDeleteVehicleComments: can('DELETE_VEHICLE_COMMENTS'),
 

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { Card } from '../components/ui';
-import { Car, Search, ArrowUpDown, ArrowUp, ArrowDown, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Card, Modal, Combobox } from '../components/ui';
+import { Car, Search, ArrowUpDown, ArrowUp, ArrowDown, Loader2, Image as ImageIcon, Edit } from 'lucide-react';
 import { formatDateForDisplay } from '../utils/dateHelpers';
 import { getDepartmentColor } from '../utils/avatarColors';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../contexts/AuthContext';
 import html2canvas from 'html2canvas';
 
 const oklchCache = new Map();
@@ -87,6 +89,9 @@ const restoreStylesheets = (backups) => {
 };
 
 const VehicleSummaryPage = () => {
+    const { user: currentUser } = useAuth();
+    const { canShowVehicleSummaryManageButton } = usePermissions();
+
     const [vehicles, setVehicles] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [users, setUsers] = useState([]);
@@ -98,7 +103,111 @@ const VehicleSummaryPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'assignedTo', direction: 'ascending' });
     const [exporting, setExporting] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false);
     const tableRef = useRef(null);
+
+    // Edit vehicle modal state
+    const [showEditVehicle, setShowEditVehicle] = useState(false);
+    const [vehicleToEdit, setVehicleToEdit] = useState(null);
+    const [categories, setCategories] = useState([]);
+    const [error, setError] = useState('');
+    const [vehicleForm, setVehicleForm] = useState({
+        name: '',
+        description: '',
+        category: '',
+        serial_number: '',
+        status: 'available',
+        purchase_date: '',
+        warranty_expiry: '',
+        location: ''
+    });
+
+    // Handle vehicle edit submit
+    const handleEditVehicle = async (e) => {
+        e.preventDefault();
+        try {
+            // Check if serial number is being changed and if it already exists
+            if (vehicleForm.serial_number !== vehicleToEdit.serial_number && vehicleForm.serial_number?.trim()) {
+                const { data: existingVehicle, error: checkError } = await supabase
+                    .from('vehicles')
+                    .select('id')
+                    .eq('serial_number', vehicleForm.serial_number)
+                    .neq('id', vehicleToEdit.id)
+                    .single();
+
+                if (checkError && checkError.code !== 'PGRST116') {
+                    throw checkError;
+                }
+
+                if (existingVehicle) {
+                    setError('Serial number already exists. Please use a unique serial number.');
+                    return;
+                }
+            }
+
+            // Prepare form data with proper null handling for dates
+            const formData = {
+                name: vehicleForm.name.trim(),
+                description: vehicleForm.description?.trim() || '',
+                category: vehicleForm.category || '',
+                serial_number: vehicleForm.serial_number?.trim() || null,
+                status: vehicleForm.status || 'available',
+                purchase_date: vehicleForm.purchase_date || null,
+                warranty_expiry: vehicleForm.warranty_expiry || null,
+                location: vehicleForm.location?.trim() || '',
+                updated_by: currentUser.id
+            };
+
+            const { data, error } = await supabase
+                .from('vehicles')
+                .update(formData)
+                .eq('id', vehicleToEdit.id)
+                .select();
+
+            if (error) {
+                if (error.code === '23505' && error.message.includes('vehicles_serial_number_key')) {
+                    setError('Serial number already exists. Please use a unique serial number.');
+                } else {
+                    setError(`Error updating vehicle: ${error.message}`);
+                }
+                return;
+            }
+
+            // Update vehicle in state
+            setVehicles(prev => prev.map(veh =>
+                veh.id === vehicleToEdit.id ? data[0] : veh
+            ));
+
+            setShowEditVehicle(false);
+            setVehicleToEdit(null);
+        } catch (err) {
+            if (err.message.includes('duplicate key value violates unique constraint')) {
+                setError('Serial number already exists. Please use a unique serial number.');
+            } else {
+                setError(`Error updating vehicle: ${err.message}`);
+            }
+        }
+    };
+
+    // Open edit vehicle modal
+    const handleOpenEdit = (itemId) => {
+        const vehicle = vehicles.find(v => v.id === itemId);
+        if (!vehicle) return;
+
+        setError('');
+        setVehicleForm({
+            name: vehicle.name || '',
+            description: vehicle.description || '',
+            category: vehicle.category || '',
+            serial_number: vehicle.serial_number || '',
+            status: vehicle.status || 'available',
+            purchase_date: vehicle.purchase_date ? new Date(vehicle.purchase_date).toISOString().split('T')[0] : '',
+            warranty_expiry: vehicle.warranty_expiry ? new Date(vehicle.warranty_expiry).toISOString().split('T')[0] : '',
+            location: vehicle.location || ''
+        });
+        setVehicleToEdit(vehicle);
+        setShowEditVehicle(true);
+    };
 
     const handleExportImage = async () => {
         if (!tableRef.current) return;
@@ -126,6 +235,12 @@ const VehicleSummaryPage = () => {
                 allowTaint: true,
                 backgroundColor: null,
                 onclone: (clonedDoc, clonedElement) => {
+                    // Hide any no-export elements (like the Actions column header & cells) in the clone
+                    const noExportElements = clonedElement.querySelectorAll('.no-export');
+                    noExportElements.forEach(el => {
+                        el.style.setProperty('display', 'none', 'important');
+                    });
+
                     // 2. Prevent overflow cropping on the cloned element
                     const tableElement = clonedElement.querySelector('table');
                     if (tableElement) {
@@ -362,6 +477,26 @@ const VehicleSummaryPage = () => {
             setAllTripLogs(mileageLogsData || []);
             setMonthlyLogStatuses(monthlyLogsData || []);
 
+            // Load vehicle categories for the edit dropdown
+            try {
+                const { data: categoryData } = await supabase
+                    .from('dropdown_categories')
+                    .select('id, name')
+                    .eq('name', 'vehicle_type')
+                    .single();
+
+                if (categoryData) {
+                    const { data: itemsData } = await supabase
+                        .from('dropdown_items')
+                        .select('id, value')
+                        .eq('category_id', categoryData.id)
+                        .order('value');
+                    setCategories(itemsData || []);
+                }
+            } catch (categoryError) {
+                console.error('Error fetching categories in VehicleSummaryPage:', categoryError);
+            }
+
         } catch (error) {
             console.error('Error fetching vehicle summary data:', error);
         } finally {
@@ -370,6 +505,9 @@ const VehicleSummaryPage = () => {
     };
 
     const requestSort = (key) => {
+        const header = tableHeaders.find(h => h.key === key);
+        if (header?.nonSortable) return;
+
         let direction = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
             direction = 'descending';
@@ -378,6 +516,9 @@ const VehicleSummaryPage = () => {
     };
 
     const getSortIndicator = (key) => {
+        const header = tableHeaders.find(h => h.key === key);
+        if (header?.nonSortable) return null;
+
         if (sortConfig.key !== key) return <ArrowUpDown className="w-3 h-3 ml-1.5 inline-block align-middle text-orange-200" />;
         return sortConfig.direction === 'ascending' ? <ArrowUp className="w-3 h-3 ml-1.5 inline-block align-middle text-white" /> : <ArrowDown className="w-3 h-3 ml-1.5 inline-block align-middle text-white" />;
     };
@@ -584,6 +725,24 @@ const VehicleSummaryPage = () => {
         return data;
     }, [summaryData, searchTerm, sortConfig]);
 
+    const tableHeaders = useMemo(() => {
+        const headers = [
+            { key: 'name', label: 'Vehicle Name' },
+            { key: 'registration', label: 'Registration' },
+            { key: 'assignedTo', label: 'Assigned To' },
+            { key: 'currentMileage', label: 'Current Mileage' },
+            { key: 'motDueDate', label: 'MOT Due Date' },
+            { key: 'lastInspected', label: 'Last Inspected' },
+            { key: 'nextDue', label: 'Next Due' },
+            { key: 'overdueCount', label: 'Mileage Overdue' },
+            { key: 'category', label: 'Category' },
+        ];
+        if (canShowVehicleSummaryManageButton && isEditMode) {
+            headers.push({ key: 'actions', label: 'Actions', nonSortable: true });
+        }
+        return headers;
+    }, [canShowVehicleSummaryManageButton, isEditMode]);
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -591,18 +750,6 @@ const VehicleSummaryPage = () => {
             </div>
         );
     }
-
-    const tableHeaders = [
-        { key: 'name', label: 'Vehicle Name' },
-        { key: 'registration', label: 'Registration' },
-        { key: 'assignedTo', label: 'Assigned To' },
-        { key: 'currentMileage', label: 'Current Mileage' },
-        { key: 'motDueDate', label: 'MOT Due Date' },
-        { key: 'lastInspected', label: 'Last Inspected' },
-        { key: 'nextDue', label: 'Next Due' },
-        { key: 'overdueCount', label: 'Mileage Overdue' },
-        { key: 'category', label: 'Category' },
-    ];
 
     return (
         <div className="p-4 md:p-6 lg:p-8">
@@ -627,6 +774,20 @@ const VehicleSummaryPage = () => {
                                 className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm transition-all"
                             />
                         </div>
+
+                        {canShowVehicleSummaryManageButton && (
+                            <button
+                                onClick={() => setIsEditMode(!isEditMode)}
+                                className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium shadow-sm transition-all cursor-pointer border ${
+                                    isEditMode
+                                        ? 'bg-red-500 hover:bg-red-600 text-white border-red-500'
+                                        : 'bg-white hover:bg-gray-50 border-gray-300 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                }`}
+                            >
+                                <Edit size={18} />
+                                <span>{isEditMode ? 'Exit Manage Mode' : 'Manage'}</span>
+                            </button>
+                        )}
 
                         <button
                             onClick={handleExportImage}
@@ -660,7 +821,7 @@ const VehicleSummaryPage = () => {
                                         <th
                                             key={header.key}
                                             scope="col"
-                                            className="px-3 py-4 cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700 transition-colors text-center whitespace-nowrap"
+                                            className={`${header.key === 'actions' ? 'no-export cursor-default' : 'cursor-pointer hover:bg-orange-600 dark:hover:bg-orange-700'} px-3 py-4 transition-colors text-center whitespace-nowrap`}
                                             onClick={() => requestSort(header.key)}
                                         >
                                             <div className="inline-block align-middle">
@@ -730,11 +891,22 @@ const VehicleSummaryPage = () => {
                                                     {item.category}
                                                 </span>
                                             </td>
+                                            {canShowVehicleSummaryManageButton && isEditMode && (
+                                                <td className="no-export px-3 py-4 text-center whitespace-nowrap">
+                                                    <button
+                                                        onClick={() => handleOpenEdit(item.id)}
+                                                        className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-medium shadow-sm transition-colors cursor-pointer inline-flex items-center gap-1"
+                                                    >
+                                                        <Edit className="w-3.5 h-3.5" />
+                                                        <span>Select</span>
+                                                    </button>
+                                                </td>
+                                            )}
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="9" className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan={canShowVehicleSummaryManageButton && isEditMode ? 10 : 9} className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
                                             <div className="flex flex-col items-center gap-2">
                                                 <Car className="w-8 h-8 opacity-20" />
                                                 <p>No vehicles found matching your search.</p>
@@ -747,6 +919,115 @@ const VehicleSummaryPage = () => {
                     </div>
                 </div>
             </div>
+            {/* Edit Vehicle Modal */}
+            <Modal
+                isOpen={showEditVehicle}
+                onClose={() => {
+                    setShowEditVehicle(false);
+                    setVehicleToEdit(null);
+                }}
+                title="Edit Vehicle"
+            >
+                <form onSubmit={handleEditVehicle} className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+                    {error && (
+                        <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded-lg">
+                            {error}
+                        </div>
+                    )}
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name *</label>
+                            <input
+                                type="text"
+                                value={vehicleForm.name}
+                                onChange={(e) => setVehicleForm({ ...vehicleForm, name: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Description</label>
+                            <textarea
+                                value={vehicleForm.description}
+                                onChange={(e) => setVehicleForm({ ...vehicleForm, description: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                rows="3"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Category</label>
+                            <Combobox
+                                value={vehicleForm.category}
+                                onChange={(e) => setVehicleForm({ ...vehicleForm, category: e.target.value })}
+                                options={categories.map(cat => cat.value)}
+                                placeholder="Select Category"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Registration</label>
+                            <input
+                                type="text"
+                                value={vehicleForm.serial_number}
+                                onChange={(e) => setVehicleForm({ ...vehicleForm, serial_number: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Status</label>
+                            <Combobox
+                                value={vehicleForm.status === 'available' ? 'Available' : (vehicleForm.status === 'maintenance' ? 'Maintenance' : '')}
+                                onChange={(e) => setVehicleForm({ ...vehicleForm, status: e.target.value.toLowerCase() })}
+                                options={['Available', 'Maintenance']}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Purchase Date</label>
+                            <input
+                                type="date"
+                                value={vehicleForm.purchase_date}
+                                onChange={(e) => setVehicleForm({ ...vehicleForm, purchase_date: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">MOT Expiry</label>
+                            <input
+                                type="date"
+                                value={vehicleForm.warranty_expiry}
+                                onChange={(e) => setVehicleForm({ ...vehicleForm, warranty_expiry: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Location</label>
+                            <input
+                                type="text"
+                                value={vehicleForm.location}
+                                onChange={(e) => setVehicleForm({ ...vehicleForm, location: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex gap-3 mt-6">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowEditVehicle(false);
+                                setVehicleToEdit(null);
+                            }}
+                            className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 py-2 px-4 rounded-lg font-medium shadow-sm transition-colors cursor-pointer border border-gray-300 dark:border-gray-600"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg font-medium shadow-sm transition-colors cursor-pointer"
+                        >
+                            Update Vehicle
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 };
